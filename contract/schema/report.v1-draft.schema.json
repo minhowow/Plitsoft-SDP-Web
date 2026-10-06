@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "report.v1-draft.schema.json",
+  "title": "policypack 결과 JSON v1 초안 (웹이 CLI 에 요청하는 모양)",
+  "description": "아직 CLI 가 내지 않는다. 현재 출력(report.cli-0.3.schema.json)에 웹이 필요한 것만 더한 요청안이다. 필드 이름과 schema_version 값은 CLI 쪽이 정하면 그에 맞춰 바꾼다. CLI 가 공식 스키마를 내면 이 파일을 그 사본으로 바꾸고 이름에서 draft 를 뗀다(관문 G1).",
+  "type": "object",
+  "required": ["schema_version", "tool", "run", "findings"],
+  "properties": {
+    "schema_version": {
+      "const": "report/1-draft",
+      "description": "모르는 판은 웹이 거부한다. 지금은 tool.version 뿐이라 출력 모양이 바뀌어도 알 수 없다."
+    },
+    "tool": { "$ref": "report.cli-0.3.schema.json#/properties/tool" },
+    "run": {
+      "allOf": [
+        { "$ref": "report.cli-0.3.schema.json#/$defs/run" },
+        {
+          "type": "object",
+          "required": ["policies"],
+          "properties": {
+            "policies": {
+              "type": "array",
+              "description": "팩의 모든 정책마다 한 줄. 발견이 없는 정책도 낸다. 이것이 있어야 '충족 근거 발견'과 '적용 신호 없음'을 나눠 보여 줄 수 있다.",
+              "items": { "$ref": "#/$defs/policySummary" }
+            },
+            "commit": { "type": ["string", "null"], "description": "검사한 커밋. permalink 와 캐시 키에 쓴다." },
+            "remote": { "type": ["string", "null"], "description": "저장소 원격 주소." }
+          }
+        }
+      ]
+    },
+    "findings": {
+      "type": "array",
+      "items": { "$ref": "report.cli-0.3.schema.json#/$defs/finding" }
+    }
+  },
+  "$defs": {
+    "policySummary": {
+      "type": "object",
+      "required": ["policy", "units", "needs_review", "uncertain", "compliant", "evidence"],
+      "properties": {
+        "policy": { "type": "string" },
+        "units": { "type": "integer", "description": "이 정책의 적용 조건이 참 또는 모름이어서 판정한 단위 수. 0 이면 적용 신호 없음." },
+        "needs_review": { "type": "integer" },
+        "uncertain": { "type": "integer" },
+        "compliant": { "type": "integer" },
+        "evidence": {
+          "type": "array",
+          "description": "충족으로 판정한 단위마다, 어느 적법한 대안이 어디서 참이었는지. 코드 내용은 싣지 않고 위치만 싣는다.",
+          "items": {
+            "type": "object",
+            "required": ["file", "line", "rule", "alternative"],
+            "properties": {
+              "file": { "type": "string" },
+              "line": { "type": ["integer", "null"] },
+              "rule": { "type": "string" },
+              "alternative": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

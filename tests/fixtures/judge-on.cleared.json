@@ -1,0 +1,45 @@
+{
+  "$comment": "손으로 만든 시험용 자료다. 실제 판정자를 부른 결과가 아니다. 모양은 CLI 소스(engine.py 의 ai_cleared, ai_dismissed 기록)를 보고 맞췄다. 판정자를 켠 실제 수집본을 만들지는 사람이 정한다(docs/ROADMAP.md).",
+  "tool": {
+    "name": "policypack",
+    "version": "0.3.0.dev0"
+  },
+  "run": {
+    "judge": "claude-cli:haiku",
+    "pack_digest": "fa6fc2b3e62d8d0d",
+    "questions_asked": 1,
+    "ai_answered": 1,
+    "questions_sent": 1,
+    "ai_pending": 0,
+    "ai_cleared": [
+      {
+        "policy": "kr.pipa.22-2",
+        "rule": "signup-without-guard",
+        "file": "src/auth/signup.ts",
+        "line": 5,
+        "alternatives": [
+          {
+            "id": "ai-guard",
+            "cite": "const age = calcKoreanAge(form.birthDate);",
+            "gate": "grounded"
+          }
+        ]
+      }
+    ],
+    "ai_dismissed": [],
+    "engine": {
+      "name": "semgrep",
+      "version": "1.176.1"
+    },
+    "static_seconds": 0,
+    "ai_seconds": 0,
+    "units": 1,
+    "unparsed": [],
+    "skipped": [],
+    "incomplete": [],
+    "engine_errors": [],
+    "coverage_complete": true,
+    "files": 1
+  },
+  "findings": []
+}

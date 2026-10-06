@@ -1,0 +1,118 @@
+{
+  "tool": {
+    "name": "policypack",
+    "version": "0.3.0.dev0"
+  },
+  "run": {
+    "judge": null,
+    "pack_digest": "fa6fc2b3e62d8d0d",
+    "questions_asked": 0,
+    "ai_answered": 0,
+    "questions_sent": 0,
+    "ai_pending": 2,
+    "ai_cleared": [],
+    "ai_dismissed": [],
+    "engine": {
+      "name": "semgrep",
+      "version": "1.176.1"
+    },
+    "static_seconds": 0,
+    "ai_seconds": 0,
+    "units": 2,
+    "unparsed": [],
+    "skipped": [],
+    "incomplete": [],
+    "engine_errors": [],
+    "coverage_complete": true,
+    "files": 1
+  },
+  "findings": [
+    {
+      "policy": "kr.ai-basic-act.31",
+      "rule": "ai-output-without-label",
+      "outcome": "needs-review-uncertain",
+      "file": "src/chat/ChatPanel.tsx",
+      "line": 1,
+      "case": null,
+      "category": "ai-output-label",
+      "title": "생성형 AI 결과물 표시",
+      "law": "인공지능 발전과 신뢰 기반 조성 등에 관한 기본법 제31조 제2항",
+      "ask_developer": "이 화면에 보이는 내용이 생성형 AI 결과물이라는 표시가 있나요? 화면 표시 대신 메타데이터·워터마크 같은 기계 판독 표시를 쓴다면, AI 생성물이라는 사실을 이용자에게 한 번 이상 안내하나요? AI 활용 사실이 서비스명·화면으로 명백하거나 내부 업무 용도로만 쓴다면 시행령 제23조 제4항의 예외가 적용될 수 있으니 검토자에게 알려 주세요.",
+      "untested_reasons": [
+        "no-judge"
+      ],
+      "ai_pending": [
+        "ai-label",
+        "ai-machine-mark"
+      ],
+      "fingerprint": "e10273bc4b082b696663ae1bdcd10e9b",
+      "scope": "file",
+      "region": null,
+      "top_level": false,
+      "anchor_lines": [],
+      "unsatisfied_alternatives": [],
+      "decision_path": [
+        "적용: 정적 true",
+        "대안 label-text: 정적 true",
+        "대안 ai-label: AI 필요(판정자 없음) → 판정에 넣지 않음",
+        "대안 ai-machine-mark: AI 필요(판정자 없음) → 판정에 넣지 않음",
+        "대안 label-text: 약한 근거 — AI 확인 전에는 풀지 않음 → unknown",
+        "→ needs-review-uncertain"
+      ]
+    },
+    {
+      "policy": "kr.ai-basic-act.31-1",
+      "rule": "genai-feature-without-prior-notice",
+      "outcome": "needs-review",
+      "file": "src/chat/ChatPanel.tsx",
+      "line": 1,
+      "case": null,
+      "category": "ai-prior-notice",
+      "title": "생성형 AI 기반 서비스 사전 고지",
+      "law": "인공지능 발전과 신뢰 기반 조성 등에 관한 기본법 제31조 제1항",
+      "ask_developer": "이용자가 이 기능을 처음 쓰기 전에, 이 기능이 생성형 인공지능에 기반하여 운용된다는 사실을 어디서 알리나요?",
+      "untested_reasons": [
+        "no-judge"
+      ],
+      "ai_pending": [
+        "ai-prior-notice"
+      ],
+      "fingerprint": "18107cdbbb0d91b364ee8ae079bbf641",
+      "scope": "file",
+      "region": null,
+      "top_level": false,
+      "anchor_lines": [],
+      "unsatisfied_alternatives": [
+        {
+          "id": "prior-notice-text",
+          "message": "이 서비스가 인공지능에 기반하여 운용된다는 안내 문구가 화면(JSX)에 조건 없이 보이지 않습니다.",
+          "ask_developer": "이용자가 AI 기능을 쓰기 전에 보는 안내 문구는 어디에 있나요? 레이아웃·이전 화면·번역 파일에 있다면 그 위치를, 조건부로 보인다면 그 조건이 첫 이용 전에 참인지 알려 주세요.",
+          "remediation": "입력창이나 생성 버튼보다 먼저 보이는 자리에 \"이 서비스는 생성형 인공지능을 기반으로 운영됩니다\" 같은 문구를 두세요.",
+          "value": "false"
+        },
+        {
+          "id": "notice-component",
+          "message": "AI 고지 컴포넌트로 보이는 요소를 조건 없이 렌더링하지 않습니다.",
+          "ask_developer": "AI 기반 운용 사실을 알리는 컴포넌트가 이 화면에서 늘 보이나요? 플래그 뒤에 있다면 그 플래그는 언제 켜지나요?",
+          "remediation": null,
+          "value": "false"
+        },
+        {
+          "id": "notice-gate-flag",
+          "message": "이용 전에 AI 고지를 확인했는지 검사해 기능 진입을 막는 분기가 보이지 않습니다.",
+          "ask_developer": "처음 쓰는 이용자에게 AI 고지를 먼저 보여 주는 진입 화면이나 모달이 있나요? 이용약관이나 계약서에 AI 기반 운용 사실을 적어 두었다면(시행령 제23조 제1항 제1호) 어느 조항인가요?",
+          "remediation": null,
+          "value": "false"
+        }
+      ],
+      "decision_path": [
+        "적용: 정적 true",
+        "대안 prior-notice-text: 정적 false",
+        "대안 notice-component: 정적 false",
+        "대안 notice-gate-flag: 정적 false",
+        "대안 ai-prior-notice: AI 필요(판정자 없음) → 판정에 넣지 않음",
+        "→ needs-review"
+      ]
+    }
+  ]
+}

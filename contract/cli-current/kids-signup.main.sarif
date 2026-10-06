@@ -1,0 +1,135 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "policypack",
+          "version": "0.3.0.dev0",
+          "rules": [
+            {
+              "id": "kr.pipa.22-2/signup-without-guard",
+              "name": "SignupWithoutGuard",
+              "shortDescription": {
+                "text": "만 14세 미만 아동의 개인정보 처리"
+              },
+              "fullDescription": {
+                "text": "연령 분기 또는 보호자 동의 검증 호출이 가입 경로에 있는지 확인한다"
+              },
+              "help": {
+                "text": "만 14세 미만 사용자를 받는다면 법정대리인 동의를 확인하거나 가입을 막고 있나요?",
+                "markdown": "연령 확인 없이 가입을 받으면 아동의 개인정보를 법정대리인 동의 없이 수집하게 된다.\n\n### 개인정보 보호법 제22조의2 제1항\n\n시행 2026-09-11 · 법령ID 011357 · 원문 확인 2026-09-20\n\n```\n개인정보 보호법 제22조의2(아동의 개인정보 보호)\n시행 2026-09-11\n\n제22조의2(아동의 개인정보 보호)\n① 개인정보처리자는 만 14세 미만 아동의 개인정보를 처리하기 위하여 이 법에 따른 동의를 받아야 할 때에는 그 법정대리인의 동의를 받아야 하며, 법정대리인이 동의하였는지를 확인하여야 한다.\n② 제1항에도 불구하고 법정대리인의 동의를 받기 위하여 필요한 최소한의 정보로서 대통령령으로 정하는 정보는 법정대리인의 동의 없이 해당 아동으로부터 직접 수집할 수 있다.\n③ 개인정보처리자는 만 14세 미만의 아동에게 개인정보 처리와 관련한 사항의 고지 등을 할 때에는 이해하기 쉬운 양식과 명확하고 알기 쉬운 언어를 사용하여야 한다.\n④ 제1항부터 제3항까지에서 규정한 사항 외에 동의 및 동의 확인 방법 등에 필요한 사항은 대통령령으로 정한다.\n```\n\n[법제처 원문](https://www.law.go.kr/법령/개인정보보호법)\n\n재검토 기한 2027-09-20\n\n이 도구는 법률 자문이 아닙니다. 검토가 필요한 지점을 고를 뿐입니다."
+              },
+              "helpUri": "https://www.law.go.kr/법령/개인정보보호법",
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "properties": {
+                "tags": [
+                  "policypack",
+                  "category:child-consent",
+                  "law:개인정보 보호법-제22조의2",
+                  "effective-from:2026-09-11"
+                ],
+                "precision": "medium"
+              }
+            }
+          ]
+        },
+        "extensions": [
+          {
+            "name": "semgrep",
+            "version": "1.176.1"
+          }
+        ]
+      },
+      "invocations": [
+        {
+          "executionSuccessful": true,
+          "toolExecutionNotifications": [
+            {
+              "level": "note",
+              "descriptor": {
+                "id": "policypack/ai-pending"
+              },
+              "message": {
+                "text": "AI 확인이 필요한 곳 1건 — 판정자가 꺼져 있습니다. 경고로 남았습니다(이름만 본 약한 근거로는 풀지 않습니다)."
+              }
+            }
+          ],
+          "properties": {
+            "judge": "none",
+            "aiQuestions": 0,
+            "aiAnswered": 0,
+            "aiQuestionsSent": 0,
+            "aiPending": 1,
+            "aiCleared": [],
+            "aiDismissed": [],
+            "packDigest": "fa6fc2b3e62d8d0d",
+            "coverageComplete": true
+          }
+        }
+      ],
+      "results": [
+        {
+          "ruleId": "kr.pipa.22-2/signup-without-guard",
+          "ruleIndex": 0,
+          "level": "warning",
+          "message": {
+            "text": "만 14세 미만을 가르는 연령 분기가 보이지 않습니다. — 만 14세 미만 사용자를 받는다면 법정대리인 동의를 확인하거나 가입을 막고 있나요?"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/auth/signup.ts"
+                },
+                "region": {
+                  "startLine": 5
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "policypack/v1": "bf1cca67abc9968da536206102dd2019"
+          },
+          "properties": {
+            "outcome": "needs-review",
+            "law": "개인정보 보호법 제22조의2 제1항",
+            "untestedReasons": [
+              "no-judge"
+            ],
+            "aiPending": [
+              "ai-guard"
+            ],
+            "decisionPath": [
+              "적용: 정적 true",
+              "대안 under14-branch: 정적 false",
+              "대안 guardian-call: 정적 false",
+              "대안 ai-guard: AI 필요(판정자 없음) → 판정에 넣지 않음",
+              "→ needs-review"
+            ],
+            "unsatisfiedAlternatives": [
+              {
+                "id": "under14-branch",
+                "message": "만 14세 미만을 가르는 연령 분기가 보이지 않습니다.",
+                "ask_developer": "이 가입 흐름에서 만 14세 미만 사용자를 어떻게 가려내나요?",
+                "remediation": "생년월일로 만 나이를 계산해 14세 미만 분기를 두세요.",
+                "value": "false"
+              },
+              {
+                "id": "guardian-call",
+                "message": "보호자 동의를 확인하는 것으로 보이는 함수 호출이 없습니다.",
+                "ask_developer": "법정대리인 동의를 확인하는 함수 이름이 무엇인가요?",
+                "remediation": null,
+                "value": "false"
+              }
+            ],
+            "scope": "file"
+          }
+        }
+      ]
+    }
+  ]
+}

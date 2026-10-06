@@ -1,0 +1,54 @@
+/** data/pack-meta.json 의 타입. scripts/export-pack-meta.mjs 가 만든다. */
+
+export interface LegalRef {
+  statute: string | null;
+  article: string | null;
+  clause: string | null;
+  /** 화면에 쓰는 이름. CLI 의 findings[].law 와 같은 모양. */
+  label: string;
+  url: string | null;
+  law_id: string | null;
+  effective_from: string | null;
+  text_retrieved: string | null;
+  text_sha256: string | null;
+  text_sha256_matches: boolean | null;
+  /** 조문 원문. 법령은 저작권법 제7조에 따라 자유롭게 실을 수 있다. */
+  text: string | null;
+}
+
+export interface Alternative {
+  id: string | null;
+  kind: "static" | "ai";
+  strength: string | null;
+  question: string | null;
+  evidence: string | null;
+  message: string | null;
+  ask_developer: string | null;
+  remediation: string | null;
+}
+
+export interface Rule {
+  id: string | null;
+  scope: string;
+  applies_question: string | null;
+  applies_when: (string | null)[];
+  alternatives: Alternative[];
+}
+
+export interface PolicyMeta {
+  id: string;
+  category: string | null;
+  title: string;
+  ask_developer: string | null;
+  legal: LegalRef[];
+  review_by: string | null;
+  rationale: { motivation: string | null; implementation: string | null };
+  rules: Rule[];
+}
+
+export interface PackMeta {
+  schema_version: string;
+  generated_by: string;
+  pack: { id: string | null; title: string | null; api_version: string | null; digest: string };
+  policies: PolicyMeta[];
+}

@@ -1,0 +1,78 @@
+{
+  "$comment": "손으로 만든 시험용 자료다. 실제 판정자를 부른 결과가 아니다. 모양은 CLI 소스(engine.py 의 ai_cleared, ai_dismissed 기록)를 보고 맞췄다. 판정자를 켠 실제 수집본을 만들지는 사람이 정한다(docs/ROADMAP.md).",
+  "tool": {
+    "name": "policypack",
+    "version": "0.3.0.dev0"
+  },
+  "run": {
+    "judge": "claude-cli:haiku",
+    "pack_digest": "fa6fc2b3e62d8d0d",
+    "questions_asked": 1,
+    "ai_answered": 1,
+    "questions_sent": 1,
+    "ai_pending": 1,
+    "ai_cleared": [],
+    "ai_dismissed": [],
+    "engine": {
+      "name": "semgrep",
+      "version": "1.176.1"
+    },
+    "static_seconds": 0,
+    "ai_seconds": 0,
+    "units": 1,
+    "unparsed": [],
+    "skipped": [],
+    "incomplete": [],
+    "engine_errors": [],
+    "coverage_complete": true,
+    "files": 1
+  },
+  "findings": [
+    {
+      "policy": "kr.pipa.22-2",
+      "rule": "signup-without-guard",
+      "outcome": "needs-review",
+      "file": "src/auth/signup.ts",
+      "line": 5,
+      "case": null,
+      "category": "child-consent",
+      "title": "만 14세 미만 아동의 개인정보 처리",
+      "law": "개인정보 보호법 제22조의2 제1항",
+      "ask_developer": "만 14세 미만 사용자를 받는다면 법정대리인 동의를 확인하거나 가입을 막고 있나요?",
+      "untested_reasons": [
+        "citation-rejected"
+      ],
+      "ai_pending": [
+        "ai-guard"
+      ],
+      "fingerprint": "bf1cca67abc9968da536206102dd2019",
+      "scope": "file",
+      "region": null,
+      "top_level": false,
+      "anchor_lines": [],
+      "unsatisfied_alternatives": [
+        {
+          "id": "under14-branch",
+          "message": "만 14세 미만을 가르는 연령 분기가 보이지 않습니다.",
+          "ask_developer": "이 가입 흐름에서 만 14세 미만 사용자를 어떻게 가려내나요?",
+          "remediation": "생년월일로 만 나이를 계산해 14세 미만 분기를 두세요.",
+          "value": "false"
+        },
+        {
+          "id": "guardian-call",
+          "message": "보호자 동의를 확인하는 것으로 보이는 함수 호출이 없습니다.",
+          "ask_developer": "법정대리인 동의를 확인하는 함수 이름이 무엇인가요?",
+          "remediation": null,
+          "value": "false"
+        }
+      ],
+      "decision_path": [
+        "적용: 정적 true",
+        "대안 under14-branch: 정적 false",
+        "대안 guardian-call: 정적 false",
+        "대안 ai-guard: 인용 불인정 → 판정에 넣지 않음",
+        "→ needs-review"
+      ]
+    }
+  ]
+}

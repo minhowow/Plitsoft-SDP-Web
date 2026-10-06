@@ -1,0 +1,76 @@
+{
+  "$comment": "손으로 덧붙인 v1 초안 예시다. 현재 CLI 는 schema_version 과 run.policies 를 내지 않는다. 나머지는 contract/cli-current/ 의 실제 출력 그대로다.",
+  "schema_version": "report/1-draft",
+  "tool": {
+    "name": "policypack",
+    "version": "0.3.0.dev0"
+  },
+  "run": {
+    "judge": null,
+    "pack_digest": "fa6fc2b3e62d8d0d",
+    "questions_asked": 0,
+    "ai_answered": 0,
+    "questions_sent": 0,
+    "ai_pending": 0,
+    "ai_cleared": [],
+    "ai_dismissed": [],
+    "engine": {
+      "name": "semgrep",
+      "version": "1.176.1"
+    },
+    "static_seconds": 0,
+    "ai_seconds": 0,
+    "units": 0,
+    "unparsed": [],
+    "skipped": [],
+    "incomplete": [],
+    "engine_errors": [],
+    "coverage_complete": true,
+    "files": 1,
+    "policies": [
+      {
+        "policy": "kr.pipa.22-2",
+        "units": 0,
+        "needs_review": 0,
+        "uncertain": 0,
+        "compliant": 0,
+        "evidence": []
+      },
+      {
+        "policy": "kr.network-act.50-3",
+        "units": 0,
+        "needs_review": 0,
+        "uncertain": 0,
+        "compliant": 0,
+        "evidence": []
+      },
+      {
+        "policy": "kr.ai-basic-act.31",
+        "units": 0,
+        "needs_review": 0,
+        "uncertain": 0,
+        "compliant": 0,
+        "evidence": []
+      },
+      {
+        "policy": "kr.ai-basic-act.31-1",
+        "units": 0,
+        "needs_review": 0,
+        "uncertain": 0,
+        "compliant": 0,
+        "evidence": []
+      },
+      {
+        "policy": "kr.network-act.50-4",
+        "units": 0,
+        "needs_review": 0,
+        "uncertain": 0,
+        "compliant": 0,
+        "evidence": []
+      }
+    ],
+    "commit": null,
+    "remote": null
+  },
+  "findings": []
+}

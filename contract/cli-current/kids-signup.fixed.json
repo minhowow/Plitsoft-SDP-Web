@@ -1,0 +1,30 @@
+{
+  "tool": {
+    "name": "policypack",
+    "version": "0.3.0.dev0"
+  },
+  "run": {
+    "judge": null,
+    "pack_digest": "fa6fc2b3e62d8d0d",
+    "questions_asked": 0,
+    "ai_answered": 0,
+    "questions_sent": 0,
+    "ai_pending": 0,
+    "ai_cleared": [],
+    "ai_dismissed": [],
+    "engine": {
+      "name": "semgrep",
+      "version": "1.176.1"
+    },
+    "static_seconds": 0,
+    "ai_seconds": 0,
+    "units": 1,
+    "unparsed": [],
+    "skipped": [],
+    "incomplete": [],
+    "engine_errors": [],
+    "coverage_complete": true,
+    "files": 1
+  },
+  "findings": []
+}

@@ -1,0 +1,396 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "report.cli-0.3.schema.json",
+  "title": "policypack scan --output-format json (CLI 0.3, 판 번호 없는 현재 출력)",
+  "description": "CLI 가 지금 내는 모양을 관찰해 적은 것이다. CLI 저장소의 공식 스키마가 아니다. 웹이 읽는 필드만 required 로 두고 나머지는 허용한다. contract/cli-current/ 의 수집본이 이 스키마를 통과해야 한다.",
+  "type": "object",
+  "required": [
+    "tool",
+    "run",
+    "findings"
+  ],
+  "properties": {
+    "tool": {
+      "type": "object",
+      "required": [
+        "name",
+        "version"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      }
+    },
+    "run": {
+      "$ref": "#/$defs/run"
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/finding"
+      }
+    }
+  },
+  "$defs": {
+    "run": {
+      "type": "object",
+      "required": [
+        "judge",
+        "pack_digest",
+        "ai_pending",
+        "engine",
+        "units",
+        "unparsed",
+        "skipped",
+        "incomplete",
+        "engine_errors",
+        "coverage_complete"
+      ],
+      "properties": {
+        "judge": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "판정자 id. 꺼져 있으면 null."
+        },
+        "pack_digest": {
+          "type": "string",
+          "description": "pack.yaml sha256 앞 16자."
+        },
+        "questions_asked": {
+          "type": "integer"
+        },
+        "ai_answered": {
+          "type": "integer"
+        },
+        "questions_sent": {
+          "type": "integer"
+        },
+        "ai_pending": {
+          "type": "integer",
+          "description": "AI 에게 물어야 했는데 답을 받지 못한 판정 단위 수."
+        },
+        "ai_cleared": {
+          "type": "array",
+          "description": "AI 의 '예'로 풀린 경고. 판정자를 켠 결과에만 채워진다. cite 는 AI 가 인용한 코드 줄이다.",
+          "items": {
+            "type": "object",
+            "required": [
+              "policy",
+              "rule",
+              "file",
+              "alternatives"
+            ],
+            "properties": {
+              "policy": {
+                "type": "string"
+              },
+              "rule": {
+                "type": "string"
+              },
+              "file": {
+                "type": "string"
+              },
+              "line": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "alternatives": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "id"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "cite": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "gate": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "ai_dismissed": {
+          "type": "array",
+          "description": "적용 질문에 AI 가 '아니오'라고 답해 빠진 판정. 판정자를 켠 결과에만 채워진다.",
+          "items": {
+            "type": "object",
+            "required": [
+              "policy",
+              "rule",
+              "file"
+            ],
+            "properties": {
+              "policy": {
+                "type": "string"
+              },
+              "rule": {
+                "type": "string"
+              },
+              "file": {
+                "type": "string"
+              },
+              "line": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "question": {
+                "type": "string"
+              },
+              "answer": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "engine": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "required": [
+            "name",
+            "version"
+          ],
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "version": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        },
+        "static_seconds": {
+          "type": "number"
+        },
+        "ai_seconds": {
+          "type": "number"
+        },
+        "units": {
+          "type": "integer",
+          "description": "판정 단위 수. 충족 판정도 여기에는 들어간다."
+        },
+        "files": {
+          "type": "integer",
+          "description": "검사한 파일 수."
+        },
+        "unparsed": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "skipped": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "incomplete": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "engine_errors": {
+          "type": "array"
+        },
+        "coverage_complete": {
+          "type": "boolean"
+        }
+      }
+    },
+    "finding": {
+      "type": "object",
+      "required": [
+        "policy",
+        "rule",
+        "outcome",
+        "file",
+        "line",
+        "title",
+        "law",
+        "ask_developer",
+        "untested_reasons",
+        "ai_pending",
+        "fingerprint",
+        "scope",
+        "region",
+        "unsatisfied_alternatives",
+        "decision_path"
+      ],
+      "properties": {
+        "policy": {
+          "type": "string"
+        },
+        "rule": {
+          "type": "string"
+        },
+        "outcome": {
+          "enum": [
+            "needs-review",
+            "needs-review-uncertain"
+          ]
+        },
+        "file": {
+          "type": "string"
+        },
+        "line": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "case": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "category": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "law": {
+          "type": "string"
+        },
+        "ask_developer": {
+          "type": "string"
+        },
+        "untested_reasons": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "parse-error",
+              "engine-incomplete",
+              "no-judge",
+              "judge-unavailable",
+              "judge-unparseable",
+              "citation-rejected",
+              "weak-unconfirmed",
+              "timeout"
+            ]
+          }
+        },
+        "ai_pending": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "fingerprint": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{32}$"
+        },
+        "scope": {
+          "enum": [
+            "file",
+            "anchor"
+          ]
+        },
+        "region": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "required": [
+                "start_line",
+                "end_line"
+              ],
+              "properties": {
+                "start_line": {
+                  "type": "integer"
+                },
+                "end_line": {
+                  "type": "integer"
+                }
+              }
+            }
+          ]
+        },
+        "top_level": {
+          "type": "boolean"
+        },
+        "anchor_lines": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        },
+        "unsatisfied_alternatives": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "message",
+              "ask_developer",
+              "remediation",
+              "value"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "message": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "ask_developer": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "remediation": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "value": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "decision_path": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}
