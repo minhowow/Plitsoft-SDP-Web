@@ -1,4 +1,5 @@
-import type { ReportView } from "@/lib/report/view-model";
+import { examinedFacts, UNIT_GLOSS } from "@/lib/report/examined";
+import { CONTRACT_LABEL, type ReportView } from "@/lib/report/view-model";
 import { SITE } from "@/lib/site";
 import { PolicyCard } from "./PolicyCard";
 
@@ -72,6 +73,45 @@ function AiDecisions({ view }: { view: ReportView }) {
   );
 }
 
+/**
+ * 빈 결과 화면. 발견이 0인 결과에만 보인다. 발견이 없다는 것만으로는 무엇을 봤는지 알 수 없으므로,
+ * 검사한 것(파일 수, 판정 단위 수, 검사하지 않은 파일, 정책)과 이 도구가 보지 못하는 것을 함께 적는다.
+ * 정책 목록은 바로 아래의 정책 카드다.
+ */
+function EmptyReport({ view }: { view: ReportView }) {
+  return (
+    <div className="empty-report">
+      <section>
+        <h3>검사한 것</h3>
+        <dl className="examined">
+          {examinedFacts(view).map((fact) => (
+            <div key={fact.label}>
+              <dt>{fact.label}</dt>
+              <dd className={fact.warn ? "warn" : undefined}>
+                <strong>{fact.value}.</strong> <span className="fact-note">{fact.note}</span>
+              </dd>
+            </div>
+          ))}
+        </dl>
+        <p className="hint">{UNIT_GLOSS}</p>
+      </section>
+      <section>
+        <h3>이 도구가 보지 못하는 것</h3>
+        <p className="hint">{SITE.notSeen.lead}</p>
+        <ul className="not-seen">
+          {SITE.notSeen.items.map((item) => (
+            <li key={item.what}>
+              <strong>{item.what}:</strong> {item.why}
+            </li>
+          ))}
+        </ul>
+        {/* 대상 언어는 팩이 정한다. 다른 판의 팩으로 만든 결과에서는 위의 "JS/TS"가 맞는지 알 수 없다. */}
+        {view.packMatches === false && <p className="hint">{SITE.notSeen.otherPack}</p>}
+      </section>
+    </div>
+  );
+}
+
 /** 결과 한 건의 전체 화면. 뷰어, 데모, (나중의) 검사 결과 페이지가 모두 이 부품을 쓴다. */
 export function ReportSummary({ view }: { view: ReportView }) {
   const { coverage } = view;
@@ -98,14 +138,16 @@ export function ReportSummary({ view }: { view: ReportView }) {
         </div>
         <div>
           <dt>출력 형식</dt>
-          <dd>{view.contract === "v1-draft" ? "v1 초안" : "CLI 0.3"}</dd>
+          <dd>{CONTRACT_LABEL[view.contract]}</dd>
         </div>
       </dl>
 
       {view.packMatches === false && (
         <p className="notice notice-warn">
-          이 결과를 만든 팩과 이 사이트에 실린 팩의 판이 다릅니다. 정책 설명이 결과와 맞지 않을 수 있고, 발견이 없는 정책은
-          그 팩에 있었는지 알 수 없습니다.
+          이 결과를 만든 팩과 이 사이트에 실린 팩의 판이 다릅니다. 정책 설명이 결과와 맞지 않을 수 있습니다.
+          {/* "알 수 없음" 카드가 있을 때만 덧붙인다. v1 초안은 결과에 나온 정책만 카드로 그리므로 그런 카드가 없다. */}
+          {view.policies.some((policy) => policy.status === "pack-unknown") &&
+            " 발견이 없는 정책은 그 팩에 있었는지 알 수 없습니다."}
         </p>
       )}
 
@@ -130,16 +172,22 @@ export function ReportSummary({ view }: { view: ReportView }) {
       </div>
 
       {view.findingCount === 0 ? (
-        <p className="notice">{SITE.zeroIsNotClearance}</p>
+        <>
+          <p className="notice">{SITE.zeroIsNotClearance}</p>
+          <EmptyReport view={view} />
+        </>
       ) : (
         <p className="notice">사람이 확인할 발견이 {view.findingCount}건 있습니다.</p>
       )}
 
-      <div className="policies">
-        {view.policies.map((policy) => (
-          <PolicyCard key={policy.id} policy={policy} />
-        ))}
-      </div>
+      {/* 카드가 없을 수 있다(정책별 요약이 빈 v1 초안). 빈 상자가 간격만 차지하지 않게 한다. */}
+      {view.policies.length > 0 && (
+        <div className="policies">
+          {view.policies.map((policy) => (
+            <PolicyCard key={policy.id} policy={policy} />
+          ))}
+        </div>
+      )}
 
       <AiDecisions view={view} />
 

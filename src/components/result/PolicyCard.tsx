@@ -227,7 +227,10 @@ function RuleGroup({ group }: { group: RuleGroupView }) {
 /** 정책 하나. 같은 정책의 발견은 한 장에 묶고, 그 안에서 규칙별로 나눠 보여 준다. */
 export function PolicyCard({ policy }: { policy: PolicyView }) {
   const question = policy.locations[0]?.finding.ask_developer;
-  const quiet = policy.locations.length === 0 && policy.evidence.length === 0;
+  // 발견이 없는 정책에는 왜 없는지(상태의 설명)를 늘 적는다. 충족 근거 위치가 함께 실려 있어도 적는다.
+  const quiet = policy.locations.length === 0;
+  // 정책별 수는 결과에 정책별 요약이 있을 때(v1 초안)만 안다. CLI 0.3 의 전체 수에서 짐작해 적지 않는다.
+  const units = policy.units === null ? null : `이 정책의 판정 단위는 ${policy.units}개입니다.`;
   return (
     <article className={`policy policy-${policy.status}`}>
       <header className="policy-head">
@@ -250,15 +253,21 @@ export function PolicyCard({ policy }: { policy: PolicyView }) {
         </div>
       </header>
 
-      {quiet &&
-        (policy.aiCleared > 0 ? (
-          <p className="hint">
-            AI 판정자의 답으로 풀린 경고가 {policy.aiCleared}건 있습니다. 아래 &lsquo;AI 가 푼 경고&rsquo;에서 인용한 줄을
-            확인하세요.
-          </p>
-        ) : (
-          <p className="hint">{STATUS_HINT[policy.status]}</p>
-        ))}
+      {quiet ? (
+        <p className="hint">
+          {policy.aiCleared > 0 ? (
+            <>
+              AI 판정자의 답으로 풀린 경고가 {policy.aiCleared}건 있습니다. 아래 &lsquo;AI 가 푼 경고&rsquo;에서 인용한 줄을
+              확인하세요.
+            </>
+          ) : (
+            STATUS_HINT[policy.status]
+          )}
+          {units && ` ${units}`}
+        </p>
+      ) : (
+        units && <p className="hint">{units}</p>
+      )}
 
       {question && <p className="question">개발자에게 할 질문: {question}</p>}
 

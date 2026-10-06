@@ -69,6 +69,13 @@ describe("v1 초안 예시 (contract/samples-v1-draft)", () => {
   it("현재 출력은 v1 초안 스키마를 통과하지 못한다 (아직 CLI 가 내지 않는 필드가 있다)", () => {
     expect(validateDraft(readJson("contract", "cli-current", captures[0]))).toBe(false);
   });
+
+  it.each(drafts)("%s 의 정책별 요약이 팩의 모든 정책을 한 줄씩 담고 있다", (file) => {
+    // 스키마의 약속이다(run.policies 는 팩의 모든 정책마다 한 줄). 화면은 이것을 믿고 v1 초안에서는 결과에 나온
+    // 정책만 카드로 그린다(src/lib/report/view-model.ts). 예시의 팩 판은 이 사이트의 팩과 같다(아래에서 본다).
+    const report = readJson("contract", "samples-v1-draft", file) as Report;
+    expect(report.run.policies!.map((p) => p.policy).sort()).toEqual(packMeta.policies.map((p) => p.id).sort());
+  });
 });
 
 describe("손으로 만든 시험용 자료 (tests/fixtures)", () => {

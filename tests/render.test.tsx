@@ -5,9 +5,10 @@ import { blocksToggle } from "@/components/result/selection";
 import { packMeta } from "@/lib/pack";
 import { parseReport } from "@/lib/report/parse";
 import { scopeLabel } from "@/lib/report/scope";
-import { STATUS_LABEL } from "@/lib/report/status";
+import { STATUS_HINT, STATUS_LABEL } from "@/lib/report/status";
 import type { Finding, Report } from "@/lib/report/types";
 import { buildReportView, type ReportView } from "@/lib/report/view-model";
+import { SITE } from "@/lib/site";
 import { closedDetailsAt, elementAt, elementsOf, jsonFiles, readJson, textOf } from "./helpers";
 import { BANNED_WORDING } from "./wording";
 
@@ -155,6 +156,571 @@ describe("다 보지 못한 결과", () => {
     expect(html).toContain("이 파일들은 결과에 없습니다");
     expect(html).toContain("일부를 읽지 못한 파일 1개");
     expect(html).toContain("결과에는 들어 있습니다");
+  });
+});
+
+describe("빈 결과 화면 (발견이 0인 결과)", () => {
+  // 발견이 없다는 것만으로는 무엇을 봤는지 알 수 없다. 검사한 것과 이 도구가 보지 못하는 것을 함께 적는다.
+  const CARD = '<article class="policy ';
+  const EMPTY = '<div class="empty-report">';
+  const PIPA = "만 14세 미만 아동의 개인정보 처리";
+
+  /** 정책별 판정 단위 수를 적은 문장. 결과에 정책별 요약이 있을 때(v1 초안)만 카드에 나온다. */
+  const UNITS = /이 정책의 판정 단위는 (\d+)개입니다\./;
+
+  /** 검사한 파일의 수 옆에 적는 말. 결과에는 수만 있다. 목록도, 검사한 범위도 없다. */
+  const FILES_NOTE =
+    "결과에는 검사한 파일의 수만 실려 있고, 목록과 검사한 범위(저장소 전체인지, 바뀐 파일이나 일부 경로만인지)는 없습니다.";
+
+  /** "이 도구가 보지 못하는 것"의 항목 가운데 검사한 범위 밖의 파일. 결과에 범위가 없어 조건으로 적는다. */
+  const OUT_OF_SCOPE =
+    "검사한 범위 밖의 파일: 바뀐 파일만 검사하거나 일부 경로만 검사할 때는 그 밖의 파일을 검사하지 않고, '검사하지 않은 파일'에도 싣지 않습니다. " +
+    "어느 범위를 검사했는지는 결과에 실려 있지 않습니다.";
+
+  /** 발견이 없는 정책 카드 하나를 뜯어 본 것. 설명 문단은 하나다(상태의 설명, 정책별 수를 알면 그 뒤에 그 수). */
+  function cardParts(card: string) {
+    const part = (open: string) => {
+      const at = card.indexOf(open);
+      return at === -1 ? null : textOf(elementAt(card, at));
+    };
+    const hints = elementsOf(card, '<p class="hint">').map(textOf);
+    expect(hints, card).toHaveLength(1);
+    const units = UNITS.exec(hints[0])?.[1];
+    const evidence = card.indexOf('<ul class="evidence"');
+    return {
+      law: part('<p class="law">'),
+      title: part("<h3>"),
+      status: part('<span class="chip '),
+      /** 상태의 설명. */
+      description: hints[0].replace(UNITS, "").trim(),
+      /** 정책별 판정 단위 수. 카드에 적혀 있지 않으면 null. */
+      units: units === undefined ? null : Number(units),
+      /** 충족 근거 위치. */
+      evidence: evidence === -1 ? [] : elementsOf(elementAt(card, evidence), "<li>").map(textOf),
+    };
+  }
+  const cards = (html: string) => elementsOf(html, CARD).map(cardParts);
+
+  /** 빈 결과 구역을 뜯어 본 것. 구역이 없으면 null. */
+  function emptyParts(html: string) {
+    const at = html.indexOf(EMPTY);
+    if (at === -1) return null;
+    const panel = elementAt(html, at);
+    const rows = elementsOf(elementAt(panel, panel.indexOf('<dl class="examined">')), "<div>");
+    return {
+      headings: elementsOf(panel, "<h3>").map(textOf),
+      /** "검사한 것"의 줄. 이름표 → 값과 설명, 눈에 띄게 한 줄인지. */
+      facts: Object.fromEntries(
+        rows.map((row) => {
+          const label = textOf(elementAt(row, row.indexOf("<dt>")));
+          const dd = elementAt(row, row.indexOf("<dd"));
+          return [label, { text: textOf(dd), warn: dd.startsWith('<dd class="warn">') }];
+        }),
+      ),
+      notSeen: elementsOf(elementAt(panel, panel.indexOf('<ul class="not-seen">')), "<li>").map(textOf),
+      text: textOf(panel),
+    };
+  }
+
+  /** 그려 낸 화면의 글을 줄(문단, 목록 항목, 제목, 표의 칸)로 나눈다. 두 화면이 어디서 다른지 볼 때 쓴다. */
+  function linesOf(html: string): string[] {
+    const block = /<\/?(p|li|h[1-6]|dt|dd|div|section|article|summary|ul|ol|dl|details|header)\b[^>]*>/g;
+    return textOf(html.replace(block, "\n"))
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean);
+  }
+
+  const findingsIn = (parts: string[]) => (readJson(...parts) as Report).findings.length;
+  const named = (list: string[][]) => list.map((parts) => [parts.join("/"), parts] as const);
+  const empties = every.filter((parts) => findingsIn(parts) === 0);
+  const others = every.filter((parts) => findingsIn(parts) > 0);
+
+  it("발견이 0인 자료가 수집본, v1 초안 예시, 시험용 자료에 모두 있다", () => {
+    // 아래의 자료별 시험이 빈 목록을 돌고 통과하는 일이 없게 한다.
+    expect(empties.map((parts) => parts.join("/"))).toEqual(
+      expect.arrayContaining([
+        "contract/cli-current/kids-signup.fixed.json",
+        "contract/cli-current/plain.main.json",
+        "contract/samples-v1-draft/kids-signup.fixed.json",
+        "contract/samples-v1-draft/plain.main.json",
+        "tests/fixtures/judge-on.cleared.json",
+        "tests/fixtures/judge-on.dismissed.json",
+      ]),
+    );
+    expect(others.length).toBeGreaterThan(0);
+  });
+
+  it.each(named(empties))("%s: 검사한 것과 이 도구가 보지 못하는 것을 적는다", (_name, parts) => {
+    const html = render(...parts);
+    const empty = emptyParts(html);
+    expect(empty).not.toBeNull();
+    expect(empty!.headings).toEqual(["검사한 것", "이 도구가 보지 못하는 것"]);
+    // 파일 수, 판정 단위 수, 검사하지 않은 파일, 정책. 정책 목록은 바로 아래의 정책 카드다.
+    expect(Object.keys(empty!.facts)).toEqual(["검사한 파일", "판정 단위", "검사하지 않은 파일", "정책"]);
+    // 값은 결과에 실린 수 그대로다. 이 자료들은 모두 이 사이트의 팩과 같은 판으로 만든 것이라 정책 수도 안다.
+    const { run } = readJson(...parts) as Report;
+    const policies = packMeta.policies.length;
+    const skipped = run.skipped.length === 0 ? "없음" : `${run.skipped.length}개`;
+    // 수 옆에는 어느 자료에서나 같은 말이 온다. 결과에 목록도 범위도 없어서 자료마다 달리 적을 것이 없다.
+    expect(empty!.facts["검사한 파일"].text).toBe(
+      run.files === 0 ? "0개. 검사한 파일이 없어서 발견도 없습니다." : `${run.files}개. ${FILES_NOTE}`,
+    );
+    expect(empty!.facts["판정 단위"].text.startsWith(`${run.units}개. 모든 정책을 합친 수입니다.`)).toBe(true);
+    expect(empty!.facts["검사하지 않은 파일"].text.startsWith(`${skipped}. `)).toBe(true);
+    expect(empty!.facts["정책"].text).toMatch(new RegExp(`^${policies}개\\. .*아래에`));
+    expect(cards(html)).toHaveLength(policies);
+    // 판정 단위가 무엇인지도 적는다(적용 조건이 거짓이면 단위가 생기지 않는다).
+    expect(empty!.text).toContain("판정 단위는 규칙의 적용 조건이 참이거나 모름이어서 판정한 곳입니다.");
+    // 보지 못하는 것 다섯: JS/TS 밖, 목록 없이 빠지는 JS/TS 파일, 검사한 범위 밖의 파일, 서버 설정, 데이터에만 있는 동의 상태.
+    expect(empty!.notSeen).toHaveLength(5);
+    expect(empty!.notSeen[0]).toMatch(/^JS\/TS 가 아닌 파일: .*검사하지 않고, '검사하지 않은 파일'에도 싣지 않습니다\.$/);
+    // 검사하지 않은 파일 목록이 비어 있어도 다 본 것이 아니다. JS/TS 파일인데 목록에 실리지 않고 빠지는 것을 따로 적는다
+    // (CLI 를 합성 폴더에 돌려 확인한 것: 이름으로 가리는 폴더, git 이 무시하는 파일, 하위 모듈처럼 저장소 안에 따로 든
+    // 다른 git 저장소, 심볼릭 링크, 읽을 권한이 없는 폴더). "검사하지 않은 파일: 없음"의 풀이가 이 항목을 가리키므로
+    // 하나라도 빠지면 안 된다.
+    expect(empty!.notSeen[1]).toMatch(
+      /^목록 없이 빠지는 JS\/TS 파일: 폴더를 검사할 때 .*JS\/TS 파일이어도 검사하지 않고, '검사하지 않은 파일'에도 싣지 않습니다\./,
+    );
+    for (const unlisted of [
+      "node_modules·dist·build·vendor·coverage 같은 이름의 폴더 아래 파일(내용이 아니라 폴더 이름으로 가립니다)",
+      // .gitignore 만이 아니다. git 이 무시하는 방법 셋 가운데 어느 것으로 무시했든 같게 빠진다.
+      "git 저장소에서 git 이 무시하는 파일(.gitignore, .git/info/exclude, 전역 무시 목록)",
+      "하위 모듈(submodule)을 비롯해 git 저장소 안에 따로 든 다른 git 저장소의 파일",
+      "심볼릭 링크",
+      // 폴더를 가리키는 링크도 따라가지 않는다.
+      "검사하는 폴더 안의 링크는 파일을 가리키든 폴더를 가리키든 따라가지 않으므로, 가리키는 곳이 그 폴더 밖에 있으면 그곳의 파일도 보지 못합니다.",
+      // 늘 빠지는 것은 아니다(git 이 추적하는 파일이면 검사하기도 한다). 그래서 "빠질 수 있습니다"다.
+      "읽을 권한이 없는 폴더 아래 파일도 목록 없이 빠질 수 있습니다.",
+    ]) {
+      expect(empty!.notSeen[1], unlisted).toContain(unlisted);
+    }
+    // 범위를 좁혀 돌린 검사에서는 그 밖의 파일도 목록 없이 빠진다. 결과에 범위가 없으므로 어느 자료에서나 같은 말이다.
+    expect(empty!.notSeen[2]).toBe(OUT_OF_SCOPE);
+    expect(empty!.notSeen[3]).toMatch(/^서버·인프라 설정: .*보지 못합니다/);
+    expect(empty!.notSeen[4]).toMatch(/^데이터에만 있는 동의 상태: .*코드를 읽어서는 알 수 없습니다/);
+    expect(empty!.text).toContain(SITE.notSeen.lead);
+    expect(SITE.notSeen.lead).toContain("발견이 없어도 아래까지 확인한 것은 아닙니다");
+    // 팩 판이 같으면 대상 언어(JS/TS)를 안다. 다른 판의 팩일 때 덧붙이는 말은 나오지 않는다.
+    expect(empty!.text).not.toContain("다른 언어도 검사하는지");
+    // 처음부터 보인다(접어 두지 않는다). 0이 문제없다는 뜻이 아니라는 문구 → 빈 결과 구역 → 정책 카드 순서다.
+    expect(closedDetailsAt(html, html.indexOf(EMPTY))).toEqual([]);
+    const order = [html.indexOf(SITE.zeroIsNotClearance), html.indexOf(EMPTY), html.indexOf(CARD)];
+    expect(order.every((at) => at !== -1)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+  });
+
+  it.each(named(others))("%s: 발견이 있으면 빈 결과 구역이 없다", (_name, parts) => {
+    const html = render(...parts);
+    expect(emptyParts(html)).toBeNull();
+    expect(html).not.toContain("이 도구가 보지 못하는 것");
+  });
+
+  it("v1 초안: plain.main 과 kids-signup.fixed 가 서로 다른 설명을 보인다", () => {
+    const plain = cards(render("contract", "samples-v1-draft", "plain.main.json"));
+    const fixed = cards(render("contract", "samples-v1-draft", "kids-signup.fixed.json"));
+    expect(plain).toHaveLength(5);
+    expect(fixed).toHaveLength(5);
+
+    // plain.main: 다섯 정책 모두 적용 신호 없음이고 판정 단위가 0개다.
+    for (const card of plain) {
+      expect(card, card.title ?? "").toMatchObject({
+        status: "적용 신호 없음",
+        description: "이 조문이 닿는 코드 신호를 찾지 못했습니다. 법적 문제가 없다는 뜻은 아닙니다.",
+        units: 0,
+        evidence: [],
+      });
+    }
+
+    // kids-signup.fixed: 제22조의2 는 충족 근거 발견이고, 어디서 어느 대안이 확인됐는지 보인다.
+    const pipa = fixed.find((card) => card.title === PIPA)!;
+    expect(pipa).toEqual({
+      law: "개인정보 보호법 제22조의2 제1항",
+      title: PIPA,
+      status: "충족 근거 발견",
+      description: "적법한 대안 가운데 하나가 코드에서 확인됐습니다.",
+      units: 1,
+      evidence: ["src/auth/signup.ts:7 에서 대안 under14-branch 확인"],
+    });
+    // 가장 먼저 봐야 할 것이 위에 온다.
+    expect(fixed[0]).toBe(pipa);
+
+    // 같은 정책의 설명이 두 결과에서 다르다: 상태, 상태의 설명, 판정 단위 수, 충족 근거 위치.
+    const before = plain.find((card) => card.title === PIPA)!;
+    expect(pipa.status).not.toBe(before.status);
+    expect(pipa.description).not.toBe(before.description);
+    expect(pipa.units).not.toBe(before.units);
+    expect(pipa.evidence).not.toEqual(before.evidence);
+    // 화면의 설명은 상태 문구(src/lib/report/status.ts)에서 온 것이다.
+    expect([before.description, pipa.description]).toEqual([STATUS_HINT["no-signal"], STATUS_HINT["evidence-found"]]);
+    // 나머지 네 정책은 두 결과에서 같다(적용 신호 없음).
+    const rest = (list: typeof plain) => list.filter((card) => card.title !== PIPA);
+    expect(rest(fixed)).toEqual(rest(plain));
+    expect(rest(fixed)).toHaveLength(4);
+  });
+
+  it("v1 초안: 전체 판정 단위 수 옆에 정책별 수가 정책마다 있다고 적는다", () => {
+    for (const [file, units] of [
+      ["plain.main.json", 0],
+      ["kids-signup.fixed.json", 1],
+    ] as const) {
+      const facts = emptyParts(render("contract", "samples-v1-draft", file))!.facts;
+      expect(facts["판정 단위"], file).toEqual({
+        text: `${units}개. 모든 정책을 합친 수입니다. 정책별 수는 아래 정책마다 적었습니다.`,
+        warn: false,
+      });
+      expect(facts["정책"].text, file).toBe("5개. 결과에 정책별 요약이 실려 있어, 아래에 정책마다 적었습니다.");
+    }
+  });
+
+  it("v1 초안: 발견이 있는 정책에도 정책별 판정 단위 수를 적는다", () => {
+    const html = render("contract", "samples-v1-draft", "kids-signup.main.json");
+    const texts = elementsOf(html, CARD).map(textOf);
+    expect(texts).toHaveLength(5);
+    expect(texts[0]).toContain(PIPA);
+    expect(texts[0]).toContain("이 정책의 판정 단위는 1개입니다.");
+    for (const text of texts.slice(1)) expect(text).toContain("이 정책의 판정 단위는 0개입니다.");
+  });
+
+  it("CLI 0.3: 같은 두 결과는 정책 카드의 설명이 같고 전체 판정 단위 수만 다르다. 그 한계를 적는다", () => {
+    const plain = render("contract", "cli-current", "plain.main.json");
+    const fixed = render("contract", "cli-current", "kids-signup.fixed.json");
+
+    // 정책 카드는 글자까지 같다. 정책별로 "적용 신호를 본 곳"을 알 수 없어서 모두 발견 없음이다.
+    expect(cards(fixed)).toEqual(cards(plain));
+    for (const card of cards(plain)) {
+      // 정책별 수는 짐작해서 적지 않는다(units: null).
+      expect(card, card.title ?? "").toMatchObject({
+        status: "발견 없음",
+        description: STATUS_HINT["not-reported"],
+        units: null,
+        evidence: [],
+      });
+    }
+    expect(STATUS_HINT["not-reported"]).toContain("'충족 근거 발견'과 '적용 신호 없음'을 구분할 수 없습니다");
+    expect(plain).not.toContain("이 정책의 판정 단위");
+    expect(fixed).not.toContain("이 정책의 판정 단위");
+
+    // 화면 전체에서 다른 줄은 둘뿐이다: 전체 판정 단위 수가 든 줄과, 그 수 옆에 적은 한계.
+    // 0이면 정책별 수도 모두 0이라 "정책별 수가 없다"는 한계가 아니다. 어느 정책에서도 판정한 곳이 없다고 적고,
+    // 그런데도 카드가 "발견 없음"(구분할 수 없다)인 까닭을 함께 적는다. 카드의 상태는 바꾸지 않는다.
+    const [a, b] = [linesOf(plain), linesOf(fixed)];
+    expect(b).toHaveLength(a.length);
+    expect(a.flatMap((line, i) => (line === b[i] ? [] : [[line, b[i]]]))).toEqual([
+      ["파일 1개 검사 · 판정 단위 0개 · 끝까지 봤습니다", "파일 1개 검사 · 판정 단위 1개 · 끝까지 봤습니다"],
+      [
+        "0개. 모든 정책을 합친 수입니다. 0이므로 어느 정책에서도 판정한 곳이 없습니다. 다만 이 출력 형식(CLI 0.3)에는 정책별 요약이 없어, 아래 정책 카드는 판정 단위가 있는 결과와 같은 설명('발견 없음')으로 보입니다.",
+        "1개. 모든 정책을 합친 수입니다. 이 출력 형식(CLI 0.3)에는 정책별 수가 없어서, 어느 정책에서 적용 신호를 봤는지 알 수 없습니다.",
+      ],
+    ]);
+    expect(emptyParts(fixed)!.facts["정책"].text).toBe(
+      "5개. 결과에는 정책 목록이 없어, 팩 판이 같은 이 사이트의 팩에서 가져와 아래에 적었습니다.",
+    );
+  });
+
+  it("CLI 0.3: 판정 단위가 0개여도 판정한 곳이 없다고 적을 수 없는 경우가 있다", () => {
+    const data = readJson("contract", "cli-current", "plain.main.json") as Report;
+    const units = (run: Partial<Report["run"]>) => emptyParts(renderData({ ...data, run }))!.facts["판정 단위"].text;
+    const none = "0개. 모든 정책을 합친 수입니다. 0이므로 어느 정책에서도 판정한 곳이 없습니다.";
+    const sameCards =
+      " 다만 이 출력 형식(CLI 0.3)에는 정책별 요약이 없어, 아래 정책 카드는 판정 단위가 있는 결과와 같은 설명('발견 없음')으로 보입니다.";
+    expect(units(data.run)).toBe(none + sameCards);
+
+    // 다른 판의 팩으로 만든 결과: 카드가 "알 수 없음"이라 카드 이야기는 하지 않는다.
+    const other = renderData({ ...data, run: { ...data.run, pack_digest: "0000000000000000" } });
+    expect(emptyParts(other)!.facts["판정 단위"].text).toBe(none);
+    expect(cards(other).map((card) => card.status)).toEqual(Array(5).fill("알 수 없음"));
+
+    // 판정자를 켠 결과인데 빠진 판정의 목록(run.ai_dismissed)이 실려 있지 않다: 빠진 판정이 없었는지 모른다.
+    const judged: Partial<Report["run"]> = { ...data.run, judge: "claude-cli:haiku" };
+    delete judged.ai_dismissed;
+    expect(units(judged)).toBe("0개. 모든 정책을 합친 수입니다.");
+    // 목록이 실려 있고 비어 있으면 안다. 판정자가 꺼져 있었으면 목록이 없어도 안다(AI 에게 묻지 않는다).
+    expect(units({ ...judged, ai_dismissed: [] })).toBe(none + sameCards);
+    const off: Partial<Report["run"]> = { ...data.run };
+    delete off.ai_dismissed;
+    expect(off.judge).toBeNull();
+    expect(units(off)).toBe(none + sameCards);
+  });
+
+  it("CLI 0.3: 판 번호 없는 결과에 run.policies 가 있어도 정책별 수로 쓰지 않는다", () => {
+    const data = readJson("contract", "cli-current", "kids-signup.fixed.json") as Report;
+    const draft = readJson("contract", "samples-v1-draft", "kids-signup.fixed.json") as Report;
+    expect(draft.run.policies).toHaveLength(5);
+    const html = renderData({ ...data, run: { ...data.run, policies: draft.run.policies } });
+    expect(cards(html)).toEqual(cards(render("contract", "cli-current", "kids-signup.fixed.json")));
+    expect(html).not.toContain("이 정책의 판정 단위");
+    expect(emptyParts(html)!.facts["판정 단위"].text).toContain("이 출력 형식(CLI 0.3)에는 정책별 수가 없어서");
+  });
+
+  it("AI 가 푼 경고가 있으면, 어느 정책의 판정 단위인지는 거기 실린 것만 안다고 적는다", () => {
+    const html = render("tests", "fixtures", "judge-on.cleared.json");
+    expect(emptyParts(html)!.facts["판정 단위"]).toEqual({
+      text: "1개. 모든 정책을 합친 수입니다. 이 출력 형식(CLI 0.3)에는 정책별 수가 없어서, 어느 정책의 것인지는 아래 'AI 가 푼 경고'에 실린 것만 알 수 있습니다.",
+      warn: false,
+    });
+    // "아래"라고 했으니 그 목록은 빈 결과 구역 뒤에 있다.
+    expect(html.indexOf("AI 가 푼 경고 1건")).toBeGreaterThan(html.indexOf(EMPTY));
+  });
+
+  // AI 가 적용되지 않는다고 답해 빠진 판정은 판정 단위 수에 들어 있지 않다. CLI 는 적용 조건이 '모름'일 때만 AI 에게
+  // 묻고, '아니오'를 받은 단위를 뺀 뒤에 센다(CLI 소스 evaluate/engine.py 의 evaluate). 위의 풀이대로라면 "모름이어서
+  // 판정한 곳"인데 수에는 없으므로, 그 사실과 목록의 자리를 수 옆에 적는다.
+  const DISMISSED_LIST = "AI 가 적용되지 않는다고 답해 빠진 판정";
+  const notCounted = (count: number) =>
+    `${DISMISSED_LIST} ${count}건은 이 수에 들어 있지 않습니다. 아래 '${DISMISSED_LIST}'에서 확인하세요.`;
+
+  it("AI 가 적용되지 않는다고 답해 빠진 판정이 있으면, 판정 단위 수에 들어 있지 않다고 적고 아래 목록을 가리킨다", () => {
+    const html = render("tests", "fixtures", "judge-on.dismissed.json");
+    const empty = emptyParts(html)!;
+    expect(empty.facts["판정 단위"]).toEqual({
+      text: `0개. 모든 정책을 합친 수입니다. ${notCounted(1)}`,
+      warn: false,
+    });
+    // 수가 0이어도 판정한 곳이 없다고 하지 않는다. 빠진 곳이 있었다.
+    expect(empty.text).not.toContain("판정한 곳이 없습니다");
+    // "아래 '…'"라고 했으니 그 이름의 목록이 빈 결과 구역 뒤에 있고, 처음부터 펼쳐져 있다.
+    const list = html.indexOf(`<summary>${DISMISSED_LIST} 1건</summary>`);
+    expect(list).toBeGreaterThan(html.indexOf(EMPTY) + elementAt(html, html.indexOf(EMPTY)).length);
+    expect(closedDetailsAt(html, list)).toEqual([]);
+    expect(textOf(elementAt(html, html.lastIndexOf("<details", list)))).toContain("src/auth/signup.ts:5 kr.pipa.22-2");
+  });
+
+  it("빠진 판정은 판정 단위가 있는 결과와 v1 초안에서도 같은 말로 덧붙인다", () => {
+    const [one] = (readJson("tests", "fixtures", "judge-on.dismissed.json") as Report).run.ai_dismissed!;
+    const ai_dismissed = [one, { ...one, file: "src/auth/join.ts", line: null }];
+    const units = (data: Report, patch: Partial<Report["run"]> = {}) => {
+      const html = renderData({ ...data, run: { ...data.run, judge: "claude-cli:haiku", ai_dismissed, ...patch } });
+      expect(html).toContain(`<summary>${DISMISSED_LIST} 2건</summary>`);
+      return emptyParts(html)!.facts["판정 단위"].text;
+    };
+    const total = "모든 정책을 합친 수입니다.";
+    const format = "이 출력 형식(CLI 0.3)에는 정책별 수가 없어서";
+    // AI 가 푼 경고와 함께 있을 때.
+    expect(units(readJson("tests", "fixtures", "judge-on.cleared.json") as Report)).toBe(
+      `1개. ${total} ${format}, 어느 정책의 것인지는 아래 'AI 가 푼 경고'에 실린 것만 알 수 있습니다. ${notCounted(2)}`,
+    );
+    // 판정 단위가 있을 때.
+    expect(units(readJson("contract", "cli-current", "kids-signup.fixed.json") as Report)).toBe(
+      `1개. ${total} ${format}, 어느 정책에서 적용 신호를 봤는지 알 수 없습니다. ${notCounted(2)}`,
+    );
+    // v1 초안. run.units 는 같은 필드다(스키마가 같은 정의를 가리킨다).
+    expect(units(readJson("contract", "samples-v1-draft", "plain.main.json") as Report)).toBe(
+      `0개. ${total} 정책별 수는 아래 정책마다 적었습니다. ${notCounted(2)}`,
+    );
+  });
+
+  it("검사한 파일이 없는 결과: 발견이 없는 까닭이 그것이라고 눈에 띄게 적는다", () => {
+    // 검사할 파일이 없으면 CLI 는 files: 0, engine: null 인 결과를 낸다(CLI 소스 cli.py 의 cmd_scan).
+    const data = readJson("contract", "cli-current", "plain.main.json") as Report;
+    const html = renderData({ ...data, run: { ...data.run, files: 0, engine: null } });
+    expect(emptyParts(html)!.facts["검사한 파일"]).toEqual({ text: "0개. 검사한 파일이 없어서 발견도 없습니다.", warn: true });
+    // 파일이 있으면 눈에 띄게 하지 않는다. 결과에 없는 것은 검사한 파일의 목록과 검사한 범위라고 적는다.
+    expect(emptyParts(renderData(data))!.facts["검사한 파일"]).toEqual({ text: `1개. ${FILES_NOTE}`, warn: false });
+  });
+
+  it("범위를 좁혀 돌린 결과: 검사한 범위가 결과에 없다고 적는다. 어느 범위였는지 짐작해 적지 않는다", () => {
+    // CLI 0.3.0.dev0 을 합성 저장소에 돌려 확인한 것(docs/architecture.md 의 "빈 결과 화면"). 가입 코드(전체를 검사하면
+    // 검토 필요 1건)는 그대로 두고 다른 파일 하나만 고쳐 스테이징한 저장소에서 `scan --staged`, `scan --diff <기준>`,
+    // 그 파일만 이름을 대서 준 검사가 낸 결과는 실행 시간만 빼면 이 수집본(plain.main)과 글자까지 같다. 범위는 결과
+    // 어디에도 없고(R14), 범위 밖의 가입 코드는 `run.skipped` 에도 없다. 그러니 이 화면이 곧 그 결과의 화면이다.
+    const data = readJson("contract", "cli-current", "plain.main.json") as Report;
+    expect(data.run).toMatchObject({ files: 1, units: 0, skipped: [], coverage_complete: true });
+    expect(data.findings).toEqual([]);
+    const empty = emptyParts(renderData(data))!;
+    // 수가 전체를 본 수처럼 읽히지 않게, 수 옆에 목록과 범위가 결과에 없다고 적는다.
+    expect(empty.facts["검사한 파일"]).toEqual({ text: `1개. ${FILES_NOTE}`, warn: false });
+    // "검사하지 않은 파일: 없음"의 풀이가 가리키는 목록에 범위 밖의 파일이 있다. 조건으로 적는다("…할 때는").
+    expect(empty.facts["검사하지 않은 파일"].text).toContain("이름이 실리지 않고 빠지는 파일은 아래 '이 도구가 보지 못하는 것'에 있습니다.");
+    expect(empty.notSeen).toContain(OUT_OF_SCOPE);
+    // 결과에 범위가 없으므로 자료에 따라 달라지는 말이 아니다. 파일 수가 달라도 수만 바뀐다.
+    const many = emptyParts(renderData({ ...data, run: { ...data.run, files: 240 } }))!;
+    expect(many.facts["검사한 파일"]).toEqual({ text: `240개. ${FILES_NOTE}`, warn: false });
+    expect(many.notSeen).toEqual(empty.notSeen);
+  });
+
+  it("검사한 파일의 이름이 같은 화면에 보여도 부딪치지 않는 말로 적는다", () => {
+    // 데모는 검사한 파일을 코드 상자로 보여 주고, v1 초안의 충족 근거 위치에는 파일 이름이 나온다. 그 화면에
+    // "어느 파일인지는 결과에 없다"고 적으면 모순으로 읽힌다. 결과에 없는 것은 목록과 범위다.
+    const html = render("contract", "samples-v1-draft", "kids-signup.fixed.json");
+    expect(cards(html)[0].evidence).toEqual(["src/auth/signup.ts:7 에서 대안 under14-branch 확인"]);
+    expect(emptyParts(html)!.facts["검사한 파일"].text).toBe(`1개. ${FILES_NOTE}`);
+    for (const parts of empties) expect(render(...parts), parts.join("/")).not.toContain("어느 파일인지");
+  });
+
+  it("파일 수가 실려 있지 않은 결과: 0이라고 하지 않고 알 수 없다고 적는다", () => {
+    const data = readJson("contract", "cli-current", "plain.main.json") as Report;
+    const run: Partial<Report["run"]> = { ...data.run };
+    delete run.files;
+    expect(emptyParts(renderData({ ...data, run }))!.facts["검사한 파일"]).toEqual({
+      text: "알 수 없음. 파일 수가 결과에 실려 있지 않습니다.",
+      warn: false,
+    });
+  });
+
+  it("검사하지 않은 파일이 있는 빈 결과: 그 파일들은 보지 못했다고 눈에 띄게 적는다", () => {
+    const data = readJson("contract", "cli-current", "plain.main.json") as Report;
+    const plain = renderData(data);
+    // "없음"은 CLI 가 이름을 적어 알린 파일이 없다는 뜻이다. 이름 없이 빠지는 파일(다른 언어, 이름으로 가리는 폴더,
+    // git 이 무시하는 파일, 저장소 안에 따로 든 다른 git 저장소, 심볼릭 링크, 읽을 권한이 없는 폴더, 범위를 좁혀 돌렸을
+    // 때 그 범위 밖의 파일)까지 없다는 뜻이 아니므로, 그 파일을 적은 곳을 가리킨다.
+    expect(emptyParts(plain)!.facts["검사하지 않은 파일"]).toEqual({
+      text:
+        "없음. 크기·인코딩 같은 까닭으로 건너뛰었다고 결과에 이름이 실린 파일이 없습니다. " +
+        "이름이 실리지 않고 빠지는 파일은 아래 '이 도구가 보지 못하는 것'에 있습니다.",
+      warn: false,
+    });
+    // "아래 '…'"라고 했으니 그 이름의 구역이 이 줄 뒤에 있고, 거기에 그 파일들이 적혀 있다.
+    const section = plain.indexOf("<h3>이 도구가 보지 못하는 것</h3>");
+    expect(section).toBeGreaterThan(plain.indexOf("이름이 실리지 않고 빠지는 파일은"));
+    expect(
+      emptyParts(plain)!
+        .notSeen.filter((item) => item.includes("'검사하지 않은 파일'에도 싣지 않습니다"))
+        .map((item) => item.slice(0, item.indexOf(":"))),
+    ).toEqual(["JS/TS 가 아닌 파일", "목록 없이 빠지는 JS/TS 파일", "검사한 범위 밖의 파일"]);
+
+    const skipped = ["src/legacy/euckr.js", "src/vendor-lib/chart.min.js"];
+    const html = renderData({ ...data, run: { ...data.run, skipped, coverage_complete: false } });
+    expect(emptyParts(html)!.facts["검사하지 않은 파일"]).toEqual({
+      text: "2개. 위의 '검사하지 않은 파일 2개'를 펼치면 목록이 있습니다. 이 파일들의 코드는 보지 못했습니다.",
+      warn: true,
+    });
+    // "위의 '…'를 펼치면"이라고 했으니 그 이름의 펼침 단추가 빈 결과 구역보다 앞에 있고, 파일 이름은 그 안에 접혀 있다.
+    // 목록을 처음부터 펼쳐 두게 바꾸면 "펼치면"이라는 말도 함께 고친다.
+    const panel = html.indexOf(EMPTY);
+    const toggle = html.indexOf("<summary>검사하지 않은 파일 2개</summary>");
+    expect(toggle).toBeGreaterThan(-1);
+    expect(toggle).toBeLessThan(panel);
+    // 펼침 단추의 글은 접혀 있어도 보인다.
+    expect(closedDetailsAt(html, toggle + "<summary>".length)).toEqual([]);
+    for (const listed of skipped) {
+      const at = html.indexOf(listed);
+      expect(at, listed).toBeGreaterThan(toggle);
+      expect(at, listed).toBeLessThan(panel);
+      expect(closedDetailsAt(html, at), listed).toEqual(['<details class="filelist">']);
+    }
+  });
+
+  it("팩 판이 다른 빈 결과: 어떤 정책으로 검사했는지 알 수 없다고 적는다", () => {
+    const data = readJson("contract", "cli-current", "plain.main.json") as Report;
+    const html = renderData({ ...data, run: { ...data.run, pack_digest: "0000000000000000" } });
+    expect(emptyParts(html)!.facts["정책"]).toEqual({
+      text: "알 수 없음. 결과에는 정책 목록이 없고, 팩 판이 이 사이트에 실린 팩과 달라 어떤 정책으로 검사했는지 알 수 없습니다.",
+      warn: false,
+    });
+    for (const card of cards(html)) expect(card.status, card.title ?? "").toBe("알 수 없음");
+    // 그 카드들이 무엇인지는 결과 머리의 알림이 말한다.
+    expect(textOf(html)).toContain(
+      "이 결과를 만든 팩과 이 사이트에 실린 팩의 판이 다릅니다. 정책 설명이 결과와 맞지 않을 수 있습니다. 발견이 없는 정책은 그 팩에 있었는지 알 수 없습니다.",
+    );
+    // 대상 언어는 팩이 정한다. 다른 판의 팩이 JS/TS 만 봤는지는 알 수 없다고 덧붙인다.
+    expect(emptyParts(html)!.notSeen).toHaveLength(5);
+    expect(emptyParts(html)!.text).toContain(
+      "이 결과를 만든 팩은 이 사이트에 실린 팩과 판이 다릅니다. 그 팩이 JS/TS 말고 다른 언어도 검사하는지는 결과에 실려 있지 않습니다.",
+    );
+  });
+
+  describe("v1 초안: 정책 수와 아래 정책 카드가 맞는다", () => {
+    // v1 초안의 요약(run.policies)은 그 결과를 만든 팩의 모든 정책이다(스키마). 그래서 결과에 나온 정책만 카드로
+    // 그린다. 이 사이트의 팩에서 채워 넣으면 "정책 N개 … 아래에 정책마다 적었습니다" 아래에 요약에 없는 카드가 섞인다.
+    // CLI 가 아직 v1 을 내지 않으므로 아래 자료는 예시에서 요약만 바꿔 만든 것이다.
+    const draft = readJson("contract", "samples-v1-draft", "plain.main.json") as Report;
+    const fixed = readJson("contract", "samples-v1-draft", "kids-signup.fixed.json") as Report;
+    const OTHER = "0000000000000000";
+    const unknownPolicy = { policy: "kr.other.99", units: 2, needs_review: 0, uncertain: 0, compliant: 2, evidence: [] };
+    const withRun = (data: Report, patch: Partial<Report["run"]>) => renderData({ ...data, run: { ...data.run, ...patch } });
+
+    /** "정책" 줄에 적힌 수, 카드의 수, 정책별 수가 적힌 카드의 수. */
+    function counts(html: string) {
+      const line = emptyParts(html)!.facts["정책"].text;
+      const list = cards(html);
+      return {
+        line,
+        stated: Number(/^(\d+)개\. /.exec(line)?.[1]),
+        cards: list.length,
+        withUnits: list.filter((card) => card.units !== null).length,
+        statuses: [...new Set(list.map((card) => card.status))].sort(),
+      };
+    }
+    const AS_SUMMARIZED = "결과에 정책별 요약이 실려 있어, 아래에 정책마다 적었습니다.";
+
+    it("예시(요약이 이 사이트의 팩과 같다): 정책 수 = 카드 수 = 정책별 수가 적힌 카드 수", () => {
+      for (const file of jsonFiles("contract", "samples-v1-draft")) {
+        const data = readJson("contract", "samples-v1-draft", file) as Report;
+        if (data.findings.length > 0) continue;
+        expect(counts(renderData(data)), file).toMatchObject({ stated: 5, cards: 5, withUnits: 5 });
+      }
+    });
+
+    it("다른 판의 팩으로 만든 결과: 요약에 실린 정책만 카드로 그린다", () => {
+      const html = withRun(draft, { pack_digest: OTHER, policies: draft.run.policies!.slice(0, 3) });
+      expect(counts(html)).toEqual({
+        line: `3개. ${AS_SUMMARIZED}`,
+        stated: 3,
+        cards: 3,
+        withUnits: 3,
+        statuses: ["적용 신호 없음"],
+      });
+      // 요약이 그 팩의 정책 목록이므로 "그 팩에 있었는지 알 수 없는" 카드는 없다. 결과 머리의 알림도 그 말을 하지 않는다.
+      expect(textOf(html)).toContain("팩의 판이 다릅니다. 정책 설명이 결과와 맞지 않을 수 있습니다.");
+      expect(textOf(html)).not.toContain("그 팩에 있었는지");
+      expect(emptyParts(html)!.facts["판정 단위"].text).toBe("0개. 모든 정책을 합친 수입니다. 정책별 수는 아래 정책마다 적었습니다.");
+
+      // 충족 근거가 실린 예시로도 본다.
+      const two = withRun(fixed, { pack_digest: OTHER, policies: fixed.run.policies!.slice(0, 2) });
+      expect(counts(two)).toMatchObject({ stated: 2, cards: 2, withUnits: 2, statuses: ["적용 신호 없음", "충족 근거 발견"] });
+    });
+
+    it("같은 판의 팩인데 요약이 일부뿐인 결과: 요약에 없는 정책을 '발견 없음' 카드로 채우지 않는다", () => {
+      const html = withRun(draft, { policies: draft.run.policies!.slice(0, 2) });
+      expect(counts(html)).toEqual({ line: `2개. ${AS_SUMMARIZED}`, stated: 2, cards: 2, withUnits: 2, statuses: ["적용 신호 없음"] });
+      expect(textOf(html)).not.toContain(STATUS_HINT["not-reported"]);
+    });
+
+    it("이 사이트의 팩에 없는 정책이 요약에 있으면 그 정책도 카드로 그린다 (조문 도감으로 잇지는 않는다)", () => {
+      const html = withRun(draft, { pack_digest: OTHER, policies: [...draft.run.policies!.slice(0, 2), unknownPolicy] });
+      expect(counts(html)).toMatchObject({ line: `3개. ${AS_SUMMARIZED}`, stated: 3, cards: 3, withUnits: 3 });
+      const card = elementsOf(html, CARD).find((c) => c.includes("kr.other.99"))!;
+      expect(cardParts(card)).toMatchObject({ title: "kr.other.99", status: "충족 근거 발견", units: 2 });
+      expect(card).not.toContain("<a ");
+    });
+
+    it("요약이 빈 결과: 0개라고 눈에 띄게 적고, 요약이 실려 있다고도 정책마다 적었다고도 하지 않는다", () => {
+      for (const pack_digest of [draft.run.pack_digest, OTHER]) {
+        const html = withRun(draft, { pack_digest, policies: [] });
+        const empty = emptyParts(html)!;
+        expect(empty.facts["정책"], pack_digest).toEqual({
+          text: "0개. 결과의 정책별 요약이 비어 있습니다. 아래에 적을 정책이 없습니다.",
+          warn: true,
+        });
+        expect(empty.facts["판정 단위"].text, pack_digest).toBe(
+          "0개. 모든 정책을 합친 수입니다. 결과의 정책별 요약이 비어 있어 정책별 수가 없습니다.",
+        );
+        // 카드가 없다. 빈 상자도 그리지 않는다.
+        expect(cards(html), pack_digest).toEqual([]);
+        expect(html, pack_digest).not.toContain('<div class="policies">');
+        expect(textOf(html), pack_digest).not.toContain(AS_SUMMARIZED);
+      }
+    });
+
+    it("요약에 없는 정책이 AI 가 푼 경고에만 나오면, 그 카드는 요약에서 온 것이 아니라고 적는다", () => {
+      const cleared = (readJson("tests", "fixtures", "judge-on.cleared.json") as Report).run.ai_cleared!;
+      expect(cleared.map((c) => c.policy)).toEqual(["kr.pipa.22-2"]);
+      const policies = draft.run.policies!.filter((p) => p.policy !== "kr.pipa.22-2");
+      const html = withRun(draft, { judge: "claude-cli:haiku", units: 1, ai_cleared: cleared, policies });
+      expect(counts(html)).toMatchObject({
+        line: `4개. ${AS_SUMMARIZED} 요약에 없는 정책 1개도 아래에 있습니다. 결과의 다른 곳에만 나온 정책이라 정책별 수가 없습니다.`,
+        stated: 4,
+        cards: 5,
+        withUnits: 4,
+      });
+      expect(emptyParts(html)!.facts["판정 단위"].text).toBe(
+        "1개. 모든 정책을 합친 수입니다. 정책별 수는 아래에서 요약이 실린 정책에만 적었습니다.",
+      );
+      const card = cards(html).find((c) => c.title === PIPA)!;
+      expect(card.units).toBeNull();
+      expect(card.description).toContain("AI 판정자의 답으로 풀린 경고가 1건 있습니다.");
+    });
   });
 });
 

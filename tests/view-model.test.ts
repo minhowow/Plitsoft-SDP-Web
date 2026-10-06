@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { packMeta } from "@/lib/pack";
+import { examinedFacts } from "@/lib/report/examined";
 import { parseReport } from "@/lib/report/parse";
 import { judgedScope } from "@/lib/report/scope";
 import type { Status } from "@/lib/report/status";
@@ -324,5 +325,141 @@ describe("v1 초안으로 만든 화면 구조", () => {
   it("판정 단위가 0인 정책은 적용 신호 없음이다", () => {
     const v = view("samples-v1-draft", "plain.main.json");
     expect(v.policies.every((p) => p.status === "no-signal")).toBe(true);
+  });
+});
+
+describe("빈 결과에서 아는 것과 모르는 것", () => {
+  // 발견이 0일 때 화면에 적을 수 있는 것은 결과에 실린 수뿐이다. 실려 있지 않은 것은 null 로 두고 짐작하지 않는다.
+  const unitsOf = (v: ReportView) => Object.fromEntries(v.policies.map((p) => [p.id, p.units]));
+  const fact = (v: ReportView, label: string) => examinedFacts(v).find((f) => f.label === label)!;
+
+  it("v1 초안: 정책별 판정 단위 수를 요약에서 그대로 옮긴다", () => {
+    const fixed = view("samples-v1-draft", "kids-signup.fixed.json");
+    expect(unitsOf(fixed)).toEqual({
+      "kr.pipa.22-2": 1,
+      "kr.network-act.50-3": 0,
+      "kr.ai-basic-act.31": 0,
+      "kr.ai-basic-act.31-1": 0,
+      "kr.network-act.50-4": 0,
+    });
+    expect(Object.values(unitsOf(view("samples-v1-draft", "plain.main.json")))).toEqual([0, 0, 0, 0, 0]);
+    // 정책 수는 결과에 실린 요약의 수다.
+    expect(fixed.policyCount).toBe(5);
+  });
+
+  it("CLI 0.3: 정책별 판정 단위 수는 모른다. 전체 수가 0이든 1이든 짐작해 채우지 않는다", () => {
+    const plain = view("cli-current", "plain.main.json");
+    const fixed = view("cli-current", "kids-signup.fixed.json");
+    expect([plain.coverage.units, fixed.coverage.units]).toEqual([0, 1]);
+    for (const v of [plain, fixed]) {
+      expect(Object.values(unitsOf(v))).toEqual([null, null, null, null, null]);
+      expect(v.policies.every((p) => p.status === "not-reported")).toBe(true);
+      // 결과에는 정책 목록이 없다. 팩 판이 같은 이 사이트의 팩에서 센다.
+      expect(v.packMatches).toBe(true);
+      expect(v.policyCount).toBe(packMeta.policies.length);
+    }
+  });
+
+  it("판 번호 없는 결과의 run.policies 는 쓰지 않는다 (정책별 수도, 정책 수도)", () => {
+    const data = readJson("contract", "cli-current", "kids-signup.fixed.json") as Report;
+    const draft = readJson("contract", "samples-v1-draft", "kids-signup.fixed.json") as Report;
+    const policies = draft.run.policies!.slice(0, 2);
+    const v = viewOf({ ...data, run: { ...data.run, policies } });
+    expect(v.contract).toBe("cli-0.3");
+    expect(Object.values(unitsOf(v))).toEqual([null, null, null, null, null]);
+    expect(v.policies.every((p) => p.evidence.length === 0)).toBe(true);
+    expect(v.policyCount).toBe(packMeta.policies.length);
+  });
+
+  it("팩 판이 다르거나 팩 메타데이터가 없으면 정책 수를 모른다", () => {
+    const data = readJson("contract", "cli-current", "plain.main.json") as Report;
+    const other = viewOf({ ...data, run: { ...data.run, pack_digest: "0000000000000000" } });
+    expect(other.policyCount).toBeNull();
+    expect(fact(other, "정책").note).toContain("팩 판이 이 사이트에 실린 팩과 달라");
+
+    const parsed = parseReport(data);
+    if (!parsed.ok) throw new Error(parsed.errors.join("\n"));
+    const bare = buildReportView(parsed.report, parsed.contract);
+    expect(bare.packMatches).toBeNull();
+    expect(bare.policyCount).toBeNull();
+    expect(fact(bare, "정책")).toEqual({
+      label: "정책",
+      value: "알 수 없음",
+      note: "결과에는 정책 목록이 없어 어떤 정책으로 검사했는지 알 수 없습니다.",
+      warn: false,
+    });
+  });
+
+  it("v1 초안은 팩 판이 달라도 결과에 실린 요약으로 정책 수를 안다 (사이트의 팩에서 세지 않는다)", () => {
+    const data = readJson("contract", "samples-v1-draft", "plain.main.json") as Report;
+    // 이 사이트의 팩(정책 5개)과 수가 다른 요약을 넣어 본다.
+    const policies = data.run.policies!.slice(0, 3);
+    const v = viewOf({ ...data, run: { ...data.run, pack_digest: "0000000000000000", policies } });
+    expect(v.packMatches).toBe(false);
+    expect(packMeta.policies).toHaveLength(5);
+    expect(v.policyCount).toBe(3);
+    expect(fact(v, "정책")).toMatchObject({ value: "3개", note: "결과에 정책별 요약이 실려 있어, 아래에 정책마다 적었습니다." });
+    // 카드도 그 셋뿐이다. 이 사이트의 팩에만 있는 정책을 "알 수 없음"으로 채워 넣지 않는다.
+    expect(v.policies.map((p) => p.id)).toEqual(policies.map((p) => p.policy));
+    expect(v.policies.every((p) => p.units !== null && p.status === "no-signal")).toBe(true);
+  });
+
+  it("v1 초안: 카드는 결과에 나온 정책뿐이다 (요약, 발견, AI 가 푼 경고). 순서는 이 사이트의 팩을 먼저 따른다", () => {
+    const data = readJson("contract", "samples-v1-draft", "plain.main.json") as Report;
+    const all = data.run.policies!;
+    const ids = (run: Partial<Report["run"]>) => viewOf({ ...data, run: { ...data.run, ...run } }).policies.map((p) => p.id);
+    const pack = packMeta.policies.map((p) => p.id);
+    expect(ids({})).toEqual(pack);
+
+    // 요약이 일부뿐이면 그만큼만. 요약에 적힌 순서가 달라도 팩의 순서로 둔다.
+    expect(ids({ policies: [all[3], all[0]] })).toEqual([pack[0], pack[3]]);
+    // 요약이 비면 카드가 없다.
+    const none = viewOf({ ...data, run: { ...data.run, policies: [] } });
+    expect(none.policies).toEqual([]);
+    expect(none.policyCount).toBe(0);
+    expect(fact(none, "정책")).toMatchObject({ value: "0개", warn: true });
+    // 이 사이트의 팩에 없는 정책은 뒤에 붙는다.
+    const other = { policy: "kr.other.99", units: 0, needs_review: 0, uncertain: 0, compliant: 0, evidence: [] };
+    expect(ids({ policies: [other, all[1]] })).toEqual([pack[1], "kr.other.99"]);
+
+    // 요약에 없어도 발견이나 AI 가 푼 경고에 나온 정책은 카드가 있다. 그 카드에는 정책별 수가 없다.
+    const [finding] = (readJson("contract", "samples-v1-draft", "kids-signup.main.json") as Report).findings;
+    const [cleared] = (readJson("tests", "fixtures", "judge-on.cleared.json") as Report).run.ai_cleared!;
+    expect(finding.policy).toBe(pack[0]);
+    expect(cleared.policy).toBe(pack[0]);
+    const found = viewOf({ ...data, findings: [finding], run: { ...data.run, policies: [all[1]] } });
+    expect(found.policies.map((p) => [p.id, p.units])).toEqual([[pack[0], null], [pack[1], 0]]);
+    const freed = viewOf({ ...data, run: { ...data.run, policies: [all[1]], ai_cleared: [cleared] } });
+    expect(freed.policies.map((p) => [p.id, p.units])).toEqual([[pack[1], 0], [pack[0], null]]);
+    expect(freed.policyCount).toBe(1);
+    expect(fact(freed, "정책").note).toContain("요약에 없는 정책 1개도 아래에 있습니다.");
+  });
+
+  it("CLI 0.3: 카드는 이 사이트의 팩에 실린 정책 전부다 (결과에 정책 목록이 없어서 팩에서 채운다)", () => {
+    for (const file of jsonFiles("contract", "cli-current")) {
+      expect(view("cli-current", file).policies.map((p) => p.id).sort(), file).toEqual(packMeta.policies.map((p) => p.id).sort());
+    }
+  });
+
+  it("빠진 판정이 없었다는 것은 판정자가 꺼져 있었거나 결과에 그 목록이 실려 있을 때만 안다", () => {
+    const data = readJson("contract", "cli-current", "plain.main.json") as Report;
+    const known = (run: Partial<Report["run"]>) => viewOf({ ...data, run }).aiDismissedKnown;
+    const without: Partial<Report["run"]> = { ...data.run };
+    delete without.ai_dismissed;
+    expect(known(data.run)).toBe(true);
+    expect(known(without)).toBe(true);
+    expect(known({ ...without, judge: "claude-cli:haiku" })).toBe(false);
+    expect(known({ ...data.run, judge: "claude-cli:haiku" })).toBe(true);
+    expect(view("../tests/fixtures", "judge-on.dismissed.json").aiDismissedKnown).toBe(true);
+  });
+
+  it("검사한 것은 파일 수, 판정 단위 수, 검사하지 않은 파일, 정책 순서다", () => {
+    const facts = examinedFacts(view("cli-current", "kids-signup.fixed.json"));
+    expect(facts.map((f) => [f.label, f.value, f.warn])).toEqual([
+      ["검사한 파일", "1개", false],
+      ["판정 단위", "1개", false],
+      ["검사하지 않은 파일", "없음", false],
+      ["정책", "5개", false],
+    ]);
   });
 });

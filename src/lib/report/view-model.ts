@@ -22,6 +22,9 @@ export interface LocationView {
 /** 같은 규칙이 여러 곳에 반복될 때 먼저 보이는 대표 위치의 수. 나머지는 접는다. */
 export const SHOWN_PER_RULE = 3;
 
+/** 화면에 적는 출력 형식의 이름. 결과 머리의 "출력 형식"과 빈 결과 화면의 한계 문구가 같은 이름을 쓴다. */
+export const CONTRACT_LABEL: Record<Contract, string> = { "cli-0.3": "CLI 0.3", "v1-draft": "v1 초안" };
+
 /**
  * 같은 규칙의 발견 묶음. 접는 단위다. 규칙이 다르면 서로 다른 의무이므로, 다른 규칙의 발견을 접어 가리지 않는다.
  */
@@ -51,6 +54,11 @@ export interface PolicyView {
   rules: RuleGroupView[];
   /** 충족 근거 위치. v1 초안에서만 채워진다. */
   evidence: PolicySummary["evidence"];
+  /**
+   * 이 정책의 판정 단위 수. 결과에 정책별 요약이 있을 때(v1 초안)만 안다. 없으면 null 이다.
+   * CLI 0.3 의 전체 수(`run.units`)에서 짐작해 채우지 않는다.
+   */
+  units: number | null;
   /** AI 의 '예'로 풀린 경고 수. 0 보다 크면 "구분할 수 없다"는 설명 대신 이 사실을 보인다. */
   aiCleared: number;
   /** 팩 메타데이터에 이 정책이 있는지. 없으면 조문 도감으로 이어 줄 수 없다. */
@@ -80,11 +88,26 @@ export interface ReportView {
   packMatches: boolean | null;
   coverage: CoverageView;
   policies: PolicyView[];
+  /**
+   * 검사에 쓰인 정책의 수. 결과에는 정책 목록이 없으므로(CLI 0.3) 두 가지 길로만 안다.
+   * 결과에 정책별 요약이 있으면(v1 초안) 그 수이고, 없으면 결과와 팩 판이 같은 이 사이트의 팩에 실린 정책의 수다.
+   * 팩 판이 다르거나 팩 메타데이터가 없으면 알 수 없다(null).
+   *
+   * v1 초안에서는 정책별 수(`PolicyView.units`)가 적힌 카드의 수와 같다. 요약에 없는데 발견이나 AI 가 푼 경고에만
+   * 나온 정책이 있으면 카드(`policies`)가 이 수보다 많다.
+   */
+  policyCount: number | null;
   /** 발견 수(검토 필요 + AI 확인 전 + 판단 보류). 점수가 아니다. */
   findingCount: number;
   /** AI 가 푼 경고와 적용 질문으로 빠진 판정. 숨기지 않는다. 사람이 인용한 줄을 확인해야 한다. */
   aiCleared: AiCleared[];
   aiDismissed: AiDismissed[];
+  /**
+   * 적용 질문으로 빠진 판정이 `aiDismissed` 에 실린 것뿐이라는 것을 아는지. 판정자가 꺼져 있었으면 AI 에게 묻지
+   * 않으므로 빠진 판정이 없다. 켜져 있었으면 결과에 `run.ai_dismissed` 가 실려 있어야 안다(CLI 0.3 은 늘 싣는다.
+   * 없는 결과도 읽으므로, 그때는 `aiDismissed` 가 비어 있어도 빠진 판정이 없었다고 하지 않는다).
+   */
+  aiDismissedKnown: boolean;
 }
 
 const byUrgency = (a: Status, b: Status) => STATUS_ORDER.indexOf(a) - STATUS_ORDER.indexOf(b);
@@ -132,7 +155,7 @@ function groupByRule(found: LocationView[]): RuleGroupView[] {
 
 /**
  * 결과 JSON 을 화면용 구조로 바꾼다. 같은 정책의 발견은 정책 하나 아래로 묶고, 그 안에서 규칙별로 다시 묶는다.
- * 팩 메타데이터를 주면 발견이 없는 정책도 함께 보여 준다.
+ * 팩 메타데이터를 주면 발견이 없는 정책도 함께 보여 준다(CLI 0.3 결과에서. v1 초안은 결과에 나온 정책만 보여 준다).
  */
 export function buildReportView(report: Report, contract: Contract, pack?: PackMeta): ReportView {
   const byPolicy = new Map<string, Finding[]>();
@@ -154,9 +177,13 @@ export function buildReportView(report: Report, contract: Contract, pack?: PackM
     clearedCount.set(cleared.policy, (clearedCount.get(cleared.policy) ?? 0) + 1);
   }
 
-  // 팩 순서를 먼저 따르고, 팩에 없는 정책(다른 팩의 결과)은 뒤에 붙인다.
-  const ids = [...packPolicies.keys()];
-  for (const id of [...summaries.keys(), ...byPolicy.keys(), ...clearedCount.keys()]) {
+  // 카드로 그릴 정책. 팩 순서를 먼저 따르고, 팩에 없는 정책(다른 팩의 결과)은 뒤에 붙인다.
+  // CLI 0.3 결과에는 정책 목록이 없어서 이 사이트의 팩에 실린 정책을 모두 그린다. v1 초안은 요약이 그 결과를 만든 팩의
+  // 모든 정책이므로(스키마의 run.policies) 결과에 나온 정책만 그린다. 이 사이트의 팩에서 채워 넣으면 요약에 없는
+  // 정책이 "발견 없음"이나 "알 수 없음" 카드로 끼어들어, 화면에 적는 정책 수(policyCount)와 카드가 어긋난다.
+  const reported = new Set([...summaries.keys(), ...byPolicy.keys(), ...clearedCount.keys()]);
+  const ids = [...packPolicies.keys()].filter((id) => contract !== "v1-draft" || reported.has(id));
+  for (const id of reported) {
     if (!ids.includes(id)) ids.push(id);
   }
 
@@ -195,6 +222,7 @@ export function buildReportView(report: Report, contract: Contract, pack?: PackM
       locations,
       rules: groupByRule(found),
       evidence: summary?.evidence ?? [],
+      units: summary ? summary.units : null,
       aiCleared: clearedCount.get(id) ?? 0,
       inPack: meta !== undefined,
     };
@@ -221,8 +249,10 @@ export function buildReportView(report: Report, contract: Contract, pack?: PackM
       complete: report.run.coverage_complete,
     },
     policies,
+    policyCount: contract === "v1-draft" ? summaries.size : packMatches ? packPolicies.size : null,
     findingCount: report.findings.length,
     aiCleared,
     aiDismissed,
+    aiDismissedKnown: report.run.judge === null || report.run.ai_dismissed !== undefined,
   };
 }

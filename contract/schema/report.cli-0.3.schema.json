@@ -192,7 +192,7 @@
         },
         "units": {
           "type": "integer",
-          "description": "판정 단위 수. 충족 판정도 여기에는 들어간다."
+          "description": "판정 단위 수. 규칙의 적용 조건이 참이거나 모름인 곳마다 하나다. 충족 판정도 여기에는 들어간다. AI 가 적용되지 않는다고 답해 빠진 판정(ai_dismissed)은 들어가지 않는다."
         },
         "files": {
           "type": "integer",

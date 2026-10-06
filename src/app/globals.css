@@ -342,6 +342,81 @@ main.wrap > section,
   font-size: 0.88rem;
 }
 
+/*
+ * 빈 결과 화면: 발견이 0인 결과에만 보인다. 검사한 것과 이 도구가 보지 못하는 것.
+ * 정책 카드와 같은 면에 두되, 제목이 링크가 아니고 안쪽이 표(이름표 + 값과 설명)라서 구분된다.
+ */
+.empty-report {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  padding: 14px 16px;
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
+.empty-report section {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.empty-report section + section {
+  border-top: 1px solid var(--rule);
+  padding-top: 14px;
+}
+
+/* 줄마다 같은 자리에 이름표가 온다. 좁은 화면에서는 이름표를 글 위에 둔다. */
+.examined {
+  margin: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.examined > div {
+  display: grid;
+  grid-template-columns: 9.5em minmax(0, 1fr);
+  gap: 0 12px;
+  align-items: baseline;
+}
+
+.examined dt {
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.examined dd {
+  margin: 0;
+  font-size: 0.92rem;
+}
+
+/* 값(결과에 실린 수)이 먼저 눈에 들어오고, 그 수가 무엇인지는 옅게 뒤따른다. */
+.examined .fact-note {
+  color: var(--muted);
+}
+
+/* 발견이 없는 까닭이 "보지 못해서"일 수 있는 줄(검사한 파일 0개, 검사하지 않은 파일 있음). */
+.examined dd.warn,
+.examined dd.warn .fact-note {
+  color: var(--st-review);
+}
+
+@media (max-width: 480px) {
+  .examined > div {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.not-seen {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 6px;
+  font-size: 0.92rem;
+}
+
 .policies {
   display: grid;
   gap: 12px;
