@@ -32,6 +32,9 @@ contract/cli-current/*.json            data/pack-meta.json
 ```
 
 - `/view`: 사용자가 고른 JSON 파일을 브라우저에서 읽어 같은 부품으로 그린다. 서버로 보내지 않는다.
+  브라우저에서 도는 부품에는 팩 메타데이터 전체를 주지 않는다. 쪽(서버 부품)이 팩 판과 정책의 id·제목·조문 이름만 골라
+  props 로 넘긴다(`src/lib/pack/index.ts` 의 `packIndex`). 전체를 불러오면 화면에 싣지 않는 팩 작성자 메모까지 JS 묶음에
+  실려 나간다. 조문 도감 주소는 데이터를 불러오지 않는 `src/lib/pack/href.ts` 에서 만든다(`tests/bundle.test.ts`).
 - `/demo`: 빌드할 때 `contract/fixtures` 의 합성 코드와 `contract/cli-current` 의 결과를 읽는다.
 - `/policy/<이름>`: `data/pack-meta.json` 의 정책마다 한 쪽. 빌드할 때 만들어진다. 주소의 이름은 정책 id 의 점을
   빼기표로 바꾼 것이다(`kr.pipa.22-2` → `kr-pipa-22-2`, `src/lib/pack/index.ts` 의 `policySlug`). 점이 든 경로는 Next 가

@@ -2,7 +2,7 @@
 
 import { useRef, useState, type ChangeEvent, type DragEvent } from "react";
 import { ReportSummary } from "@/components/result/ReportSummary";
-import { packMeta } from "@/lib/pack";
+import type { PackIndex } from "@/lib/pack/types";
 import { parseReport, parseReportText, type ParseResult } from "@/lib/report/parse";
 import type { Contract, Report } from "@/lib/report/types";
 import { buildReportView } from "@/lib/report/view-model";
@@ -30,15 +30,18 @@ function fromSample(sample: Sample, seq: number): Loaded {
 }
 
 /** 화면 구조를 만드는 일까지 오류 경계 안에서 한다. 여기서 실패해도 파일 고르기는 남는다. */
-function Result({ report, contract }: { report: Report; contract: Contract }) {
-  return <ReportSummary view={buildReportView(report, contract, packMeta)} />;
+function Result({ report, contract, pack }: { report: Report; contract: Contract; pack: PackIndex }) {
+  return <ReportSummary view={buildReportView(report, contract, pack)} />;
 }
 
 /**
  * CLI 결과 JSON 을 브라우저 안에서만 읽어 그린다. 파일 내용은 어디로도 보내지 않고 저장하지도 않는다.
  * 처음에는 합성 예시 하나를 열어 둔다.
+ *
+ * 팩 정보는 쪽(서버 부품)이 필요한 것만 골라 넘긴다. 여기서 팩 메타데이터를 직접 불러오지 않는다
+ * (`src/lib/pack/index.ts` 의 `packIndex`).
  */
-export function ReportViewer() {
+export function ReportViewer({ pack }: { pack: PackIndex }) {
   const [loaded, setLoaded] = useState<Loaded>(() => fromSample(SAMPLES[0], 0));
   const [dragging, setDragging] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -113,7 +116,7 @@ export function ReportViewer() {
 
       {result.ok ? (
         <ResultBoundary key={loaded.seq}>
-          <Result report={result.report} contract={result.contract} />
+          <Result report={result.report} contract={result.contract} pack={pack} />
         </ResultBoundary>
       ) : (
         <div className="notice notice-warn" role="alert">

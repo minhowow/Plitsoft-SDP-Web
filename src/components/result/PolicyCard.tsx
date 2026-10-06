@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Fragment } from "react";
-import { policyHref } from "@/lib/pack";
+import { policyHref } from "@/lib/pack/href";
 import { reasonLabel } from "@/lib/report/reasons";
 import { scopeLabel, scopeNote } from "@/lib/report/scope";
 import { STATUS_HINT } from "@/lib/report/status";

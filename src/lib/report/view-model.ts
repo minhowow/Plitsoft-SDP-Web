@@ -1,4 +1,4 @@
-import type { PackMeta } from "@/lib/pack/types";
+import type { PackIndex } from "@/lib/pack/types";
 import { judgedScope, type JudgedScope } from "./scope";
 import { findingStatus, STATUS_ORDER, worst, type Status } from "./status";
 import type { AiCleared, AiDismissed, Contract, Finding, PolicySummary, Report } from "./types";
@@ -157,7 +157,7 @@ function groupByRule(found: LocationView[]): RuleGroupView[] {
  * 결과 JSON 을 화면용 구조로 바꾼다. 같은 정책의 발견은 정책 하나 아래로 묶고, 그 안에서 규칙별로 다시 묶는다.
  * 팩 메타데이터를 주면 발견이 없는 정책도 함께 보여 준다(CLI 0.3 결과에서. v1 초안은 결과에 나온 정책만 보여 준다).
  */
-export function buildReportView(report: Report, contract: Contract, pack?: PackMeta): ReportView {
+export function buildReportView(report: Report, contract: Contract, pack?: PackIndex): ReportView {
   const byPolicy = new Map<string, Finding[]>();
   for (const finding of report.findings) {
     const list = byPolicy.get(finding.policy) ?? [];

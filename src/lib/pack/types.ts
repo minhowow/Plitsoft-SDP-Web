@@ -46,6 +46,15 @@ export interface PolicyMeta {
   rules: Rule[];
 }
 
+/**
+ * 결과 화면이 팩에서 쓰는 것: 팩 판, 그리고 정책마다 id·제목·조문 이름. `PackMeta` 는 이 모양을 그대로 품고 있다.
+ * 브라우저에서 도는 부품에는 이것만 넘긴다(`src/lib/pack/index.ts` 의 `packIndex`).
+ */
+export interface PackIndex {
+  pack: { digest: string };
+  policies: { id: string; title: string; legal: { label: string }[] }[];
+}
+
 export interface PackMeta {
   schema_version: string;
   generated_by: string;
