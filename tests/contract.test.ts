@@ -137,6 +137,31 @@ describe("파서가 거부하는 것", () => {
     expect(parseReport({ ...data, findings }).ok).toBe(false);
   });
 
+  it("참·거짓이 아닌 top_level (스키마도 같게 본다)", () => {
+    const data = base();
+    const withTopLevel = (value: unknown) => ({ ...data, findings: data.findings.map((f) => ({ ...f, top_level: value })) });
+    for (const value of ["true", 1, null]) {
+      expect(parseReport(withTopLevel(value)).ok, String(value)).toBe(false);
+      expect(validateCurrent(withTopLevel(value)), String(value)).toBe(false);
+    }
+    for (const value of [true, false]) {
+      expect(parseReport(withTopLevel(value)).ok, String(value)).toBe(true);
+      expect(validateCurrent(withTopLevel(value)), String(value)).toBe(true);
+    }
+    // 없는 것은 받아들인다. 화면은 판정 구역을 "알 수 없음"으로 보인다.
+    const without = {
+      ...data,
+      findings: data.findings.map((f) => {
+        const finding: Partial<typeof f> = { ...f };
+        delete finding.top_level;
+        return finding;
+      }),
+    };
+    expect(without.findings.every((f) => !("top_level" in f))).toBe(true);
+    expect(parseReport(without).ok).toBe(true);
+    expect(validateCurrent(without)).toBe(true);
+  });
+
   it("모양이 다른 ai_cleared", () => {
     const data = base();
     expect(parseReport({ ...data, run: { ...data.run, ai_cleared: [{ policy: 1 }] } }).ok).toBe(false);

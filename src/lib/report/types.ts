@@ -30,7 +30,13 @@ export interface Finding {
   ai_pending: string[];
   fingerprint: string;
   scope: "file" | "anchor";
+  /** 함수 단위 규칙(scope: anchor)의 판정 구역. 감싸는 가장 바깥 함수의 줄 범위다. */
   region: { start_line: number; end_line: number } | null;
+  /**
+   * 함수 단위 규칙에서 판정 구역이 함수 밖(모듈 최상위)의 줄인지. 그때 region 은 null 이다.
+   * region 이 null 이고 이 값이 false 면 파일 전체를 본 판정이다. CLI 0.3 은 늘 싣지만, 없는 결과도 읽는다.
+   */
+  top_level?: boolean;
   unsatisfied_alternatives: UnsatisfiedAlternative[];
   /** 사람이 읽는 판정 경로. 문장을 해석해서 쓰지 않는다. 그대로 보여 주기만 한다. */
   decision_path: string[];

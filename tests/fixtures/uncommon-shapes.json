@@ -1,0 +1,309 @@
+{
+  "$comment": "손으로 만든 시험용 자료다. 실제 CLI 출력이 아니다. 수집본에 없는 드문 모양의 화면을 보기 위한 것이다. (1) 함수 단위 판정(scope: anchor)의 세 구역: 함수(region), 함수 밖(top_level: true), 파일 전체(region: null, top_level: false). kr-core 의 규칙은 지금 모두 파일 단위라서, 이 필드들은 CLI 소스(evaluate/engine.py 의 _where, report/outcome.py 의 Finding)를 보고 손으로 바꿨다. (2) 줄이 없는 발견과 질문이 실리지 않은 대안: CLI 가 낼 수 있다. (3) 판정 경로가 빈 발견, 함수 단위인데 top_level 이 없는 발견: CLI 0.3 은 내지 않지만 뷰어는 어떤 파일이든 열 수 있어야 한다. 발견의 글은 contract/cli-current/night-push.main.json 과 data/pack-meta.json 에서 그대로 옮겼다. 지문은 모양만 맞춘 값이다.",
+  "tool": {
+    "name": "policypack",
+    "version": "0.3.0.dev0"
+  },
+  "run": {
+    "judge": null,
+    "pack_digest": "fa6fc2b3e62d8d0d",
+    "questions_asked": 0,
+    "ai_answered": 0,
+    "questions_sent": 0,
+    "ai_pending": 7,
+    "ai_cleared": [],
+    "ai_dismissed": [],
+    "engine": {
+      "name": "semgrep",
+      "version": "1.176.1"
+    },
+    "static_seconds": 0,
+    "ai_seconds": 0,
+    "units": 7,
+    "unparsed": [],
+    "skipped": [],
+    "incomplete": [],
+    "engine_errors": [],
+    "coverage_complete": true,
+    "files": 5
+  },
+  "findings": [
+    {
+      "policy": "kr.network-act.50-4",
+      "rule": "nonemail-start-block",
+      "outcome": "needs-review",
+      "file": "src/notifications/promo.ts",
+      "line": 18,
+      "case": null,
+      "category": "ads-disclosure",
+      "title": "광고성 정보에 밝혀야 할 사항 — (광고) 표기, 전송자 명칭·연락처, 무료 수신거부 방법",
+      "law": "정보통신망 이용촉진 및 정보보호 등에 관한 법률 제50조 제4항",
+      "ask_developer": "이 메시지가 영리목적의 광고라면 (광고) 표기, 전송자의 명칭·연락처, 수신거부 방법이 정해진 자리에 들어가나요?",
+      "untested_reasons": [
+        "no-judge"
+      ],
+      "ai_pending": [
+        "ai-start-block"
+      ],
+      "fingerprint": "8a0e8fd0885109b005a17584857c284a",
+      "scope": "anchor",
+      "region": {
+        "start_line": 12,
+        "end_line": 34
+      },
+      "top_level": false,
+      "anchor_lines": [
+        18,
+        27
+      ],
+      "unsatisfied_alternatives": [
+        {
+          "id": "label-name-phone",
+          "message": "보내는 메시지 본문이 (광고)와 전송자의 명칭·전화번호로 시작하는 것을 코드에서 확인하지 못했습니다.",
+          "ask_developer": "이 광고 메시지는 무엇으로 시작하나요? (광고) 바로 뒤에 회사명과 전화번호(또는 주소)가 붙나요?",
+          "remediation": null,
+          "value": "false"
+        }
+      ],
+      "decision_path": [
+        "적용: 정적 true [구역 12~34행]",
+        "대안 label-name-phone: 정적 false",
+        "대안 ai-start-block: AI 필요(판정자 없음) → 판정에 넣지 않음",
+        "→ needs-review"
+      ]
+    },
+    {
+      "policy": "kr.network-act.50-4",
+      "rule": "nonemail-start-block",
+      "outcome": "needs-review",
+      "file": "src/notifications/promo.ts",
+      "line": 44,
+      "case": null,
+      "category": "ads-disclosure",
+      "title": "광고성 정보에 밝혀야 할 사항 — (광고) 표기, 전송자 명칭·연락처, 무료 수신거부 방법",
+      "law": "정보통신망 이용촉진 및 정보보호 등에 관한 법률 제50조 제4항",
+      "ask_developer": "이 메시지가 영리목적의 광고라면 (광고) 표기, 전송자의 명칭·연락처, 수신거부 방법이 정해진 자리에 들어가나요?",
+      "untested_reasons": [
+        "no-judge"
+      ],
+      "ai_pending": [
+        "ai-start-block"
+      ],
+      "fingerprint": "7498d18412d7cd1346f38f54e89e4232",
+      "scope": "anchor",
+      "region": {
+        "start_line": 40,
+        "end_line": 58
+      },
+      "top_level": false,
+      "anchor_lines": [
+        44
+      ],
+      "unsatisfied_alternatives": [
+        {
+          "id": "label-name-phone",
+          "message": "보내는 메시지 본문이 (광고)와 전송자의 명칭·전화번호로 시작하는 것을 코드에서 확인하지 못했습니다.",
+          "ask_developer": "이 광고 메시지는 무엇으로 시작하나요? (광고) 바로 뒤에 회사명과 전화번호(또는 주소)가 붙나요?",
+          "remediation": null,
+          "value": "false"
+        }
+      ],
+      "decision_path": [
+        "적용: 정적 true [구역 40~58행]",
+        "대안 label-name-phone: 정적 false",
+        "대안 ai-start-block: AI 필요(판정자 없음) → 판정에 넣지 않음",
+        "→ needs-review"
+      ]
+    },
+    {
+      "policy": "kr.network-act.50-4",
+      "rule": "nonemail-start-block",
+      "outcome": "needs-review",
+      "file": "src/notifications/promo.ts",
+      "line": 3,
+      "case": null,
+      "category": "ads-disclosure",
+      "title": "광고성 정보에 밝혀야 할 사항 — (광고) 표기, 전송자 명칭·연락처, 무료 수신거부 방법",
+      "law": "정보통신망 이용촉진 및 정보보호 등에 관한 법률 제50조 제4항",
+      "ask_developer": "이 메시지가 영리목적의 광고라면 (광고) 표기, 전송자의 명칭·연락처, 수신거부 방법이 정해진 자리에 들어가나요?",
+      "untested_reasons": [
+        "no-judge"
+      ],
+      "ai_pending": [
+        "ai-start-block"
+      ],
+      "fingerprint": "99f0d453839300841e233644a61bf93e",
+      "scope": "anchor",
+      "region": null,
+      "top_level": true,
+      "anchor_lines": [
+        3
+      ],
+      "unsatisfied_alternatives": [
+        {
+          "id": "label-name-phone",
+          "message": "보내는 메시지 본문이 (광고)와 전송자의 명칭·전화번호로 시작하는 것을 코드에서 확인하지 못했습니다.",
+          "ask_developer": "이 광고 메시지는 무엇으로 시작하나요? (광고) 바로 뒤에 회사명과 전화번호(또는 주소)가 붙나요?",
+          "remediation": null,
+          "value": "false"
+        }
+      ],
+      "decision_path": [
+        "적용: 정적 true [구역 함수 밖]",
+        "대안 label-name-phone: 정적 false",
+        "대안 ai-start-block: AI 필요(판정자 없음) → 판정에 넣지 않음",
+        "→ needs-review"
+      ]
+    },
+    {
+      "policy": "kr.network-act.50-4",
+      "rule": "nonemail-start-block",
+      "outcome": "needs-review",
+      "file": "src/jobs/weekly-digest.ts",
+      "line": 7,
+      "case": null,
+      "category": "ads-disclosure",
+      "title": "광고성 정보에 밝혀야 할 사항 — (광고) 표기, 전송자 명칭·연락처, 무료 수신거부 방법",
+      "law": "정보통신망 이용촉진 및 정보보호 등에 관한 법률 제50조 제4항",
+      "ask_developer": "이 메시지가 영리목적의 광고라면 (광고) 표기, 전송자의 명칭·연락처, 수신거부 방법이 정해진 자리에 들어가나요?",
+      "untested_reasons": [
+        "no-judge"
+      ],
+      "ai_pending": [
+        "ai-start-block"
+      ],
+      "fingerprint": "4ec14be6525956d5e1b2c1d6b2df38d3",
+      "scope": "anchor",
+      "region": null,
+      "top_level": false,
+      "anchor_lines": [
+        7
+      ],
+      "unsatisfied_alternatives": [
+        {
+          "id": "label-name-phone",
+          "message": "보내는 메시지 본문이 (광고)와 전송자의 명칭·전화번호로 시작하는 것을 코드에서 확인하지 못했습니다.",
+          "ask_developer": "이 광고 메시지는 무엇으로 시작하나요? (광고) 바로 뒤에 회사명과 전화번호(또는 주소)가 붙나요?",
+          "remediation": null,
+          "value": "false"
+        }
+      ],
+      "decision_path": [
+        "적용: 정적 true [구역 파일 전체]",
+        "대안 label-name-phone: 정적 false",
+        "대안 ai-start-block: AI 필요(판정자 없음) → 판정에 넣지 않음",
+        "→ needs-review"
+      ]
+    },
+    {
+      "policy": "kr.network-act.50-4",
+      "rule": "nonemail-end-optout",
+      "outcome": "needs-review",
+      "file": "src/legacy/blast.js",
+      "line": null,
+      "case": null,
+      "category": "ads-disclosure",
+      "title": "광고성 정보에 밝혀야 할 사항 — (광고) 표기, 전송자 명칭·연락처, 무료 수신거부 방법",
+      "law": "정보통신망 이용촉진 및 정보보호 등에 관한 법률 제50조 제4항",
+      "ask_developer": "이 메시지가 영리목적의 광고라면 (광고) 표기, 전송자의 명칭·연락처, 수신거부 방법이 정해진 자리에 들어가나요?",
+      "untested_reasons": [
+        "no-judge"
+      ],
+      "ai_pending": [
+        "ai-optout-free"
+      ],
+      "fingerprint": "cc844e0463021e5aa936b7c563ef40d4",
+      "scope": "file",
+      "region": null,
+      "top_level": false,
+      "anchor_lines": [],
+      "unsatisfied_alternatives": [
+        {
+          "id": "optout-080-free",
+          "message": "보내는 메시지 본문 끝에서 '무료' 표시가 붙은 080 수신거부 번호를 확인하지 못했습니다.",
+          "ask_developer": null,
+          "remediation": null,
+          "value": "false"
+        }
+      ],
+      "decision_path": [
+        "적용: 정적 true",
+        "대안 optout-080-free: 정적 false",
+        "대안 ai-optout-free: AI 필요(판정자 없음) → 판정에 넣지 않음",
+        "→ needs-review"
+      ]
+    },
+    {
+      "policy": "kr.network-act.50-4",
+      "rule": "nonemail-end-optout",
+      "outcome": "needs-review",
+      "file": "src/legacy/notify.js",
+      "line": 9,
+      "case": null,
+      "category": "ads-disclosure",
+      "title": "광고성 정보에 밝혀야 할 사항 — (광고) 표기, 전송자 명칭·연락처, 무료 수신거부 방법",
+      "law": "정보통신망 이용촉진 및 정보보호 등에 관한 법률 제50조 제4항",
+      "ask_developer": "이 메시지가 영리목적의 광고라면 (광고) 표기, 전송자의 명칭·연락처, 수신거부 방법이 정해진 자리에 들어가나요?",
+      "untested_reasons": [
+        "no-judge"
+      ],
+      "ai_pending": [
+        "ai-optout-free"
+      ],
+      "fingerprint": "fce4d523c050c41a5e2dbdbe90380387",
+      "scope": "file",
+      "region": null,
+      "top_level": false,
+      "anchor_lines": [],
+      "unsatisfied_alternatives": [
+        {
+          "id": "optout-080-free",
+          "message": "보내는 메시지 본문 끝에서 '무료' 표시가 붙은 080 수신거부 번호를 확인하지 못했습니다.",
+          "ask_developer": "수신거부 방법이 메시지 맨 끝에 붙나요? 거부할 때 수신자가 비용을 내지 않는다는 표시(예 무료거부)도 함께 있나요?",
+          "remediation": null,
+          "value": "false"
+        }
+      ],
+      "decision_path": []
+    },
+    {
+      "policy": "kr.network-act.50-4",
+      "rule": "email-subject-label",
+      "outcome": "needs-review",
+      "file": "src/mail/weekly.ts",
+      "line": 4,
+      "case": null,
+      "category": "ads-disclosure",
+      "title": "광고성 정보에 밝혀야 할 사항 — (광고) 표기, 전송자 명칭·연락처, 무료 수신거부 방법",
+      "law": "정보통신망 이용촉진 및 정보보호 등에 관한 법률 제50조 제4항",
+      "ask_developer": "이 메시지가 영리목적의 광고라면 (광고) 표기, 전송자의 명칭·연락처, 수신거부 방법이 정해진 자리에 들어가나요?",
+      "untested_reasons": [
+        "no-judge"
+      ],
+      "ai_pending": [
+        "ai-subject-label"
+      ],
+      "fingerprint": "b474c5acb7062517675840df7896ab9a",
+      "scope": "anchor",
+      "region": null,
+      "anchor_lines": [
+        4
+      ],
+      "unsatisfied_alternatives": [
+        {
+          "id": "subject-label",
+          "message": "광고 메일 제목이 (광고)로 시작하는 것을 코드에서 확인하지 못했습니다.",
+          "ask_developer": "이 광고 메일의 제목은 어떻게 만들어지나요? 맨 앞에 (광고)가 붙나요?",
+          "remediation": null,
+          "value": "false"
+        }
+      ],
+      "decision_path": [
+        "적용: 정적 true",
+        "대안 subject-label: 정적 false",
+        "대안 ai-subject-label: AI 필요(판정자 없음) → 판정에 넣지 않음",
+        "→ needs-review"
+      ]
+    }
+  ]
+}

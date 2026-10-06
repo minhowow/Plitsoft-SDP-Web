@@ -118,6 +118,7 @@ export function parseReport(input: unknown): ParseResult {
         f.region === null || (isObj(f.region) && isInt(f.region.start_line) && isInt(f.region.end_line)),
         `${at}.region 모양이 다릅니다.`,
       );
+      need(f.top_level === undefined || typeof f.top_level === "boolean", `${at}.top_level 은 참·거짓이어야 합니다.`);
       need(isStrArr(f.untested_reasons), `${at}.untested_reasons 는 문자열 배열이어야 합니다.`);
       need(isStrArr(f.ai_pending), `${at}.ai_pending 은 문자열 배열이어야 합니다.`);
       need(isStrArr(f.decision_path), `${at}.decision_path 는 문자열 배열이어야 합니다.`);

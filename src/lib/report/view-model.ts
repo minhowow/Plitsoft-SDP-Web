@@ -1,4 +1,5 @@
 import type { PackMeta } from "@/lib/pack/types";
+import { judgedScope, type JudgedScope } from "./scope";
 import { findingStatus, STATUS_ORDER, worst, type Status } from "./status";
 import type { AiCleared, AiDismissed, Contract, Finding, PolicySummary, Report } from "./types";
 
@@ -10,10 +11,33 @@ export interface LocationView {
   file: string;
   /** 파일 단위 규칙에서는 적용 조건이 처음 맞은 줄이다. 판정 대상은 파일 전체다. */
   line: number | null;
+  /** 판정이 본 범위. 발견 줄에서는 줄 번호 옆에 늘 함께 보인다(줄 번호는 문제의 줄이 아니다). */
+  scope: JudgedScope;
   rule: string;
   status: Status;
   fingerprint: string;
   finding: Finding;
+}
+
+/** 같은 규칙이 여러 곳에 반복될 때 먼저 보이는 대표 위치의 수. 나머지는 접는다. */
+export const SHOWN_PER_RULE = 3;
+
+/**
+ * 같은 규칙의 발견 묶음. 접는 단위다. 규칙이 다르면 서로 다른 의무이므로, 다른 규칙의 발견을 접어 가리지 않는다.
+ */
+export interface RuleGroupView {
+  rule: string;
+  /** 이 묶음에서 가장 먼저 봐야 할 상태. */
+  status: Status;
+  /**
+   * 먼저 보이는 대표 위치. CLI 가 대표 위치를 주지 않으므로(docs/cli-requests.md 의 R6) 웹이 고른다.
+   * 먼저 봐야 할 상태, 파일, 줄 순서로 앞에서 SHOWN_PER_RULE 곳이다.
+   */
+  shown: LocationView[];
+  /** 접어 두는 나머지. 같은 규칙이 SHOWN_PER_RULE 곳보다 많이 반복될 때만 생긴다. */
+  folded: LocationView[];
+  /** 상태별 개수(접힌 곳 포함). 접힌 곳에만 있는 상태도 묶음 머리에서 보이게 한다. 점수가 아니다. */
+  counts: { status: Status; count: number }[];
 }
 
 export interface PolicyView {
@@ -21,7 +45,10 @@ export interface PolicyView {
   title: string;
   law: string;
   status: Status;
+  /** 이 정책의 발견 전부. 파일, 줄, 규칙 순서다. */
   locations: LocationView[];
+  /** 같은 발견을 규칙별로 묶은 것. 화면은 이 묶음으로 그린다. */
+  rules: RuleGroupView[];
   /** 충족 근거 위치. v1 초안에서만 채워진다. */
   evidence: PolicySummary["evidence"];
   /** AI 의 '예'로 풀린 경고 수. 0 보다 크면 "구분할 수 없다"는 설명 대신 이 사실을 보인다. */
@@ -60,8 +87,51 @@ export interface ReportView {
   aiDismissed: AiDismissed[];
 }
 
+const byUrgency = (a: Status, b: Status) => STATUS_ORDER.indexOf(a) - STATUS_ORDER.indexOf(b);
+
 /**
- * 결과 JSON 을 화면용 구조로 바꾼다. 같은 정책의 발견은 정책 하나 아래로 묶는다.
+ * 글자 코드 순서(UTF-16 코드 단위). 대문자가 소문자보다 앞이다. 어느 컴퓨터, 어느 브라우저에서나 같다.
+ *
+ * 보는 사람의 언어 설정을 따르는 비교(localeCompare, Intl.Collator)는 쓰지 않는다. 그 순서는 언어마다 다르다
+ * (체코어는 "ch" 를 "h" 뒤의 한 글자로 치고, 한국어는 한글을 로마자 앞에 둔다). 파일 순서가 달라지면 같은 결과
+ * 파일인데도 먼저 보이는 대표 위치가 사람마다 달라진다.
+ */
+const byCodeUnit = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
+
+const byPlace = (a: LocationView, b: LocationView) =>
+  byCodeUnit(a.file, b.file) || (a.line ?? 0) - (b.line ?? 0) || byCodeUnit(a.rule, b.rule);
+
+/**
+ * 한 정책의 발견을 규칙별로 묶는다. 발견은 결과에 나온 순서로 받는다.
+ * 묶음은 먼저 봐야 할 상태가 앞에 오고, 같은 상태 안에서는 결과에 처음 나온 순서다(CLI 는 팩의 규칙 순서로 낸다).
+ */
+function groupByRule(found: LocationView[]): RuleGroupView[] {
+  const byRule = new Map<string, LocationView[]>();
+  for (const location of found) {
+    const list = byRule.get(location.rule) ?? [];
+    list.push(location);
+    byRule.set(location.rule, list);
+  }
+
+  return [...byRule.entries()]
+    .map(([rule, list]) => {
+      const sorted = [...list].sort((a, b) => byUrgency(a.status, b.status) || byPlace(a, b));
+      return {
+        rule,
+        status: sorted[0].status,
+        shown: sorted.slice(0, SHOWN_PER_RULE),
+        folded: sorted.slice(SHOWN_PER_RULE),
+        counts: STATUS_ORDER.map((status) => ({
+          status,
+          count: sorted.filter((l) => l.status === status).length,
+        })).filter((c) => c.count > 0),
+      };
+    })
+    .sort((a, b) => byUrgency(a.status, b.status));
+}
+
+/**
+ * 결과 JSON 을 화면용 구조로 바꾼다. 같은 정책의 발견은 정책 하나 아래로 묶고, 그 안에서 규칙별로 다시 묶는다.
  * 팩 메타데이터를 주면 발견이 없는 정책도 함께 보여 준다.
  */
 export function buildReportView(report: Report, contract: Contract, pack?: PackMeta): ReportView {
@@ -94,16 +164,16 @@ export function buildReportView(report: Report, contract: Contract, pack?: PackM
     const findings = byPolicy.get(id) ?? [];
     const summary = summaries.get(id);
     const meta = packPolicies.get(id);
-    const locations: LocationView[] = findings
-      .map((finding) => ({
-        file: finding.file,
-        line: finding.line,
-        rule: finding.rule,
-        status: findingStatus(finding),
-        fingerprint: finding.fingerprint,
-        finding,
-      }))
-      .sort((a, b) => a.file.localeCompare(b.file) || (a.line ?? 0) - (b.line ?? 0) || a.rule.localeCompare(b.rule));
+    const found: LocationView[] = findings.map((finding) => ({
+      file: finding.file,
+      line: finding.line,
+      scope: judgedScope(finding),
+      rule: finding.rule,
+      status: findingStatus(finding),
+      fingerprint: finding.fingerprint,
+      finding,
+    }));
+    const locations = [...found].sort(byPlace);
 
     let status: Status;
     if (locations.length > 0) {
@@ -123,6 +193,7 @@ export function buildReportView(report: Report, contract: Contract, pack?: PackM
       law: findings[0]?.law ?? meta?.legal[0]?.label ?? "",
       status,
       locations,
+      rules: groupByRule(found),
       evidence: summary?.evidence ?? [],
       aiCleared: clearedCount.get(id) ?? 0,
       inPack: meta !== undefined,
@@ -130,7 +201,7 @@ export function buildReportView(report: Report, contract: Contract, pack?: PackM
   });
 
   // 정렬은 안정적이다. 같은 상태 안에서는 팩 순서가 남는다.
-  policies.sort((a, b) => STATUS_ORDER.indexOf(a.status) - STATUS_ORDER.indexOf(b.status));
+  policies.sort((a, b) => byUrgency(a.status, b.status));
 
   const engine = report.run.engine;
   return {
