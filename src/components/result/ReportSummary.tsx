@@ -1,26 +1,9 @@
+import { coverageSummary } from "@/lib/report/coverage";
 import { examinedFacts, UNIT_GLOSS } from "@/lib/report/examined";
 import { CONTRACT_LABEL, type ReportView } from "@/lib/report/view-model";
 import { SITE } from "@/lib/site";
+import { Coverage, CoverageWarning, NotSeen } from "./Coverage";
 import { PolicyCard } from "./PolicyCard";
-
-function FileList({ label, note, files }: { label: string; note: string; files: string[] }) {
-  if (files.length === 0) return null;
-  return (
-    <details className="filelist">
-      <summary>
-        {label} {files.length}개
-      </summary>
-      <p className="hint">{note}</p>
-      <ul>
-        {files.map((file, i) => (
-          <li key={`${file}:${i}`}>
-            <code>{file}</code>
-          </li>
-        ))}
-      </ul>
-    </details>
-  );
-}
 
 function where(file: string, line?: number | null): string {
   return line === null || line === undefined ? file : `${file}:${line}`;
@@ -96,17 +79,8 @@ function EmptyReport({ view }: { view: ReportView }) {
         <p className="hint">{UNIT_GLOSS}</p>
       </section>
       <section>
-        <h3>이 도구가 보지 못하는 것</h3>
-        <p className="hint">{SITE.notSeen.lead}</p>
-        <ul className="not-seen">
-          {SITE.notSeen.items.map((item) => (
-            <li key={item.what}>
-              <strong>{item.what}:</strong> {item.why}
-            </li>
-          ))}
-        </ul>
-        {/* 대상 언어는 팩이 정한다. 다른 판의 팩으로 만든 결과에서는 위의 "JS/TS"가 맞는지 알 수 없다. */}
-        {view.packMatches === false && <p className="hint">{SITE.notSeen.otherPack}</p>}
+        <h3>{SITE.notSeen.title}</h3>
+        <NotSeen view={view} />
       </section>
     </div>
   );
@@ -114,9 +88,12 @@ function EmptyReport({ view }: { view: ReportView }) {
 
 /** 결과 한 건의 전체 화면. 뷰어, 데모, (나중의) 검사 결과 페이지가 모두 이 부품을 쓴다. */
 export function ReportSummary({ view }: { view: ReportView }) {
-  const { coverage } = view;
+  const coverage = coverageSummary(view);
   return (
     <section className="report">
+      {/* 다 보지 못한 검사라는 경고는 맨 위에 둔다. 아래의 발견과 "발견 없음"을 읽기 전에 알아야 한다. */}
+      <CoverageWarning summary={coverage} />
+
       <dl className="report-meta">
         <div>
           <dt>도구</dt>
@@ -151,25 +128,7 @@ export function ReportSummary({ view }: { view: ReportView }) {
         </p>
       )}
 
-      <div className="coverage">
-        <p>
-          {coverage.files === null ? "파일 수 정보 없음" : `파일 ${coverage.files}개 검사`} · 판정 단위 {coverage.units}개 ·{" "}
-          {coverage.complete ? "끝까지 봤습니다" : "다 보지 못했습니다"}
-        </p>
-        {!coverage.complete && <p className="notice notice-warn">검사를 끝까지 하지 못한 부분이 있습니다.</p>}
-        <FileList label="검사하지 않은 파일" note="이 파일들은 결과에 없습니다." files={coverage.skipped} />
-        <FileList
-          label="일부를 읽지 못한 파일"
-          note="구문 조건을 확인하지 못해 판단 보류로 남았을 수 있습니다. 결과에는 들어 있습니다."
-          files={coverage.unparsed}
-        />
-        <FileList
-          label="엔진이 끝내지 못한 파일"
-          note="끝나지 않은 조건은 판단 보류로 남습니다. 결과에는 들어 있습니다."
-          files={coverage.incomplete}
-        />
-        {coverage.engineErrors > 0 && <p className="notice notice-warn">엔진 오류 {coverage.engineErrors}건이 있습니다.</p>}
-      </div>
+      <Coverage view={view} summary={coverage} />
 
       {view.findingCount === 0 ? (
         <>

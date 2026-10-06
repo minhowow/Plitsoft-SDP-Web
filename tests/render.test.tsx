@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { ReportSummary } from "@/components/result/ReportSummary";
 import { blocksToggle } from "@/components/result/selection";
 import { packMeta } from "@/lib/pack";
+import { SHOWN_PER_LIST } from "@/lib/report/coverage";
 import { parseReport } from "@/lib/report/parse";
 import { scopeLabel } from "@/lib/report/scope";
 import { STATUS_HINT, STATUS_LABEL } from "@/lib/report/status";
@@ -89,6 +90,118 @@ function rowsWithFindings(data: unknown) {
 
 const where = (file: string, line: number | null) => (line === null ? file : `${file}:${line}`);
 
+/**
+ * "이 도구가 보지 못하는 것"의 목록을 뜯어 본 것. 맨 위 항목만 센다(항목 안에 나눠 적은 목록은 `cases` 로 따로 읽는다).
+ * `text` 는 항목의 글 전부, `head` 는 나눠 적은 목록 앞의 글이다.
+ */
+function notSeenItems(html: string) {
+  const list = elementAt(html, html.indexOf('<ul class="not-seen">'));
+  const inner = elementsOf(list, '<ul class="not-seen-cases">');
+  const nested = new Set(inner.flatMap((ul) => elementsOf(ul, "<li>")));
+  return elementsOf(list, "<li>")
+    .filter((li) => !nested.has(li))
+    .map((li) => {
+      const at = li.indexOf('<ul class="not-seen-cases">');
+      return {
+        text: textOf(li),
+        head: textOf(at === -1 ? li : li.slice(0, at)),
+        cases: at === -1 ? [] : elementsOf(elementAt(li, at), "<li>").map(textOf),
+      };
+    });
+}
+
+const COVERAGE = '<div class="coverage">';
+const WARNING = '<p class="notice notice-warn coverage-warning">';
+const GAPS = '<table class="gaps';
+const FOLDED = '<details class="fold">';
+
+/**
+ * 커버리지 보기를 뜯어 본 것: 맨 위 경고, 검사한 파일 수 줄, "다 보지 못한 것" 표, 표 아래에 접어 둔 "이 도구가 보지
+ * 못하는 것". 표의 줄마다 이름, 수, 뜻, 처음부터 보이는 파일과 접어 둔 파일을 읽는다.
+ */
+function coverageParts(html: string) {
+  const warnAt = html.indexOf(WARNING);
+  const boxAt = html.indexOf(COVERAGE);
+  if (boxAt === -1) throw new Error("커버리지 보기가 없습니다");
+  const box = elementAt(html, boxAt);
+  const tableAt = boxAt + box.indexOf(GAPS);
+  const table = elementAt(html, tableAt);
+  const inside = (outer: string, open: string) => elementAt(outer, outer.indexOf(open));
+  const files = (part: string) => elementsOf(part, '<ul class="gap-files">').flatMap((ul) => elementsOf(ul, "<li>").map(textOf));
+
+  const rows = elementsOf(inside(table, "<tbody"), "<tr ").map((tr) => {
+    const detail = inside(tr, '<td class="gap-detail"');
+    const meaningAt = detail.indexOf("<p>");
+    const foldAt = detail.indexOf(FOLDED);
+    const folds = elementsOf(detail, FOLDED);
+    // 뜻 아래에 옅게 덧붙인 말. 접어 둔 곳 안의 안내(결과에 실린 문장 그대로입니다)는 세지 않는다.
+    const notes = elementsOf(foldAt === -1 ? detail : detail.slice(0, foldAt), '<p class="hint">').map(textOf);
+    return {
+      label: textOf(inside(tr, "<th ")),
+      count: textOf(inside(tr, '<td class="gap-count"')),
+      /** 든 것이 있는 줄인지. 그런 줄만 이름과 수를 경고 색으로 적는다. */
+      on: tr.startsWith('<tr class="gap gap-on"'),
+      meaning: meaningAt === -1 ? null : textOf(elementAt(detail, meaningAt)),
+      note: notes.length === 0 ? null : notes.join(" "),
+      /** 처음부터 보이는 파일. */
+      shown: files(foldAt === -1 ? detail : detail.slice(0, foldAt)),
+      /** 접어 둔 파일(펼침 단추의 글과 함께). */
+      folded: folds.filter((fold) => fold.includes('<ul class="gap-files">')).map((fold) => ({
+        summary: textOf(inside(fold, "<summary>")),
+        files: files(fold),
+      })),
+      /** 결과에 실린 오류 문장(접어 둔다). */
+      texts: folds.filter((fold) => fold.includes('<ul class="gap-texts">')).map((fold) => ({
+        summary: textOf(inside(fold, "<summary>")),
+        items: elementsOf(inside(fold, '<ul class="gap-texts">'), "<li>").map(textOf),
+      })),
+    };
+  });
+
+  // 표 아래에 접어 둔 "이 도구가 보지 못하는 것". 발견이 있는 결과에만 있다.
+  const after = box.slice(box.indexOf("</table>"));
+  const foldAt = after.indexOf(FOLDED);
+  const fold = foldAt === -1 ? null : elementAt(after, foldAt);
+  return {
+    warnAt,
+    boxAt,
+    tableAt,
+    /** 맨 위 경고의 글. 없으면 null. */
+    warning: warnAt === -1 ? null : textOf(elementAt(html, warnAt)),
+    line: textOf(inside(box, "<p>")),
+    caption: textOf(inside(table, "<caption>")),
+    columns: elementsOf(inside(table, "<thead"), "<th ").map(textOf),
+    /** 든 것이 하나도 없는 표인지(촘촘히 적는다). */
+    none: table.startsWith('<table class="gaps gaps-none"'),
+    rows,
+    notSeen:
+      fold === null
+        ? null
+        : {
+            at: boxAt + box.indexOf("</table>") + foldAt,
+            summary: textOf(inside(fold, "<summary>")),
+            lead: textOf(inside(fold, '<p class="hint">')),
+            items: notSeenItems(fold),
+            text: textOf(fold),
+          },
+  };
+}
+
+/**
+ * JS/TS 파일인데 목록 없이 빠지는 것(CLI 를 합성 폴더에 돌려 확인한 다섯 가지). "이 도구가 보지 못하는 것"의 둘째 항목
+ * 아래에 한 줄씩 나눠 적는다. "검사하지 않은 파일: 없음"의 풀이가 이 항목을 가리키므로 하나라도 빠지면 안 된다.
+ */
+const UNLISTED_CASES = [
+  "node_modules·dist·build·vendor·coverage 같은 이름의 폴더 아래 파일(내용이 아니라 폴더 이름으로 가립니다)",
+  // .gitignore 만이 아니다. git 이 무시하는 방법 셋 가운데 어느 것으로 무시했든 같게 빠진다.
+  "git 저장소에서 git 이 무시하는 파일(.gitignore, .git/info/exclude, 전역 무시 목록)",
+  "하위 모듈(submodule)을 비롯해 git 저장소 안에 따로 든 다른 git 저장소의 파일",
+  // 폴더를 가리키는 링크도 따라가지 않는다.
+  "심볼릭 링크. 검사하는 폴더 안의 링크는 파일을 가리키든 폴더를 가리키든 따라가지 않으므로, 가리키는 곳이 그 폴더 밖에 있으면 그곳의 파일도 보지 못합니다.",
+  // 늘 빠지는 것은 아니다(git 이 추적하는 파일이면 검사하기도 한다). 그래서 "빠질 수 있습니다"다.
+  "읽을 권한이 없는 폴더 아래 파일. 늘 빠지는 것은 아니고, 목록 없이 빠질 수 있습니다.",
+];
+
 /** 글들이 이 순서로 나오는지. 앞의 글을 찾은 자리 뒤에서 다음 글을 찾는다. */
 function inOrder(text: string, needles: string[]): boolean {
   let from = 0;
@@ -148,14 +261,355 @@ describe("판정자에 관한 문구", () => {
   });
 });
 
-describe("다 보지 못한 결과", () => {
-  it("세 목록을 뜻에 맞게 나눠 적는다", () => {
-    const html = render("tests", "fixtures", "incomplete-coverage.json");
-    expect(html).toContain("다 보지 못했습니다");
-    expect(html).toContain("검사하지 않은 파일 1개");
-    expect(html).toContain("이 파일들은 결과에 없습니다");
-    expect(html).toContain("일부를 읽지 못한 파일 1개");
-    expect(html).toContain("결과에는 들어 있습니다");
+describe("커버리지 보기 (다 보지 못한 것)", () => {
+  // 검사하지 않은 파일, 일부를 읽지 못한 파일, 엔진이 끝내지 못한 파일을 한 표로 보인다. 세 목록은 뜻이 다르다.
+  // 결과가 다 보지 못했다고 하면(coverage_complete: false) 맨 위에 경고를 둔다(docs/architecture.md 의 "커버리지 보기").
+  const LABELS = ["검사하지 않은 파일", "일부를 읽지 못한 파일", "엔진이 끝내지 못한 파일"];
+  const LEFT_UNCERTAIN = `이 파일의 발견이 '${STATUS_LABEL.uncertain}'로 남았을 수 있습니다.`;
+  const MEANING = {
+    skipped: "코드를 보지 않았습니다. 이 파일들에서 나올 수 있었던 발견은 결과에 없습니다.",
+    unparsed: `검사했지만 구문을 다 읽지 못했습니다. 구문을 봐야 하는 조건이 '모름'이 되어, ${LEFT_UNCERTAIN}`,
+    incomplete:
+      "검사했지만 엔진이 조건을 끝까지 돌리지 못했습니다(시간 초과·메모리 부족 등). " +
+      `끝나지 않은 조건이 '모름'이 되어, ${LEFT_UNCERTAIN}`,
+    engineErrors:
+      "어느 파일에서 난 오류인지 엔진이 밝히지 않았습니다. CLI 는 이때 함께 검사한 파일을 모두 '엔진이 끝내지 못한 파일'에 넣습니다.",
+  };
+  /**
+   * 검사하지 않은 까닭은 결과에 없다. CLI 가 건너뛰는 다섯 가지만 알리고, 파일마다 짐작해 붙이지 않는다.
+   * 둘째는 CLI 가 부르는 이름 그대로 "축소·번들 파일"이다. 축소되지 않은 `app.bundle.js`·`.pnp.cjs` 도 이 까닭으로
+   * 건너뛴다(합성 폴더로 확인). "축소 파일"이라고만 적으면 그런 파일은 다섯 가운데 어느 것에도 맞지 않는다.
+   */
+  const SKIPPED_NOTE =
+    "건너뛴 까닭(1MB 초과, 축소·번들 파일, 읽을 권한 없음, .mts 같은 확장자, UTF-8 아님)은 결과에 실려 있지 않습니다.";
+  const CAPTION = "다 보지 못한 것 결과에 실린 목록입니다";
+  /** 맨 위 경고가 가리키는 곳. 그 이름의 표가 경고 아래에 있다. */
+  const POINTER = "아래 '다 보지 못한 것' 표에서 확인하세요.";
+  const TOP = `<section class="report">${WARNING}`;
+  const NONE = LABELS.map((label) => ({ label, count: "없음", on: false, meaning: null, note: null, shown: [], folded: [], texts: [] }));
+
+  const named = (list: string[][]) => list.map((parts) => [parts.join("/"), parts] as const);
+  /** 표의 파일 목록에서 경로를 그린 HTML(문서 순서). 글만 봐서는 줄바꿈 자리가 있는지 알 수 없다. */
+  const pathCells = (table: string) =>
+    elementsOf(table, '<ul class="gap-files">').flatMap((ul) => elementsOf(ul, "<li>").map((li) => elementAt(li, li.indexOf("<code>"))));
+  const runOf = (parts: string[]) => (readJson(...parts) as Report).run;
+  const incomplete = () => readJson("tests", "fixtures", "incomplete-coverage.json") as Report;
+  const kids = () => readJson("contract", "cli-current", "kids-signup.main.json") as Report;
+  const plain = () => readJson("contract", "cli-current", "plain.main.json") as Report;
+  const withRun = (data: Report, patch: Partial<Report["run"]>) => renderData({ ...data, run: { ...data.run, ...patch } });
+
+  it("incomplete-coverage: 맨 위에 경고가 있고, 세 목록이 한 표에 뜻에 맞는 설명과 함께 보인다", () => {
+    const data = incomplete();
+    // 세 목록이 모두 차 있고, 다 보지 못했다고 실린 결과다.
+    expect(data.run).toMatchObject({
+      coverage_complete: false,
+      skipped: ["src/lib/chart.min.js"],
+      unparsed: ["src/auth/signup.ts"],
+      incomplete: ["src/marketing/campaign.ts"],
+      engine_errors: [],
+    });
+    const html = renderData(data);
+    const coverage = coverageParts(html);
+
+    // 경고는 결과 화면의 첫 줄이다. 머리(도구·엔진…)와 발견, 정책 카드보다 앞에 있고, 접혀 있지 않고, 하나뿐이다.
+    expect(coverage.warning).toBe(
+      `다 보지 못한 검사입니다. 검사하지 않은 파일 1개 · 일부를 읽지 못한 파일 1개 · 엔진이 끝내지 못한 파일 1개. ${POINTER}`,
+    );
+    expect(html.startsWith(TOP)).toBe(true);
+    expect(closedDetailsAt(html, coverage.warnAt)).toEqual([]);
+    expect(count(html, WARNING)).toBe(1);
+
+    // "아래 '…' 표"라고 했으니 그 이름의 표가 경고 뒤에 있다. 표는 하나이고, 세 목록이 그 표의 줄이다.
+    expect(count(html, "<table")).toBe(1);
+    expect(coverage.tableAt).toBeGreaterThan(coverage.warnAt);
+    expect(coverage.caption).toBe(CAPTION);
+    expect(coverage.columns).toEqual(["목록", "수", "뜻과 파일"]);
+    const filled = { count: "1개", on: true, folded: [], texts: [] };
+    expect(coverage.rows).toEqual([
+      { ...filled, label: LABELS[0], meaning: MEANING.skipped, note: SKIPPED_NOTE, shown: ["src/lib/chart.min.js"] },
+      { ...filled, label: LABELS[1], meaning: MEANING.unparsed, note: null, shown: ["src/auth/signup.ts 발견 1건"] },
+      { ...filled, label: LABELS[2], meaning: MEANING.incomplete, note: null, shown: ["src/marketing/campaign.ts 발견 3건"] },
+    ]);
+    // 표와 그 안의 뜻·파일은 아무것도 펼치지 않아도 보인다.
+    expect(closedDetailsAt(html, coverage.tableAt)).toEqual([]);
+    expect(elementAt(html, coverage.tableAt)).not.toContain("<details");
+    // 경로는 발견 줄과 같은 부품으로 그린다. "/" 뒤마다 줄바꿈 자리가 있어 좁은 화면에서 거기서 줄이 바뀐다.
+    expect(pathCells(elementAt(html, coverage.tableAt))).toEqual([
+      '<code>src/<wbr aria-hidden="true"/>lib/<wbr aria-hidden="true"/>chart.min.js</code>',
+      '<code>src/<wbr aria-hidden="true"/>auth/<wbr aria-hidden="true"/>signup.ts</code>',
+      '<code>src/<wbr aria-hidden="true"/>marketing/<wbr aria-hidden="true"/>campaign.ts</code>',
+    ]);
+
+    // 세 목록의 뜻은 다르다. 설명이 그 차이를 적는다.
+    //  - 검사하지 않은 파일: 코드를 보지 않았다. 나올 수 있었던 발견이 결과에 없다.
+    //  - 일부를 읽지 못한 파일, 엔진이 끝내지 못한 파일: 검사했다. 결과에 들어 있고 판단 보류로 남았을 수 있다. 까닭이 다르다.
+    const [skipped, unparsed, unfinished] = coverage.rows.map((row) => row.meaning!);
+    expect(new Set([skipped, unparsed, unfinished]).size).toBe(3);
+    expect(skipped).toBe("코드를 보지 않았습니다. 이 파일들에서 나올 수 있었던 발견은 결과에 없습니다.");
+    for (const examined of [unparsed, unfinished]) {
+      expect(examined.startsWith("검사했지만 ")).toBe(true);
+      expect(examined.endsWith("이 파일의 발견이 '판단 보류(모름)'로 남았을 수 있습니다.")).toBe(true);
+      expect(examined).not.toContain("결과에 없습니다");
+    }
+    expect(unparsed).toContain("구문을 다 읽지 못했습니다.");
+    expect(unfinished).toContain("엔진이 조건을 끝까지 돌리지 못했습니다");
+
+    // 설명은 이 결과의 발견과 맞는다. 파일 옆의 수는 그 파일에 나온 발견의 수다. 검사하지 않은 파일에는 발견이 없고
+    // 수도 적지 않는다.
+    const outcomes = (file: string) => data.findings.filter((f) => f.file === file).map((f) => f.outcome).sort();
+    expect(outcomes("src/lib/chart.min.js")).toEqual([]);
+    expect(outcomes("src/auth/signup.ts")).toEqual(["needs-review-uncertain"]);
+    // 엔진이 끝내지 못한 파일의 발견이 모두 판단 보류인 것은 아니다. 그래서 "남았을 수 있습니다"라고 적는다.
+    expect(outcomes("src/marketing/campaign.ts")).toEqual(["needs-review", "needs-review", "needs-review-uncertain"]);
+
+    // 검사한 파일 수 줄은 수만 적는다. 다 봤는지는 경고와 표가 말한다.
+    expect(coverage.line).toBe("파일 3개 검사 · 판정 단위 4개");
+  });
+
+  const complete = every.filter((parts) => runOf(parts).coverage_complete);
+
+  it("다 본 자료와 다 보지 못한 자료가 모두 있다", () => {
+    // 아래의 자료별 시험이 빈 목록을 돌고 통과하는 일이 없게 한다.
+    expect(complete.length).toBeGreaterThan(10);
+    expect(every.filter((parts) => !runOf(parts).coverage_complete).map((parts) => parts.join("/"))).toEqual([
+      "tests/fixtures/incomplete-coverage.json",
+    ]);
+  });
+
+  it.each(named(complete))("%s: 경고가 없고 세 목록이 '없음'으로 보인다. 끝까지 봤다고는 적지 않는다", (_name, parts) => {
+    const run = runOf(parts);
+    const html = render(...parts);
+    const coverage = coverageParts(html);
+    expect(coverage.warning).toBeNull();
+    expect(html.startsWith('<section class="report"><dl class="report-meta">')).toBe(true);
+    expect(coverage.line).toBe(`파일 ${run.files}개 검사 · 판정 단위 ${run.units}개`);
+    // 세 목록은 든 것이 없어도 늘 같은 순서로 보인다. 뜻과 파일은 든 것이 있는 줄에만 붙는다.
+    expect(coverage.rows).toEqual(NONE);
+    expect(coverage.none).toBe(true);
+    // 목록이 비어 있다는 것은 결과에 이름이 실린 파일이 없다는 뜻일 뿐이다. 표의 이름 옆에 무엇의 목록인지 적는다.
+    // 목록 없이 빠지는 파일과 검사한 범위는 결과에 없으므로 "끝까지 봤다"고 적지 않는다.
+    expect(coverage.caption).toBe(CAPTION);
+    expect(html).not.toContain("끝까지 봤습니다");
+  });
+
+  it("검사한 파일이 0개인 결과: 끝까지 봤다고 하지 않고, 검사한 파일이 없다고 맨 위에 알린다", () => {
+    // 검사할 파일이 없어도 CLI 는 files: 0, engine: null, coverage_complete: true 인 결과를 낸다(빈 폴더를 검사해 확인).
+    const html = withRun(plain(), { files: 0, engine: null });
+    const coverage = coverageParts(html);
+    expect(coverage.warning).toBe("검사한 파일이 없습니다.");
+    expect(html.startsWith(TOP)).toBe(true);
+    expect(coverage.line).toBe("파일 0개 검사 · 판정 단위 0개");
+    expect(coverage.rows).toEqual(NONE);
+    expect(html).not.toContain("끝까지 봤습니다");
+
+    // 축소 파일만 든 폴더를 검사하면 files: 0, skipped: […], coverage_complete: false 가 나온다(합성 폴더로 확인).
+    const skippedOnly = coverageParts(
+      withRun(plain(), { files: 0, engine: null, skipped: ["src/lib/chart.min.js"], coverage_complete: false }),
+    );
+    expect(skippedOnly.warning).toBe(`검사한 파일이 없습니다. 검사하지 않은 파일 1개. ${POINTER}`);
+    expect(skippedOnly.rows[0]).toMatchObject({ count: "1개", on: true, shown: ["src/lib/chart.min.js"] });
+  });
+
+  it("파일 수가 실려 있지 않은 결과: 0이라고 하지 않고 알 수 없다고 적는다", () => {
+    const data = kids();
+    const run: Partial<Report["run"]> = { ...data.run };
+    delete run.files;
+    const coverage = coverageParts(renderData({ ...data, run }));
+    expect(coverage.line).toBe("검사한 파일 수 알 수 없음 · 판정 단위 1개");
+    expect(coverage.warning).toBeNull();
+  });
+
+  it("목록의 파일이 3곳보다 많으면 앞의 3곳을 먼저 보이고 나머지를 접는다. 순서는 결과에 실린 그대로다", () => {
+    expect(SHOWN_PER_LIST).toBe(3);
+    // 글자 순서와 다른 순서로 넣어 본다. 웹이 다시 줄 세우지 않는다.
+    const skipped = ["src/z.min.js", "src/a.min.js", "src/m.min.js", "src/b.min.js", "src/y.min.js"];
+    const html = withRun(kids(), { skipped, coverage_complete: false });
+    const [row] = coverageParts(html).rows;
+    expect(row).toMatchObject({
+      count: "5개",
+      shown: skipped.slice(0, 3),
+      folded: [{ summary: "나머지 2개", files: skipped.slice(3) }],
+    });
+    // 접은 곳은 닫힌 채로 그려진다. 수는 접혀 있어도 줄 머리와 맨 위 경고에 보인다.
+    const table = elementAt(html, coverageParts(html).tableAt);
+    expect(count(table, FOLDED)).toBe(1);
+    expect(table).not.toContain("<details open");
+    expect(coverageParts(html).warning).toBe(`다 보지 못한 검사입니다. 검사하지 않은 파일 5개. ${POINTER}`);
+    // 접어 둔 곳의 경로도 같은 부품으로 그린다.
+    expect(pathCells(table)).toEqual(skipped.map((file) => `<code>src/<wbr aria-hidden="true"/>${file.slice(4)}</code>`));
+    // 3곳이면 접지 않는다.
+    const three = coverageParts(withRun(kids(), { skipped: skipped.slice(0, 3), coverage_complete: false })).rows[0];
+    expect(three).toMatchObject({ count: "3개", shown: skipped.slice(0, 3), folded: [] });
+  });
+
+  it("발견이 나온 파일이 접힌 곳에 있으면 접힌 이름 옆에 그 수를 적는다. 순서는 바꾸지 않는다", () => {
+    // CLI 는 목록을 제 순서로 낸다. 먼저 보이는 3곳이 모두 "발견 0건"이고 발견이 나온 파일은 접힌 곳에만 있으면,
+    // 펼치기 전에는 "이 파일의 발견이 판단 보류로 남았을 수 있습니다"에 걸린 발견이 없는 것처럼 읽힌다.
+    const NOTE = "이 가운데 발견이 나온 파일";
+    const rowOf = (unparsed: string[]) => {
+      const html = withRun(incomplete(), { unparsed });
+      return { html, row: coverageParts(html).rows[1] };
+    };
+    const { html, row } = rowOf(["src/a.ts", "src/b.ts", "src/c.ts", "src/auth/signup.ts", "src/marketing/campaign.ts"]);
+    expect(row.shown).toEqual(["src/a.ts 발견 0건", "src/b.ts 발견 0건", "src/c.ts 발견 0건"]);
+    expect(row.folded).toEqual([
+      { summary: `나머지 2개 ${NOTE} 2개`, files: ["src/auth/signup.ts 발견 1건", "src/marketing/campaign.ts 발견 3건"] },
+    ]);
+    // 그 수는 접힌 채로 보인다(펼침 단추 안에 있다). 파일마다의 수는 펼쳐야 보인다.
+    expect(count(html, NOTE)).toBe(1);
+    expect(closedDetailsAt(html, html.indexOf(NOTE))).toEqual([]);
+    expect(closedDetailsAt(html, html.indexOf("발견 3건"))).toEqual([FOLDED]);
+
+    // 파일의 수를 센다. 발견의 수(1건 + 3건)를 더하지 않는다. 발견이 없는 파일은 세지 않는다.
+    expect(rowOf(["src/a.ts", "src/b.ts", "src/c.ts", "src/d.ts", "src/marketing/campaign.ts"]).row.folded).toEqual([
+      { summary: `나머지 2개 ${NOTE} 1개`, files: ["src/d.ts 발견 0건", "src/marketing/campaign.ts 발견 3건"] },
+    ]);
+    // 접힌 곳에 발견이 나온 파일이 없으면 덧붙이지 않는다. 먼저 보이는 곳의 발견은 이미 보인다.
+    const quiet = rowOf(["src/auth/signup.ts", "src/marketing/campaign.ts", "src/a.ts", "src/b.ts", "src/c.ts"]);
+    expect(quiet.row.shown).toEqual(["src/auth/signup.ts 발견 1건", "src/marketing/campaign.ts 발견 3건", "src/a.ts 발견 0건"]);
+    expect(quiet.row.folded).toEqual([{ summary: "나머지 2개", files: ["src/b.ts 발견 0건", "src/c.ts 발견 0건"] }]);
+    expect(quiet.html).not.toContain(NOTE);
+    // 3곳 이하라 접지 않으면 덧붙일 곳도 없다.
+    expect(rowOf(["src/a.ts", "src/b.ts", "src/marketing/campaign.ts"]).html).not.toContain(NOTE);
+  });
+
+  it("한 파일이 두 목록에 함께 실리면 두 줄에 모두 적는다. 엔진 오류는 있을 때만 넷째 줄이다", () => {
+    // 어느 파일인지 모르는 엔진 오류가 나면 CLI 는 함께 검사한 파일을 모두 '엔진이 끝내지 못한 파일'에 넣는다. 일부를
+    // 읽지 못한 파일도 거기에 함께 실린다(엔진 출력에 오류를 끼워 넣어 확인. docs/architecture.md 의 "커버리지 보기").
+    const html = withRun(incomplete(), {
+      incomplete: ["src/auth/signup.ts", "src/marketing/campaign.ts", "src/math.ts"],
+      engine_errors: ["[Fatal error] Fatal error: exception Stack_overflow"],
+    });
+    const coverage = coverageParts(html);
+    // 세 수를 더한 "다 보지 못한 파일 N개"는 없다. 같은 파일을 두 번 세게 된다.
+    expect(coverage.warning).toBe(
+      `다 보지 못한 검사입니다. 검사하지 않은 파일 1개 · 일부를 읽지 못한 파일 1개 · 엔진이 끝내지 못한 파일 3개 · 엔진 오류 1건. ${POINTER}`,
+    );
+    expect(coverage.rows.map((row) => [row.label, row.count])).toEqual([
+      [LABELS[0], "1개"],
+      [LABELS[1], "1개"],
+      [LABELS[2], "3개"],
+      ["엔진 오류", "1건"],
+    ]);
+    expect(coverage.rows[1].shown).toEqual(["src/auth/signup.ts 발견 1건"]);
+    // 발견이 없는 파일도 검사한 파일이다. 0건이라고 적는다.
+    expect(coverage.rows[2].shown).toEqual([
+      "src/auth/signup.ts 발견 1건",
+      "src/marketing/campaign.ts 발견 3건",
+      "src/math.ts 발견 0건",
+    ]);
+    // 결과에 실린 오류 문장은 접어 두고, 펼치면 실린 그대로 보인다. 엔진의 문장 그대로라고는 적지 않는다. CLI 가 오류
+    // 종류를 앞에 붙이고 엔진의 문장을 앞 200자까지만 싣기 때문이다(359자 문장을 끼워 넣어 확인: 실린 것은 214자).
+    expect(coverage.rows[3]).toEqual({
+      label: "엔진 오류",
+      count: "1건",
+      on: true,
+      meaning: MEANING.engineErrors,
+      note: null,
+      shown: [],
+      folded: [],
+      texts: [{ summary: "결과에 실린 오류 문장 1개", items: ["[Fatal error] Fatal error: exception Stack_overflow"] }],
+    });
+    expect(textOf(html)).toContain("결과에 실린 문장 그대로입니다.");
+    expect(textOf(html)).not.toContain("엔진이 남긴 문장");
+  });
+
+  it("엔진 오류가 문자열이 아니게 실린 결과: 수는 세고, 문장은 문자열인 것만 보인다", () => {
+    const rows = (engine_errors: unknown[]) => coverageParts(withRun(kids(), { engine_errors, coverage_complete: false })).rows;
+    expect(rows(["[Timeout] a", { type: "Timeout" }, 3])[3]).toMatchObject({
+      count: "3건",
+      texts: [{ summary: "결과에 실린 오류 문장 1개", items: ["[Timeout] a"] }],
+    });
+    expect(rows([{ type: "Timeout" }])[3]).toMatchObject({ count: "1건", meaning: MEANING.engineErrors, texts: [] });
+    // 엔진 오류가 없으면 그 줄도 없다.
+    expect(rows([])).toHaveLength(3);
+  });
+
+  it("결과에 실린 오류 문장은 줄바꿈과 빈칸까지 글자 그대로 옮긴다", () => {
+    // CLI 는 엔진의 문장을 양끝만 다듬어 싣는다. 안쪽의 줄바꿈·탭·이어진 빈칸은 남는다(엔진 출력에 끼워 넣어 확인).
+    // 화면에서 줄이 바뀌어 보이게 하는 것은 CSS 다(white-space: pre-wrap. 브라우저에서 쟀다). 여기서는 그려 낸 글이
+    // 실린 글과 같은지만 본다.
+    const texts = [
+      "[Fatal error] first line\n\tsecond line with a tab\n    third line with four spaces",
+      "[Timeout] <b>not</b> markup & \"quoted\"",
+    ];
+    const row = coverageParts(withRun(kids(), { engine_errors: texts, coverage_complete: false })).rows[3];
+    expect(row.texts).toEqual([{ summary: "결과에 실린 오류 문장 2개", items: texts }]);
+  });
+
+  it("결과의 표시(coverage_complete)와 목록이 어긋나도 다 보지 못한 것을 숨기지 않는다", () => {
+    // 다 보지 못했다고만 실려 있고 목록은 빈 결과.
+    const flagOnly = coverageParts(withRun(kids(), { coverage_complete: false }));
+    expect(flagOnly.warning).toBe(
+      "다 보지 못한 검사입니다. 결과에는 다 보지 못했다고만 실려 있고, 무엇을 보지 못했는지는 실려 있지 않습니다.",
+    );
+    expect(flagOnly.rows).toEqual(NONE);
+    // 목록이 비어 있지 않은데 다 봤다고 실린 결과. CLI 는 이렇게 내지 않지만, 연 파일이 그렇다면 목록을 믿는다.
+    const listOnly = coverageParts(withRun(kids(), { unparsed: ["src/auth/signup.ts"], coverage_complete: true }));
+    expect(listOnly.warning).toBe(`다 보지 못한 검사입니다. 일부를 읽지 못한 파일 1개. ${POINTER}`);
+    expect(listOnly.rows[1]).toMatchObject({ count: "1개", on: true, shown: ["src/auth/signup.ts 발견 1건"] });
+    expect(listOnly.none).toBe(false);
+  });
+
+  describe("이 도구가 보지 못하는 것은 발견이 있는 결과에도 보인다", () => {
+    // 목록 없이 빠지는 파일(git 이 무시하는 파일, 이름으로 가리는 폴더 등)과 검사한 범위 밖의 파일은 결과에 없다. 발견이
+    // 있는 결과도 마찬가지다. 발견을 가리지 않게 표 아래에 접어 두고, 접혀 있어도 무엇이 들었는지는 보이게 한다.
+    const findingsIn = (parts: string[]) => (readJson(...parts) as Report).findings.length;
+    const withFindings = every.filter((parts) => findingsIn(parts) > 0);
+    const empties = every.filter((parts) => findingsIn(parts) === 0);
+    const SUMMARY = "이 도구가 보지 못하는 것 목록 없이 빠지는 파일, 검사한 범위 밖의 파일 등";
+    const fromEmpty = notSeenItems(render("contract", "cli-current", "plain.main.json"));
+
+    it("발견이 있는 자료와 없는 자료가 모두 있다", () => {
+      expect(withFindings.length).toBeGreaterThan(5);
+      expect(empties.length).toBeGreaterThan(5);
+    });
+
+    it.each(named(withFindings))("%s: 표 아래에 접어 둔다", (_name, parts) => {
+      const html = render(...parts);
+      const coverage = coverageParts(html);
+      const fold = coverage.notSeen!;
+      expect(fold).not.toBeNull();
+      // 접혀 있어도 이름과, 안에 무엇이 들었는지는 보인다.
+      expect(fold.summary).toBe(SUMMARY);
+      expect(html.slice(fold.at).startsWith(`${FOLDED}<summary>`)).toBe(true);
+      // 표 바로 아래, 발견(정책 카드)보다 앞이다.
+      expect(fold.at).toBeGreaterThan(coverage.tableAt);
+      expect(fold.at).toBeLessThan(html.indexOf('<article class="policy '));
+      // 목록은 빈 결과 화면의 것과 글자까지 같다. 범위를 좁혀 돌린 결과와 전체를 본 결과는 모양이 같으므로, 범위가
+      // 결과에 없다는 말도 여기에 있다.
+      expect(fold.items).toEqual(fromEmpty);
+      expect(fold.items.map((item) => item.head.slice(0, item.head.indexOf(":")))).toEqual([
+        "JS/TS 가 아닌 파일",
+        "목록 없이 빠지는 JS/TS 파일",
+        "검사한 범위 밖의 파일",
+        "서버·인프라 설정",
+        "데이터에만 있는 동의 상태",
+      ]);
+      expect(fold.items[1].cases).toEqual(UNLISTED_CASES);
+      expect(fold.items[2].head).toContain("어느 범위를 검사했는지는 결과에 실려 있지 않습니다.");
+      // 첫 문단만 다르다. "발견이 없어도"로 시작하는 말은 발견이 있는 결과에 맞지 않는다.
+      expect(fold.lead).toBe(SITE.notSeen.leadWithFindings);
+      expect(fold.lead).toContain("이 결과에 나온 발견이 전부라는 뜻은 아닙니다.");
+      expect(fold.text).not.toContain("발견이 없어도");
+      // 화면에 한 번만 나온다.
+      expect(count(html, '<ul class="not-seen">')).toBe(1);
+    });
+
+    it.each(named(empties))("%s: 발견이 0이면 빈 결과 화면이 펼쳐 보이므로 접어 둔 것은 없다", (_name, parts) => {
+      const html = render(...parts);
+      expect(coverageParts(html).notSeen).toBeNull();
+      expect(count(html, '<ul class="not-seen">')).toBe(1);
+      expect(closedDetailsAt(html, html.indexOf('<ul class="not-seen">'))).toEqual([]);
+      expect(textOf(html)).toContain(SITE.notSeen.lead);
+      expect(textOf(html)).not.toContain(SITE.notSeen.leadWithFindings);
+    });
+
+    it("다른 판의 팩으로 만든 결과: 대상 언어를 알 수 없다는 말이 접어 둔 곳에도 붙는다", () => {
+      const other = coverageParts(withRun(kids(), { pack_digest: "0000000000000000" })).notSeen!;
+      expect(other.text).toContain(SITE.notSeen.otherPack);
+      expect(coverageParts(renderData(kids())).notSeen!.text).not.toContain("다른 언어도 검사하는지");
+    });
   });
 });
 
@@ -217,14 +671,16 @@ describe("빈 결과 화면 (발견이 0인 결과)", () => {
           return [label, { text: textOf(dd), warn: dd.startsWith('<dd class="warn">') }];
         }),
       ),
-      notSeen: elementsOf(elementAt(panel, panel.indexOf('<ul class="not-seen">')), "<li>").map(textOf),
+      /** 보지 못하는 것의 맨 위 항목(나눠 적은 목록 앞의 글)과, 항목 안에 나눠 적은 목록. */
+      notSeen: notSeenItems(panel).map((item) => item.head),
+      notSeenCases: notSeenItems(panel).map((item) => item.cases),
       text: textOf(panel),
     };
   }
 
   /** 그려 낸 화면의 글을 줄(문단, 목록 항목, 제목, 표의 칸)로 나눈다. 두 화면이 어디서 다른지 볼 때 쓴다. */
   function linesOf(html: string): string[] {
-    const block = /<\/?(p|li|h[1-6]|dt|dd|div|section|article|summary|ul|ol|dl|details|header)\b[^>]*>/g;
+    const block = /<\/?(p|li|h[1-6]|dt|dd|div|section|article|summary|ul|ol|dl|details|header|table|caption|tr|th|td)\b[^>]*>/g;
     return textOf(html.replace(block, "\n"))
       .split("\n")
       .map((line) => line.trim())
@@ -279,22 +735,11 @@ describe("빈 결과 화면 (발견이 0인 결과)", () => {
     // (CLI 를 합성 폴더에 돌려 확인한 것: 이름으로 가리는 폴더, git 이 무시하는 파일, 하위 모듈처럼 저장소 안에 따로 든
     // 다른 git 저장소, 심볼릭 링크, 읽을 권한이 없는 폴더). "검사하지 않은 파일: 없음"의 풀이가 이 항목을 가리키므로
     // 하나라도 빠지면 안 된다.
-    expect(empty!.notSeen[1]).toMatch(
-      /^목록 없이 빠지는 JS\/TS 파일: 폴더를 검사할 때 .*JS\/TS 파일이어도 검사하지 않고, '검사하지 않은 파일'에도 싣지 않습니다\./,
+    expect(empty!.notSeen[1]).toBe(
+      "목록 없이 빠지는 JS/TS 파일: 폴더를 검사할 때 아래 파일은 JS/TS 파일이어도 검사하지 않고, '검사하지 않은 파일'에도 싣지 않습니다.",
     );
-    for (const unlisted of [
-      "node_modules·dist·build·vendor·coverage 같은 이름의 폴더 아래 파일(내용이 아니라 폴더 이름으로 가립니다)",
-      // .gitignore 만이 아니다. git 이 무시하는 방법 셋 가운데 어느 것으로 무시했든 같게 빠진다.
-      "git 저장소에서 git 이 무시하는 파일(.gitignore, .git/info/exclude, 전역 무시 목록)",
-      "하위 모듈(submodule)을 비롯해 git 저장소 안에 따로 든 다른 git 저장소의 파일",
-      "심볼릭 링크",
-      // 폴더를 가리키는 링크도 따라가지 않는다.
-      "검사하는 폴더 안의 링크는 파일을 가리키든 폴더를 가리키든 따라가지 않으므로, 가리키는 곳이 그 폴더 밖에 있으면 그곳의 파일도 보지 못합니다.",
-      // 늘 빠지는 것은 아니다(git 이 추적하는 파일이면 검사하기도 한다). 그래서 "빠질 수 있습니다"다.
-      "읽을 권한이 없는 폴더 아래 파일도 목록 없이 빠질 수 있습니다.",
-    ]) {
-      expect(empty!.notSeen[1], unlisted).toContain(unlisted);
-    }
+    // 한 문단에 담으면 좁은 화면에서 14줄이 된다. 까닭마다 한 줄로 나눠 적는다. 나눠 적는 것은 이 항목뿐이다.
+    expect(empty!.notSeenCases).toEqual([[], UNLISTED_CASES, [], [], []]);
     // 범위를 좁혀 돌린 검사에서는 그 밖의 파일도 목록 없이 빠진다. 결과에 범위가 없으므로 어느 자료에서나 같은 말이다.
     expect(empty!.notSeen[2]).toBe(OUT_OF_SCOPE);
     expect(empty!.notSeen[3]).toMatch(/^서버·인프라 설정: .*보지 못합니다/);
@@ -313,7 +758,10 @@ describe("빈 결과 화면 (발견이 0인 결과)", () => {
   it.each(named(others))("%s: 발견이 있으면 빈 결과 구역이 없다", (_name, parts) => {
     const html = render(...parts);
     expect(emptyParts(html)).toBeNull();
-    expect(html).not.toContain("이 도구가 보지 못하는 것");
+    expect(html).not.toContain("<h3>검사한 것</h3>");
+    // "이 도구가 보지 못하는 것"은 발견이 있는 결과에도 있다. 펼친 구역이 아니라 커버리지 보기에 접어 둔다(아래의
+    // "커버리지 보기"가 본다).
+    expect(html).not.toContain(`<h3>${SITE.notSeen.title}</h3>`);
   });
 
   it("v1 초안: plain.main 과 kids-signup.fixed 가 서로 다른 설명을 보인다", () => {
@@ -407,7 +855,7 @@ describe("빈 결과 화면 (발견이 0인 결과)", () => {
     const [a, b] = [linesOf(plain), linesOf(fixed)];
     expect(b).toHaveLength(a.length);
     expect(a.flatMap((line, i) => (line === b[i] ? [] : [[line, b[i]]]))).toEqual([
-      ["파일 1개 검사 · 판정 단위 0개 · 끝까지 봤습니다", "파일 1개 검사 · 판정 단위 1개 · 끝까지 봤습니다"],
+      ["파일 1개 검사 · 판정 단위 0개", "파일 1개 검사 · 판정 단위 1개"],
       [
         "0개. 모든 정책을 합친 수입니다. 0이므로 어느 정책에서도 판정한 곳이 없습니다. 다만 이 출력 형식(CLI 0.3)에는 정책별 요약이 없어, 아래 정책 카드는 판정 단위가 있는 결과와 같은 설명('발견 없음')으로 보입니다.",
         "1개. 모든 정책을 합친 수입니다. 이 출력 형식(CLI 0.3)에는 정책별 수가 없어서, 어느 정책에서 적용 신호를 봤는지 알 수 없습니다.",
@@ -571,7 +1019,8 @@ describe("빈 결과 화면 (발견이 0인 결과)", () => {
       warn: false,
     });
     // "아래 '…'"라고 했으니 그 이름의 구역이 이 줄 뒤에 있고, 거기에 그 파일들이 적혀 있다.
-    const section = plain.indexOf("<h3>이 도구가 보지 못하는 것</h3>");
+    const section = plain.indexOf(`<h3>${SITE.notSeen.title}</h3>`);
+    expect(SITE.notSeen.title).toBe("이 도구가 보지 못하는 것");
     expect(section).toBeGreaterThan(plain.indexOf("이름이 실리지 않고 빠지는 파일은"));
     expect(
       emptyParts(plain)!
@@ -582,23 +1031,19 @@ describe("빈 결과 화면 (발견이 0인 결과)", () => {
     const skipped = ["src/legacy/euckr.js", "src/vendor-lib/chart.min.js"];
     const html = renderData({ ...data, run: { ...data.run, skipped, coverage_complete: false } });
     expect(emptyParts(html)!.facts["검사하지 않은 파일"]).toEqual({
-      text: "2개. 위의 '검사하지 않은 파일 2개'를 펼치면 목록이 있습니다. 이 파일들의 코드는 보지 못했습니다.",
+      text: "2개. 위 '다 보지 못한 것' 표에 목록이 있습니다. 이 파일들의 코드는 보지 못했습니다.",
       warn: true,
     });
-    // "위의 '…'를 펼치면"이라고 했으니 그 이름의 펼침 단추가 빈 결과 구역보다 앞에 있고, 파일 이름은 그 안에 접혀 있다.
-    // 목록을 처음부터 펼쳐 두게 바꾸면 "펼치면"이라는 말도 함께 고친다.
-    const panel = html.indexOf(EMPTY);
-    const toggle = html.indexOf("<summary>검사하지 않은 파일 2개</summary>");
-    expect(toggle).toBeGreaterThan(-1);
-    expect(toggle).toBeLessThan(panel);
-    // 펼침 단추의 글은 접혀 있어도 보인다.
-    expect(closedDetailsAt(html, toggle + "<summary>".length)).toEqual([]);
-    for (const listed of skipped) {
-      const at = html.indexOf(listed);
-      expect(at, listed).toBeGreaterThan(toggle);
-      expect(at, listed).toBeLessThan(panel);
-      expect(closedDetailsAt(html, at), listed).toEqual(['<details class="filelist">']);
-    }
+    // "위 '…' 표에 목록이 있다"고 했으니 그 이름의 표가 빈 결과 구역보다 앞에 있고, 그 표의 '검사하지 않은 파일' 줄에
+    // 파일 이름이 처음부터 보인다(이 둘은 접히지 않는다. 3곳보다 많을 때만 나머지를 접는다).
+    const coverage = coverageParts(html);
+    expect(coverage.caption.startsWith("다 보지 못한 것")).toBe(true);
+    expect(coverage.tableAt).toBeLessThan(html.indexOf(EMPTY));
+    expect(closedDetailsAt(html, coverage.tableAt)).toEqual([]);
+    expect(coverage.rows[0]).toMatchObject({ label: "검사하지 않은 파일", count: "2개", on: true, shown: skipped, folded: [] });
+    // 발견이 0인 결과에서는 "이 도구가 보지 못하는 것"을 빈 결과 구역이 펼쳐 보인다. 표 아래에 또 접어 두지 않는다.
+    expect(coverage.notSeen).toBeNull();
+    expect(coverageParts(plain).notSeen).toBeNull();
   });
 
   it("팩 판이 다른 빈 결과: 어떤 정책으로 검사했는지 알 수 없다고 적는다", () => {
@@ -1029,7 +1474,23 @@ describe("발견을 펼친 안쪽", () => {
   it("판정자가 꺼져 있었다는 말을 두 번 적지 않는다. 다른 이유는 그대로 적는다", () => {
     const off = body(render("contract", "cli-current", "kids-signup.main.json"));
     expect(count(off, "판정자가 꺼져")).toBe(1);
-    const unread = body(render("tests", "fixtures", "incomplete-coverage.json"));
+    // 엔진이 조건 하나를 끝내지 못해 적용 여부가 '모름'으로 남은 발견이다. CLI 는 이유 둘을 싣는다.
+    const data = readJson("tests", "fixtures", "incomplete-coverage.json") as Report;
+    const unfinished = data.findings.filter((f) => f.untested_reasons.includes("engine-incomplete"));
+    expect(unfinished.map((f) => f.untested_reasons)).toEqual([["engine-incomplete", "no-judge"]]);
+    const stopped = body(renderData({ ...data, findings: unfinished }));
+    expect(stopped).toContain("엔진이 이 파일을 끝까지 돌리지 못했습니다");
+    expect(count(stopped, "판정자가 꺼져")).toBe(1);
+    // 파일 일부를 읽지 못해 적용 여부가 '모름'으로 남으면 CLI 는 parse-error 를 싣는다(합성 코드를 검사해 확인. 이
+    // 자료의 가입 코드는 적용 여부가 참이라 그 이유가 없다. 여기서는 그 모양으로 바꿔 본다).
+    const unread = body(
+      renderData({
+        ...data,
+        findings: data.findings
+          .filter((f) => f.file === "src/auth/signup.ts")
+          .map((f) => ({ ...f, untested_reasons: ["parse-error", "no-judge"], ai_pending: ["applies-ai", "ai-guard"] })),
+      }),
+    );
     expect(unread).toContain("파일 일부를 읽지 못했습니다");
     expect(count(unread, "판정자가 꺼져")).toBe(1);
   });

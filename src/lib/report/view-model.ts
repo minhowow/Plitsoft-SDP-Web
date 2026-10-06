@@ -65,6 +65,10 @@ export interface PolicyView {
   inPack: boolean;
 }
 
+/**
+ * 결과에 실린 대로 옮긴 것이다. 세 목록의 뜻과 화면에 적는 말은 `coverage.ts` 에 있다.
+ * 한 파일이 두 목록에 함께 실릴 수 있다(일부를 읽지 못했고 엔진도 끝내지 못한 파일). 세 수를 더하지 않는다.
+ */
 export interface CoverageView {
   files: number | null;
   units: number;
@@ -72,9 +76,16 @@ export interface CoverageView {
   skipped: string[];
   /** 일부를 파싱하지 못한 파일. 구문 조건이 '모름'이 되어 판단 보류로 남았을 수 있다. 결과에는 있다. */
   unparsed: string[];
-  /** 엔진이 조건을 끝내지 못한 파일. 끝나지 않은 조건은 판단 보류로 남는다. 결과에는 있다. */
+  /** 엔진이 조건을 끝내지 못한 파일. 끝나지 않은 조건은 판단 보류로 남았을 수 있다. 결과에는 있다. */
   incomplete: string[];
+  /** 어느 파일인지 엔진이 밝히지 않은 오류의 수. */
   engineErrors: number;
+  /**
+   * 그 오류마다 결과에 실린 문장. 엔진의 문장 그대로가 아니라, CLI 가 오류 종류를 앞에 붙이고 앞 200자까지만 실은
+   * 글이다(`coverage.ts` 의 `GapRow.texts`). 문자열로 실린 것만 옮긴다. 실린 그대로 보여 주기만 한다.
+   */
+  engineErrorTexts: string[];
+  /** 결과의 `coverage_complete`. 목록이 비어 있지 않은데 참인 결과도 읽으므로, 화면은 목록도 함께 본다. */
   complete: boolean;
 }
 
@@ -246,6 +257,7 @@ export function buildReportView(report: Report, contract: Contract, pack?: PackI
       unparsed: report.run.unparsed,
       incomplete: report.run.incomplete,
       engineErrors: report.run.engine_errors.length,
+      engineErrorTexts: report.run.engine_errors.filter((error): error is string => typeof error === "string"),
       complete: report.run.coverage_complete,
     },
     policies,

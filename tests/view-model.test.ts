@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { packMeta } from "@/lib/pack";
+import { coverageSummary } from "@/lib/report/coverage";
 import { examinedFacts } from "@/lib/report/examined";
 import { parseReport } from "@/lib/report/parse";
 import { judgedScope } from "@/lib/report/scope";
@@ -325,6 +326,118 @@ describe("v1 초안으로 만든 화면 구조", () => {
   it("판정 단위가 0인 정책은 적용 신호 없음이다", () => {
     const v = view("samples-v1-draft", "plain.main.json");
     expect(v.policies.every((p) => p.status === "no-signal")).toBe(true);
+  });
+});
+
+describe("커버리지 보기 (다 보지 못한 것)", () => {
+  // 결과에 실린 세 목록과 엔진 오류를 그대로 옮긴다. 더하거나 줄 세우지 않는다(docs/architecture.md 의 "커버리지 보기").
+  const data = () => readJson("tests", "fixtures", "incomplete-coverage.json") as Report;
+  const rowsOf = (v: ReportView) => coverageSummary(v).rows.map((row) => [row.kind, row.count, row.files]);
+
+  it("세 목록을 결과에 실린 대로 옮기고, 검사한 파일에는 이 결과에 나온 발견의 수를 붙인다", () => {
+    const v = viewOf(data());
+    expect(v.coverage).toMatchObject({ files: 3, units: 4, complete: false, engineErrors: 0, engineErrorTexts: [] });
+    expect(rowsOf(v)).toEqual([
+      // 검사하지 않은 파일에는 발견이 있을 수 없다. 수를 적지 않는다(null).
+      ["skipped", 1, [{ file: "src/lib/chart.min.js", findings: null }]],
+      ["unparsed", 1, [{ file: "src/auth/signup.ts", findings: 1 }]],
+      ["incomplete", 1, [{ file: "src/marketing/campaign.ts", findings: 3 }]],
+    ]);
+    expect(coverageSummary(v).warning?.lead).toBe("다 보지 못한 검사입니다.");
+    expect(coverageSummary(v).line).toBe("파일 3개 검사 · 판정 단위 4개");
+  });
+
+  it("발견의 수는 경로가 글자 그대로 같은 발견만 센다. 발견이 없으면 0이다", () => {
+    const base = data();
+    const v = viewOf({
+      ...base,
+      run: { ...base.run, unparsed: ["src/auth/signup.ts", "./src/auth/signup.ts", "src/auth/Signup.ts", "src/math.ts"] },
+    });
+    expect(rowsOf(v)[1]).toEqual([
+      "unparsed",
+      4,
+      [
+        { file: "src/auth/signup.ts", findings: 1 },
+        { file: "./src/auth/signup.ts", findings: 0 },
+        { file: "src/auth/Signup.ts", findings: 0 },
+        { file: "src/math.ts", findings: 0 },
+      ],
+    ]);
+  });
+
+  it("발견의 수에는 정책 카드에서 접혀 보이는 발견도 들어 있다", () => {
+    // 정책 카드는 같은 규칙의 발견이 3곳보다 많으면 나머지를 접는다. 접혀도 그 파일에 나온 발견이다. 수는 결과의
+    // 발견에서 파일마다 센 것과 같아야 한다.
+    const counted = (base: Report, files: string[]) => {
+      const v = viewOf({ ...base, run: { ...base.run, incomplete: files, coverage_complete: false } });
+      return { v, files: coverageSummary(v).rows[2].files };
+    };
+    const inResult = (base: Report, file: string) => base.findings.filter((f) => f.file === file).length;
+    const places = (v: ReportView, part: "shown" | "folded") => v.policies.flatMap((p) => p.rules.flatMap((g) => g[part]));
+
+    // 함수 단위 판정: 한 파일에 같은 규칙의 발견이 셋이고, 그 가운데 하나가 접힌다.
+    const shapes = readJson("tests", "fixtures", "uncommon-shapes.json") as Report;
+    const promo = "src/notifications/promo.ts";
+    const one = counted(shapes, [promo]);
+    expect(places(one.v, "shown").filter((l) => l.file === promo)).toHaveLength(2);
+    expect(places(one.v, "folded").filter((l) => l.file === promo)).toHaveLength(1);
+    expect(one.files).toEqual([{ file: promo, findings: 3 }]);
+
+    // 같은 규칙이 20개 파일에 반복되는 결과: 발견이 모두 접힌 곳에만 있는 파일도 0건이 아니다.
+    const repeated = readJson("tests", "fixtures", "repeated-rule.json") as Report;
+    const all = viewOf(repeated);
+    const shownFiles = new Set(places(all, "shown").map((l) => l.file));
+    const onlyFolded = [...new Set(places(all, "folded").map((l) => l.file))].filter((file) => !shownFiles.has(file));
+    expect(onlyFolded.length).toBeGreaterThan(10);
+    const many = counted(repeated, onlyFolded);
+    expect(many.files).toEqual(onlyFolded.map((file) => ({ file, findings: inResult(repeated, file) })));
+    expect(many.files.every((f) => f.findings !== null && f.findings > 0)).toBe(true);
+  });
+
+  it("목록의 순서는 결과에 실린 그대로다 (CLI 는 까닭별로 묶어 낸다. 웹이 다시 줄 세우지 않는다)", () => {
+    const base = data();
+    const skipped = ["src/data/big.ts", "src/lib/chart.min.js", "src/config/routes.mts", "src/legacy/euckr.ts"];
+    const v = viewOf({ ...base, run: { ...base.run, skipped } });
+    expect(coverageSummary(v).rows[0].files.map((f) => f.file)).toEqual(skipped);
+  });
+
+  it("엔진 오류는 수를 세고, 결과에 실린 문장은 문자열인 것만 옮긴다", () => {
+    const base = data();
+    const v = viewOf({ ...base, run: { ...base.run, engine_errors: ["[Timeout] a", { type: "Timeout" }, null] } });
+    expect(v.coverage).toMatchObject({ engineErrors: 3, engineErrorTexts: ["[Timeout] a"] });
+    expect(coverageSummary(v).rows[3]).toMatchObject({ kind: "engine-errors", count: 3, countText: "3건", texts: ["[Timeout] a"] });
+  });
+
+  it("수집본과 v1 초안 예시는 모두 다 본 결과다: 경고가 없고 세 목록이 비어 있다", () => {
+    const files = [
+      ...jsonFiles("contract", "cli-current").map((f) => ["cli-current", f]),
+      ...jsonFiles("contract", "samples-v1-draft").map((f) => ["samples-v1-draft", f]),
+    ];
+    expect(files.length).toBeGreaterThan(0);
+    for (const [dir, file] of files) {
+      const summary = coverageSummary(view(dir, file));
+      expect(summary.warning, file).toBeNull();
+      expect(summary.rows.map((row) => [row.kind, row.count, row.countText, row.meaning]), file).toEqual([
+        ["skipped", 0, "없음", null],
+        ["unparsed", 0, "없음", null],
+        ["incomplete", 0, "없음", null],
+      ]);
+    }
+  });
+
+  it("경고는 결과의 표시가 거짓일 때, 목록이 비어 있지 않을 때, 검사한 파일이 0개일 때 있다", () => {
+    const base = readJson("contract", "cli-current", "kids-signup.main.json") as Report;
+    const warning = (run: Partial<Report["run"]>) => coverageSummary(viewOf({ ...base, run: { ...base.run, ...run } })).warning;
+    expect(warning({})).toBeNull();
+    expect(warning({ coverage_complete: false })?.lead).toBe("다 보지 못한 검사입니다.");
+    expect(warning({ incomplete: ["src/auth/signup.ts"] })?.lead).toBe("다 보지 못한 검사입니다.");
+    expect(warning({ engine_errors: ["[Fatal error] x"] })?.lead).toBe("다 보지 못한 검사입니다.");
+    // 검사한 파일이 없으면 CLI 는 coverage_complete: true 로 낸다. 그래도 알린다.
+    expect(warning({ files: 0 })).toEqual({ lead: "검사한 파일이 없습니다.", detail: null });
+    // 파일 수가 실려 있지 않은 것은 0과 다르다.
+    const noCount: Partial<Report["run"]> = { ...base.run };
+    delete noCount.files;
+    expect(coverageSummary(viewOf({ ...base, run: noCount })).warning).toBeNull();
   });
 });
 

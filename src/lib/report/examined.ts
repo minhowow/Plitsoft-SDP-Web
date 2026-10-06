@@ -1,3 +1,5 @@
+import { SITE } from "@/lib/site";
+import { GAPS_TITLE } from "./coverage";
 import { STATUS_LABEL } from "./status";
 import { CONTRACT_LABEL, type ReportView } from "./view-model";
 
@@ -116,8 +118,8 @@ function unitsFact(view: ReportView): ExaminedFact {
  * 가리킨다. 이 줄이 가리키기 때문에 그곳의 목록은 빠짐없는 것으로 읽힌다. 그곳에 없는 것이 이렇게 빠진다는 것을
  * 알게 되면 그곳에 더한다.
  *
- * 파일 목록은 이 구역 위에 접힌 채로 있다(`components/result/ReportSummary.tsx` 의 FileList). 그래서 "위 목록에
- * 있다"고 하지 않고, 펼칠 곳의 이름을 적는다.
+ * 파일 목록은 이 구역 위의 "다 보지 못한 것" 표에 있다(`components/result/Coverage.tsx`). 표의 이름을 적어 가리킨다.
+ * 표는 앞의 몇 곳만 먼저 보이고 나머지를 접으므로 "펼치면"이라고는 적지 않는다.
  */
 function skippedFact(skipped: number): ExaminedFact {
   const label = "검사하지 않은 파일";
@@ -127,14 +129,14 @@ function skippedFact(skipped: number): ExaminedFact {
       value: "없음",
       note:
         "크기·인코딩 같은 까닭으로 건너뛰었다고 결과에 이름이 실린 파일이 없습니다. " +
-        "이름이 실리지 않고 빠지는 파일은 아래 '이 도구가 보지 못하는 것'에 있습니다.",
+        `이름이 실리지 않고 빠지는 파일은 아래 '${SITE.notSeen.title}'에 있습니다.`,
       warn: false,
     };
   }
   return {
     label,
     value: `${skipped}개`,
-    note: `위의 '${label} ${skipped}개'를 펼치면 목록이 있습니다. 이 파일들의 코드는 보지 못했습니다.`,
+    note: `위 '${GAPS_TITLE}' 표에 목록이 있습니다. 이 파일들의 코드는 보지 못했습니다.`,
     warn: true,
   };
 }

@@ -330,16 +330,173 @@ main.wrap > section,
   padding-left: 18px;
 }
 
-.filelist summary {
+/* 접어 둔 것(목록의 나머지 파일, 결과에 실린 오류 문장, 이 도구가 보지 못하는 것). */
+.fold > summary {
   cursor: pointer;
+  width: fit-content;
   color: var(--accent);
   font-size: 0.88rem;
 }
 
-.filelist ul {
-  margin: 6px 0 0;
-  padding-left: 18px;
+.fold > :not(summary) {
+  margin-top: 6px;
+}
+
+/* 접힌 이름 옆에 적는, 안에 무엇이 있는지 알리는 말. */
+.fold-note {
+  margin-left: 4px;
+  color: var(--muted);
+}
+
+/*
+ * 커버리지 보기의 "다 보지 못한 것" 표. 칸은 목록 이름 · 수 · 뜻과 파일이다.
+ * 든 것이 없는 줄은 이름과 "없음"만 옅게 보이고, 든 것이 있는 줄은 이름과 수를 경고 색으로 적는다.
+ * 줄마다 같은 자리에 이름이 오는 것은 빈 결과 화면의 "검사한 것"과 같다.
+ */
+.gaps {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.gaps caption {
+  padding-bottom: 4px;
+  text-align: left;
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+
+.gaps .caption-note {
+  margin-left: 4px;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.gaps tbody th,
+.gaps tbody td {
+  padding: 6px 0;
+  border-top: 1px solid var(--rule);
+  text-align: left;
+  vertical-align: baseline;
+}
+
+.gaps tbody tr:last-child > * {
+  border-bottom: 1px solid var(--rule);
+}
+
+/* 든 것이 하나도 없는 표는 줄 사이 선을 걷고 촘촘히 적는다. 볼 것이 없는 표가 아래의 발견을 밀어내지 않게 한다. */
+.gaps-none tbody th,
+.gaps-none tbody td,
+.gaps-none tbody tr:last-child > * {
+  padding-block: 0;
+  border: 0;
+}
+
+/* 이름과 수의 칸은 글자만큼만 차지하고, 나머지는 뜻과 파일의 칸이 쓴다. */
+.gaps tbody th,
+.gaps tbody .gap-count {
+  width: 1%;
+  padding-right: 14px;
+  white-space: nowrap;
+  color: var(--muted);
+}
+
+.gaps tbody th {
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+
+.gaps tbody .gap-on th,
+.gaps tbody .gap-on .gap-count {
+  color: var(--st-review);
+}
+
+.gaps tbody .gap-on .gap-count {
+  font-weight: 600;
+}
+
+.gap-files,
+.gap-texts {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
   font-size: 0.88rem;
+}
+
+/* 칸 안의 뜻 · 덧붙인 말 · 파일 목록 · 접어 둔 것 사이. 목록의 여백을 0으로 되돌리는 위 규칙과 명시도가 같아서 그 뒤에 둔다. */
+.gap-detail > * + * {
+  margin-top: 4px;
+}
+
+/*
+ * 결과에 실린 오류 문장은 CLI 가 낸 글이다. 줄바꿈과 빈칸까지 실린 그대로 보인다.
+ * 한 문장이 여러 줄로 접히므로, 문장끼리 붙어 한 문단처럼 읽히지 않게 사이를 띄운다.
+ */
+.gap-texts {
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 0.84rem;
+}
+
+.gap-texts li {
+  white-space: pre-wrap;
+}
+
+/* 파일 이름 옆에 적는, 이 결과에서 그 파일에 나온 발견의 수. 줄이 바뀌어도 한 덩어리로 다닌다. */
+.gap-found {
+  margin-left: 2px;
+  font-size: 0.8rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+/* 좁은 화면: 이름과 수를 한 줄에 두고, 뜻과 파일은 그 아래에 화면 너비를 다 쓴다. */
+@media (max-width: 480px) {
+  .gaps,
+  .gaps caption,
+  .gaps tbody {
+    display: block;
+  }
+
+  /* 이름과 수는 글자 크기가 다르다. 글자 밑줄을 맞춘다(넓은 화면의 표 배치와 같게). */
+  .gaps tbody tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: baseline;
+    gap: 2px 12px;
+    padding: 6px 0;
+    border-top: 1px solid var(--rule);
+  }
+
+  .gaps tbody tr:last-child {
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .gaps-none tbody tr,
+  .gaps-none tbody tr:last-child {
+    padding: 0;
+    border: 0;
+  }
+
+  /* 줄의 테두리와 안쪽 여백은 위에서 줄(tr)이 맡았다. 칸의 것은 걷어 낸다. */
+  .gaps tbody tr > th,
+  .gaps tbody tr > .gap-count,
+  .gaps tbody tr > .gap-detail,
+  .gaps tbody tr:last-child > * {
+    display: block;
+    width: auto;
+    padding: 0;
+    border: 0;
+  }
+
+  .gaps tbody tr > th {
+    white-space: normal;
+  }
+
+  .gaps tbody tr > .gap-detail {
+    grid-column: 1 / -1;
+  }
 }
 
 /*
@@ -415,6 +572,14 @@ main.wrap > section,
   display: grid;
   gap: 6px;
   font-size: 0.92rem;
+}
+
+/* 한 항목 안에서 까닭마다 한 줄씩 나눠 적은 목록. */
+.not-seen-cases {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 2px;
 }
 
 .policies {

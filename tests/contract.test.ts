@@ -18,8 +18,10 @@ const validateDraft = ajv.compile(readJson("contract", "schema", "report.v1-draf
 
 const captures = jsonFiles("contract", "cli-current");
 const drafts = jsonFiles("contract", "samples-v1-draft");
-// 손으로 만든 시험용 자료(판정자를 켠 결과 등). 실제 CLI 출력이 아니지만 같은 스키마를 통과해야 한다.
-const handmade = jsonFiles("tests", "fixtures");
+// 시험용 자료. 수집본이 아니지만 같은 스키마를 통과해야 한다. 두 가지가 있다(파일마다 $comment 에 적혀 있다).
+//  - 손으로 만든 것(판정자를 켠 결과 등). 실제 CLI 출력이 아니다.
+//  - 합성 폴더를 검사한 CLI 출력에 엔진 오류만 흉내 낸 것(incomplete-coverage.json. 엔진 출력에 시간 초과를 끼워 넣었다).
+const testData = jsonFiles("tests", "fixtures");
 
 describe("현재 CLI 출력 (contract/cli-current)", () => {
   it("수집본이 있다", () => {
@@ -78,8 +80,8 @@ describe("v1 초안 예시 (contract/samples-v1-draft)", () => {
   });
 });
 
-describe("손으로 만든 시험용 자료 (tests/fixtures)", () => {
-  it.each(handmade)("%s 가 cli-0.3 스키마를 통과하고 파서가 읽는다", (file) => {
+describe("시험용 자료 (tests/fixtures: 손으로 만든 것과, CLI 출력에 엔진 오류를 흉내 낸 것)", () => {
+  it.each(testData)("%s 가 cli-0.3 스키마를 통과하고 파서가 읽는다", (file) => {
     const data = readJson("tests", "fixtures", file);
     validateCurrent(data);
     expect(validateCurrent.errors ?? []).toEqual([]);
