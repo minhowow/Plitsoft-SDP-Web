@@ -2,7 +2,7 @@ import raw from "@data/pack-meta.json";
 import { policySlug } from "./href";
 import type { PackIndex, PackMeta, PolicyMeta } from "./types";
 
-export { policyHref, policySlug } from "./href";
+export { policyCardId, policyHref, policySlug } from "./href";
 
 /**
  * 팩 메타데이터 전체. `npm run pack-meta` 로 다시 만든다.

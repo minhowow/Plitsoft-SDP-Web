@@ -15,3 +15,11 @@ export function policySlug(id: string): string {
 export function policyHref(id: string): string {
   return `/policy/${policySlug(id)}/`;
 }
+
+/**
+ * 결과 화면의 정책 카드에 주는 id. 같은 쪽 안에서 그 카드로 옮겨 갈 때 쓴다(데모의 "고치기 전과 고친 뒤의 결과" 표).
+ * 한 쪽에 그리는 결과는 하나뿐이라 정책마다 카드도 하나다. 주소의 이름과 같게 점을 빼기표로 바꾼다.
+ */
+export function policyCardId(id: string): string {
+  return `policy-${policySlug(id)}`;
+}

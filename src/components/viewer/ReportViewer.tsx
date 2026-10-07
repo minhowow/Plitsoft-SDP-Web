@@ -18,6 +18,7 @@ import { parseReport, type ParseResult } from "@/lib/report/parse";
 import type { Contract, Report } from "@/lib/report/types";
 import { buildReportView } from "@/lib/report/view-model";
 import { SAMPLES, type Sample } from "@/lib/samples";
+import { documentWasRestored, startAtTop } from "@/lib/scroll";
 import { SITE } from "@/lib/site";
 import { ResultBoundary } from "./ResultBoundary";
 
@@ -40,12 +41,6 @@ const SHOWN_ERRORS = 5;
  * 이어서 보낸다(HTML 표준은 350ms 안팎마다라고 적는다). 그보다 넉넉히 둔다.
  */
 const DRAG_IDLE_MS = 800;
-
-/** 브라우저가 되살린 스크롤 자리를 맨 위로 되돌리며 지켜보는 시간(ms). 문서를 다 받은 때부터 잰다(아래 `startAtTop`). */
-const RESTORE_WATCH_MS = 500;
-
-/** 사람이 무엇인가 하기 시작했다는 것을 알려 주는 이벤트. 그 뒤로는 스크롤을 건드리지 않는다. */
-const USER_ACTS = ["wheel", "touchstart", "keydown", "pointerdown", "dragenter"] as const;
 
 /**
  * 이 탭에서 가장 나중에 연 것. 다른 쪽(조문 도감 등)에 다녀오면 뷰어가 새로 붙는데, 그때 이것을 되살린다.
@@ -70,45 +65,6 @@ function fromSample(sample: Sample, seq: number): Loaded {
 /** 끌고 있는 것에 파일이 들어 있는지. 글이나 링크를 끄는 것은 건드리지 않는다. */
 function carriesFiles(event: DragEvent): boolean {
   return event.dataTransfer?.types.includes("Files") ?? false;
-}
-
-/** 이 문서를 새로 고침이나 뒤로·앞으로 가기로 다시 받았는지. 그때 브라우저는 앞서 보던 스크롤 자리를 되살린다. */
-function documentWasRestored(): boolean {
-  const [entry] = performance.getEntriesByType("navigation") as PerformanceNavigationTiming[];
-  return entry?.type === "reload" || entry?.type === "back_forward";
-}
-
-/**
- * 브라우저가 스크롤 자리를 되살려도 맨 위에서 시작하게 한다. 되살릴 결과가 없을 때 쓴다. 돌려준 함수를 부르면 그만둔다.
- *
- * 새로 고치면 연 것은 사라지고(메모리에만 두었다) 기본 예시가 열린다. 그런데 브라우저는 앞서 보던 스크롤 자리를
- * 되살린다. 그대로 두면 제목과 "합성 예시입니다"가 화면 밖에 놓인다.
- *
- * 붙을 때 한 번 올리는 것으로는 모자란다. 브라우저가 자리를 되살리는 때가 그 뒤일 수 있다(Chrome 154 에서 쟀다. 문서를
- * 다 받은 직후에 한 번 더 되살리고, 같은 문서 안에서 뒤로 왔을 때는 다음 화면을 그리면서 되살린다). 그래서 문서를 다
- * 받고 RESTORE_WATCH_MS 가 지날 때까지 지켜보다가, 스크롤이 움직이면 다시 올린다. 사람이 무엇인가 하기 시작하면
- * 곧바로 그만둔다.
- */
-function startAtTop(): () => void {
-  let timer: number | undefined;
-  function toTop() {
-    if (window.scrollY !== 0) window.scrollTo(0, 0);
-  }
-  function stop() {
-    window.clearTimeout(timer);
-    window.removeEventListener("scroll", toTop);
-    window.removeEventListener("load", arm);
-    for (const type of USER_ACTS) window.removeEventListener(type, stop);
-  }
-  function arm() {
-    timer = window.setTimeout(stop, RESTORE_WATCH_MS);
-  }
-  window.addEventListener("scroll", toTop, { passive: true });
-  for (const type of USER_ACTS) window.addEventListener(type, stop, { passive: true });
-  if (document.readyState === "complete") arm();
-  else window.addEventListener("load", arm);
-  toTop();
-  return stop;
 }
 
 /**

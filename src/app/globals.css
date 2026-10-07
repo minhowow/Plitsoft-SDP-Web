@@ -600,6 +600,8 @@ main.wrap > section,
   display: grid;
   gap: 10px;
   min-width: 0;
+  /* 같은 쪽 안에서 이 카드로 옮겨 왔을 때(데모의 두 결과의 표) 카드가 창 위쪽에 바짝 붙지 않게 한다. */
+  scroll-margin-top: 12px;
 }
 
 .policy-head {
@@ -1008,37 +1010,43 @@ input[type="file"] {
   scroll-margin-top: 16px;
 }
 
-.viewer-note {
+.viewer-note,
+.demo-note {
   font-size: 0.92rem;
   color: var(--muted);
 }
 
 /* 데모 */
-.segmented {
-  display: inline-flex;
-  border: 1px solid var(--rule);
-  border-radius: 8px;
-  width: fit-content;
+
+/* 고르는 단추 두 줄: 어느 코드인지, 그리고 고치기 전인지 고친 뒤인지. */
+.demo-pick {
+  display: grid;
+  gap: 8px;
 }
 
-/* 둘레를 자르지 않는다(overflow: hidden 을 쓰면 키보드 포커스 표시가 잘린다). */
+/*
+ * 단추는 하나씩 떼어 그린다. 좁은 화면이나 넓은 글꼴에서 한 줄에 다 들어가지 않으면 단추가 다음 줄로 넘어간다.
+ * 단추의 글은 줄을 바꾸지 않는다. 단추를 한 덩어리로 붙여 그리면 앱 단추 셋이 320px 에서 한 줄에 들어가지 않아
+ * 단추 안의 글이 두 줄로 접힌다.
+ */
+.segmented {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
 .segmented button {
-  border: 0;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
   background: var(--surface);
   color: var(--muted);
   padding: 6px 14px;
+  white-space: nowrap;
   cursor: pointer;
 }
 
-.segmented button:first-child {
-  border-radius: 7px 0 0 7px;
-}
-
-.segmented button:last-child {
-  border-radius: 0 7px 7px 0;
-}
-
 .segmented button[aria-pressed="true"] {
+  border-color: var(--ink);
   background: var(--ink);
   color: var(--bg);
 }
@@ -1067,30 +1075,244 @@ input[type="file"] {
 }
 
 /*
- * 좁은 화면에서 코드가 가로로 넘치면 이 상자가 스크롤 상자가 되어 키보드 초점을 받는다. 둘레선을 바깥에 그리면
- * 모서리를 둥글게 자르는 .codeblock 에 잘려 보이지 않으므로 안쪽에 그린다.
+ * 좁은 화면에서 코드가 가로로 넘치면 이 상자가 스크롤 상자가 되어 키보드 초점을 받는다. 둘레선을 스크롤 상자의
+ * 바깥에 그리면 모서리를 둥글게 자르는 .codeblock 에 잘려 보이지 않는다. 안쪽에 그리면 잘리지는 않지만, 칠한 줄과
+ * 그 아래의 설명이 양끝에서 둘레선을 덮는다. 그래서 코드 상자 전체(.codeblock)의 바깥에 그린다. 그렇게 고르지
+ * 못하는 브라우저에서는 안쪽에 그린다.
  */
 .codeblock pre:focus-visible {
   outline-offset: -2px;
 }
 
+@supports selector(:has(*)) {
+  .codeblock:has(pre:focus-visible) {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .codeblock pre:focus-visible {
+    outline: none;
+  }
+}
+
 .codeline {
   display: block;
+  width: max-content;
+  min-width: 100%;
   padding-right: 14px;
   white-space: pre;
 }
 
+/* 줄 번호. 빈 줄도 이것으로 높이를 가진다. 코드의 글이 아니라서 끌어 골라 복사한 글에는 들어가지 않는다. */
 .codeline::before {
   content: attr(data-line);
   display: inline-block;
   width: 3em;
-  padding-right: 1em;
+  padding: 0 1em 0 0.5em;
   text-align: right;
+  /* 코드 줄의 pre 를 물려받지 않는다(빈칸이 접혀야 아래의 표시와 줄 번호가 양끝으로 벌어진다). 줄은 바꾸지 않는다. */
+  white-space: nowrap;
   color: var(--muted);
 }
 
+/*
+ * 다른 판과 견주어 다른 줄의 표시(+, −). 줄 번호 앞에 글자로만 둔다. 칠하지 않는다. 칠하는 것은 발견에 실린 줄
+ * 번호뿐이다. 색도 상태 색(검토 필요·충족)을 쓰지 않는다. 좋고 나쁨을 말하는 표시가 아니다.
+ *
+ * 줄 번호와 같은 자리(::before)에 "표시 줄 번호" 순서로 적고 양끝으로 벌린다(표시는 왼쪽 끝, 줄 번호는 오른쪽 끝).
+ * 줄의 글 뒤(::after)에 두고 자리만 앞으로 옮기면, 화면 낭독기가 표시를 그 줄의 끝에서 읽어 다음 줄의 것처럼 들린다.
+ */
+.codeline[data-sign]::before {
+  content: attr(data-sign) " " attr(data-line);
+  text-align-last: justify;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+/*
+ * 칠한 줄. 줄의 상자는 제 글만큼만 넓어서, 그대로 칠하면 코드를 가로로 밀었을 때 칠이 글 끝에서 끊긴다. 그림자를
+ * 좌우로 길게 펴서 상자 끝까지 칠하고, 위아래로는 줄 밖으로 번지지 않게 자른다. 그림자는 스크롤 너비를 늘리지 않는다.
+ */
 .codeline-marked {
   background: var(--mark);
+  box-shadow: 0 0 0 100vmax var(--mark);
+  clip-path: inset(0 -100vmax);
+}
+
+/*
+ * 칠한 줄의 줄 번호는 본문 색으로 적는다. 바로 아래의 설명("발견 N건에 실린 줄 번호입니다")이 가리키는 숫자다. 옅은
+ * 색 그대로 두면 어두운 테마에서 칠한 바탕과의 명도 대비가 4.5:1 에 못 미친다(4.18:1). 다른 판과 다른 줄의 표시가
+ * 함께 붙는 줄은 위의 규칙(강조색)이 그대로 남는다.
+ */
+.codeline-marked::before {
+  color: var(--ink);
+}
+
+/*
+ * 칠한 줄 바로 아래에 적는 말(판정이 본 범위). 칠한 줄과 한 덩어리로 보이게 같은 색으로 칠한다. 코드가 아니라
+ * 글이므로 줄을 바꾸고, 코드를 가로로 밀어도 제자리에 남는다. 코드를 끌어 골라 복사한 글에는 섞이지 않는다.
+ */
+.codenote {
+  display: block;
+  position: sticky;
+  left: 0;
+  /* 왼쪽은 줄 번호 칸만큼 비운다(0.5em + 3em + 1em). 설명이 코드의 글과 같은 자리에서 시작한다. */
+  padding: 0 14px 6px 4.5em;
+  background: var(--mark);
+  font-family: var(--font-body);
+  line-height: 1.5;
+  white-space: normal;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.code-legend {
+  padding: 6px 14px;
+  border-top: 1px solid var(--rule);
+  font-size: 0.84rem;
+  color: var(--muted);
+}
+
+.code-sign {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: var(--accent);
+}
+
+/* 두 판의 결과: 정책별 표와, 표에 나온 상태의 뜻. 정책 카드와 같은 면에 둔다. */
+.demo-compare {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  padding: 12px 16px;
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.compare {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.compare caption {
+  padding-bottom: 4px;
+  text-align: left;
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+
+.compare th,
+.compare td {
+  padding: 6px 14px 6px 0;
+  text-align: left;
+  vertical-align: baseline;
+}
+
+.compare thead th {
+  padding-block: 0 4px;
+  font-size: 0.78rem;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.compare tbody th,
+.compare tbody td {
+  border-top: 1px solid var(--rule);
+}
+
+.compare tbody th {
+  font-size: 0.92rem;
+  font-weight: 500;
+}
+
+/* 상태와 발견 수의 칸은 글자만큼만 차지하고, 나머지는 정책 이름이 쓴다. */
+.compare thead th + th,
+.compare tbody td {
+  width: 1%;
+  white-space: nowrap;
+}
+
+/* "발견 N건"은 한 덩어리로 다닌다. 좁은 화면에서 수만 다음 줄에 홀로 남지 않는다. */
+.compare .count {
+  white-space: nowrap;
+}
+
+/* 지금 보고 있는 판의 칸. 위의 코드와 아래의 결과가 이 칸의 것이다. 판의 이름만 짙게 적는다. */
+.compare thead th.compare-current {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/* 좁은 화면: 정책 이름을 한 줄에 두고, 그 아래에 판마다 한 줄씩 쌓는다. 칸 머리 대신 칸마다 판 이름을 적는다. */
+@media (max-width: 640px) {
+  .compare,
+  .compare caption,
+  .compare tbody {
+    display: block;
+  }
+
+  .compare thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .compare tbody tr {
+    display: grid;
+    gap: 2px;
+    padding: 6px 0;
+    border-top: 1px solid var(--rule);
+  }
+
+  .compare tbody tr > th,
+  .compare tbody tr > td {
+    display: block;
+    width: auto;
+    padding: 0;
+    border: 0;
+    white-space: normal;
+  }
+
+  /*
+   * 판 이름의 너비만큼 내어 쓴다. 칩 옆에 다 들어가지 않아 다음 줄로 내려간 것(발견 수)이 판 이름 아래가 아니라 칩
+   * 아래에 놓인다. 내어 쓰기는 안쪽 상자가 물려받으므로 칸 안의 것에서는 되돌린다(그대로 두면 칩의 글이 밀린다).
+   */
+  .compare tbody tr > td {
+    padding-left: 3.75rem;
+    text-indent: -3.75rem;
+  }
+
+  .compare tbody td > * {
+    text-indent: 0;
+  }
+
+  .compare tbody td::before {
+    content: attr(data-label);
+    display: inline-block;
+    min-width: 3.75rem;
+    font-size: 0.78rem;
+    color: var(--muted);
+    text-indent: 0;
+  }
+
+  .compare tbody td.compare-current::before {
+    font-weight: 600;
+    color: var(--ink);
+  }
+}
+
+.status-notes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+  font-size: 0.88rem;
+  color: var(--muted);
 }
 
 /* 조문 도감 */

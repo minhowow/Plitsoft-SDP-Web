@@ -99,7 +99,3 @@ export const SAMPLES: Sample[] = [
     data: draftPlainMain,
   },
 ];
-
-export function findSample(id: string): Sample | undefined {
-  return SAMPLES.find((s) => s.id === id);
-}

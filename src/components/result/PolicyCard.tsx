@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { policyHref } from "@/lib/pack/href";
+import { policyCardId, policyHref } from "@/lib/pack/href";
 import { reasonLabel } from "@/lib/report/reasons";
 import { scopeLabel, scopeNote } from "@/lib/report/scope";
 import { STATUS_HINT } from "@/lib/report/status";
@@ -202,7 +202,8 @@ export function PolicyCard({ policy }: { policy: PolicyView }) {
   // 정책별 수는 결과에 정책별 요약이 있을 때(v1 초안)만 안다. CLI 0.3 의 전체 수에서 짐작해 적지 않는다.
   const units = policy.units === null ? null : `이 정책의 판정 단위는 ${policy.units}개입니다.`;
   return (
-    <article className={`policy policy-${policy.status}`}>
+    // id 는 같은 쪽 안에서 이 카드로 옮겨 올 때 쓴다(데모의 두 결과의 표). 한 쪽에 그리는 결과는 하나뿐이다.
+    <article className={`policy policy-${policy.status}`} id={policyCardId(policy.id)}>
       <header className="policy-head">
         <div>
           <p className="law">{policy.law}</p>
