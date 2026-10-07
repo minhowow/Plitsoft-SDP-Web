@@ -236,6 +236,12 @@ main.wrap > section,
   color: var(--muted);
 }
 
+/* 목록에서 정책마다 적는 한 줄(근거 조문과 규칙의 수, 재검토 기한). */
+.policy-counts {
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
 .law {
   font-size: 0.86rem;
   color: var(--muted);
@@ -290,7 +296,12 @@ main.wrap > section,
   gap: 16px;
 }
 
-.report-meta {
+/*
+ * 이름표 아래에 값을 둔 짧은 항목을 옆으로 늘어놓는다. 결과의 머리(.report-meta)와, 조문 도감의 한눈에 보는 것과
+ * 조문마다 적는 것(.meta-row).
+ */
+.report-meta,
+.meta-row {
   margin: 0;
   display: flex;
   flex-wrap: wrap;
@@ -298,12 +309,14 @@ main.wrap > section,
   font-size: 0.88rem;
 }
 
-.report-meta dt {
+.report-meta dt,
+.meta-row dt {
   color: var(--muted);
   font-size: 0.78rem;
 }
 
-.report-meta dd {
+.report-meta dd,
+.meta-row dd {
   margin: 0;
 }
 
@@ -571,7 +584,8 @@ main.wrap > section,
   }
 }
 
-.not-seen {
+.not-seen,
+.legend {
   margin: 0;
   padding-left: 18px;
   display: grid;
@@ -637,8 +651,7 @@ main.wrap > section,
 .findings,
 .alternatives,
 .evidence,
-.reasons,
-.alt-list {
+.reasons {
   list-style: none;
   margin: 0;
   padding: 0;
@@ -801,8 +814,7 @@ main.wrap > section,
   gap: 8px;
 }
 
-.alt,
-.alt-list li {
+.alt {
   font-size: 0.9rem;
   border: 1px solid var(--rule);
   border-radius: 8px;
@@ -815,11 +827,6 @@ main.wrap > section,
 .alt-id {
   font-family: var(--font-mono);
   font-size: 0.82rem;
-  color: var(--muted);
-}
-
-.alt-kind {
-  font-size: 0.8rem;
   color: var(--muted);
 }
 
@@ -861,7 +868,6 @@ main.wrap > section,
 }
 
 .ask,
-.fix,
 .pending,
 .reasons li,
 .evidence li {
@@ -1315,24 +1321,94 @@ input[type="file"] {
   color: var(--muted);
 }
 
-/* 조문 도감 */
+/* 조문 도감: 정책 한 쪽. 머리 → 한눈에 보는 것 → 근거 조문 → 규칙. */
+.policy-page {
+  gap: 24px;
+}
+
+.policy-page-head {
+  display: grid;
+  gap: 8px;
+}
+
+.policy-section {
+  display: grid;
+  gap: 12px;
+}
+
+/* 팩에 없는 값의 자리에 적는 말("팩에 실려 있지 않습니다", "팩이 아직 알려 주지 않습니다"). 있는 값보다 옅게 적는다. */
+.policy-page .none {
+  color: var(--muted);
+}
+
+/* 한눈에 보는 것: 값을 옆으로 늘어놓고, 그 값이 무엇인지는 바로 아래에 옅게 적는다. */
+.policy-facts {
+  display: grid;
+  gap: 6px;
+}
+
+/* 규칙마다 같은 자리에 이름표가 오는 목록(판정 단위, 적용 조건, 적용 질문). 좁은 화면에서는 이름표를 글 위에 둔다. */
+.facts {
+  margin: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.facts > div {
+  display: grid;
+  grid-template-columns: 6em minmax(0, 1fr);
+  gap: 0 12px;
+  align-items: baseline;
+}
+
+.facts dt {
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.facts dd {
+  margin: 0;
+  font-size: 0.92rem;
+}
+
+@media (max-width: 480px) {
+  .facts > div {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* 근거 조문 하나. 조문 사이는 선으로 나눈다. */
 .legal {
   display: grid;
   gap: 8px;
 }
 
-.legal-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 16px;
-  font-size: 0.84rem;
-  color: var(--muted);
+.legal + .legal {
+  border-top: 1px solid var(--rule);
+  padding-top: 12px;
 }
 
-.legal-meta .warn {
+/* 대표 조문이라는 표시. 상태가 아니므로 상태 칩의 색을 쓰지 않는다. */
+.tag {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 0.74rem;
+  font-weight: 500;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+/* 원문 해시가 팩에 적힌 것과 다르거나 견주지 못했을 때. */
+.meta-row dd.warn {
   color: var(--st-review);
+  font-weight: 600;
 }
 
+/* 조문 원문. 팩에 실린 글자 그대로다. 줄바꿈과 빈칸을 그대로 보이고, 긴 줄은 상자 안에서 줄을 바꾼다. */
 .statute {
   margin: 0;
   font-family: var(--font-law);
@@ -1343,4 +1419,181 @@ input[type="file"] {
   border: 1px solid var(--rule);
   border-radius: 10px;
   padding: 14px 18px;
+}
+
+/* 규칙 하나. 정책 카드와 같은 면에 둔다. */
+.rule-doc {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  padding: 14px 16px;
+  display: grid;
+  gap: 12px;
+}
+
+/* 적용 조건: id 옆이 설명 자리다. */
+.conditions {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+
+/* 접어 둔 것 안의 글(판정자에게 묻는 글)은 둘레의 글보다 조금 작게, 왼쪽에 선을 두어 인용처럼 보인다. */
+.rule-doc .fold > p {
+  font-size: 0.88rem;
+  border-left: 2px solid var(--rule);
+  padding-left: 10px;
+}
+
+/*
+ * 대안 표. 칸은 대안(id) · 종류와 세기 · 확인되지 않았을 때 하는 말이다.
+ * id 와 종류의 칸은 글자만큼만 차지하고, 나머지는 하는 말의 칸이 쓴다.
+ */
+.alts {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.alts caption {
+  padding-bottom: 4px;
+  text-align: left;
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+
+.alts th,
+.alts td {
+  padding: 8px 14px 8px 0;
+  text-align: left;
+  vertical-align: baseline;
+}
+
+.alts thead th {
+  padding-block: 0 4px;
+  font-size: 0.78rem;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.alts tbody th,
+.alts tbody td {
+  border-top: 1px solid var(--rule);
+}
+
+.alts tbody th {
+  font-weight: 400;
+}
+
+.alts thead th:not(:last-child),
+.alts tbody th,
+.alts .alt-kind {
+  width: 1%;
+  white-space: nowrap;
+}
+
+.alts .alt-kind {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.alts thead th:last-child,
+.alts .alt-says {
+  padding-right: 0;
+}
+
+/* 칸 안의 덧붙인 말 · 하는 말 · 접어 둔 것 사이. */
+.alt-says > * + * {
+  margin-top: 6px;
+}
+
+/* 대안마다 같은 자리에 "알리는 말", "질문", "고치는 법"이 온다. 좁은 화면에서는 이름표를 글 위에 둔다. */
+.says {
+  margin: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.says > div {
+  display: grid;
+  grid-template-columns: 4.6em minmax(0, 1fr);
+  gap: 0 10px;
+  align-items: baseline;
+}
+
+.says dt {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.says dd {
+  margin: 0;
+  font-size: 0.88rem;
+}
+
+@media (max-width: 480px) {
+  .says > div {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/*
+ * 좁은 화면: 대안의 id 와 종류를 한 줄에 두고, 하는 말은 그 아래에 화면 너비를 다 쓴다.
+ * 칸 머리는 앞의 둘("대안", "종류와 세기")만 화면에서 가린다. 그 둘은 줄만 봐도 무엇인지 안다. 셋째("확인되지 않았을 때
+ * 하는 말")는 표 이름 아래에 그대로 보인다. 가리면 알리는 말·질문·고치는 법이 언제 쓰는 말인지 보이는 글이 없다.
+ */
+@media (max-width: 640px) {
+  .alts,
+  .alts caption,
+  .alts thead,
+  .alts thead tr,
+  .alts tbody {
+    display: block;
+  }
+
+  .alts thead th {
+    display: block;
+    width: auto;
+    padding: 0 0 4px;
+    white-space: normal;
+  }
+
+  .alts thead th:not(:last-child) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .alts tbody tr {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 10px;
+    padding: 8px 0;
+    border-top: 1px solid var(--rule);
+  }
+
+  /*
+   * 종류의 칸(.alt-kind)은 따로 적는다. 넓은 화면의 `.alts .alt-kind`(너비 1%, 줄바꿈 없음)가 td 만 적은 선택자를 이겨서,
+   * 빠뜨리면 칸이 3px 로 남고 글이 칸 밖에 그려진다. id 가 길면 그 글이 규칙 상자와 화면 밖으로 나간다.
+   */
+  .alts tbody tr > th,
+  .alts tbody tr > td,
+  .alts tbody tr > .alt-kind {
+    display: block;
+    width: auto;
+    padding: 0;
+    border: 0;
+    white-space: normal;
+  }
+
+  .alts tbody tr > .alt-says {
+    flex-basis: 100%;
+  }
 }

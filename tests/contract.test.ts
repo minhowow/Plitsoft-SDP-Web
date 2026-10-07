@@ -6,7 +6,7 @@ import { packMeta } from "@/lib/pack";
 import { parseReport } from "@/lib/report/parse";
 import type { Report } from "@/lib/report/types";
 import { buildReportView } from "@/lib/report/view-model";
-import { jsonFiles, readJson, root, sarifFiles } from "./helpers";
+import { jsonFiles, readJson, readPackFile, root, sarifFiles } from "./helpers";
 
 // CLI 와 웹 사이의 이음매를 지킨다.
 // 실패하면: CLI 출력이 바뀌었거나(npm run capture 뒤라면), 스키마·타입·파서 가운데 하나만 고친 것이다.
@@ -240,6 +240,23 @@ describe("시험용 자료 (tests/fixtures: 손으로 만든 것과, CLI 출력�
     validateCurrent(data);
     expect(validateCurrent.errors ?? []).toEqual([]);
     expect(parseReport(data)).toMatchObject({ ok: true, contract: "cli-0.3" });
+  });
+});
+
+describe("팩 메타데이터를 읽어 들이는 곳 (src/lib/pack/index.ts)", () => {
+  // 화면은 packMeta(소스가 읽어 들인 것)로 그리고, 부품 시험도 기대값을 거기서 얻는다. 읽어 들이는 곳이 값을 고치면(조문
+  // 원문을 다듬거나 시행일을 손으로 바로잡으면) 화면과 기대값이 함께 달라져 그 시험들은 그대로 통과한다. 여기서 파일과
+  // 견줘 둔다. 빌드된 쪽은 tests/browser/ 의 시험이 파일과 직접 견준다(tests/helpers.ts 의 readPackFile).
+  //
+  // 실패하면: 읽어 들이는 곳에서는 값을 고치지 않는다. 팩의 값이 틀렸으면 팩이 고쳐진 뒤에 다시 수집한다
+  // (npm run capture && npm run pack-meta). CLI 가 내보낸 모양을 옮겨야 해서 실패하는 것이라면(G1 뒤, docs/cli-requests.md
+  // 의 R5) 이 시험을 지우지 말고, 옮긴 값(조문 원문, 날짜, 글)이 파일의 것과 같은지를 보게 바꾼다.
+  it("packMeta 는 data/pack-meta.json 을 고치지 않고 그대로 내준다", () => {
+    const file = readPackFile();
+    expect(packMeta).toStrictEqual(file);
+    // 빈 것끼리 견준 것이 아니다. 파일에 정책이 있고 조문 원문이 실려 있다.
+    expect(file.policies.length).toBeGreaterThan(0);
+    expect(file.policies.flatMap((policy) => policy.legal).filter((ref) => ref.text).length).toBeGreaterThan(0);
   });
 });
 

@@ -1,11 +1,23 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import type { PackMeta } from "@/lib/pack/types";
 
 export const root = fileURLToPath(new URL("..", import.meta.url));
 
 export function readJson(...parts: string[]): unknown {
   return JSON.parse(readFileSync(path.join(root, ...parts), "utf8"));
+}
+
+/**
+ * 팩 메타데이터를 파일(data/pack-meta.json)에서 직접 읽는다. 소스가 읽어 들인 것(`@/lib/pack` 의 `packMeta`)이 아니다.
+ *
+ * 화면은 `packMeta` 로 그린다. 그것을 기대값으로 삼으면, 읽어 들이는 곳이 값을 고쳤을 때(조문 원문을 다듬거나 날짜를 손으로
+ * 바로잡았을 때) 화면과 기대값이 함께 달라져 시험이 통과한다. 빌드된 쪽을 보는 시험(tests/browser/)은 이것과 견준다.
+ * 부품 시험은 `packMeta` 를 쓴다. 그것이 파일과 같은지는 tests/contract.test.ts 가 본다.
+ */
+export function readPackFile(): PackMeta {
+  return readJson("data", "pack-meta.json") as PackMeta;
 }
 
 /** 폴더 안의 .json 파일 이름(MANIFEST 제외). */
