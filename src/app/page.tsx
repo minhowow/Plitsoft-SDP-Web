@@ -16,7 +16,7 @@ export default function Home() {
       <section className="entries" aria-label="들어가는 길">
         <Link href="/view/" className="entry">
           <h2>결과 보기</h2>
-          <p>내 컴퓨터에서 돌린 CLI 결과 JSON 을 엽니다. 파일은 브라우저 안에서만 읽습니다.</p>
+          <p>내 컴퓨터에서 돌린 CLI 결과(JSON, SARIF)를 엽니다. 파일은 브라우저 안에서만 읽습니다.</p>
         </Link>
         <Link href="/demo/" className="entry">
           <h2>데모</h2>

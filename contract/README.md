@@ -12,7 +12,8 @@ contract/
 │   ├── <앱>.<판>.json   policypack scan src/ --output-format json
 │   └── kids-signup.main.sarif
 ├── schema/
-│   ├── report.cli-0.3.schema.json     지금 출력의 모양 (관찰해서 적은 것)
+│   ├── report.cli-0.3.schema.json     지금 JSON 출력의 모양 (관찰해서 적은 것)
+│   ├── sarif.cli-0.3.schema.json      지금 SARIF 출력 가운데 웹이 읽는 것 (관찰해서 적은 것)
 │   └── report.v1-draft.schema.json    웹이 요청하는 다음 모양 (CLI 가 아직 내지 않는다)
 └── samples-v1-draft/    v1 초안 예시. 실제 출력에 손으로 필드를 덧붙였다
 ```
@@ -24,6 +25,10 @@ contract/
 - `fixtures/` 의 코드는 팩이 잘 잡도록 비틀지 않는다. 그럴듯한 서비스 코드의 모양으로 둔다.
 - 스키마, 타입(`src/lib/report/types.ts`), 파서(`src/lib/report/parse.ts`)는 함께 고친다.
   `tests/contract.test.ts` 가 셋이 어긋나지 않는지 본다.
+- SARIF 도 같다. 스키마(`schema/sarif.cli-0.3.schema.json`)와 타입·파서(`src/lib/report/sarif.ts`)를 함께 고친다. 웹은
+  SARIF 를 결과 JSON 의 모양으로 옮겨 읽는다. SARIF 에 없는 것(판정 단위 수, 검사한 파일 수 등)은 채우지 않는다.
+  SARIF 수집본(`cli-current/*.sarif`)은 같은 이름의 JSON 수집본과 같은 검사에서 나온 것이고, `tests/sarif.test.tsx` 가
+  둘을 견준다. SARIF 수집본을 `src` 에서 불러오지 않는다(그 안에 팩 작성자 메모가 실려 있다).
 - `npm run capture` 와 `npm run pack-meta` 는 같은 출처로 함께 돌린다. 결과의 `run.pack_digest` 와
   `data/pack-meta.json` 의 `pack.digest` 가 같아야 한다.
 - `samples-v1-draft/` 는 수집본에서 손으로 만든 것이라 다시 수집해도 따라오지 않는다. 팩 판이 바뀌면 시험이 알려 준다.

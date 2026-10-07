@@ -15,6 +15,13 @@ export function jsonFiles(...parts: string[]): string[] {
     .sort();
 }
 
+/** 폴더 안의 .sarif 파일 이름. SARIF 수집본은 표본 가운데 일부에만 있다(scripts/capture-cli-output.mjs). */
+export function sarifFiles(...parts: string[]): string[] {
+  return readdirSync(path.join(root, ...parts))
+    .filter((name) => name.endsWith(".sarif"))
+    .sort();
+}
+
 /**
  * 그려 낸 HTML 에서 `start` 자리에 시작하는 요소 하나를 통째로 잘라 낸다. 같은 이름의 태그가 안에 겹쳐 있어도 된다.
  * 시험이 DOM 도구 없이 "이 묶음 안", "접힌 곳 안"을 가려 보기 위한 것이다.
@@ -77,6 +84,15 @@ export function textOf(html: string): string {
     .replace(/&quot;/g, '"')
     .replace(/&#x27;/g, "'")
     .replace(/&amp;/g, "&");
+}
+
+/** 그려 낸 화면의 글을 줄(문단, 목록 항목, 제목, 표의 칸)로 나눈다. 두 화면이 어디서 다른지 볼 때 쓴다. */
+export function linesOf(html: string): string[] {
+  const block = /<\/?(p|li|h[1-6]|dt|dd|div|section|article|summary|ul|ol|dl|details|header|table|caption|tr|th|td)\b[^>]*>/g;
+  return textOf(html.replace(block, "\n"))
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
 }
 
 /** 폴더 아래 모든 파일의 경로(저장소 기준 상대 경로). */

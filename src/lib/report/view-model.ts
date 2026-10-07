@@ -11,6 +11,12 @@ export interface LocationView {
   file: string;
   /** 파일 단위 규칙에서는 적용 조건이 처음 맞은 줄이다. 판정 대상은 파일 전체다. */
   line: number | null;
+  /**
+   * 줄 번호가 조문이 닿는다고 본 줄인지 알 수 없는 발견. SARIF 는 줄이 없는 발견도 1행으로 싣는다(CLI 소스
+   * `report/sarif.py` 의 `_result`). 그래서 SARIF 에서 옮긴 결과의 1행은 실제 1행일 수도, 줄이 없는 발견일 수도 있다.
+   * 판정 구역이 함께 실린 발견은 줄이 있는 발견이다(CLI 는 줄이 그 구역 안에 있을 때만 구역을 싣는다).
+   */
+  lineUnsure: boolean;
   /** 판정이 본 범위. 발견 줄에서는 줄 번호 옆에 늘 함께 보인다(줄 번호는 문제의 줄이 아니다). */
   scope: JudgedScope;
   rule: string;
@@ -23,7 +29,7 @@ export interface LocationView {
 export const SHOWN_PER_RULE = 3;
 
 /** 화면에 적는 출력 형식의 이름. 결과 머리의 "출력 형식"과 빈 결과 화면의 한계 문구가 같은 이름을 쓴다. */
-export const CONTRACT_LABEL: Record<Contract, string> = { "cli-0.3": "CLI 0.3", "v1-draft": "v1 초안" };
+export const CONTRACT_LABEL: Record<Contract, string> = { "cli-0.3": "CLI 0.3", "v1-draft": "v1 초안", sarif: "SARIF" };
 
 /**
  * 같은 규칙의 발견 묶음. 접는 단위다. 규칙이 다르면 서로 다른 의무이므로, 다른 규칙의 발견을 접어 가리지 않는다.
@@ -70,8 +76,10 @@ export interface PolicyView {
  * 한 파일이 두 목록에 함께 실릴 수 있다(일부를 읽지 못했고 엔진도 끝내지 못한 파일). 세 수를 더하지 않는다.
  */
 export interface CoverageView {
+  /** 검사한 파일 수. 결과에 없으면 null 이다(SARIF 에는 실리지 않는다). */
   files: number | null;
-  units: number;
+  /** 판정 단위 수. SARIF 에는 실리지 않는다. 그때만 null 이다. 0 과 다르다. */
+  units: number | null;
   /** 검사하지 않은 파일. 결과에 없다. */
   skipped: string[];
   /** 일부를 파싱하지 못한 파일. 구문 조건이 '모름'이 되어 판단 보류로 남았을 수 있다. 결과에는 있다. */
@@ -167,6 +175,9 @@ function groupByRule(found: LocationView[]): RuleGroupView[] {
 /**
  * 결과 JSON 을 화면용 구조로 바꾼다. 같은 정책의 발견은 정책 하나 아래로 묶고, 그 안에서 규칙별로 다시 묶는다.
  * 팩 메타데이터를 주면 발견이 없는 정책도 함께 보여 준다(CLI 0.3 결과에서. v1 초안은 결과에 나온 정책만 보여 준다).
+ *
+ * SARIF 에서 옮긴 결과(`sarif.ts`)도 같은 길로 간다. 정책별 요약이 없는 것은 CLI 0.3 의 JSON 과 같으므로 발견과 정책
+ * 카드는 같게 만들어지고, SARIF 에 없는 것(판정 단위 수, 검사한 파일 수, 일부 판정 구역)만 "알 수 없음"으로 남는다.
  */
 export function buildReportView(report: Report, contract: Contract, pack?: PackIndex): ReportView {
   const byPolicy = new Map<string, Finding[]>();
@@ -205,6 +216,7 @@ export function buildReportView(report: Report, contract: Contract, pack?: PackI
     const found: LocationView[] = findings.map((finding) => ({
       file: finding.file,
       line: finding.line,
+      lineUnsure: contract === "sarif" && finding.line === 1 && finding.region === null,
       scope: judgedScope(finding),
       rule: finding.rule,
       status: findingStatus(finding),

@@ -39,13 +39,21 @@ const NOT_SEEN: readonly NotSeenItem[] = [
   },
 ];
 
+/** CLI 의 이름. 가칭이라 바뀔 수 있다. 아래 `SITE` 의 여러 문구가 이 이름으로 만들어진다. */
+const CLI = "policypack";
+
 /**
  * 이름과 고정 문구를 한곳에 둔다. CLI 이름(policypack)은 가칭이라 바뀔 수 있다.
  * 화면 어디서도 이름을 직접 적지 말고 여기서 가져다 쓴다.
  */
 export const SITE = {
-  name: "policypack 웹",
-  cli: "policypack",
+  name: `${CLI} 웹`,
+  cli: CLI,
+  /**
+   * `/view` 가 여는 파일을 만드는 명령의 예. 잘못된 파일을 넣었을 때의 안내에 쓴다. CLI 는 결과를 표준 출력으로만
+   * 낸다(파일로 쓰는 선택지가 없다). 그래서 출력을 파일로 돌려 저장하는 모양이다. SARIF 는 `--output-format sarif` 다.
+   */
+  scanExample: `${CLI} scan src/ --output-format json > result.json`,
   tagline: "JS/TS 코드에서 국내 법·정책상 검토가 필요한 지점을 조문과 함께 보여 줍니다.",
   /** 모든 화면에 붙는 면책. docs/commitments.md 의 표기 약속. */
   disclaimer:

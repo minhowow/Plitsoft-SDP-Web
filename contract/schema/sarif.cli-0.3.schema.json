@@ -1,0 +1,502 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "sarif.cli-0.3.schema.json",
+  "title": "policypack scan --output-format sarif (CLI 0.3) 가운데 웹이 읽는 것",
+  "description": "CLI 가 지금 내는 SARIF 2.1.0 출력을 관찰해 적은 것이다. SARIF 의 공식 스키마도, CLI 저장소의 스키마도 아니다. 웹이 읽는 필드만 required 로 두고 나머지는 허용한다. contract/cli-current/ 의 .sarif 수집본이 이 스키마를 통과해야 한다. 웹은 이것을 결과 JSON 의 모양으로 옮겨 읽는다(src/lib/report/sarif.ts). 판정 단위 수와 검사한 파일 수는 SARIF 에 없다. 스키마로 적을 수 없어 파서만 보는 것: results[].ruleId 와 id 가 같은 규칙이 tool.driver.rules 에 있어야 하고, 다 보지 못한 파일의 알림(descriptor.id 가 policypack/unparsed, policypack/skipped, policypack/engine-incomplete)에는 파일(locations[0])이, 엔진 오류의 알림(policypack/engine-error)에는 문장(message.text)이 있어야 한다.",
+  "type": "object",
+  "required": [
+    "version",
+    "runs"
+  ],
+  "properties": {
+    "version": {
+      "const": "2.1.0"
+    },
+    "runs": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1,
+      "items": {
+        "$ref": "#/$defs/run"
+      }
+    }
+  },
+  "$defs": {
+    "run": {
+      "type": "object",
+      "required": [
+        "tool",
+        "invocations",
+        "results"
+      ],
+      "properties": {
+        "tool": {
+          "type": "object",
+          "required": [
+            "driver"
+          ],
+          "properties": {
+            "driver": {
+              "type": "object",
+              "required": [
+                "name",
+                "version",
+                "rules"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "version": {
+                  "type": "string"
+                },
+                "rules": {
+                  "type": "array",
+                  "description": "발견을 낸 규칙만 실린다. 발견이 없으면 비어 있다.",
+                  "items": {
+                    "$ref": "#/$defs/rule"
+                  }
+                }
+              }
+            },
+            "extensions": {
+              "type": "array",
+              "description": "정적 조건을 돌린 엔진. 엔진을 돌리지 않았으면(검사할 파일이 없을 때) 이 필드가 없다. 결과 JSON 의 run.engine 이 null 인 것과 같다.",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "version": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "invocations": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/invocation"
+          }
+        },
+        "results": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/result"
+          }
+        }
+      }
+    },
+    "rule": {
+      "type": "object",
+      "required": [
+        "id",
+        "shortDescription",
+        "help"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "'정책 id/규칙 id'. results[].ruleId 와 같은 값이다."
+        },
+        "shortDescription": {
+          "type": "object",
+          "required": [
+            "text"
+          ],
+          "properties": {
+            "text": {
+              "type": "string",
+              "description": "정책의 제목. 결과 JSON 의 findings[].title 과 같다."
+            }
+          }
+        },
+        "fullDescription": {
+          "type": "object",
+          "description": "팩 작성자 메모(rationale.implementation)가 실린다. 웹은 읽지 않는다."
+        },
+        "help": {
+          "type": "object",
+          "required": [
+            "text"
+          ],
+          "properties": {
+            "text": {
+              "type": "string",
+              "description": "개발자에게 할 질문. 결과 JSON 의 findings[].ask_developer 와 같다. 질문이 없는 정책이면 제목이 대신 실린다."
+            },
+            "markdown": {
+              "type": "string",
+              "description": "팩 작성자 메모(rationale.motivation)와 조문 원문이 실린다. 웹은 읽지 않는다. 조문은 data/pack-meta.json 의 것만 쓴다."
+            }
+          }
+        }
+      }
+    },
+    "invocation": {
+      "type": "object",
+      "required": [
+        "toolExecutionNotifications",
+        "properties"
+      ],
+      "properties": {
+        "toolExecutionNotifications": {
+          "type": "array",
+          "description": "다 보지 못한 파일마다 하나씩, 어느 파일인지 모르는 엔진 오류마다 하나씩 실린다. 결과 JSON 의 run.unparsed, run.skipped, run.incomplete, run.engine_errors 와 같은 것이다.",
+          "items": {
+            "type": "object",
+            "required": [
+              "descriptor"
+            ],
+            "properties": {
+              "descriptor": {
+                "type": "object",
+                "required": [
+                  "id"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "description": "policypack/unparsed · policypack/skipped · policypack/engine-incomplete · policypack/engine-error · policypack/ai-pending. 웹은 앞의 넷만 읽는다."
+                  }
+                }
+              },
+              "message": {
+                "type": "object",
+                "properties": {
+                  "text": {
+                    "type": "string"
+                  }
+                }
+              },
+              "locations": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "properties": {
+          "type": "object",
+          "required": [
+            "judge",
+            "aiPending",
+            "packDigest",
+            "coverageComplete"
+          ],
+          "properties": {
+            "judge": {
+              "type": "string",
+              "description": "판정자 id. 꺼져 있으면 \"none\" 이다(결과 JSON 은 null)."
+            },
+            "aiQuestions": {
+              "type": "integer"
+            },
+            "aiAnswered": {
+              "type": "integer"
+            },
+            "aiQuestionsSent": {
+              "type": "integer"
+            },
+            "aiPending": {
+              "type": "integer"
+            },
+            "aiCleared": {
+              "type": "array",
+              "description": "결과 JSON 의 run.ai_cleared 와 같은 모양이다.",
+              "items": {
+                "type": "object",
+                "required": [
+                  "policy",
+                  "rule",
+                  "file",
+                  "alternatives"
+                ],
+                "properties": {
+                  "policy": {
+                    "type": "string"
+                  },
+                  "rule": {
+                    "type": "string"
+                  },
+                  "file": {
+                    "type": "string"
+                  },
+                  "line": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "alternatives": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "id"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "cite": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "gate": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "aiDismissed": {
+              "type": "array",
+              "description": "결과 JSON 의 run.ai_dismissed 와 같은 모양이다.",
+              "items": {
+                "type": "object",
+                "required": [
+                  "policy",
+                  "rule",
+                  "file"
+                ],
+                "properties": {
+                  "policy": {
+                    "type": "string"
+                  },
+                  "rule": {
+                    "type": "string"
+                  },
+                  "file": {
+                    "type": "string"
+                  },
+                  "line": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "question": {
+                    "type": "string"
+                  },
+                  "answer": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "packDigest": {
+              "type": "string",
+              "description": "pack.yaml sha256 앞 16자. 결과 JSON 의 run.pack_digest 와 같다."
+            },
+            "coverageComplete": {
+              "type": "boolean"
+            }
+          }
+        }
+      }
+    },
+    "result": {
+      "type": "object",
+      "required": [
+        "ruleId",
+        "locations",
+        "partialFingerprints",
+        "properties"
+      ],
+      "properties": {
+        "ruleId": {
+          "type": "string",
+          "description": "'정책 id/규칙 id'. CLI 는 두 id 에 '/' 를 받지 않으므로 '/' 가 꼭 하나다.",
+          "pattern": "^[^/]+/[^/]+$"
+        },
+        "locations": {
+          "type": "array",
+          "minItems": 1,
+          "prefixItems": [
+            {
+              "type": "object",
+              "required": [
+                "physicalLocation"
+              ],
+              "properties": {
+                "physicalLocation": {
+                  "type": "object",
+                  "required": [
+                    "artifactLocation",
+                    "region"
+                  ],
+                  "properties": {
+                    "artifactLocation": {
+                      "type": "object",
+                      "required": [
+                        "uri"
+                      ],
+                      "properties": {
+                        "uri": {
+                          "type": "string",
+                          "description": "결과 JSON 의 findings[].file 과 같은 경로다."
+                        }
+                      }
+                    },
+                    "region": {
+                      "type": "object",
+                      "required": [
+                        "startLine"
+                      ],
+                      "properties": {
+                        "startLine": {
+                          "type": "integer",
+                          "description": "결과 JSON 의 findings[].line. 줄이 없는 발견(line: null)도 1 로 실린다. 그래서 1 은 실제 1행인지 줄이 없는 발견인지 알 수 없다."
+                        }
+                      }
+                    },
+                    "contextRegion": {
+                      "type": "object",
+                      "description": "함수 단위 판정의 판정 구역. 줄이 그 안에 있고 두 줄 이상인 구역일 때만 실린다. 없으면 구역이 없는 것인지 싣지 않은 것인지 알 수 없다.",
+                      "required": [
+                        "startLine",
+                        "endLine"
+                      ],
+                      "properties": {
+                        "startLine": {
+                          "type": "integer"
+                        },
+                        "endLine": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "partialFingerprints": {
+          "type": "object",
+          "required": [
+            "policypack/v1"
+          ],
+          "properties": {
+            "policypack/v1": {
+              "type": "string",
+              "description": "결과 JSON 의 findings[].fingerprint 와 같다.",
+              "pattern": "^[0-9a-f]{32}$"
+            }
+          }
+        },
+        "properties": {
+          "type": "object",
+          "description": "결과 JSON 의 발견에 실리는 것 가운데 top_level 과 region 은 여기에 없다.",
+          "required": [
+            "outcome",
+            "law",
+            "untestedReasons",
+            "aiPending",
+            "decisionPath",
+            "unsatisfiedAlternatives",
+            "scope"
+          ],
+          "properties": {
+            "outcome": {
+              "enum": [
+                "needs-review",
+                "needs-review-uncertain"
+              ]
+            },
+            "law": {
+              "type": "string"
+            },
+            "untestedReasons": {
+              "type": "array",
+              "items": {
+                "enum": [
+                  "parse-error",
+                  "engine-incomplete",
+                  "no-judge",
+                  "judge-unavailable",
+                  "judge-unparseable",
+                  "citation-rejected",
+                  "weak-unconfirmed",
+                  "timeout"
+                ]
+              }
+            },
+            "aiPending": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "decisionPath": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "unsatisfiedAlternatives": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "id",
+                  "message",
+                  "ask_developer",
+                  "remediation",
+                  "value"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "message": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "ask_developer": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "remediation": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "value": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "scope": {
+              "enum": [
+                "file",
+                "anchor"
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+}

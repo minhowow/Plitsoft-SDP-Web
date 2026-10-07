@@ -73,9 +73,14 @@ function unsummarized(view: ReportView): number {
  *   evaluate, `evaluate/planner.py`). 그 단위는 위 풀이대로라면 "모름이어서 판정한 곳"인데 수에는 없으므로, 빠진
  *   판정이 있으면 그 사실과 목록의 자리를 적는다. 그때는 수가 0이어도 판정한 곳이 없다고 적지 않는다. 빠진 판정이
  *   있었는지 모를 때(판정자를 켠 결과인데 그 목록이 실려 있지 않다)도 적지 않는다.
+ * - SARIF 에는 이 수가 실리지 않는다(`sarif.ts`). 그때는 "알 수 없음"이라고만 적는다. 수가 없으니 그 수가 무엇을
+ *   합친 것인지, 무엇이 들어 있지 않은지도 적지 않는다. 까닭(SARIF 라서)은 위 커버리지 보기의 줄 아래에 있다.
  */
 function unitsFact(view: ReportView): ExaminedFact {
   const units = view.coverage.units;
+  if (units === null) {
+    return { label: "판정 단위", value: "알 수 없음", note: "판정 단위 수가 결과에 실려 있지 않습니다.", warn: false };
+  }
   const dismissed = view.aiDismissed.length;
   const notes = ["모든 정책을 합친 수입니다."];
 

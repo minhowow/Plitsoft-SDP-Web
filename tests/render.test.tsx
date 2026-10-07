@@ -10,7 +10,7 @@ import { STATUS_HINT, STATUS_LABEL } from "@/lib/report/status";
 import type { Finding, Report } from "@/lib/report/types";
 import { buildReportView, type ReportView } from "@/lib/report/view-model";
 import { SITE } from "@/lib/site";
-import { closedDetailsAt, elementAt, elementsOf, jsonFiles, readJson, textOf } from "./helpers";
+import { closedDetailsAt, elementAt, elementsOf, jsonFiles, linesOf, readJson, textOf } from "./helpers";
 import { BANNED_WORDING } from "./wording";
 
 // 결과 화면을 실제로 그려서 글자를 본다. 소스만 보는 시험이 놓치는 것(데이터에서 온 글, 조건에 따라 달라지는 글)을 잡는다.
@@ -410,6 +410,25 @@ describe("커버리지 보기 (다 보지 못한 것)", () => {
     expect(skippedOnly.rows[0]).toMatchObject({ count: "1개", on: true, shown: ["src/lib/chart.min.js"] });
   });
 
+  it("엔진이 실려 있지 않은 결과: 파일 수가 0으로 실려 있지 않아도 맨 위에 알린다", () => {
+    // CLI 는 검사할 파일이 없을 때만 엔진 없이 결과를 낸다(CLI 소스 cli.py 의 cmd_scan). 그때 JSON 에는 files: 0 이 함께
+    // 실리므로 위의 "검사한 파일이 없습니다"가 나온다. 파일 수가 실려 있지 않은 결과(SARIF 가 그렇다. tests/sarif.test.tsx)
+    // 에서는 0개였다고 적지 않고, 결과에 실린 사실(엔진을 돌리지 않았다)과 CLI 가 언제 그렇게 하는지를 적는다.
+    const data = plain();
+    const run: Partial<Report["run"]> = { ...data.run, engine: null };
+    delete run.files;
+    const html = renderData({ ...data, run });
+    const coverage = coverageParts(html);
+    expect(coverage.warning).toBe("엔진을 돌리지 않은 결과입니다. CLI 는 검사할 파일이 없을 때 엔진을 돌리지 않습니다.");
+    expect(html.startsWith(TOP)).toBe(true);
+    expect(coverage.line).toBe("검사한 파일 수 알 수 없음 · 판정 단위 0개");
+    expect(textOf(html)).not.toContain("검사한 파일이 없습니다.");
+    expect(textOf(html)).not.toContain("파일 0개");
+    // 엔진이 실려 있으면 이 경고는 없다.
+    delete (data.run as Partial<Report["run"]>).files;
+    expect(coverageParts(renderData(data)).warning).toBeNull();
+  });
+
   it("파일 수가 실려 있지 않은 결과: 0이라고 하지 않고 알 수 없다고 적는다", () => {
     const data = kids();
     const run: Partial<Report["run"]> = { ...data.run };
@@ -676,15 +695,6 @@ describe("빈 결과 화면 (발견이 0인 결과)", () => {
       notSeenCases: notSeenItems(panel).map((item) => item.cases),
       text: textOf(panel),
     };
-  }
-
-  /** 그려 낸 화면의 글을 줄(문단, 목록 항목, 제목, 표의 칸)로 나눈다. 두 화면이 어디서 다른지 볼 때 쓴다. */
-  function linesOf(html: string): string[] {
-    const block = /<\/?(p|li|h[1-6]|dt|dd|div|section|article|summary|ul|ol|dl|details|header|table|caption|tr|th|td)\b[^>]*>/g;
-    return textOf(html.replace(block, "\n"))
-      .split("\n")
-      .map((line) => line.trim())
-      .filter(Boolean);
   }
 
   const findingsIn = (parts: string[]) => (readJson(...parts) as Report).findings.length;
@@ -1591,7 +1601,23 @@ describe("판정이 본 범위", () => {
     ).toEqual({
       where: "src/auth/signup.ts:5",
       label: "판정 구역 알 수 없음",
-      note: "함수 단위 규칙의 판정입니다. 판정 구역은 결과에 실려 있지 않아 알 수 없습니다.",
+      // "알 수 없다"고 잘라 적지 않는다. CLI 는 함수 단위 규칙의 판정 경로 첫 문장에 구역을 글로 적고(CLI 소스
+      // evaluate/engine.py), 그 문장은 바로 아래에 그대로 보인다. 웹은 그 문장을 해석하지 않고 가리키기만 한다.
+      note: "함수 단위 규칙의 판정입니다. 판정 구역은 결과에 따로 실려 있지 않습니다. 아래 판정 경로의 문장을 보세요.",
+    });
+  });
+
+  it("함수 단위인데 구역도 판정 경로도 결과에 없으면, 없는 판정 경로를 가리키지 않는다", () => {
+    expect(
+      rowWith((f) => {
+        const finding: Partial<Finding> = { ...f, scope: "anchor", region: null, decision_path: [] };
+        delete finding.top_level;
+        return finding;
+      }),
+    ).toEqual({
+      where: "src/auth/signup.ts:5",
+      label: "판정 구역 알 수 없음",
+      note: "함수 단위 규칙의 판정입니다. 판정 구역은 결과에 실려 있지 않습니다.",
     });
   });
 });

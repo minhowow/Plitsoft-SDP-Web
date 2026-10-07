@@ -11,7 +11,8 @@
     "lint": "eslint",
     "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run",
-    "check": "npm run lint && npm run typecheck && npm run test && npm run build",
+    "test:browser": "vitest run --config vitest.browser.config.mts",
+    "check": "npm run lint && npm run typecheck && npm run test && npm run build && npm run test:browser",
     "capture": "node scripts/capture-cli-output.mjs",
     "pack-meta": "node scripts/export-pack-meta.mjs"
   },
@@ -27,6 +28,7 @@
     "ajv": "^8.20.0",
     "eslint": "^9",
     "eslint-config-next": "16.3.8",
+    "playwright-core": "^1.63.0",
     "typescript": "^5",
     "vitest": "^5.0.3",
     "yaml": "^2.9.1"

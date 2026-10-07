@@ -330,6 +330,11 @@ main.wrap > section,
   padding-left: 18px;
 }
 
+/* 알림 안에 문단이 여럿일 때(읽지 못한 파일의 안내). */
+.notice > * + p {
+  margin-top: 6px;
+}
+
 /* 접어 둔 것(목록의 나머지 파일, 결과에 실린 오류 문장, 이 도구가 보지 못하는 것). */
 .fold > summary {
   cursor: pointer;
@@ -900,10 +905,26 @@ main.wrap > section,
 }
 
 /* 뷰어 */
+
+/*
+ * 칸은 minmax(0, 1fr) 로 정한다. 그냥 두면 칸이 안에 든 것의 가장 좁은 너비만큼 넓어진다. 예시 고르기 상자는 줄을 바꾸지
+ * 못해서, 상자가 칸보다 넓으면(글꼴이 넓거나 화면이 더 좁을 때) 본문이 오른쪽 여백을 먹고 쪽이 가로로 넘친다.
+ */
 .viewer,
+.opened,
 .demo {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
+}
+
+/*
+ * 새로 연 결과를 그리는 동안 아래에 남아 있는 앞서 연 결과. 금방 그려지는 결과에서 깜박이지 않게 0.2초를 기다렸다가
+ * 흐린다. 다 그려지면 곧바로 되돌린다.
+ */
+.opened-stale {
+  opacity: 0.55;
+  transition: opacity 0.1s linear 0.2s;
 }
 
 .dropzone {
@@ -918,6 +939,33 @@ main.wrap > section,
 .dropzone-on {
   border-color: var(--accent);
   background: var(--accent-soft);
+}
+
+/*
+ * 파일을 끄는 동안 창 둘레에 그리는 표시. 창에 붙어 있어서, 아래로 내려 드롭존이 화면 밖에 있을 때도 보인다.
+ * 끄는 것을 가로채지 않는다(pointer-events: none). 놓는 것은 창이 받는다.
+ */
+.drop-frame {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  border: 3px dashed var(--accent);
+  pointer-events: none;
+}
+
+/* 가운데에 둔다. 좁은 화면에서도 한 줄에 들어가는 짧은 말이다. */
+.drop-frame span {
+  position: absolute;
+  top: 12px;
+  inset-inline: 12px;
+  width: fit-content;
+  margin-inline: auto;
+  padding: 3px 14px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--surface);
+  font-size: 0.88rem;
+  font-weight: 600;
 }
 
 .dropzone label {
@@ -953,6 +1001,11 @@ select {
 input[type="file"] {
   width: 100%;
   min-width: 0;
+}
+
+/* 파일을 연 뒤 제목으로 스크롤할 때(ReportViewer) 제목이 창 위쪽에 바짝 붙지 않게 한다. */
+.viewer-title {
+  scroll-margin-top: 16px;
 }
 
 .viewer-note {

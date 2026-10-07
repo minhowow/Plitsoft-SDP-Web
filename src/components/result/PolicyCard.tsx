@@ -69,7 +69,13 @@ function FindingBody({ location }: { location: LocationView }) {
   );
   return (
     <div className="finding-body">
-      <p className="hint">{scopeNote(location.scope, location.line !== null)}</p>
+      <p className="hint">
+        {scopeNote(
+          location.scope,
+          location.line === null ? "none" : location.lineUnsure ? "unsure" : "known",
+          finding.decision_path.length > 0,
+        )}
+      </p>
 
       <section className="step">
         <h5>확인되지 않은 적법한 대안{alternatives.length > 0 && ` ${alternatives.length}개`}</h5>

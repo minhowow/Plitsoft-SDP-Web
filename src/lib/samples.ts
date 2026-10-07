@@ -11,6 +11,11 @@ import draftPlainMain from "@contract/samples-v1-draft/plain.main.json";
 
 export interface Sample {
   id: string;
+  /**
+   * 무엇을 검사한 결과인지. 어디서 온 것인지(`origin`)는 여기에 적지 않는다. 화면은 둘을 이어 적으므로
+   * (예시 고르기의 항목은 "이름 · 출처", 제목은 "이름 (출처)") 같은 말이 두 번 나오고, 고르기 상자는 줄을 바꾸지
+   * 못해 좁은 화면(320px)에서 고른 항목의 끝이 잘린다. 같은 코드의 두 출력은 이름이 같고 출처로 갈린다.
+   */
   label: string;
   /** 무엇을 보여 주는 표본인지 한 줄. */
   note: string;
@@ -74,21 +79,21 @@ export const SAMPLES: Sample[] = [
   },
   {
     id: "draft.kids-signup.main",
-    label: "아동 가입 · 고치기 전 (v1 초안)",
+    label: "아동 가입 · 고치기 전",
     note: "정책별 요약이 있으면 나머지 정책이 '적용 신호 없음'으로 보입니다.",
     origin: "v1 초안 예시",
     data: draftKidsSignupMain,
   },
   {
     id: "draft.kids-signup.fixed",
-    label: "아동 가입 · 고친 뒤 (v1 초안)",
+    label: "아동 가입 · 고친 뒤",
     note: "충족 근거 위치가 있으면 '충족 근거 발견'으로 보입니다.",
     origin: "v1 초안 예시",
     data: draftKidsSignupFixed,
   },
   {
     id: "draft.plain.main",
-    label: "정책 신호가 없는 코드 (v1 초안)",
+    label: "정책 신호가 없는 코드",
     note: "모든 정책이 '적용 신호 없음'으로 보입니다.",
     origin: "v1 초안 예시",
     data: draftPlainMain,

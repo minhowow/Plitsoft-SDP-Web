@@ -30,7 +30,7 @@ const rawFrom = process.env.POLICYPACK_FROM ?? path.resolve(root, "..", "Plitsof
 const fromIsDir = existsSync(rawFrom) && statSync(rawFrom).isDirectory();
 const from = existsSync(rawFrom) ? path.resolve(rawFrom) : rawFrom;
 
-// SARIF 도 함께 남길 표본. 뷰어가 SARIF 입력을 받게 될 때의 기준 자료다.
+// SARIF 도 함께 남길 표본. 뷰어가 SARIF 를 같은 검사의 JSON 과 같게 읽는지 견주는 기준 자료다(tests/sarif.test.tsx).
 const SARIF_SAMPLES = new Set(["kids-signup.main"]);
 
 const work = mkdtempSync(path.join(tmpdir(), "policypack-capture-"));

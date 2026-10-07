@@ -1,6 +1,9 @@
 /**
- * policypack CLI 결과 JSON 의 타입. contract/schema/ 의 두 스키마와 짝이다.
+ * policypack CLI 결과 JSON 의 타입. contract/schema/ 의 두 결과 스키마(report.*)와 짝이다.
  * 필드를 더하거나 뺄 때는 스키마와 tests/contract.test.ts 를 함께 고친다.
+ *
+ * SARIF 출력도 이 모양으로 옮겨 읽는다(`sarif.ts`). SARIF 에 실리지 않는 것은 채우지 않는다. 그래서 JSON 결과에는
+ * 늘 있는 필드 가운데 SARIF 에서 옮긴 결과에만 비는 것이 있다(`Run.units`, `Run.files`, `Finding.top_level`).
  */
 
 /** CLI 가 발견으로 내는 판정. 충족·해당 없음은 발견으로 나오지 않는다. */
@@ -30,11 +33,15 @@ export interface Finding {
   ai_pending: string[];
   fingerprint: string;
   scope: "file" | "anchor";
-  /** 함수 단위 규칙(scope: anchor)의 판정 구역. 감싸는 가장 바깥 함수의 줄 범위다. */
+  /**
+   * 함수 단위 규칙(scope: anchor)의 판정 구역. 감싸는 가장 바깥 함수의 줄 범위다.
+   * SARIF 에서 옮긴 결과에서는 구역이 실리지 않았을 때도 null 이다. 구역이 없는 것인지 싣지 않은 것인지 알 수 없다.
+   */
   region: { start_line: number; end_line: number } | null;
   /**
    * 함수 단위 규칙에서 판정 구역이 함수 밖(모듈 최상위)의 줄인지. 그때 region 은 null 이다.
-   * region 이 null 이고 이 값이 false 면 파일 전체를 본 판정이다. CLI 0.3 은 늘 싣지만, 없는 결과도 읽는다.
+   * region 이 null 이고 이 값이 false 면 파일 전체를 본 판정이다. CLI 0.3 의 JSON 은 늘 싣지만, 없는 결과도 읽는다.
+   * SARIF 에는 없다.
    */
   top_level?: boolean;
   unsatisfied_alternatives: UnsatisfiedAlternative[];
@@ -83,7 +90,12 @@ export interface Run {
   ai_cleared?: AiCleared[];
   ai_dismissed?: AiDismissed[];
   engine: { name: string; version: string | null } | null;
-  units: number;
+  /**
+   * 판정 단위 수. JSON 결과에는 늘 있다(스키마의 필수 필드이고 파서가 확인한다). SARIF 에는 실리지 않아서,
+   * SARIF 에서 옮긴 결과에서만 null 이다. 0 으로 채우지 않는다.
+   */
+  units: number | null;
+  /** 검사한 파일 수. SARIF 에는 실리지 않는다. */
   files?: number;
   unparsed: string[];
   skipped: string[];
@@ -104,5 +116,8 @@ export interface Report {
   findings: Finding[];
 }
 
-/** 어느 계약으로 읽었는지. */
-export type Contract = "cli-0.3" | "v1-draft";
+/**
+ * 어느 계약으로 읽었는지. `sarif` 는 CLI 0.3 의 SARIF 출력을 결과 JSON 의 모양으로 옮긴 것이다. 정책별 요약이 없는
+ * 것은 `cli-0.3` 과 같고, 판정 단위 수와 검사한 파일 수가 더 없다.
+ */
+export type Contract = "cli-0.3" | "v1-draft" | "sarif";

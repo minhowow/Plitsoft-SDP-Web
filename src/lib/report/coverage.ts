@@ -37,6 +37,14 @@ export const GAPS_NOTE = "결과에 실린 목록입니다";
  */
 export const GAPS_UNLISTED = "목록 없이 빠지는 파일, 검사한 범위 밖의 파일 등";
 
+/**
+ * SARIF 를 열었을 때 검사한 파일 수 줄 아래에 적는 말. SARIF 에는 두 수가 실리지 않는다(`sarif.ts`). 줄에는
+ * "알 수 없음"만 보이므로, 까닭과 그 수를 볼 수 있는 길을 한 번 적는다. 같은 검사의 JSON 출력에는 두 수가 있다
+ * (`contract/cli-current/kids-signup.main.*` 로 맞춰 봤다).
+ */
+export const SARIF_COUNTS_NOTE =
+  "SARIF 에는 검사한 파일 수와 판정 단위 수가 실려 있지 않습니다. JSON 출력(--output-format json)에는 있습니다.";
+
 /** 한 목록에서 먼저 보이는 파일의 수. 나머지는 접는다. 결과에 실린 순서 그대로다. */
 export const SHOWN_PER_LIST = 3;
 
@@ -68,10 +76,12 @@ export interface GapRow {
 }
 
 export interface CoverageSummary {
-  /** 맨 위 경고. 다 보지 못했거나 검사한 파일이 없을 때만 있다. */
+  /** 맨 위 경고. 다 보지 못했거나, 검사한 파일이 없거나, 엔진을 돌리지 않았을 때만 있다. */
   warning: { lead: string; detail: string | null } | null;
-  /** 검사한 파일 수와 판정 단위 수. */
+  /** 검사한 파일 수와 판정 단위 수. 결과에 없는 수는 "알 수 없음"이다. */
   line: string;
+  /** 그 줄 아래에 옅게 덧붙이는 말. 출력 형식 때문에 수를 알 수 없을 때(SARIF)만 있다. */
+  lineNote: string | null;
   /** 세 목록은 늘 있다. 엔진 오류는 있을 때만 넷째 줄로 붙는다. */
   rows: GapRow[];
 }
@@ -121,15 +131,32 @@ function row(kind: GapKind, count: number, files: GapFile[], texts: string[] = [
 }
 
 /**
+ * 엔진이 실려 있지 않은 결과의 맨 위 경고. 파일 수가 없는 결과(SARIF)에서 "검사한 파일이 없습니다" 대신 쓴다.
+ *
+ * CLI 는 검사할 파일이 없으면 엔진을 돌리지 않고 빈 결과를 낸다(CLI 소스 `cli.py` 의 cmd_scan. 빈 폴더와 축소 파일만
+ * 든 폴더를 검사해 확인했다). JSON 은 그때 `files: 0`, `engine: null` 이고, SARIF 는 엔진(`tool.extensions`)만 빠진다.
+ * 파일 수는 SARIF 에 없으므로 0개였다고 적지 않는다. 결과에 실린 사실(엔진을 돌리지 않았다)과, CLI 가 언제 그렇게
+ * 하는지만 적는다. `--diff` 로 돌려 바뀐 파일이 없을 때 CI 에 올라가는 빈 SARIF 가 이 모양이다(CLI README).
+ */
+export const NO_ENGINE = {
+  lead: "엔진을 돌리지 않은 결과입니다.",
+  why: "CLI 는 검사할 파일이 없을 때 엔진을 돌리지 않습니다.",
+};
+
+/**
  * 맨 위 경고. 결과의 `coverage_complete` 가 거짓이면 둔다. 목록이 비어 있지 않은데 참으로 실린 결과(CLI 는 그렇게
  * 내지 않는다)와 검사한 파일이 0개인 결과에도 둔다. CLI 는 검사할 파일이 없어도 `coverage_complete: true` 로 낸다.
+ *
+ * 엔진이 실려 있지 않은 결과에도 둔다(`NO_ENGINE`). 파일 수가 0으로 실려 있으면 "검사한 파일이 없습니다"가 더 곧은
+ * 말이므로 그것을 쓴다.
  */
 function warning(view: ReportView, rows: GapRow[]): CoverageSummary["warning"] {
   const listed = rows.filter((r) => r.count > 0);
   const noFiles = view.coverage.files === 0;
-  if (listed.length === 0 && view.coverage.complete && !noFiles) return null;
+  const noEngine = view.engine === null;
+  if (listed.length === 0 && view.coverage.complete && !noFiles && !noEngine) return null;
 
-  const lead = noFiles ? "검사한 파일이 없습니다." : "다 보지 못한 검사입니다.";
+  const lead = noFiles ? "검사한 파일이 없습니다." : noEngine ? NO_ENGINE.lead : "다 보지 못한 검사입니다.";
   if (listed.length > 0) {
     const counts = listed.map((r) => `${r.label} ${r.countText}`).join(" · ");
     return { lead, detail: `${counts}. 아래 '${GAPS_TITLE}' 표에서 확인하세요.` };
@@ -137,7 +164,8 @@ function warning(view: ReportView, rows: GapRow[]): CoverageSummary["warning"] {
   if (!view.coverage.complete) {
     return { lead, detail: "결과에는 다 보지 못했다고만 실려 있고, 무엇을 보지 못했는지는 실려 있지 않습니다." };
   }
-  return { lead, detail: null };
+  // 목록이 비어 있으면 왜 엔진을 돌리지 않았는지 짐작할 것이 없다. CLI 가 언제 그렇게 하는지를 적는다.
+  return { lead, detail: noEngine && !noFiles ? NO_ENGINE.why : null };
 }
 
 export function coverageSummary(view: ReportView): CoverageSummary {
@@ -158,9 +186,11 @@ export function coverageSummary(view: ReportView): CoverageSummary {
   if (coverage.engineErrors > 0) rows.push(row("engine-errors", coverage.engineErrors, [], coverage.engineErrorTexts));
 
   const files = coverage.files === null ? "검사한 파일 수 알 수 없음" : `파일 ${coverage.files}개 검사`;
+  const units = coverage.units === null ? "판정 단위 수 알 수 없음" : `판정 단위 ${coverage.units}개`;
   return {
     warning: warning(view, rows),
-    line: `${files} · 판정 단위 ${coverage.units}개`,
+    line: `${files} · ${units}`,
+    lineNote: view.contract === "sarif" ? SARIF_COUNTS_NOTE : null,
     rows,
   };
 }

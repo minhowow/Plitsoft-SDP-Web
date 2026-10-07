@@ -39,7 +39,7 @@ export function NotSeen({ view }: { view: ReportView }) {
   );
 }
 
-/** 맨 위 경고. 다 보지 못했거나 검사한 파일이 없는 결과에만 있다. 결과 화면의 첫 줄에 둔다. */
+/** 맨 위 경고. 다 보지 못했거나, 검사한 파일이 없거나, 엔진을 돌리지 않은 결과에만 있다. 결과 화면의 첫 줄에 둔다. */
 export function CoverageWarning({ summary }: { summary: CoverageSummary }) {
   if (!summary.warning) return null;
   return (
@@ -128,7 +128,8 @@ function GapDetail({ row }: { row: GapRow }) {
 }
 
 /**
- * 커버리지 보기. 검사한 파일 수와 판정 단위 수, 그 아래 "다 보지 못한 것" 표.
+ * 커버리지 보기. 검사한 파일 수와 판정 단위 수, 그 아래 "다 보지 못한 것" 표. 두 수가 결과에 없으면(SARIF) "알 수
+ * 없음"으로 적고, 그 줄 아래에 까닭을 한 줄 덧붙인다.
  *
  * 표는 세 목록(검사하지 않은 파일, 일부를 읽지 못한 파일, 엔진이 끝내지 못한 파일)을 늘 같은 순서로 보인다. 든
  * 것이 없는 줄은 이름과 "없음"만 보이고, 든 것이 있는 줄에만 뜻과 파일이 붙는다. 엔진 오류는 있을 때만 넷째 줄이다.
@@ -145,6 +146,7 @@ export function Coverage({ view, summary }: { view: ReportView; summary: Coverag
   return (
     <div className="coverage">
       <p>{summary.line}</p>
+      {summary.lineNote && <p className="hint">{summary.lineNote}</p>}
       <table className={none ? "gaps gaps-none" : "gaps"} role="table">
         <caption>
           {GAPS_TITLE} <span className="caption-note">{GAPS_NOTE}</span>
