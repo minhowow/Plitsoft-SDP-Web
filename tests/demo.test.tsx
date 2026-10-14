@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import DemoPage from "@/app/demo/page";
 import { DemoPanel } from "@/components/demo/DemoPanel";
 import { DemoSwitcher } from "@/components/demo/DemoSwitcher";
+import { RecordSheet } from "@/components/result/Record";
 import { DEMO_APPS, DEMO_VARIANTS, type DemoApp, type DemoVariant } from "@/lib/demo/apps";
 import { compareByPolicy } from "@/lib/demo/compare";
 import { unmatchedLines } from "@/lib/demo/diff";
@@ -13,6 +14,7 @@ import { loadDemoApps } from "@/lib/demo/load";
 import { lineMarks } from "@/lib/demo/marks";
 import { packIndex, packMeta, policyCardId } from "@/lib/pack";
 import { parseReport } from "@/lib/report/parse";
+import { buildRecord } from "@/lib/report/record";
 import { scopeNote, type JudgedScope } from "@/lib/report/scope";
 import { STATUS_HINT, STATUS_LABEL, STATUS_LEGEND, STATUS_ORDER, type Status } from "@/lib/report/status";
 import type { Finding, Report } from "@/lib/report/types";
@@ -40,7 +42,7 @@ function viewOf(data: unknown): ReportView {
   return buildReportView(parsed.report, parsed.contract, packMeta);
 }
 
-const panel = ({ app, variant }: { app: DemoApp; variant: DemoVariant }) => renderToStaticMarkup(<DemoPanel app={app} variant={variant} />);
+const panel = ({ app, variant }: { app: DemoApp; variant: DemoVariant }) => renderToStaticMarkup(<DemoPanel app={app} variant={variant} pack={packIndex} />);
 
 /** 팩 메타데이터 없이 만든 화면 구조. 발견이 있는 정책의 카드만 있다(다른 판의 팩으로 만든 결과가 이렇게 된다). */
 function bareView(name: string): ReportView {
@@ -697,7 +699,7 @@ describe("그려 낸 데모 화면", () => {
         id: "kr.network-act.50-4",
         cells: [{ findings: 25 }, { findings: 2 }],
       });
-      const html = renderToStaticMarkup(<DemoPanel app={app} variant={app.variants[0]} />);
+      const html = renderToStaticMarkup(<DemoPanel app={app} variant={app.variants[0]} pack={packIndex} />);
       expect(compareBlock(html)!.rows[0].cells.map((cell) => cell.counts)).toEqual([["발견 25건"], ["발견 2건"]]);
       // 바로 아래 결과의 그 정책 카드가 적는 수와 같다.
       const card = elementsOf(html, '<article class="policy ').find((el) => el.includes(`id="${policyCardId(policy.id)}"`))!;
@@ -774,7 +776,7 @@ describe("그려 낸 데모 화면", () => {
 
     it("아래 결과에 카드가 없는 정책의 이름은 링크가 아니다 (팩 메타데이터 없이 만든 결과)", () => {
       const app = appWith("night-push", [bareView("night-push.main"), bareView("night-push.fixed")]);
-      const [before, after] = app.variants.map((variant) => compareBlock(renderToStaticMarkup(<DemoPanel app={app} variant={variant} />))!);
+      const [before, after] = app.variants.map((variant) => compareBlock(renderToStaticMarkup(<DemoPanel app={app} variant={variant} pack={packIndex} />))!);
       // 고치기 전의 결과에는 제50조 제3항의 카드가 없다(발견이 없고, 팩 메타데이터도 없다).
       expect(before.rows.map((row) => row.href)).toEqual(["#policy-kr-network-act-50-4", null]);
       expect(after.rows.map((row) => row.href)).toEqual(["#policy-kr-network-act-50-4", "#policy-kr-network-act-50-3"]);
@@ -886,7 +888,7 @@ describe("그려 낸 데모 화면", () => {
       it.each(judged.variants.map((variant) => [variant.label, variant] as const))(
         "%s 판을 볼 때: 표에 'AI 가 푼 경고 1건'이 보이고, 풀이가 그 정책 카드의 말과 어긋나지 않는다",
         (_label, variant) => {
-          const html = renderToStaticMarkup(<DemoPanel app={judged} variant={variant} />);
+          const html = renderToStaticMarkup(<DemoPanel app={judged} variant={variant} pack={packIndex} />);
           const block = compareBlock(html)!;
           expect(block.rows.map((row) => row.cells.map((cell) => [cell.label, cell.status, cell.counts]))).toEqual([
             [
@@ -904,7 +906,7 @@ describe("그려 낸 데모 화면", () => {
       );
 
       it("고친 뒤(AI 가 푼 판)를 볼 때: 아래 결과의 정책 카드와 목록이 같은 것을 말한다", () => {
-        const html = renderToStaticMarkup(<DemoPanel app={judged} variant={judged.variants[1]} />);
+        const html = renderToStaticMarkup(<DemoPanel app={judged} variant={judged.variants[1]} pack={packIndex} />);
         const card = elementsOf(html, '<article class="policy ').find((el) => el.includes(`id="${policyCardId("kr.pipa.22-2")}"`))!;
         expect(textOf(card)).toContain("AI 판정자의 답으로 풀린 경고가 1건 있습니다.");
         expect(textOf(card)).not.toContain("구분할 수 없습니다");
@@ -915,7 +917,7 @@ describe("그려 낸 데모 화면", () => {
       });
 
       it("고치기 전을 볼 때: 고친 뒤의 AI 가 푼 경고는 그 판을 골라야 나온다고 적는다", () => {
-        const html = renderToStaticMarkup(<DemoPanel app={judged} variant={judged.variants[0]} />);
+        const html = renderToStaticMarkup(<DemoPanel app={judged} variant={judged.variants[0]} pack={packIndex} />);
         // 아래 결과(고치기 전)에는 AI 가 푼 경고의 목록이 없다.
         expect(report(html)).not.toContain("AI 가 푼 경고");
         expect(compareBlock(html)!.hints).toEqual([SITE.zeroIsNotClearance, `${WHERE("고치기 전")} ${WHY}`, ELSEWHERE("고친 뒤")]);
@@ -953,8 +955,10 @@ describe("그려 낸 데모 화면", () => {
 });
 
 describe("고르는 단추와 쪽의 머리말", () => {
+  const count = (html: string, needle: string) => html.split(needle).length - 1;
+
   it("처음에는 첫 앱의 고치기 전이 열려 있다. 단추는 앱 셋과 판 둘이다", () => {
-    const html = renderToStaticMarkup(<DemoSwitcher apps={apps} />);
+    const html = renderToStaticMarkup(<DemoSwitcher apps={apps} pack={packIndex} />);
     const groups = elementsOf(html, '<div class="segmented"').map((group) => ({
       label: /aria-label="([^"]*)"/.exec(group)?.[1],
       buttons: elementsOf(group, "<button").map((button) => [textOf(button), /aria-pressed="(true|false)"/.exec(button)?.[1]]),
@@ -975,9 +979,40 @@ describe("고르는 단추와 쪽의 머리말", () => {
           ["고친 뒤", "false"],
         ],
       },
+      // 그 판의 결과 바로 위에 있는 단추. 그 결과를 조문별 검사 기록으로도 본다(tests/record.test.tsx). 처음에는 결과다.
+      {
+        label: "결과와 검사 기록 고르기",
+        buttons: [
+          ["결과", "true"],
+          ["조문별 검사 기록", "false"],
+        ],
+      },
     ]);
+    // 고르는 단추 두 줄은 쪽의 위쪽에, 결과와 기록을 오가는 단추는 두 결과의 표 아래에 있다.
+    expect(count(elementAt(html, html.indexOf('<div class="demo-pick">')), '<div class="segmented"')).toBe(2);
+    expect(html.indexOf('<div class="demo-compare">')).toBeLessThan(html.indexOf('<div class="report-switch">'));
     expect(textOf(elementAt(html, html.indexOf("<h2")))).toBe("아동 가입 · 고치기 전");
     expect(html).toContain(panel(find("kids-signup.main")));
+  });
+
+  it.each(named)("%s: 그 판의 결과는 조문별 검사 기록으로도 본다. 기록에는 합성 예시라고 적히고, 이름은 그 판의 제목이다", (_name, entry) => {
+    const html = panel(entry);
+    // 결과 화면 위에 고르는 단추가 있다. 기록은 고르기 전에는 그리지 않는다(브라우저 시험이 눌러 본다).
+    expect(count(html, '<div class="report-switch">')).toBe(1);
+    expect(html.indexOf('<div class="report-switch">')).toBeLessThan(html.indexOf('<section class="report">'));
+    expect(html).not.toContain('class="record"');
+    // 고르면 그려지는 기록: 데모가 넘기는 팩 정보와 이름으로 만든 것.
+    const made = buildRecord(entry.variant.view, packIndex);
+    expect(made.ok, entry.name).toBe(true);
+    if (!made.ok) return;
+    const title = `${entry.app.label} · ${entry.variant.label}`;
+    expect(textOf(elementAt(html, html.indexOf("<h2")))).toBe(title);
+    const record = renderToStaticMarkup(<RecordSheet record={made.record} source={{ name: title, synthetic: true }} />);
+    expect(textOf(elementAt(record, record.indexOf('<p class="record-source">')))).toBe(`합성 예시입니다. ${title}`);
+    // 기록에는 그 판의 코드가 없다. 위의 코드 상자에만 있다.
+    for (const line of entry.variant.files.flatMap((file) => file.lines.map((line) => line.text.trim())).filter(Boolean)) {
+      expect(textOf(record), line).not.toContain(line);
+    }
   });
 
   it("쪽의 머리말: 합성 예시이고 실제 서비스의 코드가 아니라고 밝힌다. 판정자 없이 검사했다고 적는다", () => {
@@ -989,7 +1024,7 @@ describe("고르는 단추와 쪽의 머리말", () => {
     // 같은 팩이라고 적었다. 여섯 결과의 팩 판이 하나다. 판정자 없이 검사했다는 것은 위에서 결과마다 봤다.
     expect(new Set(every.map(({ variant }) => variant.view.packDigest)).size).toBe(1);
     // 쪽이 그리는 것은 고르는 단추와 첫 판이다.
-    expect(html).toContain(renderToStaticMarkup(<DemoSwitcher apps={apps} />));
+    expect(html).toContain(renderToStaticMarkup(<DemoSwitcher apps={apps} pack={packIndex} />));
     for (const [pattern, why] of BANNED_WORDING) expect(pattern.test(html), `${pattern} — ${why}`).toBe(false);
   });
 

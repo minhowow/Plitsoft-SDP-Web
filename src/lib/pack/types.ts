@@ -53,12 +53,26 @@ export interface PolicyMeta {
 export type PolicyDoc = Omit<PolicyMeta, "rationale">;
 
 /**
- * 결과 화면이 팩에서 쓰는 것: 팩 판, 그리고 정책마다 id·제목·조문 이름. `PackMeta` 는 이 모양을 그대로 품고 있다.
- * 브라우저에서 도는 부품에는 이것만 넘긴다(`src/lib/pack/index.ts` 의 `packIndex`).
+ * 브라우저로 넘기는 조문 하나. 이름은 모든 조문에 있다. 나머지 셋은 대표 조문(정책의 첫 조문)에만 싣는다. 조문별 검사
+ * 기록이 정책마다 대표 조문의 시행일과 원문 해시를 적기 때문이다(`src/lib/report/record.ts`). 조문 원문(`text`)은 싣지
+ * 않는다.
+ */
+export interface IndexedLegal {
+  label: string;
+  effective_from?: string | null;
+  /** 팩에 적힌 원문 해시(SHA-256). 팩 안의 원문 파일을 두고 적은 값이다. */
+  text_sha256?: string | null;
+  /** 그 해시가 팩 안의 원문 파일과 맞는지. 팩 메타데이터를 만들 때 견준 값이다. 견주지 못했으면 null. */
+  text_sha256_matches?: boolean | null;
+}
+
+/**
+ * 결과 화면이 팩에서 쓰는 것: 팩 판, 그리고 정책마다 id·제목·조문 이름과 대표 조문의 시행일·원문 해시. `PackMeta` 는 이
+ * 모양을 그대로 품고 있다. 브라우저에서 도는 부품에는 이것만 넘긴다(`src/lib/pack/index.ts` 의 `packIndex`).
  */
 export interface PackIndex {
   pack: { digest: string };
-  policies: { id: string; title: string; legal: { label: string }[] }[];
+  policies: { id: string; title: string; legal: IndexedLegal[] }[];
 }
 
 export interface PackMeta {

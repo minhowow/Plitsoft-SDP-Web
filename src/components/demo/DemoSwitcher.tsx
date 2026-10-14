@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { DemoApp } from "@/lib/demo/apps";
+import type { PackIndex } from "@/lib/pack/types";
 import { documentWasRestored, startAtTop } from "@/lib/scroll";
 import { DemoPanel } from "./DemoPanel";
 
@@ -23,8 +24,11 @@ let kept: Picked | null = null;
 /**
  * 합성 데모 앱들의 고치기 전·후를 오가며 본다. 코드와 결과는 쪽(서버 부품)이 빌드할 때 읽어 화면 구조로 만들어
  * 넘긴 것이다. 여기서는 고르기만 한다. 판을 바꿔도 요청을 내보내지 않는다.
+ *
+ * `pack` 은 쪽이 골라 넘긴 팩 정보다(`packIndex`). 판마다의 조문별 검사 기록이 대표 조문의 시행일과 원문 해시를 여기서
+ * 얻는다.
  */
-export function DemoSwitcher({ apps }: { apps: DemoApp[] }) {
+export function DemoSwitcher({ apps, pack }: { apps: DemoApp[]; pack: PackIndex }) {
   // 되살릴 것이 있는 채로 붙었는지. 처음 그릴 때 정해 둔다(`kept` 는 붙은 뒤에 곧 채워진다).
   const [hadKept] = useState(() => kept !== null);
   const [picked, setPicked] = useState<Picked>(() => kept ?? { app: apps[0].key, variant: apps[0].variants[0].key });
@@ -74,7 +78,7 @@ export function DemoSwitcher({ apps }: { apps: DemoApp[] }) {
       </div>
 
       {/* 판마다 새로 만든다(key). 한 판에서 여닫은 발견 줄의 상태가 다른 판의 발견으로 넘어가지 않게 한다. */}
-      <DemoPanel key={`${app.key}.${variant.key}`} app={app} variant={variant} />
+      <DemoPanel key={`${app.key}.${variant.key}`} app={app} variant={variant} pack={pack} />
     </div>
   );
 }

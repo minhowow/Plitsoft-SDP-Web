@@ -103,6 +103,12 @@ export interface ReportView {
   engine: string | null;
   judge: string | null;
   packDigest: string;
+  /**
+   * 검사한 커밋. 결과에 커밋 해시의 모양으로 실려 있을 때만 있다(`COMMIT_HASH`). CLI 0.3 의 JSON 과 SARIF 에는 없어서 늘
+   * null 이다(`docs/cli-requests.md` 의 R7). v1 초안의 스키마에는 `run.commit` 이 있다. 조문별 검사 기록이 쓴다
+   * (`record.ts`). 검사한 날은 어느 출력에도 없다.
+   */
+  commit: string | null;
   /** 결과를 만든 팩과 이 사이트에 실린 팩 메타데이터의 판이 같은지. 메타데이터가 없으면 null. */
   packMatches: boolean | null;
   coverage: CoverageView;
@@ -128,6 +134,13 @@ export interface ReportView {
    */
   aiDismissedKnown: boolean;
 }
+
+/**
+ * 커밋 해시의 모양: 16진수 7~64자(git 이 줄여 적는 해시부터 SHA-256 까지). `run.commit` 은 파서가 모양을 보지 않는 글이고
+ * 조문별 검사 기록에 글자 그대로 실린다. 기록에는 코드를 싣지 않으므로, 해시가 아닌 글(손으로 고친 파일에는 무엇이든 들 수
+ * 있다)은 커밋으로 치지 않는다.
+ */
+const COMMIT_HASH = /^[0-9a-f]{7,64}$/i;
 
 const byUrgency = (a: Status, b: Status) => STATUS_ORDER.indexOf(a) - STATUS_ORDER.indexOf(b);
 
@@ -255,12 +268,15 @@ export function buildReportView(report: Report, contract: Contract, pack?: PackI
   policies.sort((a, b) => byUrgency(a.status, b.status));
 
   const engine = report.run.engine;
+  // 커밋도 정책별 요약처럼 v1 초안에서만 읽는다. 파서가 모양을 보지 않는 필드라서 커밋 해시의 모양인지 여기서 확인한다.
+  const commit = contract === "v1-draft" ? report.run.commit : null;
   return {
     contract,
     tool: `${report.tool.name} ${report.tool.version}`,
     engine: engine ? [engine.name, engine.version].filter(Boolean).join(" ") : null,
     judge: report.run.judge,
     packDigest: report.run.pack_digest,
+    commit: typeof commit === "string" && COMMIT_HASH.test(commit) ? commit : null,
     packMatches,
     coverage: {
       files: report.run.files ?? null,

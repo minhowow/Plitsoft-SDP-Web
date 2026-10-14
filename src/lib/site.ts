@@ -43,6 +43,13 @@ const NOT_SEEN: readonly NotSeenItem[] = [
 const CLI = "policypack";
 
 /**
+ * 면책(`SITE.disclaimer`)의 두 문장. 따로 떼어 둔 것은 조문별 검사 기록 때문이다. 기록의 맨 위에서는 첫 문장 바로 뒤에
+ * "인증도 아니다"를 잇고, 둘째 문장이 그 뒤에 온다(`SITE.record`).
+ */
+const NOT_LEGAL_ADVICE = "법률 자문이 아닙니다.";
+const PEOPLE_DECIDE = "검토가 필요한 지점을 알려 줄 뿐이고, 조문 해석과 최종 판단은 사람이 합니다.";
+
+/**
  * 이름과 고정 문구를 한곳에 둔다. CLI 이름(policypack)은 가칭이라 바뀔 수 있다.
  * 화면 어디서도 이름을 직접 적지 말고 여기서 가져다 쓴다.
  */
@@ -56,10 +63,23 @@ export const SITE = {
   scanExample: `${CLI} scan src/ --output-format json > result.json`,
   tagline: "JS/TS 코드에서 국내 법·정책상 검토가 필요한 지점을 조문과 함께 보여 줍니다.",
   /** 모든 화면에 붙는 면책. docs/commitments.md 의 표기 약속. */
-  disclaimer:
-    "법률 자문이 아닙니다. 검토가 필요한 지점을 알려 줄 뿐이고, 조문 해석과 최종 판단은 사람이 합니다.",
+  disclaimer: `${NOT_LEGAL_ADVICE} ${PEOPLE_DECIDE}`,
   /** 발견이 없을 때 반드시 함께 보여 주는 문구. */
   zeroIsNotClearance: "검토 필요 신호가 0이어도 법적 문제가 없다는 뜻은 아닙니다.",
+  /**
+   * 조문별 검사 기록(인쇄용)의 이름과 맨 위에 적는 말. 결과 하나를 한 장으로 옮긴 것이다
+   * (docs/architecture.md 의 "조문별 검사 기록").
+   *
+   * 기록은 인쇄해서 건네는 종이라, 화면보다 "확인을 받았다"는 글로 읽히기 쉽다. 그래서 맨 위에 법률 자문도 인증도
+   * 아니라는 말(`lead`)을 굵게 두고, 그 뒤에 면책의 나머지(`rest`)와 0의 뜻(`zeroIsNotClearance`)을 발견 수와 상관없이
+   * 잇는다. 인쇄하면 바닥글의 면책이 함께 나오지 않으므로 기록이 제 안에 지닌다. 이름과 문구에 도장·발급·확인 같은
+   * 말을 쓰지 않는다.
+   */
+  record: {
+    title: "조문별 검사 기록",
+    lead: `${NOT_LEGAL_ADVICE} 인증이나 확인서도 아닙니다.`,
+    rest: PEOPLE_DECIDE,
+  },
   /**
    * 이 도구가 보지 못하는 것. 발견이 0인 결과 화면에는 펼친 채로, 발견이 있는 결과에는 커버리지 보기에 접어 둔
    * 채로 보인다(docs/architecture.md 의 "커버리지 보기").

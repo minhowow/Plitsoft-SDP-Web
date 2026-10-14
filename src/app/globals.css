@@ -920,7 +920,8 @@ main.wrap > section,
  */
 .viewer,
 .opened,
-.demo {
+.demo,
+.report-switch {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 16px;
@@ -1595,5 +1596,569 @@ input[type="file"] {
 
   .alts tbody tr > .alt-says {
     flex-basis: 100%;
+  }
+}
+
+/*
+ * 조문별 검사 기록(인쇄용). 결과 하나를 한 장으로 옮긴 것이다. 결과 화면 위의 단추로 고른다(.report-switch).
+ * 화면에서는 정책 카드와 같은 면에 둔다. 인쇄할 때는 이것만, 흰 바탕에 검은 글로 나온다(맨 아래의 @media print).
+ *
+ * 안쪽은 격자로 짜지 않고 위아래 여백으로 띄운다. 인쇄할 때 쪽을 넘어가며 자연스럽게 끊기게 하기 위해서다.
+ * 글자 크기는 기록의 바탕 크기에 견준 값(em)으로 적는다. 인쇄할 때는 바탕 크기 하나만 바꾼다.
+ */
+.record-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  align-items: center;
+}
+
+.record-tools button {
+  border: 1px solid var(--ink);
+  border-radius: 8px;
+  background: var(--ink);
+  color: var(--bg);
+  padding: 6px 18px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.record {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  padding: 18px 20px;
+  font-size: 0.92rem;
+  line-height: 1.6;
+  min-width: 0;
+}
+
+.record > * + * {
+  margin-top: 1.3em;
+}
+
+.record-head > * + * {
+  margin-top: 0.5em;
+}
+
+.record-section > * + * {
+  margin-top: 0.4em;
+}
+
+.record h3 {
+  font-size: 1.3em;
+}
+
+/* 구역의 이름. 표가 든 구역에서는 표의 이름이기도 하다(표가 aria-labelledby 로 가리킨다. 표에 caption 을 따로 두지 않는다). */
+.record h4 {
+  margin: 0;
+  padding: 0 0 0.3em;
+  font-size: 1em;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.record-title-note {
+  margin-left: 4px;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+/*
+ * 표와, 표 위에 적는 말(.record-about)은 구역의 이름 바로 아래에 붙인다. 이름의 아래 여백만 둔다. 표 위의 말과 표 사이는
+ * 구역 안의 다른 것들처럼 띄운다.
+ */
+.record-section > h4 + table,
+.record-section > h4 + .record-about {
+  margin-top: 0;
+}
+
+/* 무엇으로 만든 기록인지와, 싣지 않은 것. 두 줄을 한 덩어리로 붙여 적는다. */
+.record-source,
+.record-omits {
+  color: var(--muted);
+}
+
+.record-head > .record-omits {
+  margin-top: 0.1em;
+}
+
+/*
+ * 맨 위의 말(법률 자문·인증이 아니다, 0의 뜻)과 다 보지 못한 검사라는 경고. 테두리를 둔다. 인쇄할 때는 바탕색이 나오지
+ * 않아서, 테두리가 없으면 본문과 구분되지 않는다.
+ */
+.record-notice,
+.record-warning {
+  border: 1px solid var(--ink);
+  border-radius: 8px;
+  padding: 0.6em 0.9em;
+}
+
+.record-warning {
+  border-color: var(--st-review);
+  background: var(--st-review-bg);
+  color: var(--st-review);
+}
+
+/* 옅게 적는 말: 결과나 팩에 없는 값의 자리, 덧붙인 말. 기록의 바탕 크기를 따른다. */
+.record .none,
+.record-meaning {
+  color: var(--muted);
+}
+
+.record .hint,
+.record-notes {
+  font-size: 0.9em;
+  color: var(--muted);
+}
+
+/* 글자 그대로 옮겨 적는 값(팩 판, 정책·규칙 id, 경로, 해시, 지문). 칠하지 않는다. 긴 값은 칸 안에서 줄을 바꾼다. */
+.record code {
+  background: none;
+  padding: 0;
+}
+
+/* 해시와 지문. 16자마다 둔 줄바꿈 자리에서 줄이 바뀐다. */
+.record-hex {
+  font-size: 0.82em;
+}
+
+/* 정책 id 와 규칙 id 는 제 줄에 적는다. 제목이나 다른 id 뒤에 이어 적으면 id 한가운데서 줄이 바뀐다. */
+.record-id {
+  display: block;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+/* 검사 정보: 이름표 아래에 값을 둔 짧은 항목을 옆으로 늘어놓는다(결과의 머리와 같다). */
+.record-facts {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4em 1.8em;
+}
+
+.record-facts dt {
+  font-size: 0.84em;
+  color: var(--muted);
+}
+
+.record-facts dd {
+  margin: 0;
+}
+
+.record-counts,
+.record-found,
+.record-files {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.record-counts li + li {
+  margin-top: 0.3em;
+}
+
+.record-notes {
+  margin: 0;
+  padding-left: 1.3em;
+}
+
+.record-warn {
+  font-size: 0.9em;
+  color: var(--st-review);
+}
+
+/* 경로 옆에 적는 말: 판정이 본 범위, 그 파일에 나온 발견의 수. 줄이 바뀌어도 한 덩어리로 다닌다. */
+.record-scope {
+  font-size: 0.86em;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+/* 기록의 표. 칸 머리는 옅게, 줄 사이는 선으로 나눈다. */
+.record table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.record th,
+.record td {
+  padding: 0.4em 1em 0.4em 0;
+  text-align: left;
+  vertical-align: baseline;
+  font-weight: 400;
+}
+
+.record th:last-child,
+.record td:last-child {
+  padding-right: 0;
+}
+
+.record thead th {
+  padding-block: 0 0.3em;
+  font-size: 0.86em;
+  color: var(--muted);
+}
+
+.record tbody th,
+.record tbody td {
+  border-top: 1px solid var(--rule);
+}
+
+.record tbody tr:last-child > * {
+  border-bottom: 1px solid var(--rule);
+}
+
+/* 시행일(YYYY-MM-DD)은 한 줄에 둔다. 칸은 글자만큼만 차지한다. */
+.record-date {
+  width: 1%;
+  white-space: nowrap;
+}
+
+/*
+ * 해시와 지문의 칸은 두 마디(32자)가 한 줄에 들어가는 너비로 잡는다. 지문은 한 줄, SHA-256 은 두 줄이 된다. 자리가
+ * 모자라면 표가 이 칸을 줄이고, 값은 마디에서 줄을 바꾼다.
+ */
+.record-hash {
+  width: 18em;
+}
+
+.record-found-cell {
+  width: 8.5em;
+}
+
+/* 상태의 칸은 가장 긴 상태 이름이 한 줄에 들어가는 너비로, 정책과 규칙의 칸은 id 가 가운데서 끊기지 않는 너비로 잡는다. */
+.record-status {
+  width: 11.5em;
+}
+
+.record-ids {
+  width: 14em;
+}
+
+/* 발견 표의 묶음 머리: 정책과 규칙의 id, 그 묶음의 발견 수. 아래 줄들이 이 정책·규칙의 발견이다. */
+.record-group th {
+  padding-top: 0.7em;
+  font-weight: 600;
+}
+
+/*
+ * 묶음 머리의 id 는 한 덩어리로 다닌다. 줄에 다 들어가지 않으면 통째로 다음 줄로 내려간다. 그냥 두면 좁은 화면에서
+ * 붙임표 뒤마다 줄이 바뀌어 id 가 두 줄로 갈린다. 한 줄보다 긴 id 만 그 안에서 줄이 바뀐다(넘치게 두지 않는다).
+ */
+.record-group code {
+  display: inline-block;
+}
+
+/*
+ * "다 보지 못한 것" 표. 칸은 목록 이름 · 수 · 뜻과 파일이다(결과 화면의 표와 같다). 이름과 수의 칸은 글자만큼만 차지한다.
+ * 든 것이 있는 줄은 이름과 수를 경고 색으로 적는다.
+ */
+.record-gaps tbody th,
+.record-gaps .record-gap-count {
+  width: 1%;
+  white-space: nowrap;
+  color: var(--muted);
+}
+
+.record-gaps .gap-on th,
+.record-gaps .gap-on .record-gap-count {
+  color: var(--st-review);
+  font-weight: 600;
+}
+
+.record-gap-detail > * + * {
+  margin-top: 0.2em;
+}
+
+/* 든 것이 하나도 없는 표는 줄 사이 선을 걷고 촘촘히 적는다. */
+.record-gaps-none tbody th,
+.record-gaps-none tbody td,
+.record-gaps-none tbody tr:last-child > * {
+  padding-block: 0;
+  border: 0;
+}
+
+/* 좁은 화면: 이름과 수를 한 줄에 두고, 뜻과 파일은 그 아래에 화면 너비를 다 쓴다. */
+@media (max-width: 480px) {
+  .record-gaps,
+  .record-gaps tbody {
+    display: block;
+  }
+
+  .record-gaps tbody tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: baseline;
+    gap: 2px 12px;
+    padding: 0.3em 0;
+    border-top: 1px solid var(--rule);
+  }
+
+  .record-gaps tbody tr:last-child {
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .record-gaps tbody tr > th,
+  .record-gaps tbody tr > td,
+  .record-gaps tbody tr:last-child > * {
+    display: block;
+    width: auto;
+    padding: 0;
+    border: 0;
+  }
+
+  .record-gaps tbody tr > th {
+    white-space: normal;
+  }
+
+  .record-gaps tbody tr > .record-gap-detail {
+    grid-column: 1 / -1;
+  }
+
+  /* 든 것이 없는 줄에는 뜻도 파일도 없다. 빈 칸이 줄 사이를 벌리지 않게 한다. */
+  .record-gaps tbody tr > .record-gap-detail:empty {
+    display: none;
+  }
+
+  .record-gaps-none tbody tr,
+  .record-gaps-none tbody tr:last-child {
+    padding: 0;
+    border: 0;
+  }
+}
+
+/*
+ * 좁은 화면: 정책 표와 발견 표는 줄을 세로로 쌓는다. 줄의 이름(정책, 발견의 자리)이 한 줄, 그 아래에 칸마다 한 줄이다.
+ * 칸 머리는 화면에서만 가리고(화면 낭독기에는 남는다) 칸마다 앞에 그 이름을 적는다.
+ *
+ * 화면은 900px 까지 쌓는다. 그보다 넓으면 본문이 818px 에서 838px 사이다(쪽의 여백과 기록의 안쪽 여백을 뺀 너비. 쪽의
+ * 너비는 920px 에서 멎는다). 정책 표는 칸이 다섯이라, 본문이 그보다 좁으면 제목과 조문의 칸이 너덧 줄로 접히고 정책 id 가
+ * 붙임표에서 갈린다(820px 까지만 쌓던 때 821px 에서 그랬다). 인쇄는 종이 너비로 따로 정한다. 글자가 작아서(9pt) A4 세로
+ * (본문 718px 안팎)에도 나란히 놓인다. 그보다 좁은 종이는 쌓는다.
+ */
+@media screen and (max-width: 900px), print and (max-width: 600px) {
+  .record-table,
+  .record-table tbody {
+    display: block;
+  }
+
+  .record-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .record-table tbody tr {
+    display: block;
+    padding: 0.5em 0;
+    border-top: 1px solid var(--rule);
+  }
+
+  /* 줄 사이의 선은 줄의 위쪽에만 긋는다. 묶음(tbody)이 여럿이어도 선이 겹치지 않는다. 맨 아래의 선은 표가 긋는다. */
+  .record-table {
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .record-table tbody tr > th,
+  .record-table tbody tr:last-child > th {
+    display: block;
+    padding: 0 0 0.2em;
+    border: 0;
+    font-weight: 600;
+  }
+
+  /*
+   * 발견 표: 굵게 적는 것은 묶음 머리(정책과 규칙)다. 그 아래 줄의 이름(경로와 줄)은 보통 굵기로 적는다. 묶음의 마지막
+   * 줄도 따로 적는다. 적지 않으면 위의 `tr:last-child` 가 이겨서 묶음마다 마지막 줄만 굵어진다(발견이 하나인 묶음은
+   * 그 한 줄이 마지막 줄이다).
+   */
+  .record-table .record-group ~ tr > th,
+  .record-table .record-group ~ tr:last-child > th {
+    font-weight: 400;
+  }
+
+  .record-table tbody tr.record-group > th {
+    padding: 0;
+  }
+
+  /* 칸마다 한 줄: 앞에 칸의 이름, 그 옆에 값. 이름의 너비가 같아서 값이 같은 자리에서 시작한다. */
+  .record-table tbody tr > td,
+  .record-table tbody tr:last-child > td {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 10px;
+    align-items: baseline;
+    width: auto;
+    padding: 0;
+    border: 0;
+    white-space: normal;
+  }
+
+  /*
+   * 칸 앞의 이름은 눈에만 보이게 그린다. 둘째 선언이 빈 대체 글을 준다. 화면 낭독기에는 가려 둔 칸 머리가 그대로 있어서,
+   * 이 이름까지 알리면 칸마다 이름이 두 번 읽힌다(대체 글이 없을 때 Chrome 의 접근성 트리에서 칸이 "시행일 2026-…"로
+   * 드러났다). 대체 글의 문법을 모르는 브라우저는 첫 선언을 쓴다.
+   */
+  .record-table tbody td::before {
+    content: attr(data-label);
+    content: attr(data-label) / "";
+    flex: 0 0 5.2em;
+    font-size: 0.86em;
+    color: var(--muted);
+  }
+
+  .record-table tbody td > div {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  /*
+   * 해시와 지문은 이름 옆에 다 들어갈 때만 옆에 두고, 들어가지 않으면 아래 줄로 내려 줄 너비를 다 쓰게 한다. 이름 옆의
+   * 좁은 칸에 가두면 한 마디(16자)씩만 들어가서 SHA-256 이 네 줄이 된다. 내려 적으면 375px 에서 두 줄이다.
+   */
+  .record-table tbody td.record-hash > div {
+    flex-basis: auto;
+  }
+
+  /* 발견 표는 칸의 이름이 짧다(상태, 지문). 이름의 자리를 줄여, 375px 에서 지문이 이름 옆에 한 줄로 들어가게 한다. */
+  .record-findings tbody td::before {
+    flex-basis: 2.6em;
+  }
+}
+
+/*
+ * 인쇄. 검사 기록이 열려 있으면 기록만 인쇄한다. 열려 있지 않은 쪽(조문 도감, 결과 화면)에서는 아래 규칙이 아무것도
+ * 바꾸지 않는다.
+ */
+@media print {
+  /*
+   * 기록, 기록 안의 것, 기록을 품은 것만 남긴다. 사이트의 머리와 바닥글, 고르는 단추와 인쇄 단추, 코드 상자를 비롯한
+   * 다른 화면 요소는 인쇄하지 않는다.
+   */
+  :root:has(.record) body *:not(.record, .record *, :has(.record)) {
+    display: none !important;
+  }
+
+  /* 기록을 품은 것들은 격자와 여백을 걷어 낸다. 기록이 종이의 처음부터, 종이 너비를 다 쓴다. */
+  :root:has(.record) body :has(.record) {
+    display: block !important;
+    max-width: none;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    opacity: 1;
+  }
+
+  :root:has(.record),
+  :root:has(.record) body {
+    background: #fff;
+  }
+
+  /*
+   * 흰 바탕에 검은 글로 인쇄한다. 어두운 테마에서 인쇄해도 같다. 색 토큰을 기록 안에서 다시 정한다(어두운 테마의
+   * 토큰보다 뒤에, 더 가까운 요소에 적었다). 상태 색도 쓰지 않는다. 종이에서는 색에 기대지 않고 글자로 읽는다.
+   */
+  .record {
+    --bg: #fff;
+    --surface: #fff;
+    --ink: #000;
+    --muted: #333;
+    --rule: #888;
+    --accent: #000;
+    --accent-soft: #fff;
+    --code-bg: #fff;
+    --st-review: #000;
+    --st-review-bg: #fff;
+    color-scheme: light;
+    background: #fff;
+    color: #000;
+    border: 0;
+    border-radius: 0;
+    padding: 0;
+    font-size: 9pt;
+    line-height: 1.4;
+  }
+
+  /* 구역 사이를 화면보다 조금 좁힌다. 발견이 한두 건인 결과의 기록이 한 쪽에 들어간다. */
+  .record > * + * {
+    margin-top: 1.1em;
+  }
+
+  /*
+   * 맨 위의 두 상자는 오른쪽에 1px 를 비운다. Chrome 은 인쇄할 때 쪽을 종이의 본문보다 1px 넓게 짠다(A4·Letter·A5, 여백
+   * 0~2cm 로 PDF 를 만들어 쟀다. 쪽의 너비가 clientWidth 보다 1px 컸다). 그 1px 은 종이 밖이라 찍히지 않는다. 너비를 다
+   * 쓰는 상자는 오른쪽 테두리가 거기에 놓여서, 비우지 않으면 상자의 오른쪽이 열린 채 찍힌다.
+   */
+  .record-notice,
+  .record-warning {
+    margin-right: 1px;
+  }
+
+  /* 줄 하나, 상자 하나가 두 쪽에 걸쳐 잘리지 않게 한다. 구역의 이름과 칸 머리는 제 내용과 떨어지지 않는다. */
+  .record tr,
+  .record li,
+  .record-notice,
+  .record-warning,
+  .record-about,
+  .record-facts > div {
+    break-inside: avoid;
+  }
+
+  /* 표 위에 적는 말은 구역의 이름과도(이름의 break-after), 표와도 떨어지지 않는다. */
+  .record h3,
+  .record h4,
+  .record thead,
+  .record-about,
+  .record-group {
+    break-after: avoid;
+  }
+
+  /*
+   * 표의 첫 줄은 칸 머리와, 표 아래에 덧붙인 말은 표의 마지막 줄과 떨어지지 않는다. 첫 줄은 칸 머리 바로 다음 묶음의
+   * 것만이다. 발견 표는 묶음(tbody)이 여럿인데, 묶음마다 첫 줄을 앞의 것에 붙이면 묶음 머리가 제 발견과도 붙어 있어서 표
+   * 전체가 끊을 자리 없는 한 덩어리가 된다. 그러면 표가 통째로 다음 쪽으로 밀리고 앞 쪽의 아래가 빈다.
+   *
+   * 표 아래의 말을 붙이는 것은 표가 한 쪽 안에서 시작해 끝날 때만 듣는다. 앞 쪽에서 이어진 표의 뒤에 온 글은 Chrome 이
+   * 표의 마지막 줄과 붙여 주지 못한다(빈 쪽에 그려 확인했다). 표의 끝이 쪽의 끝에 걸리면 그 글만 다음 쪽에 남는다. 그래서
+   * 기록의 끝에는 표 뒤에 따로 선 글을 두지 않는다. 싣지 않은 것을 밝히는 한 줄은 머리에 있고, 길어질 수 있는 표(발견, AI
+   * 의 표 둘)에 덧붙이는 말은 표 위에 있다(.record-about).
+   */
+  .record thead + tbody > tr:first-child,
+  .record-section > .hint,
+  .record-notes {
+    break-before: avoid;
+  }
+
+  .record-notes {
+    break-inside: avoid;
+  }
+
+  /*
+   * "다 보지 못한 것"의 줄은 파일이 많으면 길어진다. 그런 줄까지 통째로 묶어 두면, 남은 자리에 들어가지 않는 줄이 다음
+   * 쪽으로 밀려 목록마다 새 쪽에서 시작하고 앞 쪽의 아래가 빈다(파일이 쉰 개씩인 목록 셋이면 첫 쪽에 머리와 검사 정보만
+   * 남았다). 파일이 아홉 개부터인 줄은 파일 사이에서 쪽이 넘어가게 둔다. 파일 한 줄은 잘리지 않고(위의 li), 줄의 이름과
+   * 뜻은 첫 파일과 떨어지지 않는다. 여덟 개까지는 묶어 둔다. 짧은 목록이 두 쪽으로 갈리는 것보다 몇 줄 비는 편이 낫다.
+   */
+  .record-gaps tr:has(.record-files > li:nth-child(9)) {
+    break-inside: auto;
+  }
+
+  .record-gap-detail > p {
+    break-inside: avoid;
+    break-after: avoid;
+  }
+
+  /* 목록의 첫 파일은 둘째 파일과, 마지막 파일은 그 앞의 파일과 떨어지지 않는다. 쪽의 끝이나 처음에 파일 한 줄만 남지 않는다. */
+  .record-files > li:first-child {
+    break-after: avoid;
+  }
+
+  .record-files > li:last-child {
+    break-before: avoid;
   }
 }

@@ -51,6 +51,16 @@ export const STATUS_LEGEND: Record<Status, string> = {
   "pack-unknown": "이 사이트에 실린 것과 다른 판의 팩으로 만든 결과입니다. 그 팩에 같은 정책이 있었는지 알 수 없습니다.",
 };
 
+/**
+ * "발견 없음"의 뜻을, 발견은 없고 AI 가 푼 경고만 있는 정책과 한 표에 놓고 적을 때의 말(조문별 검사 기록의 정책 표).
+ *
+ * 그런 정책의 줄에도 "발견 없음"이 적힌다. 풀이의 이름표가 같아서, `STATUS_LEGEND` 를 그대로 적으면 "구분할 수 없다"가 그
+ * 줄의 말로도 읽힌다. 그 정책에는 조문이 닿는다고 본 단위가 있었고 AI 의 답으로 풀린 것이라, 그 말이 맞지 않는다. 정책
+ * 카드도 그런 정책에는 이 말 대신 AI 가 푼 경고가 있다고 적는다(`components/result/PolicyCard.tsx`). 그래서 주어를 좁힌다.
+ */
+export const NOT_REPORTED_NOR_CLEARED =
+  "발견도 AI 가 푼 경고도 없는 정책은 지금 CLI 출력으로는 '충족 근거 발견'과 '적용 신호 없음'을 구분할 수 없습니다.";
+
 /** 위에 놓을수록 먼저 봐야 한다. */
 export const STATUS_ORDER: Status[] = [
   "needs-review",

@@ -80,6 +80,22 @@ describe("빌드된 out/ 의 파일", () => {
       for (const piece of pieces) expect(found(piece), `${policy}: ${piece}`).toEqual([]);
     }
   });
+
+  it("조문별 검사 기록의 칸 앞 이름: 빈 대체 글을 단 선언 앞에, 대체 글 없는 선언이 배포되는 CSS 에 남아 있다", () => {
+    // 쌓은 표의 칸 앞 이름은 CSS 가 그린다. 빈 대체 글(`content: … / ""`)을 줘서 화면 낭독기가 그 이름을 칸 머리와 함께 두 번
+    // 읽지 않게 한다(src/app/globals.css). 그 문법을 모르는 브라우저는 그 선언을 버리므로, 앞에 대체 글 없는 선언을 하나 더
+    // 둔다. 앞의 것이 빌드에서 빠지면 그런 브라우저에서는 칸 앞 이름이 아예 그려지지 않는다. 브라우저 시험은 Chrome 으로만
+    // 보고, Chrome 은 뒤의 선언을 쓴다. 그래서 배포되는 CSS 를 직접 읽는다.
+    const css = contents.filter(({ file }) => file.endsWith(".css")).map(({ text }) => text);
+    const rules = css.flatMap((text) => [...text.matchAll(/\.record-table tbody td::?before\s*\{([^}]*)\}/g)].map((match) => match[1]));
+    expect(rules).toHaveLength(1);
+    const contentOf = rules[0]
+      .split(";")
+      .map((declaration) => declaration.trim())
+      .filter((declaration) => declaration.startsWith("content:"))
+      .map((declaration) => declaration.replace(/\s+/g, ""));
+    expect(contentOf).toEqual(["content:attr(data-label)", 'content:attr(data-label)/""']);
+  });
 });
 
 describe("빌드된 out/ 의 조문 도감 쪽", () => {

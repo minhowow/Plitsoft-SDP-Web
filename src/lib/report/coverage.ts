@@ -86,7 +86,8 @@ export interface CoverageSummary {
   rows: GapRow[];
 }
 
-const LABEL: Record<GapKind, string> = {
+/** 표의 줄 이름. 조문별 검사 기록도 같은 이름으로 적는다(`record.ts`). 엔진 오류가 없을 때도 그 줄을 적기 때문에 내보낸다. */
+export const GAP_LABEL: Record<GapKind, string> = {
   skipped: "검사하지 않은 파일",
   unparsed: "일부를 읽지 못한 파일",
   incomplete: "엔진이 끝내지 못한 파일",
@@ -102,7 +103,7 @@ const MEANING: Record<GapKind, string> = {
   incomplete:
     "검사했지만 엔진이 조건을 끝까지 돌리지 못했습니다(시간 초과·메모리 부족 등). " +
     `끝나지 않은 조건이 '모름'이 되어, ${LEFT_UNCERTAIN}`,
-  "engine-errors": `어느 파일에서 난 오류인지 엔진이 밝히지 않았습니다. CLI 는 이때 함께 검사한 파일을 모두 '${LABEL.incomplete}'에 넣습니다.`,
+  "engine-errors": `어느 파일에서 난 오류인지 엔진이 밝히지 않았습니다. CLI 는 이때 함께 검사한 파일을 모두 '${GAP_LABEL.incomplete}'에 넣습니다.`,
 };
 
 /**
@@ -120,7 +121,7 @@ function row(kind: GapKind, count: number, files: GapFile[], texts: string[] = [
   const unit = kind === "engine-errors" ? "건" : "개";
   return {
     kind,
-    label: LABEL[kind],
+    label: GAP_LABEL[kind],
     count,
     countText: count === 0 ? "없음" : `${count}${unit}`,
     meaning: count === 0 ? null : MEANING[kind],

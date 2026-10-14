@@ -69,13 +69,37 @@ describe("브라우저로 가는 묶음", () => {
     }
   });
 
-  it("브라우저로 넘기는 팩 정보에는 팩 판과 정책의 id·제목·조문 이름만 있다", () => {
+  it("브라우저로 넘기는 팩 정보에는 팩 판, 정책의 id·제목·조문 이름, 대표 조문의 시행일·원문 해시만 있다", () => {
     expect(Object.keys(packIndex).sort()).toEqual(["pack", "policies"]);
     expect(Object.keys(packIndex.pack)).toEqual(["digest"]);
+    expect(packIndex.pack.digest).toBe(packMeta.pack.digest);
     expect(packIndex.policies).toHaveLength(packMeta.policies.length);
-    for (const policy of packIndex.policies) {
+    for (const [i, policy] of packIndex.policies.entries()) {
+      const meta = packMeta.policies[i];
       expect(Object.keys(policy).sort(), policy.id).toEqual(["id", "legal", "title"]);
-      for (const ref of policy.legal) expect(Object.keys(ref), policy.id).toEqual(["label"]);
+      expect([policy.id, policy.title], policy.id).toEqual([meta.id, meta.title]);
+      expect(policy.legal.map((ref) => ref.label), policy.id).toEqual(meta.legal.map((ref) => ref.label));
+      // 조문은 이름만 넘긴다. 대표 조문(첫 조문)에만 조문별 검사 기록이 적는 값이 더 실린다: 시행일, 원문 해시, 그 해시가
+      // 팩 안의 원문 파일과 맞는지(src/lib/report/record.ts).
+      for (const [j, ref] of policy.legal.entries()) {
+        expect(Object.keys(ref).sort(), `${policy.id} ${ref.label}`).toEqual(
+          j === 0 ? ["effective_from", "label", "text_sha256", "text_sha256_matches"] : ["label"],
+        );
+      }
+      // 값은 팩 메타데이터의 것 그대로다.
+      const primary = meta.legal[0];
+      expect(policy.legal[0], policy.id).toEqual({
+        label: primary.label,
+        effective_from: primary.effective_from,
+        text_sha256: primary.text_sha256,
+        text_sha256_matches: primary.text_sha256_matches,
+      });
+    }
+    // 빈 것끼리 견준 것이 아니다. 조문이 둘 이상인 정책이 있고, 대표 조문마다 해시와 시행일이 있다.
+    expect(packIndex.policies.some((policy) => policy.legal.length > 1)).toBe(true);
+    for (const policy of packIndex.policies) {
+      expect(policy.legal[0].text_sha256, policy.id).toMatch(/^[0-9a-f]{64}$/);
+      expect(policy.legal[0].effective_from, policy.id).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     }
   });
 
@@ -85,5 +109,22 @@ describe("브라우저로 가는 묶음", () => {
     const texts = memos.filter((text): text is string => typeof text === "string" && text.length > 0);
     expect(texts.length).toBeGreaterThan(0);
     for (const text of texts) expect(sent.includes(text), text).toBe(false);
+  });
+
+  it("브라우저로 넘기는 팩 정보에 조문 원문이 없다 (원문의 해시만 넘긴다)", () => {
+    // 원문은 조문 도감이 빌드할 때 그린다. 결과 화면과 검사 기록은 원문을 쓰지 않는다.
+    const sent = JSON.stringify(packIndex);
+    const texts = packMeta.policies.flatMap((policy) => policy.legal.map((ref) => ref.text)).filter((text): text is string => Boolean(text));
+    expect(texts.length).toBeGreaterThan(0);
+    for (const text of texts) {
+      // 원문의 줄 가운데 긴 것 하나라도 실려 있으면 안 된다(JSON 으로 적으면 줄바꿈과 따옴표가 달리 적히므로 줄 단위로 본다).
+      const lines = text.split("\n").map((line) => line.trim()).filter((line) => line.length >= 20 && !/["\\]/.test(line));
+      expect(lines.length, text.slice(0, 20)).toBeGreaterThan(0);
+      for (const line of lines) expect(sent.includes(line), line).toBe(false);
+    }
+    // 다른 조문의 값(시행일, 해시, 원문을 받은 날, 법제처 주소)도 넘기지 않는다.
+    for (const key of ["text", "text_retrieved", "url", "law_id", "rationale", "rules", "review_by", "ask_developer"]) {
+      expect(sent.includes(`"${key}":`), key).toBe(false);
+    }
   });
 });

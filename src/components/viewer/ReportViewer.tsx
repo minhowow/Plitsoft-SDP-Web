@@ -11,10 +11,11 @@ import {
   type MouseEvent,
   type RefObject,
 } from "react";
-import { ReportSummary } from "@/components/result/ReportSummary";
+import { ReportWithRecord } from "@/components/result/ReportWithRecord";
 import type { PackIndex } from "@/lib/pack/types";
 import { readResultFile } from "@/lib/report/open";
 import { parseReport, type ParseResult } from "@/lib/report/parse";
+import type { RecordSource } from "@/lib/report/record";
 import type { Contract, Report } from "@/lib/report/types";
 import { buildReportView } from "@/lib/report/view-model";
 import { SAMPLES, type Sample } from "@/lib/samples";
@@ -72,24 +73,31 @@ function carriesFiles(event: DragEvent): boolean {
  *
  * 화면에 붙은 뒤에 붙었다고 알린다(`onDrawn`). 그리다 실패하면 이 부품은 붙지 않으므로 알리지 않는다. "열었습니다"는
  * 이 알림을 받은 뒤에만 화면 낭독기에 나간다.
+ *
+ * 결과 화면과 조문별 검사 기록을 오가는 단추도 여기에 든다(`ReportWithRecord`). 기록은 이 결과에서 바로 만든다.
+ * `source` 는 기록에 적는, 무엇으로 만든 기록인지다.
  */
 function Result({
   seq,
   report,
   contract,
   pack,
+  source,
   onDrawn,
 }: {
   seq: number;
   report: Report;
   contract: Contract;
   pack: PackIndex;
+  source: RecordSource;
   onDrawn: (seq: number) => void;
 }) {
   useEffect(() => {
     onDrawn(seq);
   }, [onDrawn, seq]);
-  return <ReportSummary view={buildReportView(report, contract, pack)} />;
+  // 단추로 결과와 기록을 오가는 것은 아래 부품의 상태다. 오갈 때 이 부품은 다시 그려지지 않으므로 화면 구조도 다시
+  // 만들지 않는다.
+  return <ReportWithRecord view={buildReportView(report, contract, pack)} pack={pack} source={source} />;
 }
 
 /** 읽지 못한 파일의 안내: 까닭, 그리고 이 뷰어가 여는 파일과 그것을 만드는 명령. */
@@ -129,6 +137,8 @@ const Opened = memo(function Opened({
   onFailed: (seq: number) => void;
 }) {
   const { result, seq } = loaded;
+  // 예시를 연 것이면 기록에도 합성 예시라고 밝힌다. 기록만 인쇄되므로 제목 아래의 "합성 예시입니다"는 함께 나오지 않는다.
+  const source: RecordSource = { name: loaded.name, synthetic: loaded.sampleId !== "" };
   return (
     <>
       <h2 ref={heading} className="viewer-title">
@@ -141,7 +151,7 @@ const Opened = memo(function Opened({
       */}
       {result.ok ? (
         <ResultBoundary key={seq} onFailed={() => onFailed(seq)}>
-          <Result seq={seq} report={result.report} contract={result.contract} pack={pack} onDrawn={onDrawn} />
+          <Result seq={seq} report={result.report} contract={result.contract} pack={pack} source={source} onDrawn={onDrawn} />
         </ResultBoundary>
       ) : (
         <Unreadable key={seq} errors={result.errors} />

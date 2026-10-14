@@ -27,6 +27,12 @@ export const CONDITION_UNDESCRIBED = "팩이 아직 알려 주지 않습니다."
 export const NO_STATUTE_TEXT = "원문이 실려 있지 않습니다.";
 
 /**
+ * 시행일을 적은 자리에 덧붙이는 말. 조문 도감의 "근거 조문" 구역(`LEGAL_NOTE`)과 조문별 검사 기록(`src/lib/report/record.ts`)이
+ * 함께 쓴다. 두 곳 모두 팩의 시행일을 그대로 옮겨 적으므로, 한쪽만 고쳐 서로 어긋나지 않게 한곳에 둔다.
+ */
+export const EFFECTIVE_FROM_NOTE = "시행일이 어느 판본의 날짜인지는 팩이 아직 알려 주지 않습니다.";
+
+/**
  * "근거 조문" 구역의 첫 줄. 원문과 날짜가 팩의 것임을 밝힌다.
  *
  * 시행일(`effective_from`)이 무엇의 날짜인지는 팩 메타데이터에도 CLI README(`8ae72d8`)에도 없다. 그래서 날짜만 옮기고,
@@ -36,8 +42,7 @@ export const NO_STATUTE_TEXT = "원문이 실려 있지 않습니다.";
  * CLI `e1e46a9` 의 README 는 그 뜻을 적는다(받은 판본의 시행일). 그 판으로 다시 수집한 뒤에 이 말을 README 가 적은
  * 만큼으로 바꾼다(`docs/ROADMAP.md` 의 "G1 뒤에 할 일").
  */
-export const LEGAL_NOTE =
-  "원문과 날짜는 팩에 실린 그대로입니다. 시행일이 어느 판본의 날짜인지는 팩이 아직 알려 주지 않습니다.";
+export const LEGAL_NOTE = `원문과 날짜는 팩에 실린 그대로입니다. ${EFFECTIVE_FROM_NOTE}`;
 
 /** 재검토 기한(`review_by`)이 무엇인지. CLI README 의 "재검토 기한"이 적은 만큼이다. */
 export const REVIEW_BY_NOTE = `재검토 기한이 지나면 ${SITE.cli} validate 가 경고합니다.`;

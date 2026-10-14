@@ -1,12 +1,13 @@
 "use client";
 
-import { Fragment, type MouseEvent } from "react";
-import { ReportSummary } from "@/components/result/ReportSummary";
+import { Fragment, useRef, type MouseEvent, type RefObject } from "react";
+import { ReportWithRecord, type ReportSwitch } from "@/components/result/ReportWithRecord";
 import { StatusChip } from "@/components/result/StatusChip";
 import type { DemoApp, DemoFile, DemoVariant } from "@/lib/demo/apps";
 import { compareByPolicy, type CompareCell } from "@/lib/demo/compare";
 import { lineMarks } from "@/lib/demo/marks";
 import { policyCardId } from "@/lib/pack/href";
+import type { PackIndex } from "@/lib/pack/types";
 import { STATUS_LEGEND, STATUS_ORDER } from "@/lib/report/status";
 import { moveTo } from "@/lib/scroll";
 import { SITE } from "@/lib/site";
@@ -65,12 +66,16 @@ function CodeBox({ file, variant }: { file: DemoFile; variant: DemoVariant }) {
 /**
  * 표의 정책 이름을 눌렀을 때 아래 결과의 그 정책 카드로 옮겨 간다. 해시 링크를 브라우저에 맡기지 않고 직접 옮긴다
  * (까닭은 `lib/scroll.ts` 의 `moveTo`). 스크립트가 붙기 전이나 꺼진 브라우저에서는 해시 링크 그대로 듣는다.
+ *
+ * 아래에서 조문별 검사 기록을 보고 있으면 정책 카드는 가려져 있다. 결과 화면으로 돌아간 뒤에 옮겨 간다(`report`).
+ * 그러지 않으면 눌러도 아무 일도 일어나지 않는다.
  */
-function toCard(event: MouseEvent<HTMLAnchorElement>, id: string) {
+function toCard(event: MouseEvent<HTMLAnchorElement>, id: string, report: RefObject<ReportSwitch | null>) {
   // 새 탭으로 열기처럼 다른 키를 함께 누른 것은 브라우저에 맡긴다.
   if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
   // 그 밖에는 브라우저가 옮겨 가지 않게 한다(옮겨 가면 방문 기록에 항목이 더해진다).
   event.preventDefault();
+  report.current?.showResult();
   const card = document.getElementById(id);
   if (card) moveTo(card);
 }
@@ -91,8 +96,9 @@ const clearedOnly = (cell: CompareCell) => cell.findings === 0 && cell.aiCleared
  *
  * 표는 두 판을 함께 보이지만 아래의 결과는 지금 보는 판의 것뿐이다. 그래서 가리키는 말에 어느 판의 결과인지를 적고,
  * 다른 판의 결과는 그 판을 골라야 나온다고 따로 적는다. 정책 이름은 아래 결과의 그 정책 카드로 가는 링크다.
+ * `report` 는 아래 결과의 틀이다. 거기서 검사 기록을 보고 있을 때 정책 이름을 누르면 결과 화면으로 돌아가게 한다.
  */
-function Compare({ app, current }: { app: DemoApp; current: DemoVariant }) {
+function Compare({ app, current, report }: { app: DemoApp; current: DemoVariant; report: RefObject<ReportSwitch | null> }) {
   const rows = compareByPolicy(app.variants.map((variant) => variant.view));
   // 두 판 모두 발견도 AI 가 푼 경고도 없으면 견줄 줄이 없다.
   if (rows.length === 0) return null;
@@ -139,7 +145,7 @@ function Compare({ app, current }: { app: DemoApp; current: DemoVariant }) {
                 {cards.has(row.id) ? (
                   <a
                     href={`#${encodeURIComponent(policyCardId(row.id))}`}
-                    onClick={(event) => toCard(event, policyCardId(row.id))}
+                    onClick={(event) => toCard(event, policyCardId(row.id), report)}
                   >
                     {row.title}
                   </a>
@@ -200,19 +206,23 @@ function Compare({ app, current }: { app: DemoApp; current: DemoVariant }) {
 /**
  * 데모 앱 하나의 한 판: 이름, 코드가 무엇을 하는지, 코드, 두 판의 결과, 이 판의 결과(CLI 출력 그대로).
  * 모든 판에 합성 예시라고 밝힌다(설명의 첫 문장과 코드 상자의 이름표).
+ *
+ * 이 판의 결과는 조문별 검사 기록으로도 본다(`ReportWithRecord`). 기록만 인쇄되므로 기록에도 합성 예시라고 적는다.
+ * 기록에 적는 이름은 위의 제목과 같다.
  */
-export function DemoPanel({ app, variant }: { app: DemoApp; variant: DemoVariant }) {
+export function DemoPanel({ app, variant, pack }: { app: DemoApp; variant: DemoVariant; pack: PackIndex }) {
+  const name = `${app.label} · ${variant.label}`;
+  // 아래 결과의 틀. 표의 정책 이름을 눌렀을 때 결과 화면이 보이게 하는 데 쓴다.
+  const report = useRef<ReportSwitch>(null);
   return (
     <>
-      <h2 className="demo-title">
-        {app.label} · {variant.label}
-      </h2>
+      <h2 className="demo-title">{name}</h2>
       <p className="demo-note">합성 예시입니다. {variant.note}</p>
       {variant.files.map((file) => (
         <CodeBox key={file.path} file={file} variant={variant} />
       ))}
-      <Compare app={app} current={variant} />
-      <ReportSummary view={variant.view} />
+      <Compare app={app} current={variant} report={report} />
+      <ReportWithRecord ref={report} view={variant.view} pack={pack} source={{ name, synthetic: true }} />
     </>
   );
 }

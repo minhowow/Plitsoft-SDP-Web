@@ -17,7 +17,7 @@ export default function DemoPage() {
         합성 예시입니다. 실제 서비스의 코드가 아닙니다. 코드 {apps.length}가지를 고치기 전과 고친 뒤로 나눠,{" "}
         {judgeOff && "판정자 없이 "}같은 팩으로 검사한 CLI 실제 출력을 보입니다.
       </p>
-      <DemoSwitcher apps={apps} />
+      <DemoSwitcher apps={apps} pack={packIndex} />
     </>
   );
 }

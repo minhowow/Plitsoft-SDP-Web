@@ -2,7 +2,7 @@ import { existsSync, statSync } from "node:fs";
 import { readFile, stat } from "node:fs/promises";
 import { createServer } from "node:http";
 import path from "node:path";
-import { chromium, type Browser, type BrowserContext, type Page } from "playwright-core";
+import { chromium, errors, type Browser, type BrowserContext, type Page } from "playwright-core";
 import { root, walk } from "../helpers";
 
 // 브라우저 시험의 바탕: 빌드된 out/ 을 127.0.0.1 의 빈 포트에 띄우고, 이 컴퓨터에 깔린 Chrome 을 헤드리스로 연다.
@@ -106,24 +106,88 @@ export async function serveOut(): Promise<Site> {
  */
 const NO_OUTSIDE_NAMES = "--host-resolver-rules=MAP * ~NOTFOUND , EXCLUDE 127.0.0.1";
 
+/** Chrome 이 뜨기를 기다려 주는 시간(ms). 보통 1초 안에 뜬다. */
+const LAUNCH_MS = 10_000;
+/** 띄운 Chrome 이 빈 쪽 하나를 열기를 기다려 주는 시간(ms). 보통 0.2초 안에 열린다. */
+const ANSWER_MS = 5_000;
+/** 띄워 보는 횟수. 뜨지 못했거나 떴는데 쪽을 열지 못하면 버리고 다시 띄운다. */
+const LAUNCH_TRIES = 3;
+
+/**
+ * 띄운 Chrome 이 쪽을 여는지 본다. 빈 쪽 하나를 열어 스크립트 한 줄을 돌려 보고 닫는다. `ANSWER_MS` 안에 끝나지 않으면
+ * 열지 못하는 것으로 본다.
+ */
+async function opensPage(browser: Browser): Promise<boolean> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const opened = (async () => {
+    const context = await browser.newContext();
+    try {
+      const page = await context.newPage();
+      return (await page.evaluate(() => 1 + 1)) === 2;
+    } finally {
+      await context.close();
+    }
+  })().catch(() => false);
+  const late = new Promise<boolean>((resolve) => {
+    timer = setTimeout(() => resolve(false), ANSWER_MS);
+  });
+  try {
+    return await Promise.race([opened, late]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /**
  * 이 컴퓨터에 깔린 Google Chrome 을 헤드리스로 연다. 브라우저를 내려받지 않는다(playwright-core 는 브라우저를 함께
  * 받지 않는다). Chrome 이 다른 자리에 있거나 Chromium 계열의 다른 브라우저를 쓰려면 CHROME_PATH 에 실행 파일을 준다.
  *
  * 열지 못하면 시험을 건너뛰지 않고 실패한다. 건너뛰면 "연 파일을 어디로도 보내지 않는다"를 보는 시험 없이
  * `npm run check` 가 통과한다.
+ *
+ * 떴는데 쪽을 열지 못하는 Chrome 은 버리고 다시 띄운다. 시험 파일마다 Chrome 을 하나씩, 한꺼번에 띄우는데, 그렇게 띄운
+ * 것 가운데 하나가 드물게 처음부터 멈춰 있다(따로 띄운 프로세스 넷이 한꺼번에 띄우기를 되풀이해 보니 160번에 2번, CPU 를
+ * 바쁘게 해 두면 400번에 4번이었다. Chrome 의 자식 프로세스 하나가 죽은 채 남고, 새 쪽도 닫기도 듣지 않는다). 그대로 두면
+ * 그 파일의 시험이 하나씩 30초 한도를 채우고 실패해서, `npm run check` 가 10분 넘게 걸려 실패한다(7번에서 봤다). 띄운 뒤에
+ * 빈 쪽 하나를 열어 보고, 열지 못하면 다시 띄운다. 그렇게 하니 멈춘 것을 5초 뒤에 알아채고 새로 띄운 것으로 넘어갔다
+ * (docs/architecture.md 의 "브라우저 시험"). 버린 Chrome 은 닫으라고만 해 두고 기다리지 않는다. 시험 프로세스가 끝날 때
+ * 함께 꺼진다. 뜨지 못한 것(시간 안에 붙지 못함)도 같은 식으로 다시 띄운다. Chrome 이 없어서 띄우지 못한 것은 다시
+ * 해 보지 않고 곧바로 알린다.
  */
 export async function launchChrome(): Promise<Browser> {
   const executablePath = process.env.CHROME_PATH;
-  const options = { headless: true, args: [NO_OUTSIDE_NAMES] };
-  try {
-    return await chromium.launch(executablePath ? { ...options, executablePath } : { ...options, channel: "chrome" });
-  } catch (error) {
-    throw new Error(
-      "브라우저 시험에 쓸 Chrome 을 열지 못했습니다. Google Chrome 을 설치하거나, Chrome·Chromium 실행 파일의 경로를 " +
-        "CHROME_PATH 환경 변수로 주세요. 이 시험은 건너뛰지 않습니다(docs/architecture.md 의 \"브라우저 시험\").",
-      { cause: error },
-    );
+  const options = { headless: true, args: [NO_OUTSIDE_NAMES], timeout: LAUNCH_MS };
+  const stuck: string[] = [];
+  for (;;) {
+    let browser: Browser | null = null;
+    try {
+      browser = await chromium.launch(executablePath ? { ...options, executablePath } : { ...options, channel: "chrome" });
+    } catch (error) {
+      if (!(error instanceof errors.TimeoutError)) {
+        throw new Error(
+          "브라우저 시험에 쓸 Chrome 을 열지 못했습니다. Google Chrome 을 설치하거나, Chrome·Chromium 실행 파일의 경로를 " +
+            "CHROME_PATH 환경 변수로 주세요. 이 시험은 건너뛰지 않습니다(docs/architecture.md 의 \"브라우저 시험\").",
+          { cause: error },
+        );
+      }
+      stuck.push("뜨지 못함");
+    }
+    if (browser !== null) {
+      if (await opensPage(browser)) {
+        // 다시 띄운 일이 있으면 시험의 출력에 한 줄 남긴다. 실패는 아니다. 얼마나 잦은지 알아보는 데 쓴다. 시험 도구는
+        // 통과한 시험의 console 출력을 보이지 않아서 표준 오류에 바로 적는다.
+        if (stuck.length > 0) process.stderr.write(`시험용 Chrome 을 다시 띄웠습니다(${stuck.join(", ")}).\n`);
+        return browser;
+      }
+      stuck.push("쪽을 열지 못함");
+      void browser.close().catch(() => undefined);
+    }
+    if (stuck.length === LAUNCH_TRIES) {
+      throw new Error(
+        `시험용 Chrome 을 ${LAUNCH_TRIES}번 띄웠지만 쓸 수 없었습니다(${stuck.join(", ")}). 다른 작업으로 컴퓨터가 바쁜지 ` +
+          "확인하고 다시 돌려 보세요.",
+      );
+    }
   }
 }
 

@@ -13,13 +13,28 @@ export { policyCardId, policyHref, policySlug } from "./href";
  */
 export const packMeta = raw as unknown as PackMeta;
 
-/** 결과 화면이 팩에서 쓰는 것만 고른 것. 브라우저로 가는 팩 정보는 이것뿐이다. */
+/**
+ * 결과 화면이 팩에서 쓰는 것만 고른 것. 브라우저로 가는 팩 정보는 이것뿐이다.
+ *
+ * 조문은 이름만 넘긴다. 대표 조문(첫 조문)만은 조문별 검사 기록에 적는 값(시행일, 원문 해시, 그 해시가 원문 파일과
+ * 맞는지)을 함께 넘긴다. 조문 원문과 팩 작성자 메모는 넘기지 않는다. 넘기는 것을 바꾸면 `tests/bundle.test.ts` 의 목록도
+ * 함께 고친다.
+ */
 export const packIndex: PackIndex = {
   pack: { digest: packMeta.pack.digest },
   policies: packMeta.policies.map((policy) => ({
     id: policy.id,
     title: policy.title,
-    legal: policy.legal.map((ref) => ({ label: ref.label })),
+    legal: policy.legal.map((ref, i) =>
+      i === 0
+        ? {
+            label: ref.label,
+            effective_from: ref.effective_from,
+            text_sha256: ref.text_sha256,
+            text_sha256_matches: ref.text_sha256_matches,
+          }
+        : { label: ref.label },
+    ),
   })),
 };
 

@@ -47,8 +47,14 @@ export function scopeLabel(scope: JudgedScope): string {
  */
 export type LineKnown = "known" | "none" | "unsure";
 
+/**
+ * SARIF 가 줄이 없는 발견을 어떻게 싣는지. 발견을 펼친 안쪽의 설명(아래 `UNSURE_LINE`)과 조문별 검사 기록의 발견 표 위
+ * (`record.ts`)가 함께 쓴다.
+ */
+export const SARIF_LINE_ONE = "SARIF 는 줄이 없는 발견도 1행으로 싣습니다.";
+
 /** SARIF 에서 옮긴 결과의 1행에 적는 말. "줄 번호는 조문이 닿는다고 본 첫 줄"이라고 적을 수 없는 자리에 대신 온다. */
-const UNSURE_LINE = "SARIF 는 줄이 없는 발견도 1행으로 싣습니다. 이 1행이 조문이 닿는다고 본 줄인지는 알 수 없습니다.";
+const UNSURE_LINE = `${SARIF_LINE_ONE} 이 1행이 조문이 닿는다고 본 줄인지는 알 수 없습니다.`;
 
 /**
  * 설명을 적는 자리. 같은 설명이라도 곁에 있는 것이 달라서, 가리키는 말이 자리마다 다르다.
@@ -59,10 +65,16 @@ const UNSURE_LINE = "SARIF 는 줄이 없는 발견도 1행으로 싣습니다. 
  */
 export type NotePlace = "finding" | "code";
 
+/**
+ * 줄 번호가 무엇인지 적는 문장. 곁에 조문 이름이 없는 자리에서 쓴다: 데모의 코드 상자(아래 `FIRST_LINE`)와 조문별 검사
+ * 기록의 발견 표 위(`record.ts`). "이 조문"이 가리킬 조문이 없으므로 그 말을 뺀 것이다.
+ */
+export const LINE_IS_FIRST = "줄 번호는 조문이 닿는다고 본 첫 줄입니다.";
+
 /** 줄 번호가 무엇인지 적는 문장. 코드 상자에는 "이 조문"이 가리킬 조문이 없으므로 그 말을 뺀다. */
 const FIRST_LINE: Record<NotePlace, string> = {
   finding: "줄 번호는 이 조문이 닿는다고 본 첫 줄입니다.",
-  code: "줄 번호는 조문이 닿는다고 본 첫 줄입니다.",
+  code: LINE_IS_FIRST,
 };
 
 /** 판정 경로를 가리키는 문장. */
