@@ -3,17 +3,41 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import type { Browser, BrowserContext, CDPSession, Page } from "playwright-core";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import { SARIF_COUNTS_NOTE } from "@/lib/report/coverage";
+import { GAPS_NOTE, GAPS_TITLE, GAPS_UNLISTED, SARIF_COUNTS_NOTE } from "@/lib/report/coverage";
 import { MAX_FILE_BYTES, NOT_UTF8 } from "@/lib/report/open";
+import { scopeLabel } from "@/lib/report/scope";
+import { STATUS_LABEL } from "@/lib/report/status";
 import type { Finding, Report } from "@/lib/report/types";
 import { SAMPLES } from "@/lib/samples";
 import { SITE } from "@/lib/site";
 import { jsonFiles, readJson, root, sarifFiles } from "../helpers";
-import { launchChrome, serveOut, type Site } from "./site";
+import { partingOf, squash } from "../policy-page";
+import { builtMainText, reportText, viewOfFile, viewOfText } from "./expected";
+import {
+  accessibleNames,
+  accessibleNodes,
+  closeChrome,
+  cssDrawn,
+  launchChrome,
+  newPage,
+  NO_STORAGE,
+  openPage,
+  overflow,
+  RESULT_ATTRIBUTES,
+  scrollThrough,
+  serveOut,
+  settle,
+  stored,
+  undrawn,
+  unknownAttributes,
+  type Opened,
+  type Site,
+} from "./site";
 
 // `/view` 를 실제 브라우저로 열어 본다. 빌드된 out/ 을 127.0.0.1 에 띄우고 이 컴퓨터의 Chrome(헤드리스)으로 연다.
 // 그려 낸 HTML 만 보는 시험(tests/render.test.tsx)이 볼 수 없는 것을 본다: 네트워크 요청, 키보드, 끌어다 놓기,
-// 화면이 멈추는지, 다른 쪽에 다녀오거나 새로 고친 뒤에 무엇이 열려 있는지, 좁은 화면의 가로 넘침.
+// 화면이 멈추는지, 다른 쪽에 다녀오거나 새로 고친 뒤에 무엇이 열려 있는지, 좁은 화면의 가로 넘침과 표의 쌓임, 접힌 곳과
+// 발견 줄이 실제로 여닫히는지, 글이 실제로 그려지는지, CSS 가 그린 글, 화면 낭독기에 드러나는 표와 이름.
 
 let site: Site;
 let browser: Browser;
@@ -42,7 +66,7 @@ afterEach(async () => {
 
 // 시험이 실패해도 띄운 것은 닫고, 만든 것은 지운다.
 afterAll(async () => {
-  await browser?.close();
+  await closeChrome(browser);
   await site?.close();
   if (scratch) rmSync(scratch, { recursive: true, force: true });
 });
@@ -53,49 +77,9 @@ const SARIFS = sarifFiles("contract", "cli-current").map((name) => ["contract", 
 const DRAFTS = jsonFiles("contract", "samples-v1-draft").map((name) => ["contract", "samples-v1-draft", name]);
 const FIXTURES = jsonFiles("tests", "fixtures").map((name) => ["tests", "fixtures", name]);
 
-interface Opened {
-  context: BrowserContext;
-  page: Page;
-  /**
-   * 이 사이트 밖으로 나가려던 요청과, 열려던 WebSocket(어디로 가든). 시험은 그것을 내보내지 않고 막은 뒤 여기에 적는다.
-   */
-  outside: string[];
-}
-
-/** 새 창에서 `/view` 를 연다. 스크립트가 붙고, 쪽이 스스로 내는 요청(묶음, 머리 링크의 프리페치)이 끝날 때까지 기다린다. */
-async function openView(viewport = { width: 1280, height: 720 }, pathname = "/view/"): Promise<Opened> {
-  const context = await browser.newContext({ viewport });
-  contexts.push(context);
-  // 기다리는 일은 10초까지만 한다. 시험 하나의 한도(30초)보다 먼저 끝나야 무엇을 기다리다 실패했는지가 남는다.
-  context.setDefaultTimeout(10_000);
-  const outside: string[] = [];
-  await context.route(
-    () => true,
-    (route) => {
-      const url = route.request().url();
-      if (url.startsWith(`${site.origin}/`)) return route.continue();
-      outside.push(url);
-      return route.abort();
-    },
-  );
-  // WebSocket 은 위의 route 가 다루지 않는다. 따로 가로챈다. 정적 사이트라 받을 곳이 없으므로 어디로 가는 것이든 적는다.
-  // 가로챈 연결은 서버에 닿지 않는다(이어 주지 않고 닫는다). 쪽을 만들기 전에 걸어야 한다.
-  await context.routeWebSocket(
-    () => true,
-    (ws) => {
-      outside.push(ws.url());
-      void ws.close();
-    },
-  );
-  const page = await context.newPage();
-  page.on("pageerror", (error) => problems.push(`예외: ${error.message}`));
-  page.on("console", (message) => {
-    // 파비콘이 아직 없어서 브라우저가 스스로 청한 /favicon.ico 가 404 로 돌아온다(ROADMAP 9번). 그 한 줄은 뺀다.
-    if (message.type() === "error" && !message.location().url.endsWith("/favicon.ico")) problems.push(`콘솔: ${message.text()}`);
-  });
-  await page.goto(`${site.origin}${pathname}`, { waitUntil: "networkidle" });
-  return { context, page, outside };
-}
+/** 새 창에서 `/view` 를 연다(tests/browser/site.ts 의 `openPage`). */
+const openView = (viewport = { width: 1280, height: 720 }, pathname = "/view/"): Promise<Opened> =>
+  openPage(browser, site, pathname, { viewport, contexts, problems });
 
 /**
  * 그 이름의 것이 열려 다 그려질 때까지 기다린다. 제목이 바뀌고, 여는 중이라는 표시(aria-busy)가 풀린다. 읽지 못했거나
@@ -170,35 +154,6 @@ async function watchStatus(page: Page): Promise<void> {
 const announced = (page: Page) => page.evaluate(() => [...(window as unknown as { __status: Announced[] }).__status]);
 const announcedTexts = async (page: Page) => (await announced(page)).map((entry) => entry.text);
 
-/** 서버가 받는 요청이 한동안 더 없을 때까지 기다린다. */
-async function settle(page: Page): Promise<void> {
-  for (let seen = -1; seen !== site.requests.length; ) {
-    seen = site.requests.length;
-    await page.waitForTimeout(400);
-  }
-}
-
-/**
- * 쪽이 가로로 넘치는지 잰다. 쪽 너비만이 아니라 본문 칸의 오른쪽 끝도 본다. 본문 안의 것이 칸을 넓히면 쪽은 넘치지
- * 않아도 오른쪽 여백이 사라진다(320px 에서 예시 고르기 상자가 그랬다).
- */
-async function overflow(page: Page) {
-  return page.evaluate(() => {
-    const doc = document.documentElement;
-    const main = document.querySelector("main.wrap")!;
-    const limit = main.getBoundingClientRect().right - parseFloat(getComputedStyle(main).paddingRight);
-    const over: string[] = [];
-    for (const el of main.querySelectorAll("*")) {
-      // 화면에 보이지 않게 둔 글(화면 낭독기용)과, 닫힌 곳 안이라 그려지지 않은 것은 재지 않는다.
-      if (el.closest(".visually-hidden")) continue;
-      const box = el.getBoundingClientRect();
-      if (box.width === 0 || box.height === 0) continue;
-      if (box.right > limit + 0.5) over.push(`${el.tagName.toLowerCase()}.${el.className} → ${Math.round(box.right)}`);
-    }
-    return { page: doc.scrollWidth - doc.clientWidth, limit: Math.round(limit), over: over.slice(0, 5) };
-  });
-}
-
 /**
  * 발견이 많은 결과를 만든다. 손으로 만든 시험용 자료다(실제 CLI 출력이 아니다). 큰 파일을 저장소에 두지 않으려고 여기서
  * 만든다. 수집본과 시험용 자료의 발견 아홉(팩의 규칙 아홉)을 본으로 삼아 파일 이름·줄·지문만 바꾼다. 줄은 2행부터다.
@@ -257,7 +212,7 @@ describe("연 파일을 어디로도 보내지 않는다", () => {
     // 것은, 정책 카드의 링크가 화면에 들어올 때 요청이 나가면 이 시험이 본다는 뜻이다. 이 시험이 도는 몇 초 동안 쪽이
     // 스스로 내는 요청은 여기까지다. 받아 둔 것이 낡은 뒤(5분)에 머리 링크가 다시 받는 것은 이 시험이 보지 못한다
     // (docs/architecture.md 의 "`/view`").
-    await settle(page);
+    await settle(site, page);
     expect(await title(page)).toBe(DEFAULT_TITLE);
     const loading = site.requests.slice(start).map((request) => request.url);
     expect(loading[0]).toBe("/view/");
@@ -276,22 +231,52 @@ describe("연 파일을 어디로도 보내지 않는다", () => {
     // 맨 아래까지 한 화면씩 내린다. 링크가 차례로 화면에 들어온다.
     const tall = await page.evaluate(() => document.documentElement.scrollHeight > window.innerHeight * 2);
     expect(tall).toBe(true);
-    for (let bottom = false; !bottom; ) {
-      bottom = await page.evaluate(() => {
-        window.scrollBy(0, window.innerHeight * 0.8);
-        return window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 1;
-      });
-      await page.waitForTimeout(80);
-    }
+    await scrollThrough(page, 80);
     // 정책 링크 위에 마우스를 올리고, 발견 줄을 펼쳐 본다.
     await page.locator("article.policy h3 a").last().hover();
     await page.locator("li.finding summary").last().click();
-    await settle(page);
+    await settle(site, page);
 
     expect(site.requests.slice(mark.server)).toEqual([]);
     expect(seen.slice(mark.browser)).toEqual([]);
-    // 처음부터 끝까지, 이 사이트 밖으로 나가려던 요청도 없다.
+    // 처음부터 끝까지, 이 사이트 밖으로 나가려던 요청도 없다. HTTP 도 WebSocket 도 아닌 길(WebRTC 등)로 이으려던 것도
+    // 없다(그런 생성자를 부르면 site.ts 의 newPage 가 걸어 둔 감싸기가 막고 여기와 problems 에 적는다. 아래 "대조"가 그것을 본다).
     expect(outside).toEqual([]);
+  });
+
+  it("대조: 쪽에서 RTCPeerConnection·WebTransport·워커를 부르면 막고 적는다 (HTTP 도 WebSocket 도 아닌 길)", async () => {
+    // 위 시험의 대조다. 가로채기(route)는 이 길로 나가는 연결을 보지 못한다. 4번에서 연 결과를 WebRTC 로 127.0.0.1 의
+    // 수신기에 보내는 줄을 넣어 보니 시험은 통과하고 수신기에 연결이 닿았다. 쪽의 스크립트보다 먼저 생성자를 감싸 두므로,
+    // 사이트의 코드가 부르면 만들어지지 않고(예외) 어디로 이으려 했는지가 적힌다. 쪽은 127.0.0.1 이라 보안 맥락이고,
+    // WebTransport 도 있다(감쌀 것이 있다).
+    const { page, outside } = await openView();
+    const CALLS: [name: string, argument: unknown][] = [
+      ["RTCPeerConnection", { iceServers: [{ urls: "stun:192.0.2.1:3478" }] }],
+      ["webkitRTCPeerConnection", null],
+      ["WebTransport", "https://192.0.2.1:4433/"],
+      ["Worker", "data:text/javascript,0"],
+      ["SharedWorker", "data:text/javascript,0"],
+    ];
+    const made = await page.evaluate(
+      (calls) =>
+        calls.map(([name, argument]) => {
+          const make = (window as unknown as Record<string, new (arg: unknown) => unknown>)[name];
+          if (typeof make !== "function") return `${name}: 없음`;
+          try {
+            new make(argument);
+            return `${name}: 만들어짐`;
+          } catch (error) {
+            return `${name}: ${(error as Error).name}`;
+          }
+        }),
+      CALLS,
+    );
+    expect(made).toEqual(CALLS.map(([name]) => `${name}: NotAllowedError`));
+    const recorded = CALLS.map(([name, argument]) => `${name} ${argument === null ? "null" : JSON.stringify(argument)}`);
+    await expect.poll(() => outside.length, { timeout: 3_000 }).toBe(CALLS.length);
+    expect(outside).toEqual(recorded);
+    // 다른 시험에서 불렸다면 그 시험이 실패한다(쪽에서 난 오류로도 적는다). 여기서는 일부러 불렀으니 걷어 낸다.
+    expect(problems.splice(0)).toEqual(recorded.map((call) => `밖과 이을 수 있는 생성자를 불렀습니다(시험이 막았다): ${call}`));
   });
 
   it("연 결과를 브라우저 저장소에 두지 않는다", async () => {
@@ -300,19 +285,12 @@ describe("연 파일을 어디로도 보내지 않는다", () => {
     await pick(page, ["tests", "fixtures", "repeated-rule.json"]);
     await page.locator("#sample-select").selectOption("plain.main");
     await pick(page, ["contract", "cli-current", "kids-signup.main.sarif"]);
-    const stored = await page.evaluate(async () => ({
-      localStorage: localStorage.length,
-      sessionStorage: sessionStorage.length,
-      cookie: document.cookie,
-      indexedDB: (await indexedDB.databases()).length,
-      caches: (await caches.keys()).length,
-    }));
-    expect(stored).toEqual({ localStorage: 0, sessionStorage: 0, cookie: "", indexedDB: 0, caches: 0 });
+    expect(await stored(page)).toEqual(NO_STORAGE);
   });
 
   it("SARIF 를 열어도 같다. 같은 검사의 JSON 과 발견 부분이 같고, 없는 수는 알 수 없음으로 보인다", async () => {
     const { page, outside } = await openView();
-    await settle(page);
+    await settle(site, page);
     const mark = site.requests.length;
 
     await pick(page, ["contract", "cli-current", "kids-signup.main.sarif"]);
@@ -331,7 +309,7 @@ describe("연 파일을 어디로도 보내지 않는다", () => {
     expect(await page.locator(".policies").innerText()).toContain("src/auth/signup.ts:5");
     expect(await page.locator(".policies").innerText()).toContain("대안 under14-branch: 정적 false");
 
-    await settle(page);
+    await settle(site, page);
     expect(site.requests.slice(mark)).toEqual([]);
     expect(outside).toEqual([]);
   });
@@ -513,11 +491,8 @@ describe("끌어다 놓기", () => {
 
   it("대조: 파일을 받는 곳이 없는 쪽에서는 브라우저가 놓은 파일을 대신 연다", async () => {
     // 이 시험이 쓰는 끌어다 놓기가 브라우저의 기본 동작까지 일으킨다는 것을 본다. 그래야 아래 시험이 뜻이 있다.
-    const context = await browser.newContext({ viewport: { width: 1280, height: 720 } });
-    contexts.push(context);
-    context.setDefaultTimeout(10_000);
-    const page = await context.newPage();
-    await page.goto(`${site.origin}/policy/`, { waitUntil: "networkidle" });
+    // 창은 다른 시험과 같게 연다(가로채기, 생성자 감싸기). 놓은 파일을 여는 file: 주소는 가로채기에 걸리지 않는다.
+    const { context, page } = await openPage(browser, site, "/policy/", { contexts, problems });
     const url = page.url();
     const cdp = await context.newCDPSession(page);
     await dropFiles(cdp, await inside(page, "h1"), [FILE]);
@@ -919,12 +894,8 @@ describe("다른 쪽에 다녀오거나 새로 고친 뒤", () => {
 
   it("처음 찾아온 쪽에서는 스크롤을 건드리지 않는다", async () => {
     // 맨 위로 올리는 것은 문서를 다시 받았을 때뿐이다. 처음 찾아온 쪽에서 스크립트가 늦게 붙는 동안 읽어 내려간 사람을
-    // 끌어올리면 안 된다.
-    const context = await browser.newContext({ viewport: { width: 1280, height: 720 } });
-    contexts.push(context);
-    context.setDefaultTimeout(10_000);
-    const page = await context.newPage();
-    page.on("pageerror", (error) => problems.push(`예외: ${error.message}`));
+    // 끌어올리면 안 된다. 스크립트가 붙기 전에 내려야 하므로 쪽은 문서만 읽고 바로 돌려받는다(창은 다른 시험과 같게 연다).
+    const { page } = await newPage(browser, site, { contexts, problems });
     await page.goto(`${site.origin}/view/`, { waitUntil: "domcontentloaded" });
     await page.evaluate(() => window.scrollTo(0, 400));
     // 스크립트가 붙을 때까지 기다린다(파일 입력에 React 가 붙는다).
@@ -1028,5 +999,465 @@ describe("좁은 화면에서 가로로 넘치지 않는다", () => {
     await page.locator("#sample-select").selectOption("plain.main");
     await opened(page, "정책 신호가 없는 코드 (CLI 실제 출력)");
     expect(await scrollY(page)).toBe(0);
+  });
+});
+
+describe("같은 규칙이 여러 파일에 반복되는 결과 (tests/fixtures/repeated-rule.json)", () => {
+  // ROADMAP 8번에 1번에서 넘어와 있던 확인이다. 부품 시험(tests/render.test.tsx)은 접힌 곳이 HTML 에서 어디에 있는지만 본다.
+  // 여기서는 실제로 가려지고 펼쳐지는지, 닫힌 줄에도 판정 범위가 그려져 있는지, 줄을 누르는 것이 어떻게 듣는지를 본다.
+  const REPEATED = ["tests", "fixtures", "repeated-rule.json"];
+  const view = viewOfFile(...REPEATED);
+  /** 화면 차례의 발견 줄: 먼저 보이는 곳과 접힌 곳. 묶음마다 먼저 보이는 곳 뒤에 그 묶음의 접힌 곳이 온다. */
+  const groups = view.policies.flatMap((policy) => policy.rules);
+  const expectedRow = (location: (typeof groups)[number]["shown"][number]) => ({
+    where: location.line === null ? location.file : `${location.file}:${location.line}`,
+    scope: scopeLabel(location.scope),
+    status: STATUS_LABEL[location.status],
+  });
+
+  /** 화면에 보이는(그려진) 발견 줄마다: 경로·줄, 판정 범위, 상태, 그리고 판정 범위가 줄 번호 바로 옆(같은 줄의 오른쪽)에 있는지. */
+  const shownRows = (page: Page) =>
+    page.locator("li.finding").evaluateAll((all) =>
+      all
+        .filter((li) => li.checkVisibility({ opacityProperty: true, visibilityProperty: true }))
+        .map((li) => {
+          const summary = li.querySelector(":scope > details > summary")!;
+          const code = summary.querySelector("code")!;
+          const scope = summary.querySelector(".finding-scope")!;
+          // 경로는 줄이 바뀔 수 있다. 줄 번호는 마지막 줄 조각에 있다.
+          const tail = [...code.getClientRects()].at(-1)!;
+          const box = scope.getBoundingClientRect();
+          const inRow = summary.getBoundingClientRect();
+          return {
+            row: {
+              where: code.textContent,
+              scope: scope.textContent,
+              status: summary.querySelector(".chip")!.textContent,
+            },
+            beside: box.left >= tail.right - 1 && box.top < tail.bottom && box.bottom > tail.top,
+            inside: box.left >= inRow.left && box.right <= inRow.right + 0.5 && box.width > 0,
+          };
+        }),
+    );
+
+  it("처음에 보이는 발견 줄은 8개이고, '같은 규칙의 나머지 17곳'을 누르면 25개다. 보이는 줄마다 줄 번호 옆에 판정이 본 범위가 보인다", async () => {
+    const { page } = await openView();
+    await pick(page, REPEATED);
+    const first = groups.flatMap((group) => group.shown).map(expectedRow);
+    const all = groups.flatMap((group) => [...group.shown, ...group.folded]).map(expectedRow);
+    expect([first.length, all.length]).toEqual([8, 25]);
+
+    // 처음: 묶음마다 먼저 보이는 곳만 그려져 있다. 접힌 17곳은 문서에는 있지만 보이지 않는다.
+    expect(await page.locator("li.finding").count()).toBe(25);
+    let rows = await shownRows(page);
+    expect(rows.map((entry) => entry.row)).toEqual(first);
+    for (const entry of rows) expect(entry, entry.row.where!).toMatchObject({ beside: true, inside: true });
+    // 판정 범위와 줄 번호는 실제로 그려진다(흐리거나 잘리거나 덮이지 않았다).
+    const closed = await undrawn(page, { root: "li.finding > details > summary", veiled: ".visually-hidden" });
+    expect(closed.undrawn).toEqual([]);
+    expect(closed.texts).toBeGreaterThanOrEqual(first.length * 3);
+
+    // 접힌 곳은 하나다. 그 이름을 누르면 나머지 17곳이 그 묶음 안에 나온다.
+    const more = page.locator("details.more > summary");
+    expect(await more.allInnerTexts()).toEqual(["같은 규칙의 나머지 17곳"]);
+    await more.click();
+    rows = await shownRows(page);
+    expect(rows.map((entry) => entry.row)).toEqual(all);
+    for (const entry of rows) expect(entry, entry.row.where!).toMatchObject({ beside: true, inside: true });
+    const opened = await undrawn(page, { root: "li.finding > details > summary", veiled: ".visually-hidden" });
+    expect(opened.undrawn).toEqual([]);
+    expect(opened.texts).toBeGreaterThan(closed.texts);
+
+    // 좁은 화면에서도 보이는 줄마다 범위가 그려진다. 경로가 길면 범위가 다음 줄로 내려갈 수 있어서 자리는 보지 않는다.
+    await page.setViewportSize({ width: 375, height: 667 });
+    rows = await shownRows(page);
+    expect(rows.map((entry) => entry.row)).toEqual(all);
+    for (const entry of rows) expect(entry.inside, entry.row.where!).toBe(true);
+    expect((await undrawn(page, { root: "li.finding > details > summary", veiled: ".visually-hidden" })).undrawn).toEqual([]);
+    expect(await overflow(page)).toMatchObject({ page: 0, over: [] });
+
+    // 접으면 다시 8개다.
+    await more.click();
+    expect((await shownRows(page)).map((entry) => entry.row)).toEqual(first);
+  });
+
+  it("발견 줄의 경로를 끌어 고르거나 두 번·세 번 눌러 골라도 줄이 여닫히지 않는다. 그냥 누르거나 Enter·Space 를 누르면 여닫힌다", async () => {
+    // 줄 전체가 펼침 단추(summary)다. 경로는 복사해 가는 글이라 고를 수 있어야 한다(components/result/FindingSummary.tsx).
+    // 판단 규칙은 부품 시험이 본다(tests/render.test.tsx 의 "발견 줄을 누를 때"). 여기서는 브라우저가 실제로 그렇게 하는지 본다.
+    const { page } = await openView();
+    // 처음에 열린 예시의 발견 줄 하나. 묶음의 첫 발견이라 펼쳐져 있다.
+    const row = page.locator("li.finding > details").first();
+    const summary = row.locator("> summary");
+    const path = summary.locator("code");
+    const isOpen = () => row.evaluate((el) => (el as HTMLDetailsElement).open);
+    const selected = () => page.evaluate(() => window.getSelection()?.toString() ?? "");
+    const where = (await path.textContent())!;
+    expect(where).toBe("src/auth/signup.ts:5");
+    expect(await isOpen()).toBe(true);
+
+    // 경로를 처음부터 끝까지 끌어 고른다(누른 채 움직이고 뗀다). 골라진 글은 경로의 일부이고, 줄은 펼쳐진 그대로다.
+    // 마우스는 창 안의 자리만 누를 수 있다. 그 줄을 먼저 창 안으로 가져온다.
+    await summary.scrollIntoViewIfNeeded();
+    const box = (await path.boundingBox())!;
+    await page.mouse.move(box.x + 1, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width - 1, box.y + box.height / 2, { steps: 8 });
+    await page.mouse.up();
+    const dragged = await selected();
+    expect(dragged.length).toBeGreaterThan(10);
+    expect(where).toContain(dragged);
+    expect(await isOpen()).toBe(true);
+
+    // 두 번 눌러 낱말을, 세 번 눌러 줄을 골라도 처음 상태로 돌아온다(첫 누름에 여닫힌 것을 둘째 누름이 되돌린다).
+    for (const clickCount of [2, 3]) {
+      await path.click({ clickCount });
+      expect(await selected(), `${clickCount}번 누름`).not.toBe("");
+      expect(await isOpen(), `${clickCount}번 누름`).toBe(true);
+    }
+
+    // 그냥 누르면 여닫힌다. 골라 둔 글 밖을 누르면 누르는 순간 고른 것이 풀린다.
+    await summary.locator(".finding-scope").click();
+    expect(await isOpen()).toBe(false);
+    await path.click();
+    expect(await isOpen()).toBe(true);
+
+    // 골라 둔 글 위를 그냥 눌러도 여닫힌다. 두 번 눌러 고른 낱말의 가운데를 한 번 누른다. Chrome 은 골라진 글 위를 누르면
+    // click 이 올 때까지 그 글을 골라진 채로 둔다(끌어 옮기기의 시작일 수 있어서다). 그래서 줄의 click 처리는 골라진 글을 보고,
+    // 끌지도 이어 누르지도 않았으니 여닫아야 한다. click 이 올 때 글이 골라져 있었는지도 적어 본다(풀린 뒤라면 위와 같은 것을
+    // 볼 뿐이다).
+    await path.click({ clickCount: 2 });
+    const word = await selected();
+    expect(word).not.toBe("");
+    expect(await isOpen()).toBe(true);
+    const middle = await page.evaluate(() => {
+      const box = window.getSelection()!.getRangeAt(0).getBoundingClientRect();
+      return { x: box.left + box.width / 2, y: box.top + box.height / 2 };
+    });
+    await summary.evaluate((el) =>
+      el.addEventListener(
+        "click",
+        () => ((window as unknown as { __selectedAtClick: string }).__selectedAtClick = window.getSelection()?.toString() ?? ""),
+        { capture: true, once: true },
+      ),
+    );
+    await page.mouse.click(middle.x, middle.y);
+    expect(await page.evaluate(() => (window as unknown as { __selectedAtClick?: string }).__selectedAtClick)).toBe(word);
+    expect(await isOpen()).toBe(false);
+    await path.click();
+    expect(await isOpen()).toBe(true);
+
+    // 키보드: Enter 와 Space 가 여닫는다(골라 둔 글이 있어도 키는 고르는 동작이 아니다).
+    await path.click({ clickCount: 2 });
+    await summary.focus();
+    await page.keyboard.press("Enter");
+    expect(await isOpen()).toBe(false);
+    await page.keyboard.press("Space");
+    expect(await isOpen()).toBe(true);
+    await page.keyboard.press("Space");
+    expect(await isOpen()).toBe(false);
+    // 초점이 어디 있는지 보인다.
+    expect(await summary.evaluate((el) => el.matches(":focus-visible") && getComputedStyle(el).outlineStyle)).toBe("solid");
+  });
+});
+
+describe("다 보지 못한 것 (tests/fixtures/incomplete-coverage.json)", () => {
+  // ROADMAP 8번에 3번에서 넘어와 있던 확인이다. 부품 시험은 HTML 의 구조와 글만 본다(tests/render.test.tsx 의 "커버리지 보기").
+  // 좁은 화면에서 줄이 쌓이는지, 칸 머리가 가려지는지, 표로 드러나는지, 오류 문장의 빈칸이 보이는지는 브라우저에서 본다.
+  const INCOMPLETE = ["tests", "fixtures", "incomplete-coverage.json"];
+  const LABELS = ["검사하지 않은 파일", "일부를 읽지 못한 파일", "엔진이 끝내지 못한 파일"];
+
+  it("맨 위 경고가 결과의 첫 줄로 보이고, 접어 둔 '이 도구가 보지 못하는 것'은 처음에 닫혀 있다", async () => {
+    const { page } = await openView({ width: 375, height: 667 });
+    await pick(page, INCOMPLETE);
+    const read = await page.locator(".report").evaluate((report) => {
+      const shown = [...report.children].filter((el) => el.checkVisibility());
+      const notSeen = report.querySelector(".coverage > details.fold") as HTMLDetailsElement | null;
+      return {
+        first: report.firstElementChild?.className,
+        // 결과 화면에 그려진 것 가운데 가장 위에 있는 것(CSS 로 자리를 옮겨도 드러나게 자리를 잰다).
+        top: shown.reduce((best, el) => (el.getBoundingClientRect().top < best.getBoundingClientRect().top ? el : best)).className,
+        firstLine: (report as HTMLElement).innerText.split("\n")[0],
+        notSeen: notSeen && {
+          open: notSeen.open,
+          summary: notSeen.querySelector(":scope > summary")!.textContent,
+          shown: notSeen.querySelector(".not-seen")!.checkVisibility(),
+        },
+      };
+    });
+    expect(read).toEqual({
+      first: "notice notice-warn coverage-warning",
+      top: "notice notice-warn coverage-warning",
+      firstLine: expect.stringMatching(/^다 보지 못한 검사입니다\. 검사하지 않은 파일 1개 · /),
+      notSeen: { open: false, summary: `${SITE.notSeen.title} ${GAPS_UNLISTED}`, shown: false },
+    });
+    // 경고는 실제로 그려진다.
+    expect((await undrawn(page, { root: ".coverage-warning", veiled: ".visually-hidden" })).undrawn).toEqual([]);
+    // 이름을 누르면 펼쳐진다.
+    await page.locator(".coverage > details.fold > summary").click();
+    expect(await page.locator(".coverage .not-seen").isVisible()).toBe(true);
+  });
+
+  /** "다 보지 못한 것" 표의 줄마다 이름·수·뜻과 파일의 칸이 놓인 자리, 그리고 이름과 수의 글자 밑줄(baseline). */
+  const gapRows = (page: Page) =>
+    page.locator("table.gaps tbody tr").evaluateAll((rows) =>
+      rows.map((tr) => {
+        const box = (el: Element) => {
+          const rect = el.getBoundingClientRect();
+          return { left: Math.round(rect.left), right: Math.round(rect.right), top: Math.round(rect.top), bottom: Math.round(rect.bottom) };
+        };
+        // 글자 밑줄: 칸 끝에 크기가 0인 글줄 상자를 넣어 그 자리를 잰다(그 상자의 아래 끝이 글자 밑줄에 놓인다). 재고 걷어 낸다.
+        const baseline = (cell: Element) => {
+          const probe = document.createElement("span");
+          probe.style.cssText = "display:inline-block;width:0;height:0;vertical-align:baseline";
+          cell.append(probe);
+          const y = probe.getBoundingClientRect().bottom;
+          probe.remove();
+          return y;
+        };
+        const [name, count, detail] = [tr.querySelector("th")!, tr.querySelector(".gap-count")!, tr.querySelector(".gap-detail")!];
+        const range = document.createRange();
+        range.selectNodeContents(name);
+        return {
+          label: name.textContent,
+          name: box(name),
+          nameLines: new Set([...range.getClientRects()].map((rect) => Math.round(rect.top))).size,
+          count: box(count),
+          detail: box(detail),
+          row: box(tr),
+          baselines: Math.abs(baseline(name) - baseline(count)),
+        };
+      }),
+    );
+
+  it("480px 이하: 표의 줄을 세로로 쌓는다(이름과 수가 한 줄, 뜻과 파일이 그 아래). 넘치지 않고, 칸 머리는 화면에 보이지 않고, 이름과 수의 글자 밑줄이 맞는다", async () => {
+    const { page } = await openView({ width: 480, height: 720 });
+    await pick(page, INCOMPLETE);
+    for (const width of [480, 375, 320]) {
+      await page.setViewportSize({ width, height: 720 });
+      const rows = await gapRows(page);
+      expect(rows.map((row) => row.label), `${width}px`).toEqual(LABELS);
+      for (const row of rows) {
+        const at = `${width}px ${row.label}`;
+        // 이름과 수가 한 줄: 이름은 한 줄로 적히고, 수는 그 오른쪽에 같은 글자 밑줄로 놓인다.
+        expect(row.nameLines, at).toBe(1);
+        expect(row.count.left, at).toBeGreaterThanOrEqual(row.name.right);
+        expect(row.baselines, at).toBeLessThanOrEqual(1);
+        // 뜻과 파일은 그 아래에서 줄의 너비를 다 쓴다.
+        expect(row.detail.top, at).toBeGreaterThanOrEqual(Math.max(row.name.bottom, row.count.bottom) - 1);
+        expect([row.detail.left, row.detail.right], at).toEqual([row.row.left, row.row.right]);
+      }
+      // 칸 머리("목록", "수", "뜻과 파일")는 화면에 보이지 않는다(1px 로 가린다).
+      const head = await page.locator("table.gaps thead").evaluate((el) => [el.getBoundingClientRect().width, el.getBoundingClientRect().height]);
+      expect(head, `${width}px`).toEqual([1, 1]);
+      expect(await overflow(page), `${width}px`).toMatchObject({ page: 0, over: [] });
+      // 펼쳐도 넘치지 않는다.
+      await page.evaluate(() => {
+        for (const details of document.querySelectorAll<HTMLDetailsElement>(".report details")) details.open = true;
+      });
+      expect(await overflow(page), `${width}px (펼친 채)`).toMatchObject({ page: 0, over: [] });
+      await page.evaluate(() => {
+        for (const details of document.querySelectorAll<HTMLDetailsElement>(".report details")) details.open = false;
+      });
+    }
+
+    // 대조: 481px 부터는 쌓지 않는다. 이름·수·뜻과 파일이 한 줄에 나란히 놓이고, 이름과 수의 글자 밑줄은 그대로 맞는다.
+    await page.setViewportSize({ width: 481, height: 720 });
+    for (const row of await gapRows(page)) {
+      expect(row.detail.left, row.label!).toBeGreaterThanOrEqual(row.count.right);
+      expect(row.detail.top, row.label!).toBeLessThan(row.name.bottom);
+      expect(row.baselines, row.label!).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it("좁은 화면에서도, 넓은 화면에서도 표가 접근성 트리에 표·줄·칸으로 드러난다. 표의 이름은 그 제목이다", async () => {
+    // 좁은 화면에서는 CSS 가 표의 display 를 바꾼다. 그래도 표로 읽히게 role 을 직접 적었다(components/result/Coverage.tsx).
+    // Chrome 의 접근성 트리를 CDP 로 읽는다(site.ts 의 accessibleNodes. 화면 낭독기의 음성은 아니다). 시험 도구의 getByRole 은
+    // 태그와 role 속성으로 셈해서, 브라우저가 표의 뜻을 버려도 표로 센다. Chrome 155 는 role 속성을 걷어 내도 쌓은 표를
+    // 표·줄·칸으로 드러내므로(8번에서 사본으로 걷어 봤다), role 이 붙어 있는지는 부품 시험(tests/parts.test.tsx)이 본다.
+    const { context, page } = await openView({ width: 375, height: 667 });
+    await pick(page, INCOMPLETE);
+    const nodes = (selector: string) => accessibleNodes(context, page, selector);
+    for (const width of [375, 1280]) {
+      await page.setViewportSize({ width, height: 720 });
+      const at = `${width}px`;
+      expect(await nodes("table.gaps"), at).toEqual([{ role: "table", name: `${GAPS_TITLE} ${GAPS_NOTE}` }]);
+      expect(await nodes("table.gaps thead th"), at).toEqual(["목록", "수", "뜻과 파일"].map((name) => ({ role: "columnheader", name })));
+      expect(await nodes("table.gaps tbody th"), at).toEqual(LABELS.map((name) => ({ role: "rowheader", name })));
+      expect((await nodes("table.gaps tr")).map((node) => node.role), at).toEqual(Array(1 + LABELS.length).fill("row"));
+      // 그려진 칸이 모두 칸으로 드러난다. 줄마다 수와 뜻·파일의 두 칸이다.
+      const drawn = await page.locator("table.gaps td").evaluateAll((all) => all.map((td) => td.getClientRects().length > 0));
+      expect(drawn, at).toEqual(Array(LABELS.length * 2).fill(true));
+      const cells = await nodes("table.gaps td");
+      expect(cells.map((node) => node.role), at).toEqual(drawn.map(() => "cell"));
+      expect(cells.filter((_, i) => i % 2 === 0).map((node) => node.name), at).toEqual(["1개", "1개", "1개"]);
+    }
+  });
+
+  it("결과에 실린 오류 문장의 줄바꿈·탭·이어진 빈칸이 화면에 그대로 보이고, 문장 사이가 떨어져 있다", async () => {
+    // CLI 는 엔진의 문장을 양끝만 다듬어 싣는다. 안쪽의 줄바꿈·탭·이어진 빈칸은 남는다(docs/architecture.md 의 "커버리지 보기").
+    // 손으로 만든 결과다(수집본에는 엔진 오류가 없다).
+    const texts = [
+      "[Fatal error] first line\n\tsecond line with a tab\n    third line with four spaces",
+      "[Timeout] <b>not</b> markup & \"quoted\"  two spaces",
+    ];
+    const base = readJson(...INCOMPLETE) as Report;
+    const { page } = await openView({ width: 375, height: 667 });
+    await pickContent(page, "engine-errors.json", JSON.stringify({ ...base, run: { ...base.run, engine_errors: texts } }));
+    const fold = page.locator("table.gaps details.fold", { hasText: "결과에 실린 오류 문장" });
+    expect(await fold.locator("> summary").innerText()).toBe("결과에 실린 오류 문장 2개");
+    await fold.locator("> summary").click();
+    const items = await page.locator(".gap-texts li").evaluateAll((all) =>
+      all.map((li) => ({
+        drawn: (li as HTMLElement).innerText,
+        lines: new Set([...li.getClientRects(), ...(() => {
+          const range = document.createRange();
+          range.selectNodeContents(li);
+          return [...range.getClientRects()];
+        })()].map((rect) => Math.round(rect.top))).size,
+        top: li.getBoundingClientRect().top,
+        bottom: li.getBoundingClientRect().bottom,
+      })),
+    );
+    // 화면에 그려진 글(innerText)이 실린 글과 같다. 줄바꿈과 탭과 이어진 빈칸이 접히지 않았다.
+    expect(items.map((item) => item.drawn)).toEqual(texts);
+    // 첫 문장은 실린 줄바꿈대로 세 줄 이상으로 그려진다.
+    expect(items[0].lines).toBeGreaterThanOrEqual(3);
+    // 문장 사이가 떨어져 있다(한 문단처럼 붙어 읽히지 않는다).
+    expect(items[1].top - items[0].bottom).toBeGreaterThanOrEqual(6);
+    // 글로만 그려진다(꺾쇠가 요소가 되지 않는다). 좁은 화면에서 넘치지 않는다.
+    expect(await page.locator(".gap-texts b").count()).toBe(0);
+    expect(await overflow(page)).toMatchObject({ page: 0, over: [] });
+  });
+});
+
+describe("결과 화면의 글과 꾸밈 (조문 도감·기록의 시험과 같은 기준)", () => {
+  // 조문 도감과 조문별 검사 기록의 시험에만 있던 확인을 결과 화면으로 넓힌다(ROADMAP 8번): 브라우저에서 도는 코드가 더한 글이
+  // 없는지(그린 글이 부품이 그린 글과 같은지), 글이 실제로 그려지는지, CSS 가 그린 글이 없는지, 접근성 트리의 이름.
+  const every = [...CAPTURES, ...SARIFS, ...DRAFTS, ...FIXTURES];
+  /**
+   * 결과 화면이 그려도 되는 목록 표시. 판정 경로는 CLI 가 남긴 문장을 차례대로 적는 번호 목록이다(브라우저가 번호를 그린다).
+   * 목록 안의 목록은 빈 동그라미다. 그 밖의 글을 CSS 로 그리지 않는다.
+   */
+  const MARKERS = ["disc", "circle", "decimal", "none", "disclosure-closed", "disclosure-open"];
+
+  it("쪽의 본문에는 정해 둔 것뿐이고, 스크립트가 붙은 뒤의 글이 빌드된 쪽의 글과 같다 (주소로 열었을 때)", async () => {
+    const { page } = await openView();
+    await settle(site, page);
+    const main = await page.locator("main.wrap").evaluate((el) => ({
+      children: [...el.children].map((child) => `${child.tagName.toLowerCase()}.${child.className}`),
+      text: el.textContent ?? "",
+    }));
+    expect(main.children).toEqual(["h1.", "p.lede", "div.viewer"]);
+    // 빈칸은 빼고 견준다. 붙은 뒤에 화면 낭독기 알림 줄이나 결과에 글이 더해지면 여기서 어긋난다.
+    expect(partingOf(squash(main.text), builtMainText("view"))).toBeNull();
+    // 처음에 열린 예시의 결과 화면은 결과 화면 부품이 그 예시로 그린 글과 같다.
+    const report = await page.locator(".report").evaluate((el) => el.textContent ?? "");
+    expect(partingOf(squash(report), reportText(viewOfText(JSON.stringify(SAMPLES[0].data))))).toBeNull();
+  });
+
+  it("수집본, SARIF, v1 초안 예시, 시험용 자료: 그린 글이 결과 화면 부품이 그린 글과 같고, 정해 둔 속성만 있고, CSS 가 그린 글은 목록 표시뿐이다", async () => {
+    const { page } = await openView();
+    let rules = 0;
+    for (const parts of every) {
+      const name = parts.join("/");
+      await pick(page, parts);
+      await page.evaluate(() => {
+        for (const details of document.querySelectorAll<HTMLDetailsElement>(".report details")) details.open = true;
+      });
+      const report = await page.locator(".report").evaluate((el) => el.textContent ?? "");
+      expect(partingOf(squash(report), reportText(viewOfFile(...parts))), name).toBeNull();
+      // 결과 화면의 요소에는 정해 둔 속성만 있다(가리거나 보이지 않는 글을 싣는 속성이 없다).
+      expect(await unknownAttributes(page, ".report", RESULT_ATTRIBUTES), name).toEqual([]);
+      // 쪽 전체(사이트의 머리와 바닥까지)를 본다. 다른 쪽의 꾸밈(데모의 줄 번호, 기록의 칸 이름)은 이 쪽에 그 class 가 없어 빠진다.
+      const css = await cssDrawn(page, { markers: MARKERS });
+      expect(css.rules, name).toEqual([]);
+      expect(css.drawn, name).toEqual([]);
+      rules = css.read.rules;
+    }
+    // 꾸밈의 규칙을 읽었다(꾸밈이 실리지 않은 쪽을 보고 통과한 것이 아니다).
+    expect(rules).toBeGreaterThan(100);
+
+    // 대조: 같은 방법으로, 결과 화면에 CSS 가 글을 그리면 잡힌다(연 쪽에만 넣는다). 판정 범위 옆의 풀이, 글로 적은 목록 표시.
+    // 이 쪽에 없는 class 의 규칙은 다른 쪽의 꾸밈으로 보고 빼므로, 발견 줄이 있는 결과를 열어 둔다.
+    await pick(page, ["contract", "cli-current", "night-push.main.json"]);
+    // 속성도 같다. 정책 카드를 화면 낭독기에서 가리거나, 칩이 아닌 곳에 마우스를 올려야 뜨는 글을 더하면 잡힌다.
+    await page.evaluate(() => {
+      document.querySelector(".report article.policy")!.setAttribute("aria-hidden", "true");
+      document.querySelector(".report .finding-scope")!.setAttribute("title", "풀이");
+    });
+    expect(await unknownAttributes(page, ".report", RESULT_ATTRIBUTES)).toEqual(["article.policy policy-needs-review-ai-pending[aria-hidden]", "span.finding-scope[title]"]);
+    await page.addStyleTag({ content: '.finding-scope::after { content: " (풀이)"; } .findings { list-style-type: "→ "; } .no-such-class::before { content: "다른 쪽의 것"; }' });
+    const control = await cssDrawn(page, { markers: MARKERS });
+    expect(control.rules).toEqual(['.finding-scope::after { content: " (풀이)" }', '.findings { list-style-type: "→ " }']);
+    expect(control.drawn).toEqual(
+      expect.arrayContaining(['span.finding-scope::after content: " (풀이)"', 'ul.findings list-style-type: "→ "']),
+    );
+  });
+
+  it("결과 화면의 글은 모두 그려진다: 좁은 화면(접힌 채와 펼친 채)과 넓은 화면에서 가려진 글이 없다", async () => {
+    // 경고와 표, AI 의 판정, 같은 규칙의 접힌 곳, 드문 모양, 발견이 0인 결과(빈 결과 화면), SARIF 로 본다.
+    const picked = [
+      ["tests", "fixtures", "incomplete-coverage.json"],
+      ["tests", "fixtures", "judge-on.cleared.json"],
+      ["tests", "fixtures", "judge-on.dismissed.json"],
+      ["tests", "fixtures", "repeated-rule.json"],
+      ["tests", "fixtures", "uncommon-shapes.json"],
+      ["contract", "cli-current", "kids-signup.fixed.json"],
+      ["contract", "cli-current", "kids-signup.main.sarif"],
+    ];
+    const ROOT = ".viewer-title, .viewer-note, .report";
+    const { page } = await openView({ width: 375, height: 667 });
+    for (const parts of picked) {
+      const name = parts.join("/");
+      await page.setViewportSize({ width: 375, height: 667 });
+      await pick(page, parts);
+      const closed = await undrawn(page, { root: ROOT, veiled: ".visually-hidden" });
+      expect(closed.undrawn, `${name} 375px 접힌 채`).toEqual([]);
+      const folds = await page.locator(".report details:not([open])").count();
+      await page.evaluate(() => {
+        for (const details of document.querySelectorAll<HTMLDetailsElement>(".report details")) details.open = true;
+      });
+      const opened = await undrawn(page, { root: ROOT, veiled: ".visually-hidden" });
+      expect(opened.undrawn, `${name} 375px 펼친 채`).toEqual([]);
+      // 본 글이 있다. 접어 둔 것이 있었으면 펼친 뒤에 볼 글이 는다(접어 둔 글을 빼고 본 것이 맞다).
+      expect(closed.texts, name).toBeGreaterThan(20);
+      if (folds > 0) expect(opened.texts, name).toBeGreaterThan(closed.texts);
+      else expect(opened.texts, name).toBe(closed.texts);
+      await page.setViewportSize({ width: 1280, height: 720 });
+      expect((await undrawn(page, { root: ROOT, veiled: ".visually-hidden" })).undrawn, `${name} 1280px`).toEqual([]);
+    }
+  });
+
+  it("접근성 트리: 정책 카드와 규칙 묶음은 제목으로, 발견 줄은 경로·범위·상태·규칙이 든 서로 다른 이름으로 드러난다", async () => {
+    // 같은 파일·같은 줄에 규칙이 다른 발견이 둘 있는 결과다. 눈에는 묶음 머리가 규칙을 말해 주고, 화면 낭독기에는 줄마다
+    // 보이지 않게 붙인 규칙 이름이 구분해 준다(components/result/PolicyCard.tsx).
+    // 제목은 Chrome 의 접근성 트리를 CDP 로 읽는다(site.ts 의 accessibleNodes). 제목이 될 수 있는 요소를 모두 읽고 단계로 고른다.
+    const parts = ["contract", "cli-current", "night-push.main.json"];
+    const view = viewOfFile(...parts);
+    const { context, page } = await openView({ width: 375, height: 667 });
+    await pick(page, parts);
+    const headings = await accessibleNodes(context, page, ".report :is(h1, h2, h3, h4, h5, h6, [role=heading])");
+    const atLevel = (level: number) => headings.filter((node) => node.role === "heading" && node.level === level).map((node) => node.name);
+    expect(atLevel(3)).toEqual(view.policies.map((policy) => policy.title));
+    const groups = view.policies.flatMap((policy) => policy.rules);
+    expect(atLevel(4)).toEqual(groups.map((group) => `규칙 ${group.rule}`));
+    const locations = groups.flatMap((group) => [...group.shown, ...group.folded]);
+    const names = (await accessibleNames(context, page, ".report li.finding > details > summary")).map((name) => name.replace(/\s+/g, " ").trim());
+    expect(names).toEqual(
+      locations.map((location) => `${location.file}:${location.line} ${scopeLabel(location.scope)} ${STATUS_LABEL[location.status]} 규칙 ${location.rule}`),
+    );
+    // 같은 줄의 두 발견은 눈에 보이는 글(화면 낭독기용 규칙 이름을 뺀 글)이 같다. 이름은 서로 다르다.
+    const shown = await page.locator(".report li.finding > details > summary").evaluateAll((all) =>
+      all.map((el) => {
+        const copy = el.cloneNode(true) as Element;
+        for (const veiled of copy.querySelectorAll(".visually-hidden")) veiled.remove();
+        return (copy.textContent ?? "").replace(/\s+/g, " ").trim();
+      }),
+    );
+    expect(new Set(shown).size).toBeLessThan(shown.length);
+    expect(new Set(names).size).toBe(names.length);
+    // 규칙 이름은 화면에서만 가린다(1px).
+    const hidden = await page.locator(".report li.finding .visually-hidden").evaluateAll((all) => all.map((el) => Math.max(el.getBoundingClientRect().width, el.getBoundingClientRect().height)));
+    expect(hidden).toEqual(locations.map(() => 1));
   });
 });

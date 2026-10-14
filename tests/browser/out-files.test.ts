@@ -43,6 +43,38 @@ function fragments(text: string): string[] {
     .filter((piece) => piece.length >= 20);
 }
 
+/**
+ * 빌드된 쪽에서 본문(main) 밖의 것: 사이트의 머리와 바닥. 본문은 비워서 자리만 남긴다. React 가 끼워 넣는 주석과 스크립트는
+ * 걷어 낸다(Next 가 바닥 뒤에 싣는 스크립트는 쪽을 옮겨 올 때 쓰는 내용이라 쪽마다 다르다). 조문 도감의 쪽을 읽는 도구
+ * (`readAround`)와 같은 방법이다. 그 도구는 정책 쪽의 틀(article)이 있는 쪽만 읽는다.
+ */
+function chromeOf(html: string): string {
+  const bare = html.replace(/<!--[\s\S]*?-->/g, "");
+  const body = elementAt(bare, bare.indexOf("<body"));
+  const mains = elementsOf(body, "<main");
+  if (mains.length !== 1) throw new Error(`쪽의 본문(main)이 하나가 아닙니다: ${mains.length}개`);
+  const [main] = mains;
+  const start = body.indexOf(main);
+  const outside = `${body.slice(0, start)}${main.slice(0, main.indexOf(">") + 1)}</main>${body.slice(start + main.length)}`;
+  return outside.replace(/<script\b[^>]*>[\s\S]*?<\/script>/g, "");
+}
+
+/** 빌드된 쪽의 본문(main) 바로 아래 요소들의 여는 태그. 요소 사이에 빈칸이 아닌 글이 있으면 실패한다. */
+function mainChildren(html: string): string[] {
+  const [main] = elementsOf(html.replace(/<!--[\s\S]*?-->/g, ""), "<main");
+  const inner = main.slice(main.indexOf(">") + 1, -"</main>".length);
+  const tags: string[] = [];
+  let at = 0;
+  for (let next = inner.indexOf("<"); next !== -1; next = inner.indexOf("<", at)) {
+    if (inner.slice(at, next).trim() !== "") throw new Error(`본문의 요소 사이에 글이 있습니다: ${inner.slice(at, next).slice(0, 60)}`);
+    const element = elementAt(inner, next);
+    tags.push(element.slice(0, element.indexOf(">") + 1));
+    at = next + element.length;
+  }
+  if (inner.slice(at).trim() !== "") throw new Error(`본문의 끝에 글이 있습니다: ${inner.slice(at).slice(0, 60)}`);
+  return tags;
+}
+
 describe("빌드된 out/ 의 파일", () => {
   // out/ 이 없거나 소스보다 낡았으면 까닭을 알리고 멈춘다.
   beforeAll(assertFreshBuild);
@@ -79,6 +111,25 @@ describe("빌드된 out/ 의 파일", () => {
       expect(pieces.length, `${policy}: ${text.slice(0, 30)}`).toBeGreaterThan(0);
       for (const piece of pieces) expect(found(piece), `${policy}: ${piece}`).toEqual([]);
     }
+  });
+
+  it("사이트의 머리와 바닥은 모든 쪽에서 글자까지 같다. 결과 보기와 데모의 본문(main)에는 정해 둔 것뿐이다", () => {
+    // 조문 도감의 쪽에만 있던 확인(아래 "정책 5개의 쪽이 같은 틀로 읽힌다"의 틀 둘레)을 모든 쪽으로 넓힌다(ROADMAP 8번).
+    // 쪽(page.tsx)이 한 쪽의 머리나 바닥에만 글을 더하거나, 본문에 틀 말고 다른 것을 넣으면 여기서 걸린다.
+    const pages = contents.filter(({ file }) => file.endsWith(".html"));
+    expect(pages.map(({ file }) => file)).toEqual(expect.arrayContaining(["index.html", path.join("view", "index.html"), path.join("demo", "index.html")]));
+    const chromes = pages.map(({ file, text }) => ({ file, chrome: chromeOf(text) }));
+    for (const { file, chrome } of chromes) expect(chrome, file).toBe(chromes[0].chrome);
+    // 빈 것끼리 견준 것이 아니다. 사이트의 머리와 바닥이 있다. 조문 도감의 쪽을 읽는 도구가 읽은 둘레와도 같다.
+    expect(chromes[0].chrome).toContain('<header class="site-header">');
+    expect(plain(chromes[0].chrome)).toContain(SITE.disclaimer);
+    const policyPage = readFileSync(path.join(outDir, policyHref(packFile.policies[0].id), "index.html"), "utf8");
+    expect(readAround(policyPage).chrome).toBe(chromes[0].chrome);
+
+    // 결과 보기와 데모의 본문: 제목, 머리말, 그리고 부품 하나. 그 사이와 둘레에 다른 글이나 요소가 없다.
+    const html = (dir: string) => contents.find(({ file }) => file === path.join(dir, "index.html"))!.text;
+    expect(mainChildren(html("view"))).toEqual(["<h1>", '<p class="lede">', '<div class="viewer">']);
+    expect(mainChildren(html("demo"))).toEqual(["<h1>", '<p class="lede">', '<div class="demo">']);
   });
 
   it("조문별 검사 기록의 칸 앞 이름: 빈 대체 글을 단 선언 앞에, 대체 글 없는 선언이 배포되는 CSS 에 남아 있다", () => {

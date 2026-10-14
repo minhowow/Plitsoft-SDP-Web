@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import type { Browser, BrowserContext, Page } from "playwright-core";
+import type { Browser, BrowserContext, Locator, Page } from "playwright-core";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { DEMO_APPS, DEMO_VARIANTS } from "@/lib/demo/apps";
 import { RECORD_OMITS, RECORD_REFUSED } from "@/lib/report/record";
@@ -9,7 +9,22 @@ import { SAMPLES } from "@/lib/samples";
 import { SITE } from "@/lib/site";
 import { jsonFiles, readJson, readPackFile, root, sarifFiles } from "../helpers";
 import { withCodeEverywhere } from "../record-data";
-import { contrast, launchChrome, openPage, overflow, serveOut, settle, type OpenOptions, type Site } from "./site";
+import {
+  accessibleNodes,
+  closeChrome,
+  contrast,
+  cssDrawn as cssDrawnIn,
+  launchChrome,
+  NO_STORAGE,
+  openPage,
+  overflow,
+  serveOut,
+  settle,
+  stored,
+  undrawn as undrawnIn,
+  type OpenOptions,
+  type Site,
+} from "./site";
 
 // 조문별 검사 기록(인쇄용)을 실제 브라우저로 열어 본다. 빌드된 out/ 을 127.0.0.1 에 띄우고 이 컴퓨터의 Chrome(헤드리스)으로 연다.
 // 그려 낸 HTML 만 보는 시험(tests/record.test.tsx)이 볼 수 없는 것을 본다: 결과가 열려 있는 자리(`/view`, `/demo`)에서
@@ -41,7 +56,7 @@ afterEach(async () => {
 
 // 시험이 실패해도 띄운 것은 닫는다. 이 시험은 파일을 만들지 않는다(고친 결과는 메모리에서 바로 넣는다).
 afterAll(async () => {
-  await browser?.close();
+  await closeChrome(browser);
   await site?.close();
 });
 
@@ -203,112 +218,42 @@ const drawn = (page: Page, selectors: string[]) =>
   );
 
 /**
- * 기록의 글 가운데 그려지지 않는 것. 없어야 한다. 기록의 HTML 에 글이 있어도 CSS 가 가리면 읽히지 않는다. 맨 위의 말(법률
- * 자문·인증이 아니다)을 흐리게 하거나 1px 로 잘라도 글은 문서에 그대로 있어서, 글을 읽는 시험은 통과한다. 글 조각마다 본다
- * (조문 도감의 시험 `policy.test.ts` 의 `undrawn` 과 같은 기준이다. 한곳으로 모으는 것은 docs/ROADMAP.md 의 8번이다).
- * - 요소가 그려지고(display, visibility, opacity 0) 조상까지 흐리지 않다(opacity 1).
- * - 글자가 `minFont`(px) 이상이고 색이 비치지 않는다. 인쇄할 때의 글자는 화면보다 작다(9pt).
- * - 글의 상자가 있고 화면 옆으로 나가 있지 않다. 그 자리를 짚으면 그 요소가 나온다(잘렸거나 덮였으면 나오지 않는다).
- * 일부러 화면에서만 가린 것(`veiled`. 화면 낭독기용 칸 머리)은 뺀다.
+ * 기록의 글 가운데 그려지지 않는 것. 없어야 한다(tests/browser/site.ts 의 `undrawn`. 조문 도감·결과 화면·데모의 시험과 같은
+ * 기준이다). 기록의 HTML 에 글이 있어도 CSS 가 가리면 읽히지 않는다. 맨 위의 말(법률 자문·인증이 아니다)을 흐리게 하거나
+ * 1px 로 잘라도 글은 문서에 그대로 있어서, 글을 읽는 시험은 통과한다. 인쇄할 때의 글자는 화면보다 작다(9pt). 일부러 화면에서만
+ * 가린 것(`veiled`. 화면 낭독기용 칸 머리)은 뺀다.
  */
-const undrawn = (page: Page, veiled: string, minFont: number) =>
-  page.evaluate(
-    ({ veiledSelector, min }) => {
-      const range = document.createRange();
-      const boxOf = (node: Node) => {
-        range.selectNodeContents(node);
-        return [...range.getClientRects()].find((box) => box.width >= 1 && box.height >= 1);
-      };
-      const reason = (node: Node, el: Element): string | null => {
-        if (!el.checkVisibility({ visibilityProperty: true, opacityProperty: true, contentVisibilityAuto: true })) return "그려지지 않음";
-        for (let up: Element | null = el; up; up = up.parentElement) {
-          if (Number(getComputedStyle(up).opacity) < 1) return `흐림(${up.tagName.toLowerCase()}.${up.className})`;
-        }
-        const style = getComputedStyle(el);
-        if (parseFloat(style.fontSize) < min) return `글자 크기 ${style.fontSize}`;
-        const alpha = /^rgba\((?:[^,]+,){3}\s*([\d.]+)\)$/.exec(style.color)?.[1];
-        if (alpha !== undefined && Number(alpha) < 1) return `글자색이 비침(${style.color})`;
-        const laidOut = boxOf(node);
-        if (!laidOut) return "글의 상자가 없음";
-        // 그 글이 화면 가운데에 오게 한 뒤 그 자리를 짚는다.
-        window.scrollTo(0, window.scrollY + laidOut.top - window.innerHeight / 2);
-        const box = boxOf(node)!;
-        const x = box.left + box.width / 2;
-        const y = box.top + box.height / 2;
-        if (x < 0 || x >= document.documentElement.clientWidth) return "화면 옆으로 나감";
-        const hit = document.elementFromPoint(x, y);
-        if (hit === null || !el.contains(hit)) return `잘렸거나 덮임(그 자리에 ${hit ? `${hit.tagName.toLowerCase()}.${hit.className}` : "아무것도 없음"})`;
-        return null;
-      };
-      const start = { x: window.scrollX, y: window.scrollY };
-      const found: string[] = [];
-      let texts = 0;
-      const walker = document.createTreeWalker(document.querySelector(".record")!, NodeFilter.SHOW_TEXT);
-      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-        const text = (node.textContent ?? "").trim();
-        const el = node.parentElement;
-        if (text === "" || el === null || el.closest(veiledSelector)) continue;
-        texts += 1;
-        const why = reason(node, el);
-        if (why) found.push(`${el.tagName.toLowerCase()}.${el.className} "${text.slice(0, 16)}": ${why}`);
-      }
-      window.scrollTo(start.x, start.y);
-      return { texts, undrawn: found.slice(0, 8) };
-    },
-    { veiledSelector: veiled, min: minFont },
-  );
+const undrawn = (page: Page, veiled: string, minFont: number) => undrawnIn(page, { root: ".record", veiled, minFont });
 
 /** 일부러 화면에서만 가린 것: "다 보지 못한 것" 표의 칸 머리, 그리고 줄을 쌓았을 때(좁은 화면)의 다른 표의 칸 머리. */
 const VEILED = { stacked: ".visually-hidden, .record-table thead", wide: ".visually-hidden" };
 
 /**
- * 기록과 그 위의 단추 줄에서 CSS 가 그린 글. HTML 에 없는 글도 CSS 는 그린다(`::before`·`::after`·`::marker` 의 content, 글로
- * 적은 목록 표시). 그런 글은 기록의 글을 읽는 시험에도, 글 조각을 걷는 `undrawn` 에도 보이지 않는다. 두 가지로 본다.
- * - `drawn`: 지금 화면의 요소마다 실제로 계산된 값.
+ * 기록과 그 위의 단추 줄에서 CSS 가 그린 글(tests/browser/site.ts 의 `cssDrawn`). HTML 에 없는 글도 CSS 는 그린다
+ * (`::before`·`::after`·`::marker` 의 content, 글로 적은 목록 표시). 그런 글은 기록의 글을 읽는 시험에도, 글 조각을 걷는
+ * `undrawn` 에도 보이지 않는다. 두 가지로 본다.
+ * - `drawn`: 단추 줄과 기록(결과 화면은 뺀다)의 요소마다 실제로 계산된 값. 요소 이름(태그)과 자리, 그린 글로 적는다.
  * - `rules`: 꾸밈의 규칙 가운데 기록의 class(`record`)를 가리키면서 글을 그리는 것. 규칙 자체를 읽으므로 화면 너비, 테마,
  *   인쇄, 마우스를 올렸는지와 상관없다.
  * 기록이 CSS 로 그리는 글은 하나뿐이어야 한다: 줄을 쌓았을 때 칸 앞에 적는 칸의 이름(`attr(data-label)`). 그 이름에는 빈
  * 대체 글이 붙어 있어야 한다(`/ ""`). 눈에만 보이는 이름이다. 화면 낭독기에는 가려 둔 칸 머리가 그대로 있어서, 대체 글이
  * 없으면 칸마다 이름이 두 번 읽힌다(아래 `drawnLabel`).
  */
-const cssDrawn = (page: Page) =>
-  page.evaluate(() => {
-    const NO_TEXT = new Set(["", "none", "normal", '""']);
-    const MARKERS = new Set(["", "disc", "none"]);
-    const textOf = (style: CSSStyleDeclaration): string[] => {
-      const content = style.getPropertyValue("content").trim();
-      const marker = style.getPropertyValue("list-style-type").trim();
-      return [...(NO_TEXT.has(content) ? [] : [`content: ${content}`]), ...(MARKERS.has(marker) ? [] : [`list-style-type: ${marker}`])];
-    };
-    const rules: string[] = [];
-    const walk = (list: CSSRuleList) => {
-      for (const rule of list) {
-        const selector = rule instanceof CSSStyleRule ? rule.selectorText : null;
-        const style = (rule as Partial<CSSStyleRule>).style;
-        if (selector !== null && /record/.test(selector) && style) rules.push(...textOf(style).map((text) => `${selector} { ${text} }`));
-        const inner = (rule as Partial<CSSGroupingRule>).cssRules;
-        if (inner) walk(inner);
-      }
-    };
-    for (const sheet of document.styleSheets) walk(sheet.cssRules);
-    const drawn = new Set<string>();
-    for (const el of document.querySelectorAll(".report-switch, .report-switch *")) {
-      if (el.closest(".report")) continue;
-      const name = `${el.tagName.toLowerCase()}.${el.getAttribute("class") ?? ""}`;
-      for (const text of textOf(getComputedStyle(el))) drawn.add(`${name} ${text}`);
-      for (const pseudo of ["::before", "::after", "::marker"]) {
-        const content = getComputedStyle(el, pseudo).getPropertyValue("content");
-        if (!NO_TEXT.has(content)) drawn.add(`${el.tagName.toLowerCase()}${pseudo} ${content}`);
-      }
-    }
-    return { rules, drawn: [...drawn].sort() };
-  });
+const cssDrawn = async (page: Page) => {
+  const read = await cssDrawnIn(page, { within: ".report-switch", except: ".report", selectorHas: "record", markers: ["disc", "none"] });
+  // "td.record-x::before content: …" 를 "td::before …" 로 줄여 적는다(칸의 class 는 칸마다 다르다).
+  const short = read.drawn.map((entry) => entry.replace(/^([a-z0-9]+)\.\S*?(::[a-z-]+) content: /, "$1$2 "));
+  return { rules: read.rules, drawn: [...new Set(short)].sort() };
+};
 
 /**
  * 쌓은 표의 칸 앞에 CSS 가 그린 이름을 브라우저가 계산한 값. 글 뒤에 빈 대체 글이 붙어 있다. 대체 글이 없으면 Chrome 의
  * 접근성 트리에서 칸의 이름이 "시행일 2026-…"처럼 칸 머리의 이름으로 시작한다(칸 머리와 함께 두 번 읽힌다).
  */
 const drawnLabel = (label: string) => `"${label}" / ""`;
+
+/** 정책 표의 칸 머리. */
+const POLICY_COLUMNS = ["정책", "대표 조문", "시행일", "원문 해시", "발견"];
 
 /** 결과 화면에서 기록 밖에 있는 것들. 인쇄할 때 나오면 안 된다. */
 const VIEW_CHROME = [".site-header", ".site-footer", "main > h1", ".lede", ".dropzone", ".samples", ".viewer-title", ".viewer-note", ".report-switch > .segmented", ".record-tools"];
@@ -841,14 +786,7 @@ describe("기록을 보는 동안 밖으로 나가는 것이 없다", () => {
     expect(outside).toEqual([]);
     // 기록은 주소에 싣지 않는다. 주소(쿼리, 해시)와 방문 기록의 길이가 그대로다.
     expect(await place()).toEqual(before);
-    const stored = await page.evaluate(async () => ({
-      localStorage: localStorage.length,
-      sessionStorage: sessionStorage.length,
-      cookie: document.cookie,
-      indexedDB: (await indexedDB.databases()).length,
-      caches: (await caches.keys()).length,
-    }));
-    expect(stored).toEqual({ localStorage: 0, sessionStorage: 0, cookie: "", indexedDB: 0, caches: 0 });
+    expect(await stored(page)).toEqual(NO_STORAGE);
     // 기록에는 눌러서 나갈 곳도 없다.
     expect(await page.locator(".record a, .record [href], .record img").count()).toBe(0);
   });
@@ -867,7 +805,7 @@ describe("좁은 화면과 두 테마", () => {
     [375, 667, 355],
     [320, 568, 300],
   ])("%dpx: 수집본, SARIF, v1 초안 예시, 시험용 자료의 기록이 가로로 넘치지 않는다", async (width, height, limit) => {
-    const { page } = await open("/view/", { viewport: { width, height } });
+    const { context, page } = await open("/view/", { viewport: { width, height } });
     for (const parts of everyFile) {
       const name = parts.join("/");
       await pick(page, parts);
@@ -886,9 +824,10 @@ describe("좁은 화면과 두 테마", () => {
       });
       expect(stacked, name).toEqual({ head: [1, 1], labels: ["대표 조문", "시행일", "원문 해시", "발견"].map(drawnLabel), lefts: 1 });
     }
-    // 화면 낭독기에는 표로 남는다.
-    expect(await page.locator(".record-table").first().getByRole("columnheader").allTextContents()).toEqual(["정책", "대표 조문", "시행일", "원문 해시", "발견"]);
-    expect(await page.locator(".record-table").first().getByRole("rowheader").count()).toBe(packFile.policies.length);
+    // 화면 낭독기에는 표로 남는다(Chrome 의 접근성 트리를 CDP 로 읽는다).
+    const policyTable = page.locator(".record-table").first();
+    expect(await accessibleNodes(context, page, policyTable.locator("thead th"))).toEqual(POLICY_COLUMNS.map((column) => ({ role: "columnheader", name: column })));
+    expect((await accessibleNodes(context, page, policyTable.locator("tbody th"))).map((node) => node.role)).toEqual(packFile.policies.map(() => "rowheader"));
     // 고르는 단추와 인쇄 단추는 글이 접히지 않는다.
     const heights = await page.locator(".report-switch > .segmented button, .record-tools button").evaluateAll((all) => all.map((el) => Math.round(el.getBoundingClientRect().height)));
     expect(heights).toHaveLength(3);
@@ -943,18 +882,24 @@ describe("좁은 화면과 두 테마", () => {
   });
 
   it.each([375, 1280])("%dpx: 접근성 트리에서 구역마다 제목이 있고, 표의 이름은 그 제목이며, 칸의 이름은 값뿐이다", async (width) => {
-    // 화면 낭독기로 듣는 것은 접근성 트리다. 세 가지를 본다(Chrome 의 트리로 본다. 실제 화면 낭독기의 음성은 아니다).
+    // 화면 낭독기로 듣는 것은 접근성 트리다. 세 가지를 본다(Chrome 의 트리를 CDP 로 읽는다. site.ts 의 accessibleNodes. 실제
+    // 화면 낭독기의 음성은 아니다. 시험 도구의 getByRole·ariaSnapshot 은 태그와 role 속성으로 셈해서 쓰지 않는다).
     // - 표가 든 구역에도 제목(h4)이 있다. 제목으로 건너다닐 때 그 구역을 지나치지 않는다.
     // - 표의 이름은 그 제목이다(aria-labelledby). 표를 쌓아도(display 가 바뀌어도) 표·줄·칸으로 남는다.
     // - 쌓았을 때 칸 앞에 CSS 가 그린 칸 이름은 칸의 이름에 들지 않는다. 들면 칸 머리와 함께 두 번 읽힌다.
-    const { page } = await open("/view/", { viewport: { width, height: 667 } });
+    const { context, page } = await open("/view/", { viewport: { width, height: 667 } });
     await pick(page, ["tests", "fixtures", "judge-on.cleared.json"]);
     await showRecord(page);
     const record = page.locator(".record");
-    const headings = await record.getByRole("heading", { level: 4 }).allTextContents();
+    const nodes = (target: string | Locator) => accessibleNodes(context, page, target);
+    // 제목이 될 수 있는 요소를 모두 읽고 넷째 단계를 고른다.
+    const headings = (await nodes(".record :is(h1, h2, h3, h4, h5, h6, [role=heading])"))
+      .filter((node) => node.role === "heading" && node.level === 4)
+      .map((node) => node.name);
     expect(headings).toEqual(["검사 정보", "다 보지 못한 것 결과에 실린 목록입니다", "발견 0건", "정책별 대표 조문과 발견", "AI 가 푼 경고 1건"]);
-    expect(await record.getByRole("table").count()).toBe(3);
-    for (const name of [headings[1], headings[3], headings[4]]) expect(await record.getByRole("table", { name, exact: true }).count(), name).toBe(1);
+    // 표는 셋이고, 문서의 차례대로 이름이 제 구역의 제목이다.
+    const tables = record.locator("table, [role=table]");
+    expect(await nodes(tables)).toEqual([headings[1], headings[3], headings[4]].map((name) => ({ role: "table", name })));
     expect(await record.locator("caption").count()).toBe(0);
     // 표 위에 적은 말은 제목과 표 사이에 있다(AI 의 표). 구역은 표로 끝난다.
     expect(await record.locator(".record-about").evaluateAll((all) => all.map((el) => [el.previousElementSibling?.tagName, el.nextElementSibling?.tagName, el.parentElement?.lastElementChild?.tagName]))).toEqual([
@@ -963,32 +908,34 @@ describe("좁은 화면과 두 테마", () => {
 
     // 칸과 줄의 이름은 하나도 빠짐없이 그 role 로 드러난다(화면 낭독기에서만 가려진 칸이 없다). 그려지지 않는 칸은 뺀다:
     // 좁은 화면에서 "다 보지 못한 것"의 빈 칸(든 것이 없는 줄의 뜻과 파일)은 그리지 않는다.
-    const drawnCells = await record.locator("td").evaluateAll((all) => all.filter((td) => td.getClientRects().length > 0).length);
+    const drawn = await record.locator("td").evaluateAll((all) => all.map((td) => td.getClientRects().length > 0));
     // 정책마다 칸 넷, "다 보지 못한 것"의 네 줄에 칸 둘씩(좁은 화면에서는 하나씩), AI 의 표 한 줄에 칸 둘.
-    expect(drawnCells).toBe(packFile.policies.length * 4 + (width <= 480 ? 4 : 8) + 2);
-    expect(await record.getByRole("cell").count()).toBe(drawnCells);
-    expect(await record.getByRole("rowheader").count()).toBe(await record.locator("tbody th").count());
-    expect(await record.getByRole("columnheader").count()).toBe(await record.locator("thead th").count());
+    expect(drawn.filter(Boolean).length).toBe(packFile.policies.length * 4 + (width <= 480 ? 4 : 8) + 2);
+    // 그려진 칸은 모두 칸이고, 그려지지 않는 칸은 트리에서 빠진다.
+    expect((await nodes(".record td")).map((node) => node.role)).toEqual(drawn.map((shown) => (shown ? "cell" : "ignored")));
+    const rowHeads = await nodes(".record tbody th");
+    expect(rowHeads.length).toBeGreaterThan(0);
+    expect(rowHeads.map((node) => node.role)).toEqual(rowHeads.map(() => "rowheader"));
+    const columnHeads = await nodes(".record thead th");
+    expect(columnHeads.length).toBeGreaterThan(0);
+    expect(columnHeads.map((node) => node.role)).toEqual(columnHeads.map(() => "columnheader"));
 
-    // 정책 표: 칸의 이름이 값 그대로다. 줄은 팩의 정책 차례다(발견이 없는 결과다).
+    // 정책 표(둘째 표. 이름은 위에서 봤다): 칸의 이름이 값 그대로다. 줄은 팩의 정책 차례다(발견이 없는 결과다).
     const cleared = (readJson("tests", "fixtures", "judge-on.cleared.json") as Report).run.ai_cleared![0];
-    const policies = record.getByRole("table", { name: headings[3], exact: true });
-    const names = (snapshot: string, role: string) => [...snapshot.matchAll(new RegExp(`^\\s*- ${role} "(.*?)":?$`, "gm"))].map((match) => match[1]);
-    const snapshot = await policies.ariaSnapshot();
-    expect(names(snapshot, "columnheader")).toEqual(["정책", "대표 조문", "시행일", "원문 해시", "발견"]);
-    expect(names(snapshot, "cell")).toEqual(
+    const policies = tables.nth(1);
+    expect(await nodes(policies.locator("thead th"))).toEqual(POLICY_COLUMNS.map((column) => ({ role: "columnheader", name: column })));
+    expect((await nodes(policies.locator("td"))).map((node) => node.name)).toEqual(
       packFile.policies.flatMap((policy) => {
         const primary = policy.legal[0];
         return [primary.label, primary.effective_from, primary.text_sha256, policy.id === cleared.policy ? "발견 없음 AI 가 푼 경고 1건" : "발견 없음"];
       }),
     );
-    expect(names(snapshot, "rowheader")).toEqual(packFile.policies.map((policy) => `${policy.title} ${policy.id}`));
-    // AI 의 표도 같다.
-    const ai = await record.getByRole("table", { name: headings[4], exact: true }).ariaSnapshot();
-    expect(names(ai, "cell")).toEqual([`${cleared.policy} ${cleared.rule}`, cleared.alternatives[0].id]);
+    expect(await nodes(policies.locator("tbody th"))).toEqual(packFile.policies.map((policy) => ({ role: "rowheader", name: `${policy.title} ${policy.id}` })));
+    // AI 의 표(셋째 표)도 같다.
+    expect((await nodes(tables.nth(2).locator("td"))).map((node) => node.name)).toEqual([`${cleared.policy} ${cleared.rule}`, cleared.alternatives[0].id]);
     // 좁은 화면에서는 칸 앞의 이름이 눈에 그려져 있다. 넓은 화면에는 없다.
-    const drawn = await record.locator(".record-table td").first().evaluate((td) => getComputedStyle(td, "::before").content);
-    expect(drawn).toBe(width <= 900 ? drawnLabel("대표 조문") : "none");
+    const label = await record.locator(".record-table td").first().evaluate((td) => getComputedStyle(td, "::before").content);
+    expect(label).toBe(width <= 900 ? drawnLabel("대표 조문") : "none");
   });
 
   it.each([375, 320])("%dpx: 지문과 해시는 줄이 바뀌어도 칸을 넘지 않고, 골라 복사한 글은 원래 값 그대로다", async (width) => {
@@ -1298,19 +1245,7 @@ describe("데모의 판마다 기록을 본다", () => {
     expect(text.indexOf(RECORD_OMITS)).toBeLessThan(text.indexOf("검사 정보"));
     expect(await page.locator(".record > :last-child").evaluate((el) => el.className)).toBe("record-section");
     // 코드 상자는 제 안에서 밀린다. 그 안의 줄은 재지 않는다(tests/browser/demo.test.ts 와 같다).
-    const over = await page.evaluate(() => {
-      const doc = document.documentElement;
-      const main = document.querySelector("main.wrap")!;
-      const limit = main.getBoundingClientRect().right - parseFloat(getComputedStyle(main).paddingRight);
-      const out: string[] = [];
-      for (const el of main.querySelectorAll("*")) {
-        if (el.closest(".visually-hidden") || el.parentElement?.closest(".codeblock pre")) continue;
-        const box = el.getBoundingClientRect();
-        if (box.width > 0 && box.height > 0 && box.right > limit + 0.5) out.push(`${el.tagName.toLowerCase()}.${el.className}`);
-      }
-      return { page: doc.scrollWidth - doc.clientWidth, over: out.slice(0, 5) };
-    });
-    expect(over).toEqual({ page: 0, over: [] });
+    expect(await overflow(page, ".codeblock pre")).toMatchObject({ page: 0, over: [] });
   });
 });
 

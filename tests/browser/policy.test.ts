@@ -4,7 +4,26 @@ import { policyHref } from "@/lib/pack";
 import type { PolicyMeta } from "@/lib/pack/types";
 import { readPackFile } from "../helpers";
 import { ASKED, CODE_LEAVES, expectedPolicyPage, partingOf, PRIMARY_NOTE, squash, UNDESCRIBED, wholeText } from "../policy-page";
-import { contrast, launchChrome, openPage, overflow, serveOut, settle, type OpenOptions, type Site } from "./site";
+import { legalBlockMarkup } from "./expected";
+import {
+  accessibleNames,
+  accessibleNodes,
+  closeChrome,
+  contrast,
+  cssDrawn,
+  launchChrome,
+  newPage,
+  NO_STORAGE,
+  openPage,
+  overflow,
+  scrollThrough,
+  serveOut,
+  settle,
+  stored,
+  undrawn as undrawnIn,
+  type OpenOptions,
+  type Site,
+} from "./site";
 
 // 조문 도감(`/policy`, `/policy/<이름>`)을 실제 브라우저로 열어 본다. 빌드된 out/ 을 127.0.0.1 에 띄우고 이 컴퓨터의
 // Chrome(헤드리스)으로 연다. 빌드된 HTML 을 읽는 시험(out-files.test.ts)이 볼 수 없는 것을 본다: 브라우저가 읽은 조문
@@ -41,7 +60,7 @@ afterEach(async () => {
 
 // 시험이 실패해도 띄운 것은 닫는다.
 afterAll(async () => {
-  await browser?.close();
+  await closeChrome(browser);
   await site?.close();
 });
 
@@ -92,124 +111,11 @@ const statutes = (page: Page) =>
 const VEILED = { narrow: ".visually-hidden, .alts thead th:not(:last-child)", wide: ".visually-hidden" };
 
 /**
- * 접어 둔 곳 밖의 글 가운데 화면에 그려지지 않는 것. 없어야 한다. 쪽의 HTML 에 글이 있어도 CSS 가 가리면 읽히지 않는다.
- * 글 조각(텍스트 노드)마다 본다.
- * - 요소가 그려진다(display, visibility, content-visibility, opacity 0). 조상까지 흐리지 않다(opacity 1).
- * - 글자가 있다: 크기가 10px 이상이고(이 사이트의 가장 작은 글자는 0.74rem 이다) 색이 비치지 않는다.
- * - 글의 상자가 있고(크기 0 이 아니다) 화면 옆으로 나가 있지 않다.
- * - 그 자리를 짚으면 그 요소가 나온다. 잘렸거나(1px 로 자르기, overflow, clip-path) 다른 요소에 덮였으면 나오지 않는다.
- *
- * 닫힌 details 의 내용은 그려지지 않는 것이 맞으므로 뺀다. 그 details 의 이름(summary)은 닫혀 있어도 보여야 한다.
- * 일부러 화면에서만 가린 것(`veiled`)도 뺀다. 그것이 몇 곳인지는 HTML 을 읽는 시험과 표의 시험이 본다.
+ * 정책 쪽의 글 가운데 화면에 그려지지 않는 것. 없어야 한다(tests/browser/site.ts 의 `undrawn`. 기록·결과 화면·데모의 시험과
+ * 같은 기준이다). 접어 둔 곳 안의 글과 일부러 화면에서만 가린 것(`veiled`)은 빼고 본다. 그것이 몇 곳인지는 HTML 을 읽는
+ * 시험과 표의 시험이 본다.
  */
-const undrawn = (page: Page, veiled: string) =>
-  page.evaluate((veiledSelector) => {
-    const folded = (el: Element): boolean => {
-      for (let fold = el.parentElement?.closest("details:not([open])"); fold; fold = fold.parentElement?.closest("details:not([open])")) {
-        if (!fold.querySelector(":scope > summary")?.contains(el)) return true;
-      }
-      return false;
-    };
-    const range = document.createRange();
-    const boxOf = (node: Node) => {
-      range.selectNodeContents(node);
-      return [...range.getClientRects()].find((box) => box.width >= 1 && box.height >= 1);
-    };
-    const reason = (node: Node, el: Element): string | null => {
-      if (!el.checkVisibility({ visibilityProperty: true, opacityProperty: true, contentVisibilityAuto: true })) return "그려지지 않음";
-      for (let up: Element | null = el; up; up = up.parentElement) {
-        if (Number(getComputedStyle(up).opacity) < 1) return `흐림(${up.tagName.toLowerCase()}.${up.className})`;
-      }
-      const style = getComputedStyle(el);
-      if (parseFloat(style.fontSize) < 10) return `글자 크기 ${style.fontSize}`;
-      const alpha = /^rgba\((?:[^,]+,){3}\s*([\d.]+)\)$/.exec(style.color)?.[1];
-      if (alpha !== undefined && Number(alpha) < 1) return `글자색이 비침(${style.color})`;
-      const laidOut = boxOf(node);
-      if (!laidOut) return "글의 상자가 없음";
-      // 그 글이 화면 가운데에 오게 한 뒤 그 자리를 짚는다.
-      window.scrollTo(0, window.scrollY + laidOut.top - window.innerHeight / 2);
-      const box = boxOf(node)!;
-      const x = box.left + box.width / 2;
-      const y = box.top + box.height / 2;
-      if (x < 0 || x >= document.documentElement.clientWidth) return "화면 옆으로 나감";
-      const hit = document.elementFromPoint(x, y);
-      if (hit === null || !el.contains(hit)) return `잘렸거나 덮임(그 자리에 ${hit ? `${hit.tagName.toLowerCase()}.${hit.className}` : "아무것도 없음"})`;
-      return null;
-    };
-    const start = { x: window.scrollX, y: window.scrollY };
-    const found: string[] = [];
-    let texts = 0;
-    const walker = document.createTreeWalker(document.querySelector("article.policy-page")!, NodeFilter.SHOW_TEXT);
-    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-      const text = (node.textContent ?? "").trim();
-      const el = node.parentElement;
-      if (text === "" || el === null || el.closest(veiledSelector) || folded(el)) continue;
-      texts += 1;
-      const why = reason(node, el);
-      if (why) found.push(`${el.tagName.toLowerCase()}.${el.className} "${text.slice(0, 16)}": ${why}`);
-    }
-    window.scrollTo(start.x, start.y);
-    return { texts, undrawn: found.slice(0, 8) };
-  }, veiled);
-
-/**
- * CSS 가 그린 글. 없어야 한다. 쪽의 HTML 에 없는 글도 CSS 는 그린다: `::before`·`::after`·`::marker` 의 content 와, 글로 적은
- * 목록 표시(list-style-type). 그런 글은 HTML 을 읽는 시험에도, 글 조각을 걷는 `undrawn` 에도 보이지 않는다. 적용 조건의 id
- * 옆에 CSS 로 풀이를 그려 넣어도 통과했다. 두 가지로 본다.
- *
- * - `rules`: 쪽에 실린 꾸밈(스타일시트)의 규칙 가운데 글을 그리는 것. 규칙 자체를 읽으므로 화면 너비, 테마, 인쇄, 마우스를
- *   올렸는지, 접어 둔 것이 펼쳐졌는지와 상관없다. 이 쪽에 없는 class 를 가리키는 규칙은 다른 쪽의 꾸밈이라 뺀다(데모의 줄
- *   번호와 판 이름).
- * - `drawn`: 지금 화면의 요소마다 실제로 계산된 값. 쪽의 모든 요소를 본다(틀 밖인 사이트의 머리와 바닥까지).
- *
- * 빈 글("")은 글이 아니다(꾸밈에 쓴다). 목록 표시는 지금 쓰는 것만 둔다: 점, 없음, 접어 둔 것의 세모. 꾸밈으로 글자를 그려야
- * 하면 여기에 그 값을 더한다. 조문·규칙·조건을 풀이하는 글은 CSS 로 그리지 않는다.
- */
-const cssDrawn = (page: Page) =>
-  page.evaluate(() => {
-    const NO_TEXT = new Set(["", "none", "normal", '""']);
-    const MARKERS = new Set(["", "disc", "none", "disclosure-closed", "disclosure-open"]);
-    /** 그 꾸밈이 그리는 글. 적혀 있지 않은 값("")은 그리는 것이 없다. */
-    const textOf = (style: CSSStyleDeclaration): string[] => {
-      const content = style.getPropertyValue("content").trim();
-      const marker = style.getPropertyValue("list-style-type").trim();
-      return [...(NO_TEXT.has(content) ? [] : [`content: ${content}`]), ...(MARKERS.has(marker) ? [] : [`list-style-type: ${marker}`])];
-    };
-    /**
-     * 이 쪽의 요소에는 맞을 수 없는 선택자인지: 이 쪽에 없는 class 를 가리킨다. 속성 선택자 안의 점은 class 가 아니라서 걷어 내고
-     * 본다. 괄호(:not, :is, :has 등)나 낯선 글자가 든 선택자는 그렇게 단정하지 않는다(이 쪽의 것으로 본다).
-     */
-    const elsewhere = (selector: string) =>
-      !/[(\\]|[^\x20-\x7e]/.test(selector) &&
-      (selector.replace(/\[[^\]]*\]/g, "").match(/\.-?[_a-zA-Z][\w-]*/g) ?? []).some((name) => document.getElementsByClassName(name.slice(1)).length === 0);
-    const rules: string[] = [];
-    let read = 0;
-    /** 규칙을 걷는다. 묶는 규칙(@media, @supports, 안에 적은 규칙 등) 속까지 걷는다. 조건이 지금 맞는지는 따지지 않는다. */
-    const walk = (list: CSSRuleList, here: boolean) => {
-      for (const rule of list) {
-        read += 1;
-        const selector = rule instanceof CSSStyleRule ? rule.selectorText : null;
-        const applies = here && (selector === null || selector.split(",").some((one) => !elsewhere(one)));
-        const style = (rule as Partial<CSSStyleRule>).style;
-        if (applies && style) rules.push(...textOf(style).map((text) => `${selector ?? rule.cssText.slice(0, 40)} { ${text} }`));
-        const inner = (rule as Partial<CSSGroupingRule>).cssRules ?? (rule as Partial<CSSImportRule>).styleSheet?.cssRules;
-        if (inner) walk(inner, applies);
-      }
-    };
-    for (const sheet of [...document.styleSheets, ...document.adoptedStyleSheets]) walk(sheet.cssRules, true);
-
-    const all = [...document.querySelectorAll("html, body, body *")];
-    const drawn: string[] = [];
-    for (const el of all) {
-      const name = `${el.tagName.toLowerCase()}.${el.getAttribute("class") ?? ""}`;
-      drawn.push(...textOf(getComputedStyle(el)).map((text) => `${name} ${text}`));
-      for (const pseudo of ["::before", "::after", "::marker"]) {
-        const content = getComputedStyle(el, pseudo).getPropertyValue("content");
-        if (!NO_TEXT.has(content)) drawn.push(`${name}${pseudo} content: ${content}`);
-      }
-    }
-    return { read: { rules: read, elements: all.length }, rules: rules.slice(0, 8), drawn: drawn.slice(0, 8) };
-  });
+const undrawn = (page: Page, veiled: string) => undrawnIn(page, { root: "article.policy-page", veiled });
 
 /** 요소의 이름 가운데 눈에 보이는 글. 화면 낭독기에만 읽히는 앞말(.visually-hidden)은 뺀다. */
 const shownNames = (page: Page, selector: string) =>
@@ -222,25 +128,6 @@ const shownNames = (page: Page, selector: string) =>
         .trim(),
     ),
   );
-
-/** Chrome 이 화면 낭독기에 내주는 이름(접근성 트리에서 읽는다). 요소마다, 문서에 나오는 차례로. */
-async function accessibleNames(context: BrowserContext, page: Page, selector: string): Promise<string[]> {
-  const cdp = await context.newCDPSession(page);
-  try {
-    const { result } = await cdp.send("Runtime.evaluate", { expression: `[...document.querySelectorAll(${JSON.stringify(selector)})]` });
-    const { result: entries } = await cdp.send("Runtime.getProperties", { objectId: result.objectId!, ownProperties: true });
-    const names: string[] = [];
-    for (const entry of entries) {
-      const objectId = entry.value?.objectId;
-      if (!/^\d+$/.test(entry.name) || !objectId) continue;
-      const { nodes } = await cdp.send("Accessibility.getPartialAXTree", { objectId, fetchRelatives: false });
-      names.push(String(nodes[0]?.name?.value ?? ""));
-    }
-    return names;
-  } finally {
-    await cdp.detach();
-  }
-}
 
 describe("브라우저가 읽은 조문 원문", () => {
   it("주소로 열었을 때: 팩 메타데이터와 글자 그대로 같고, 줄바꿈과 빈칸이 화면에 그대로 보인다", async () => {
@@ -333,6 +220,10 @@ describe("쪽에 그려진 글은 틀 안에서 읽은 글이 전부다", () => 
   });
 
   it("CSS 가 그린 글이 없다: 쪽에 실린 꾸밈의 규칙에도, 화면에 그려진 것에도 (틀 밖까지)", async () => {
+    // CSS 는 HTML 에 없는 글을 그린다(`::before`·`::after`·`::marker` 의 content, 글로 적은 목록 표시). 적용 조건의 id 옆에 CSS
+    // 로 풀이를 그려 넣어도 통과하던 것을 막는다(tests/browser/site.ts 의 `cssDrawn`). 조문 도감이 그려도 되는 것은 목록 표시
+    // (점, 없음, 접어 둔 것의 세모)뿐이다. 꾸밈으로 글자를 그려야 하면 그 값을 여기서 `cssDrawn` 에 허용으로 준다. 조문·규칙·
+    // 조건을 풀이하는 글은 CSS 로 그리지 않는다.
     const { page } = await open(INDEX);
     const clean = async (what: string) => {
       const read = await cssDrawn(page);
@@ -528,10 +419,46 @@ describe("좁은 화면", () => {
     }
   });
 
+  it.each([
+    [375, 355],
+    [320, 300],
+  ])("%dpx: 규칙 id 와 적용 조건 id 가 길어도 넘치지 않고 글이 규칙 상자 안에 그려진다 (화면에서만 긴 id 로 바꿔 본다)", async (width, limit) => {
+    // 6번에서 넘어온 확인이다(대안의 id 는 위에서 본다). 팩에 실린 id 는 짧다. 긴 id 가 실렸을 때를 쪽의 DOM 만 고쳐서 본다.
+    // 빼기표가 있어 끊을 자리가 있는 것과, 끊을 자리가 없는 것.
+    const LONG = ["some-quite-long-rule-or-condition-id-for-narrow-screens", "x".repeat(56)];
+    const { page } = await open(INDEX, { viewport: { width, height: 667 } });
+    let conditions = 0;
+    for (const policy of policies) {
+      await page.goto(`${site.origin}${policyHref(policy.id)}`, { waitUntil: "load" });
+      await shown(page, policy.title);
+      for (const id of LONG) {
+        const read = await page.evaluate((text) => {
+          const codes = [...document.querySelectorAll(".rule-doc h3 code, .rule-doc .conditions code")];
+          for (const code of codes) code.textContent = text;
+          return codes.map((code) => {
+            const rule = code.closest(".rule-doc")!.getBoundingClientRect();
+            const range = document.createRange();
+            range.selectNodeContents(code);
+            const ink = range.getBoundingClientRect();
+            return { where: code.closest("h3") ? "규칙" : "적용 조건", inside: ink.left >= rule.left - 0.5 && ink.right <= rule.right + 0.5, lines: new Set([...range.getClientRects()].map((r) => Math.round(r.top))).size };
+          });
+        }, id);
+        expect(read.filter((entry) => entry.where === "규칙"), `${policy.id} ${id}`).toHaveLength(policy.rules.length);
+        conditions += read.filter((entry) => entry.where === "적용 조건").length;
+        for (const entry of read) expect(entry.inside, `${policy.id} ${entry.where} ${id}`).toBe(true);
+        // 긴 id 는 줄을 바꾼다(가로로 넘치게 두지 않았다).
+        for (const entry of read) expect(entry.lines, `${policy.id} ${entry.where} ${id}`).toBeGreaterThanOrEqual(2);
+        expect(await overflow(page), `${policy.id} ${id}`).toEqual({ ...FITS, limit });
+      }
+    }
+    // 적용 조건의 id 도 봤다.
+    expect(conditions).toBeGreaterThan(0);
+  });
+
   it("375px: 칸 머리 가운데 '확인되지 않았을 때 하는 말'은 표 이름 아래에 보인다. 앞의 둘은 화면에서만 가리고 표로 남는다", async () => {
     // 가리면 알리는 말·질문·고치는 법이 언제 쓰는 말인지 좁은 화면에는 보이는 글이 없다.
     const policy = pick("규칙이 둘 이상인", (entry) => entry.rules.length >= 2);
-    const { page } = await open(policyHref(policy.id), { viewport: { width: 375, height: 667 } });
+    const { context, page } = await open(policyHref(policy.id), { viewport: { width: 375, height: 667 } });
     const read = await tables(page);
     expect(read).toHaveLength(policy.rules.length);
     for (const table of read) {
@@ -545,11 +472,11 @@ describe("좁은 화면", () => {
       expect(says.bottom).toBeLessThanOrEqual(table.rows[0].id.top + 1);
     }
     for (const th of await page.locator("table.alts thead th:last-child").all()) expect(await th.isVisible()).toBe(true);
-    // display 가 바뀌어도 표로 읽힌다. 가린 칸 머리와 줄 머리(대안의 id)도 그대로 있다.
+    // display 가 바뀌어도 표로 읽힌다. 가린 칸 머리와 줄 머리(대안의 id)도 그대로 있다(Chrome 의 접근성 트리를 CDP 로 읽는다).
     const first = page.locator("table.alts").first();
-    expect(await first.getByRole("columnheader").allTextContents()).toEqual(COLUMNS);
-    expect(await first.getByRole("rowheader").allTextContents()).toEqual(policy.rules[0].alternatives.map((alt) => alt.id));
-    expect(await page.getByRole("table").count()).toBe(policy.rules.length);
+    expect(await accessibleNodes(context, page, first.locator("thead th"))).toEqual(COLUMNS.map((name) => ({ role: "columnheader", name })));
+    expect(await accessibleNodes(context, page, first.locator("tbody th"))).toEqual(policy.rules[0].alternatives.map((alt) => ({ role: "rowheader", name: alt.id })));
+    expect((await accessibleNodes(context, page, "table, [role=table]")).map((node) => node.role)).toEqual(policy.rules.map(() => "table"));
   });
 
   it("넓은 화면에서는 칸이 제 머리 아래에 나란히 놓인다", async () => {
@@ -600,14 +527,7 @@ describe("쪽이 스스로 내는 요청이 없다", () => {
       for (let left = folds; left > 0; left--) await closed.first().click();
       expect(await page.locator("details:not([open])").count(), policy.id).toBe(0);
       // 맨 아래까지 한 화면씩 내린다.
-      await page.evaluate(() => window.scrollTo(0, 0));
-      for (let bottom = false; !bottom; ) {
-        bottom = await page.evaluate(() => {
-          window.scrollBy(0, window.innerHeight * 0.8);
-          return window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 1;
-        });
-        await page.waitForTimeout(30);
-      }
+      await scrollThrough(page, 30);
       // 법제처 링크에 마우스를 올린다. 누르지는 않는다.
       const links = page.locator(".legal-facts a");
       expect(await links.count(), policy.id).toBe(policy.legal.filter((legal) => legal.url).length);
@@ -624,14 +544,7 @@ describe("쪽이 스스로 내는 요청이 없다", () => {
     expect(hovered).toBeGreaterThan(0);
     expect(outside).toEqual([]);
 
-    const stored = await page.evaluate(async () => ({
-      localStorage: localStorage.length,
-      sessionStorage: sessionStorage.length,
-      cookie: document.cookie,
-      indexedDB: (await indexedDB.databases()).length,
-      caches: (await caches.keys()).length,
-    }));
-    expect(stored).toEqual({ localStorage: 0, sessionStorage: 0, cookie: "", indexedDB: 0, caches: 0 });
+    expect(await stored(page)).toEqual(NO_STORAGE);
   });
 
   it("법제처 링크는 눌러야 나간다: 누르면 새 창이 팩 메타데이터의 주소로 가려 하고, 어느 쪽에서 왔는지는 싣지 않는다", async () => {
@@ -668,9 +581,8 @@ describe("쪽이 스스로 내는 요청이 없다", () => {
     //
     // 쪽 안에서 받아 보는 것으로 본다(가로채기 없는 창에서). 창을 그 주소로 옮겨 보지는 않는다. 창이 이름을 풀지 못해 오류
     // 쪽을 띄우면 Chrome 이 DNS 가 살아 있는지 알아보려고 google.com 을 묻는 질의를 실제로 내보낸다(재서 알았다).
-    const context = await browser.newContext();
-    contexts.push(context);
-    const page = await context.newPage();
+    // 창은 다른 시험과 같게 열고(생성자 감싸기, 오류 적기) 가로채기만 걸지 않는다.
+    const { page } = await newPage(browser, site, { contexts, problems, intercept: false });
     expect((await page.goto(`${site.origin}${INDEX}`))?.status()).toBe(200);
     const { port } = new URL(site.origin);
     const reach = (host: string) =>
@@ -685,6 +597,9 @@ describe("쪽이 스스로 내는 요청이 없다", () => {
     // 대조: 같은 방법으로 127.0.0.1 에는 닿는다.
     expect(await reach("127.0.0.1")).toBe("닿음");
     expect(await reach("localhost")).toBe("닿지 않음");
+    // 닿지 못한 것은 콘솔에 오류로 남는다. 이 시험에서는 그 한 줄이 있어야 하고, 그것뿐이어야 한다.
+    await expect.poll(() => problems.length, { timeout: 3_000 }).toBeGreaterThan(0);
+    expect(problems.splice(0)).toEqual(["콘솔: Failed to load resource: net::ERR_NAME_NOT_RESOLVED"]);
   });
 });
 
@@ -778,6 +693,46 @@ describe("두 테마의 색", () => {
     const againstWhite = contrast(body, "rgb(255, 255, 255)");
     if (scheme === "dark") expect(againstWhite).toBeGreaterThan(10);
     else expect(againstWhite).toBeLessThan(1.5);
+  });
+  it.each(["light", "dark"] as const)("%s: 원문 해시가 맞지 않을 때의 경고(해시 칸의 값, 원문 위의 알림)가 바탕 위에서 읽힌다 (팩에 없는 모양이라 열린 쪽에 넣어 본다)", async (scheme) => {
+    // 6번에서 넘어온 확인이다. 팩의 조문은 해시가 모두 맞아서 빌드된 쪽에는 이 꾸밈이 쓰이지 않는다. 부품(PolicyDetail)이
+    // 그 모양으로 그리는 조문 하나를 Node 에서 그려 열린 쪽의 첫 조문 자리에 넣고, 브라우저가 계산한 색을 잰다(소스와
+    // 빌드는 그대로다). 부품이 그리는 글과 구조는 부품 시험(tests/policy.test.tsx)이 본다.
+    const policy = pick("원문이 실린 첫 조문이 있는", (entry) => Boolean(entry.legal[0]?.text));
+    const { page } = await open(policyHref(policy.id), { viewport: { width: 375, height: 667 }, colorScheme: scheme });
+    expect(await page.evaluate(() => matchMedia("(prefers-color-scheme: dark)").matches)).toBe(scheme === "dark");
+    const markup = legalBlockMarkup(policy, pack, { text_sha256_matches: false });
+    // 넣는 것이 그 꾸밈의 요소다. 지금 쪽에는 없다(대조).
+    expect(markup).toContain('<dd class="warn">');
+    expect(markup).toContain('<p class="notice notice-warn">');
+    expect(await page.locator("article.policy-page dd.warn, article.policy-page .notice-warn").count()).toBe(0);
+    await page.locator(".legal").first().evaluate((el, html) => {
+      el.outerHTML = html;
+    }, markup);
+    const colors = await page.evaluate(() => {
+      /** 그 요소 뒤에 실제로 깔린 색: 비치지 않는 바탕을 가진 가장 가까운 조상의 색. */
+      const behind = (el: Element): string => {
+        for (let node: Element | null = el; node; node = node.parentElement) {
+          const color = getComputedStyle(node).backgroundColor;
+          if (color !== "rgba(0, 0, 0, 0)") return color;
+        }
+        return getComputedStyle(document.body).backgroundColor;
+      };
+      const of = (selector: string) => {
+        const el = document.querySelector(`article.policy-page ${selector}`)!;
+        return { text: el.textContent, color: getComputedStyle(el).color, background: behind(el), weight: getComputedStyle(el).fontWeight };
+      };
+      return { hash: of(".legal-facts dd.warn"), notice: of(".legal > .notice-warn"), plain: of(".legal-facts dd:not(.warn)") };
+    });
+    expect(colors.hash.text).toBe("팩에 적힌 것과 다름");
+    expect(colors.notice.text).toBe("아래 원문은 팩에 적힌 해시와 맞지 않습니다.");
+    for (const [what, entry] of [["해시 칸", colors.hash], ["원문 위의 알림", colors.notice]] as const) {
+      expect(contrast(entry.color, entry.background), `${what}: ${entry.color} / ${entry.background}`).toBeGreaterThanOrEqual(4.5);
+    }
+    // 경고의 꾸밈이 실제로 쓰였다(옆 칸의 값과 색·굵기가 다르다).
+    expect([colors.hash.color, colors.hash.weight]).not.toEqual([colors.plain.color, colors.plain.weight]);
+    // 넣은 경고의 글도 그려진다.
+    expect((await undrawn(page, VEILED.narrow)).undrawn).toEqual([]);
   });
 });
 

@@ -7,6 +7,7 @@ import DemoPage from "@/app/demo/page";
 import { DemoPanel } from "@/components/demo/DemoPanel";
 import { DemoSwitcher } from "@/components/demo/DemoSwitcher";
 import { RecordSheet } from "@/components/result/Record";
+import { ReportWithRecord } from "@/components/result/ReportWithRecord";
 import { DEMO_APPS, DEMO_VARIANTS, type DemoApp, type DemoVariant } from "@/lib/demo/apps";
 import { compareByPolicy } from "@/lib/demo/compare";
 import { unmatchedLines } from "@/lib/demo/diff";
@@ -23,6 +24,16 @@ import { SAMPLES } from "@/lib/samples";
 import { SITE } from "@/lib/site";
 import { elementAt, elementsOf, readJson, root, textOf, walk } from "./helpers";
 import { BANNED_WORDING } from "./wording";
+
+/**
+ * 판(`DemoPanel`)이 결과와 기록을 오가는 틀(`ReportWithRecord`)에 넘기는 값을 적어 둔다. 기록은 단추를 눌러야 그려지므로
+ * 부품을 그려 낸 HTML 에는 기록의 출처(`RecordSource`)가 나오지 않는다. 틀을 감싸기만 하고 그리는 것은 원래의 틀 그대로다
+ * (이 파일의 다른 시험이 그리는 HTML 은 같다).
+ */
+vi.mock("@/components/result/ReportWithRecord", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/components/result/ReportWithRecord")>();
+  return { ...actual, ReportWithRecord: vi.fn(actual.ReportWithRecord) };
+});
 
 // `/demo`: 합성 코드 세 가지의 고치기 전·후와, 그 코드를 CLI 로 검사한 실제 출력(contract/cli-current).
 // 화면은 결과에 실린 것만 보인다. 고친 뒤에도 남은 발견을 숨기지 않고, 풀렸다고도 여전히 문제라고도 적지 않는다.
@@ -675,6 +686,26 @@ describe("그려 낸 데모 화면", () => {
       expect([...order].sort((a, b) => a - b)).toEqual(order);
     });
 
+    it.each(named)("%s: 표의 모든 부분에 표의 role 이 붙어 있다 (좁은 화면에서 CSS 가 display 를 바꿔도 표로 읽히게)", (_name, entry) => {
+      // 좁은 화면에서는 줄을 쌓느라 표·줄·칸의 display 를 바꾼다. 그러면 표의 뜻을 버리는 브라우저가 있어 role 을 직접 적어
+      // 둔다. Chrome 155 는 role 이 없어도 표로 드러내서, Chrome 의 접근성 트리를 읽는 브라우저 시험(tests/browser/demo.test.ts)은
+      // role 이 빠져도 통과한다. 붙어 있는지는 여기서 본다(결과 화면의 표는 tests/parts.test.tsx 가 본다).
+      const html = panel(entry);
+      const block = elementAt(html, html.indexOf('<div class="demo-compare">'));
+      const table = elementAt(block, block.indexOf("<table"));
+      const tags = [...table.matchAll(/<(table|thead|tbody|tr|th|td)\b([^>]*)>/g)].map(([, tag, attributes]) => ({ tag, attributes }));
+      const ROLE = { table: "table", thead: "rowgroup", tbody: "rowgroup", tr: "row", td: "cell" } as const;
+      for (const { tag, attributes } of tags) {
+        const role = / role="([^"]*)"/.exec(attributes)?.[1];
+        if (tag === "th") expect(role, attributes).toBe(/ scope="col"/.test(attributes) ? "columnheader" : "rowheader");
+        else expect(role, `${tag}${attributes}`).toBe(ROLE[tag as keyof typeof ROLE]);
+      }
+      // 머리 한 줄과 정책마다 한 줄, 줄마다 판 둘의 칸.
+      const rows = compareBlock(html)!.rows.length;
+      expect(tags.filter(({ tag }) => tag === "tr")).toHaveLength(1 + rows);
+      expect(tags.filter(({ tag }) => tag === "td")).toHaveLength(rows * 2);
+    });
+
     it("고친 뒤에도 남은 발견을 그대로 보인다", () => {
       expect(cells("kids-signup.fixed")).toEqual([["만 14세 미만 아동의 개인정보 처리", [PENDING, ["발견 1건"]], [NONE, []]]]);
       expect(cells("night-push.fixed")).toEqual([
@@ -996,18 +1027,25 @@ describe("고르는 단추와 쪽의 머리말", () => {
   });
 
   it.each(named)("%s: 그 판의 결과는 조문별 검사 기록으로도 본다. 기록에는 합성 예시라고 적히고, 이름은 그 판의 제목이다", (_name, entry) => {
+    const handed = vi.mocked(ReportWithRecord);
+    handed.mockClear();
     const html = panel(entry);
     // 결과 화면 위에 고르는 단추가 있다. 기록은 고르기 전에는 그리지 않는다(브라우저 시험이 눌러 본다).
     expect(count(html, '<div class="report-switch">')).toBe(1);
     expect(html.indexOf('<div class="report-switch">')).toBeLessThan(html.indexOf('<section class="report">'));
     expect(html).not.toContain('class="record"');
-    // 고르면 그려지는 기록: 데모가 넘기는 팩 정보와 이름으로 만든 것.
-    const made = buildRecord(entry.variant.view, packIndex);
-    expect(made.ok, entry.name).toBe(true);
-    if (!made.ok) return;
+    // 고르면 그려지는 기록: 판이 틀에 실제로 넘긴 결과·팩 정보·출처로 만든다. 출처는 합성 예시이고 이름은 그 판의 제목이다.
+    expect(handed, entry.name).toHaveBeenCalledTimes(1);
+    const [props] = handed.mock.calls[0];
     const title = `${entry.app.label} · ${entry.variant.label}`;
     expect(textOf(elementAt(html, html.indexOf("<h2")))).toBe(title);
-    const record = renderToStaticMarkup(<RecordSheet record={made.record} source={{ name: title, synthetic: true }} />);
+    expect(props.source, entry.name).toEqual({ name: title, synthetic: true });
+    expect(props.view, entry.name).toBe(entry.variant.view);
+    expect(props.pack, entry.name).toBe(packIndex);
+    const made = buildRecord(props.view, props.pack);
+    expect(made.ok, entry.name).toBe(true);
+    if (!made.ok) return;
+    const record = renderToStaticMarkup(<RecordSheet record={made.record} source={props.source} />);
     expect(textOf(elementAt(record, record.indexOf('<p class="record-source">')))).toBe(`합성 예시입니다. ${title}`);
     // 기록에는 그 판의 코드가 없다. 위의 코드 상자에만 있다.
     for (const line of entry.variant.files.flatMap((file) => file.lines.map((line) => line.text.trim())).filter(Boolean)) {

@@ -1738,7 +1738,8 @@ describe("경로와 줄을 적는 법", () => {
 
 describe("발견 줄을 누를 때 (펼침과 글 고르기)", () => {
   // 줄 전체가 펼침 단추다. 경로를 끌어 골라 복사하는 동안에는 줄이 여닫히지 않아야 한다.
-  // 브라우저에서 실제로 그렇게 되는지는 이 시험이 보지 못한다(docs/ROADMAP.md 의 8번).
+  // 여기서는 판단 규칙(selection.ts)만 본다. 브라우저에서 실제로 그렇게 되는지는 tests/browser/view.test.ts 의 "발견 줄의 경로를
+  // 끌어 고르거나 두 번·세 번 눌러 골라도 …"가 본다(8번에서 넣었다).
   const click = { detail: 1, selecting: false, extending: false, toggles: 0 };
 
   it("그냥 누르면 여닫힌다", () => {

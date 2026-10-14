@@ -7,12 +7,35 @@ import { STATUS_LABEL } from "@/lib/report/status";
 import type { Report } from "@/lib/report/types";
 import { SITE } from "@/lib/site";
 import { readJson, root } from "../helpers";
-import { launchChrome, serveOut, type Site } from "./site";
+import { partingOf, squash } from "../policy-page";
+import { builtMainText, demoApps, panelText } from "./expected";
+import {
+  accessibleNodes,
+  closeChrome,
+  contrast,
+  cssDrawn,
+  launchChrome,
+  newPage,
+  NO_STORAGE,
+  openPage,
+  overflow as overflowOf,
+  pixelAt,
+  RESULT_ATTRIBUTES,
+  scrollThrough,
+  serveOut,
+  settle,
+  stored,
+  undrawn,
+  unknownAttributes,
+  type Opened,
+  type Site,
+} from "./site";
 
 // `/demo` 를 실제 브라우저로 열어 본다. 빌드된 out/ 을 127.0.0.1 에 띄우고 이 컴퓨터의 Chrome(헤드리스)으로 연다.
 // 그려 낸 HTML 만 보는 시험(tests/demo.test.tsx)이 볼 수 없는 것을 본다: 단추로 고른 세 앱 × 두 판이 실제로 보이는지,
 // 판을 바꿀 때 요청이 나가는지, 좁은 화면의 가로 넘침과 표의 쌓임, 코드 상자의 스크롤과 키보드 초점, 표의 정책 이름으로
-// 아래 결과의 그 정책으로 옮겨 가는 것, 칠한 줄의 색(두 테마), 다른 쪽에 다녀온 뒤.
+// 아래 결과의 그 정책으로 옮겨 가는 것, 칠한 줄의 색(두 테마), 다른 쪽에 다녀온 뒤, 글이 실제로 그려지는지, CSS 가 그린 글,
+// 화면 낭독기에 드러나는 표.
 
 let site: Site;
 let browser: Browser;
@@ -37,51 +60,16 @@ afterEach(async () => {
 
 // 시험이 실패해도 띄운 것은 닫는다.
 afterAll(async () => {
-  await browser?.close();
+  await closeChrome(browser);
   await site?.close();
 });
 
-interface Opened {
-  context: BrowserContext;
-  page: Page;
-  /** 이 사이트 밖으로 나가려던 요청과, 열려던 WebSocket(어디로 가든). 내보내지 않고 막은 뒤 여기에 적는다. */
-  outside: string[];
-}
-
 /**
- * 새 창에서 `/demo` 를 연다. 스크립트가 붙고, 쪽이 스스로 내는 요청(묶음, 머리 링크의 프리페치)이 끝날 때까지 기다린다.
- * 테마는 운영체제 설정을 따르므로(`prefers-color-scheme`), 어두운 테마는 그 설정을 흉내 내어 본다.
+ * 새 창에서 `/demo` 를 연다(tests/browser/site.ts 의 `openPage`). 테마는 운영체제 설정을 따르므로
+ * (`prefers-color-scheme`), 어두운 테마는 그 설정을 흉내 내어 본다.
  */
-async function openDemo(viewport = { width: 1280, height: 720 }, colorScheme: "light" | "dark" = "light"): Promise<Opened> {
-  const context = await browser.newContext({ viewport, colorScheme });
-  contexts.push(context);
-  context.setDefaultTimeout(10_000);
-  const outside: string[] = [];
-  await context.route(
-    () => true,
-    (route) => {
-      const url = route.request().url();
-      if (url.startsWith(`${site.origin}/`)) return route.continue();
-      outside.push(url);
-      return route.abort();
-    },
-  );
-  await context.routeWebSocket(
-    () => true,
-    (ws) => {
-      outside.push(ws.url());
-      void ws.close();
-    },
-  );
-  const page = await context.newPage();
-  page.on("pageerror", (error) => problems.push(`예외: ${error.message}`));
-  page.on("console", (message) => {
-    // 파비콘이 아직 없어서 브라우저가 스스로 청한 /favicon.ico 가 404 로 돌아온다(ROADMAP 9번). 그 한 줄은 뺀다.
-    if (message.type() === "error" && !message.location().url.endsWith("/favicon.ico")) problems.push(`콘솔: ${message.text()}`);
-  });
-  await page.goto(`${site.origin}/demo/`, { waitUntil: "networkidle" });
-  return { context, page, outside };
-}
+const openDemo = (viewport = { width: 1280, height: 720 }, colorScheme: "light" | "dark" = "light"): Promise<Opened> =>
+  openPage(browser, site, "/demo/", { viewport, colorScheme, contexts, problems });
 
 const APPS = "데모 코드 고르기";
 const VARIANTS = "고치기 전과 고친 뒤 고르기";
@@ -103,33 +91,11 @@ async function pick(page: Page, app: string, variant: string): Promise<void> {
   await shown(page, `${app} · ${variant}`);
 }
 
-/** 서버가 받는 요청이 한동안 더 없을 때까지 기다린다. */
-async function settle(page: Page): Promise<void> {
-  for (let seen = -1; seen !== site.requests.length; ) {
-    seen = site.requests.length;
-    await page.waitForTimeout(400);
-  }
-}
-
 /**
- * 쪽이 가로로 넘치는지 잰다. 쪽 너비와 함께 본문 칸의 오른쪽 끝도 본다(tests/browser/view.test.ts 와 같은 방법).
- * 코드 상자는 제 안에서 가로로 밀리는 스크롤 상자다. 그 안의 줄은 상자에 가려지므로 재지 않고, 상자 자신은 잰다.
+ * 쪽이 가로로 넘치는지 잰다(tests/browser/site.ts 의 `overflow`). 코드 상자는 제 안에서 가로로 밀리는 스크롤 상자다.
+ * 그 안의 줄은 상자에 가려지므로 재지 않고, 상자 자신은 잰다.
  */
-async function overflow(page: Page) {
-  return page.evaluate(() => {
-    const doc = document.documentElement;
-    const main = document.querySelector("main.wrap")!;
-    const limit = main.getBoundingClientRect().right - parseFloat(getComputedStyle(main).paddingRight);
-    const over: string[] = [];
-    for (const el of main.querySelectorAll("*")) {
-      if (el.closest(".visually-hidden") || el.parentElement?.closest(".codeblock pre")) continue;
-      const box = el.getBoundingClientRect();
-      if (box.width === 0 || box.height === 0) continue;
-      if (box.right > limit + 0.5) over.push(`${el.tagName.toLowerCase()}.${el.className} → ${Math.round(box.right)}`);
-    }
-    return { page: doc.scrollWidth - doc.clientWidth, limit: Math.round(limit), over: over.slice(0, 5) };
-  });
-}
+const overflow = (page: Page) => overflowOf(page, ".codeblock pre");
 
 /** 코드 상자 하나를 화면에서 읽은 것. */
 async function codeBox(page: Page) {
@@ -221,23 +187,6 @@ async function compareTable(page: Page) {
   });
 }
 
-/** 두 색의 명도 대비(WCAG 2 의 식). 색은 브라우저가 계산한 "rgb(…)" 꼴이다. */
-function contrast(a: string, b: string): number {
-  const luminance = (color: string) => {
-    const channels = color.match(/[\d.]+/g);
-    if (!color.startsWith("rgb") || !channels || channels.length < 3) throw new Error(`색을 읽지 못했습니다: ${color}`);
-    // 비치는 색은 뒤의 색과 섞어야 한다. 여기서 재는 색은 모두 비치지 않는 색이다.
-    if (channels.length > 3 && Number(channels[3]) !== 1) throw new Error(`비치는 색입니다: ${color}`);
-    const [r, g, bl] = channels.slice(0, 3).map((value) => {
-      const c = Number(value) / 255;
-      return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
-    });
-    return 0.2126 * r + 0.7152 * g + 0.0722 * bl;
-  };
-  const [light, dark] = [luminance(a), luminance(b)].sort((x, y) => y - x);
-  return (light + 0.05) / (dark + 0.05);
-}
-
 const AI = STATUS_LABEL["needs-review-ai-pending"];
 const UNCERTAIN = STATUS_LABEL.uncertain;
 const NONE = STATUS_LABEL["not-reported"];
@@ -309,6 +258,8 @@ const WHERE = (label: string) => `표의 정책 이름을 누르면 아래 결�
 const WHY = "발견마다의 까닭은 그 안의 ‘판정 경로’에 CLI 가 남긴 문장으로 나옵니다.";
 const ELSEWHERE = (label: string) => `${label}의 결과는 위의 ‘${label}’ 단추를 누르면 나옵니다.`;
 const hints = (page: Page) => page.locator(".demo-compare p.hint").allInnerTexts();
+/** 두 결과의 표의 칸 머리. */
+const COMPARE_COLUMNS = ["정책", "고치기 전", "고친 뒤"];
 
 /** 다른 판과 다른 줄의 표시가 무엇인지 코드 상자 아래에 적는 말. */
 const LEGEND: Record<string, string> = {
@@ -611,7 +562,7 @@ describe("판을 바꿔도 밖으로 나가는 요청이 없다", () => {
     context.on("request", (request) => seen.push(`${request.method()} ${request.url()}`));
 
     // 쪽을 열 때의 요청은 서버에 적힌다(머리 링크의 프리페치까지). 이 시험이 요청을 본다는 뜻이다.
-    await settle(page);
+    await settle(site, page);
     const loading = site.requests.slice(start).map((request) => request.url);
     expect(loading[0]).toBe("/demo/");
     expect(loading.some((url) => url.startsWith("/view/"))).toBe(true);
@@ -621,14 +572,7 @@ describe("판을 바꿔도 밖으로 나가는 요청이 없다", () => {
     for (const { app, variant } of every) {
       await pick(page, app.label, variant.label);
       // 맨 아래까지 한 화면씩 내린다. 정책 카드의 링크가 차례로 화면에 들어온다.
-      await page.evaluate(() => window.scrollTo(0, 0));
-      for (let bottom = false; !bottom; ) {
-        bottom = await page.evaluate(() => {
-          window.scrollBy(0, window.innerHeight * 0.8);
-          return window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 1;
-        });
-        await page.waitForTimeout(40);
-      }
+      await scrollThrough(page, 40);
       await page.locator("article.policy h3 a").last().hover();
       // 표의 정책 이름을 눌러 아래 결과의 그 정책으로 옮겨 간다. 같은 쪽 안에서 옮겨 갈 뿐이다.
       for (const link of await page.locator(".compare tbody th a").all()) {
@@ -637,21 +581,13 @@ describe("판을 바꿔도 밖으로 나가는 요청이 없다", () => {
       }
       await page.evaluate(() => window.scrollTo(0, 0));
     }
-    await settle(page);
+    await settle(site, page);
 
     expect(site.requests.slice(mark.server)).toEqual([]);
     expect(seen.slice(mark.browser)).toEqual([]);
-    // 처음부터 끝까지, 이 사이트 밖으로 나가려던 요청도 없다.
+    // 처음부터 끝까지, 이 사이트 밖으로 나가려던 요청도 없다. HTTP 도 WebSocket 도 아닌 길(WebRTC 등)로 이으려던 것도 없다.
     expect(outside).toEqual([]);
-
-    const stored = await page.evaluate(async () => ({
-      localStorage: localStorage.length,
-      sessionStorage: sessionStorage.length,
-      cookie: document.cookie,
-      indexedDB: (await indexedDB.databases()).length,
-      caches: (await caches.keys()).length,
-    }));
-    expect(stored).toEqual({ localStorage: 0, sessionStorage: 0, cookie: "", indexedDB: 0, caches: 0 });
+    expect(await stored(page)).toEqual(NO_STORAGE);
   });
 });
 
@@ -662,7 +598,7 @@ describe("좁은 화면", () => {
     [375, 667, 355],
     [320, 568, 300],
   ])("%dpx: 세 앱 × 두 판이 가로로 넘치지 않는다 (접힌 채와 모두 펼친 채)", async (width, height, limit) => {
-    const { page } = await openDemo({ width, height });
+    const { context, page } = await openDemo({ width, height });
     expect(await overflow(page)).toEqual({ ...FITS, limit });
     for (const { app, variant, name } of every) {
       await pick(page, app.label, variant.label);
@@ -690,11 +626,11 @@ describe("좁은 화면", () => {
         // "발견 N건"은 한 덩어리다. 칩 옆에 다 들어가지 않으면 통째로 다음 줄로 내려가 칩 아래에 놓인다.
         for (const count of row.cells.flatMap((cell) => cell.counts)) expect(count, `${name} ${row.name}`).toMatchObject({ lines: 1, aligned: true });
       }
-      // 칸 머리는 화면에서만 가린다(1px). 화면 낭독기에는 표의 칸 머리로 남는다.
-      expect(table.head.map((th) => th.text), name).toEqual(["정책", "고치기 전", "고친 뒤"]);
+      // 칸 머리는 화면에서만 가린다(1px). 화면 낭독기에는 표의 칸 머리로 남는다(Chrome 의 접근성 트리를 CDP 로 읽는다).
+      expect(table.head.map((th) => th.text), name).toEqual(COMPARE_COLUMNS);
       expect([table.headBox.width, table.headBox.height], name).toEqual([1, 1]);
-      expect(await page.locator(".compare").getByRole("columnheader").allTextContents(), name).toEqual(["정책", "고치기 전", "고친 뒤"]);
-      expect(await page.locator(".compare").getByRole("rowheader").count(), name).toBe(table.rows.length);
+      expect(await accessibleNodes(context, page, ".compare thead th"), name).toEqual(COMPARE_COLUMNS.map((column) => ({ role: "columnheader", name: column })));
+      expect((await accessibleNodes(context, page, ".compare tbody th")).map((node) => node.role), name).toEqual(table.rows.map(() => "rowheader"));
     }
     // 고르는 단추는 글이 접히지 않는다(모두 한 줄 높이다). 한 줄에 다 들어가지 않으면 단추가 다음 줄로 넘어간다.
     const heights = await page.locator(".demo-pick button").evaluateAll((all) => all.map((el) => Math.round(el.getBoundingClientRect().height)));
@@ -732,11 +668,38 @@ describe("좁은 화면", () => {
     // 코드는 밀렸고(줄의 왼쪽 끝이 상자 밖으로 나갔다), 설명은 그대로다.
     expect(after.line.left).toBe(before.line.left - 200);
     expect(after.notes).toEqual(before.notes);
-    // 12행의 글은 상자의 오른쪽 끝에 못 미쳐 끝난다. 칠은 좌우로 편 그림자로 끝까지 잇는다(색이 실제로 이어지는지는
-    // 여기서 재지 못한다. 눈으로 봤다).
+    // 12행의 글은 상자의 오른쪽 끝에 못 미쳐 끝난다. 칠은 좌우로 편 그림자로 끝까지 잇는다.
     expect(after.line.right).toBeLessThan(after.width);
     expect(after.shadow).toBe(true);
     expect((await overflow(page)).page).toBe(0);
+
+    // 칠이 실제로 상자의 오른쪽 끝까지 칠해졌는지, 그 자리의 점을 찍어 본다(꾸밈의 값만으로는 알 수 없다. ROADMAP 8번에
+    // 5번에서 넘어와 있던 확인이다). 대조로, 같은 자리의 빈 줄은 코드 상자의 바탕색이다(글자가 없는 줄을 고른다).
+    const spot = await page.locator(".codeblock pre").evaluate((pre) => {
+      const marked = pre.querySelector<HTMLElement>('.codeline[data-line="12"]')!;
+      // 칠한 줄에 가장 가까운 빈 줄.
+      const empty = [...pre.querySelectorAll<HTMLElement>(".codeline:not(.codeline-marked)")]
+        .filter((line) => line.textContent === "\n")
+        .sort((a, b) => Math.abs(Number(a.dataset.line) - 12) - Math.abs(Number(b.dataset.line) - 12))[0];
+      // 두 줄의 가운데가 창 가운데에 오게 내린다(줄 자체를 창 안으로 끌어오면 상자의 가로 스크롤도 움직인다).
+      const between = (marked.getBoundingClientRect().top + empty.getBoundingClientRect().top) / 2;
+      window.scrollTo(0, window.scrollY + between - window.innerHeight / 2);
+      const box = pre.getBoundingClientRect();
+      const middle = (el: Element) => el.getBoundingClientRect().top + el.getBoundingClientRect().height / 2;
+      return {
+        x: box.left + pre.clientWidth - 3,
+        marked: middle(marked),
+        empty: middle(empty),
+        emptyLine: Number(empty.dataset.line),
+        mark: getComputedStyle(marked).backgroundColor,
+        box: getComputedStyle(pre).backgroundColor,
+        scrollLeft: pre.scrollLeft,
+      };
+    });
+    expect(spot.scrollLeft).toBe(200);
+    expect(spot.mark).not.toBe(spot.box);
+    expect(await pixelAt(page, spot.x, spot.marked), "12행의 오른쪽 끝").toBe(spot.mark);
+    expect(await pixelAt(page, spot.x, spot.empty), `${spot.emptyLine}행(빈 줄)의 오른쪽 끝`).toBe(spot.box);
   });
 
   it("375px: 코드를 끌어 골라 복사한 글은 파일의 글과 같다 (줄 번호, 표시, 줄 아래의 설명이 섞이지 않는다)", async () => {
@@ -777,9 +740,19 @@ describe("칠한 줄의 색", () => {
           return { ...of(line), note: note.color, noteBackground: note.backgroundColor };
         }),
         plain: of(pre.querySelector('.codeline[data-line="1"]')!),
+        // 다른 판과 다른 줄의 표시(+·−)와 그 줄 번호. 칠한 줄이 아니면 바탕은 코드 상자의 것이다.
+        signed: [...pre.querySelectorAll(".codeline[data-sign]")].map((line) => {
+          const own = getComputedStyle(line).backgroundColor;
+          return { ...of(line), background: own === "rgba(0, 0, 0, 0)" ? getComputedStyle(pre).backgroundColor : own };
+        }),
         box: getComputedStyle(pre).backgroundColor,
       };
     });
+    // 다른 판과 다른 줄의 표시(+·−)도 두 테마에서 읽힌다(5번에서는 눈으로만 봤다. ROADMAP 8번).
+    expect(colors.signed.map((line) => line.line)).toEqual([4, 5, 6, 7, 8, 9, 11, 13, 15, 16]);
+    for (const line of colors.signed) {
+      expect(contrast(line.number, line.background), `${line.line}행의 표시와 줄 번호`).toBeGreaterThanOrEqual(4.5);
+    }
     expect(colors.marked.map((line) => line.line)).toEqual([2, 12]);
     for (const line of colors.marked) {
       expect(contrast(line.number, line.background), `${line.line}행의 줄 번호`).toBeGreaterThanOrEqual(4.5);
@@ -919,11 +892,8 @@ describe("다른 쪽에 다녀오거나 새로 고친 뒤", () => {
 
   it("처음 찾아온 쪽에서는 스크롤을 건드리지 않는다", async () => {
     // 맨 위로 올리는 것은 문서를 다시 받았을 때뿐이다. 스크립트가 늦게 붙는 동안 읽어 내려간 사람을 끌어올리면 안 된다.
-    const context = await browser.newContext({ viewport: { width: 1280, height: 720 } });
-    contexts.push(context);
-    context.setDefaultTimeout(10_000);
-    const page = await context.newPage();
-    page.on("pageerror", (error) => problems.push(`예외: ${error.message}`));
+    // 스크립트가 붙기 전에 내려야 하므로 쪽은 문서만 읽고 바로 돌려받는다(창은 다른 시험과 같게 연다).
+    const { page } = await newPage(browser, site, { contexts, problems });
     await page.goto(`${site.origin}/demo/`, { waitUntil: "domcontentloaded" });
     await page.evaluate(() => window.scrollTo(0, 400));
     // 스크립트가 붙을 때까지 기다린다(단추에 React 가 붙는다).
@@ -931,5 +901,134 @@ describe("다른 쪽에 다녀오거나 새로 고친 뒤", () => {
     await page.waitForTimeout(700);
     expect(await scrollY(page)).toBe(400);
     expect(await title(page)).toBe("아동 가입 · 고치기 전");
+  });
+});
+
+describe("데모의 글과 꾸밈 (조문 도감·기록의 시험과 같은 기준)", () => {
+  // 조문 도감과 조문별 검사 기록의 시험에만 있던 확인을 데모로 넓힌다(ROADMAP 8번): 브라우저에서 도는 코드가 더한 글이
+  // 없는지(그린 글이 부품이 그린 글과 같은지), CSS 가 그린 글, 글이 실제로 그려지는지, 접근성 트리의 이름.
+
+  /**
+   * 데모가 CSS 로 그리는 글. 셋 다 그 요소의 속성 값을 그대로 옮겨 그린다. 코드의 줄 번호(복사한 글에 섞이지 않게 CSS 로
+   * 그린다), 다른 판과 다른 줄의 표시와 줄 번호, 좁은 화면에서 두 결과의 표의 칸 앞에 적는 판 이름(칸 머리를 가린다).
+   */
+  const ALLOWED = [
+    { selector: ".codeline:not([data-sign])", pseudo: "::before" as const, attributes: ["data-line"] },
+    { selector: ".codeline[data-sign]", pseudo: "::before" as const, attributes: ["data-sign", "data-line"] },
+    { selector: ".compare tbody td", pseudo: "::before" as const, attributes: ["data-label"] },
+  ];
+  const ALLOWED_RULES = ["content: attr(data-line)", 'content: attr(data-sign) " " attr(data-line)', "content: attr(data-label)"];
+  /** 데모(`.demo`)에 붙는 속성. 결과 화면의 것(`RESULT_ATTRIBUTES`)에 고르는 단추와 그 묶음, 코드 줄, 두 결과의 표의 칸이 더해진다. */
+  const DEMO_ATTRIBUTES: Record<string, string> = {
+    ...RESULT_ATTRIBUTES,
+    role: `${RESULT_ATTRIBUTES.role}, .segmented`,
+    "aria-label": `${RESULT_ATTRIBUTES["aria-label"]}, .segmented`,
+    type: "button",
+    "aria-pressed": ".segmented button",
+    "data-line": ".codeline",
+    "data-sign": ".codeline",
+    "data-label": ".compare td",
+  };
+  /** 아래 결과(판정 경로의 번호 목록, 목록 안의 목록)와 접어 둔 것의 세모. 결과 화면의 시험과 같다(tests/browser/view.test.ts). */
+  const MARKERS = ["disc", "circle", "decimal", "none", "disclosure-closed", "disclosure-open"];
+  const panels = demoApps.flatMap((app) => app.variants.map((variant) => ({ app, variant, name: `${app.key}.${variant.key}` })));
+
+  /** 지금 그려진 판(고르는 단추 아래)의 글 전체. 빈칸은 뺀다(부품의 글과 같은 방법이다). */
+  const panelShown = async (page: Page) =>
+    squash(await page.locator(".demo").evaluate((demo) => [...demo.children].slice(1).map((child) => child.textContent ?? "").join("")));
+
+  it("쪽의 본문에는 정해 둔 것뿐이고, 스크립트가 붙은 뒤의 글이 빌드된 쪽의 글과 같다 (주소로 열었을 때)", async () => {
+    const { page } = await openDemo();
+    await settle(site, page);
+    const main = await page.locator("main.wrap").evaluate((el) => ({
+      children: [...el.children].map((child) => `${child.tagName.toLowerCase()}.${child.className}`),
+      text: el.textContent ?? "",
+    }));
+    expect(main.children).toEqual(["h1.", "p.lede", "div.demo"]);
+    expect(partingOf(squash(main.text), builtMainText("demo"))).toBeNull();
+  });
+
+  it("여섯 판: 그린 글이 판 부품(DemoPanel)이 그린 글과 같고, 정해 둔 속성만 있고, CSS 가 그린 글은 줄 번호·다른 줄의 표시·좁은 화면의 판 이름과 목록 표시뿐이다", async () => {
+    expect(panels.map((entry) => entry.name).sort()).toEqual(Object.keys(EXPECTED).sort());
+    const { page } = await openDemo({ width: 375, height: 667 });
+    let allowed = 0;
+    for (const { app, variant, name } of panels) {
+      await pick(page, app.label, variant.label);
+      expect(partingOf(await panelShown(page), panelText(app, variant)), name).toBeNull();
+      // 정해 둔 속성만 있다. 결과 화면의 것에 더해 고르는 단추(눌렸는지), 단추 묶음의 이름, 코드의 줄 번호와 표시, 칸 앞 판 이름.
+      expect(await unknownAttributes(page, ".demo", DEMO_ATTRIBUTES), name).toEqual([]);
+      // 쪽 전체(사이트의 머리와 바닥까지)를 본다. 좁은 화면이라 두 결과의 표의 칸 앞에 판 이름이 그려져 있다.
+      const css = await cssDrawn(page, { markers: MARKERS, allowed: ALLOWED, allowedRules: ALLOWED_RULES });
+      expect(css.rules, name).toEqual([]);
+      expect(css.drawn, name).toEqual([]);
+      // 허용한 글은 실제로 그려져 있다(허용 목록이 아무것도 거르지 않는데 통과한 것이 아니다).
+      const all = await cssDrawn(page, { markers: MARKERS });
+      allowed += all.drawn.length;
+      expect(all.drawn.filter((entry) => entry.startsWith("td.")).length, name).toBeGreaterThan(0);
+    }
+    expect(allowed).toBeGreaterThan(100);
+    // 넓은 화면에서는 칸 앞의 판 이름을 그리지 않는다. 줄 번호만 그린다.
+    await page.setViewportSize({ width: 1280, height: 720 });
+    expect((await cssDrawn(page, { markers: MARKERS })).drawn.filter((entry) => entry.startsWith("td."))).toEqual([]);
+
+    // 대조: 같은 방법으로, 데모에 CSS 가 글을 그리면 잡힌다(연 쪽에만 넣는다). 줄 번호처럼 속성을 옮겨 그려도 다른 속성이면
+    // 잡힌다. 칠한 줄 아래의 설명 뒤에 덧붙인 풀이도 잡힌다.
+    await page.addStyleTag({ content: '.codeline::after { content: attr(class); } .codenote::after { content: " (풀이)"; }' });
+    const control = await cssDrawn(page, { markers: MARKERS, allowed: ALLOWED, allowedRules: ALLOWED_RULES });
+    expect(control.rules).toEqual([".codeline::after { content: attr(class) }", '.codenote::after { content: " (풀이)" }']);
+    expect(control.drawn).toEqual(expect.arrayContaining(['span.codenote::after content: " (풀이)"']));
+  });
+
+  it("여섯 판의 글은 모두 그려진다: 좁은 화면(접힌 채와 펼친 채)과 넓은 화면에서 가려진 글이 없다", async () => {
+    // 코드 상자 안의 긴 줄은 상자 안에서 밀린다. 그 글은 상자를 밀어 상자 가운데로 가져온 뒤 짚는다(site.ts 의 undrawn).
+    // 좁은 화면에서 두 결과의 표의 칸 머리는 일부러 가린다(1px). 칸마다 앞에 판 이름이 그려진다.
+    const NARROW = ".visually-hidden, .compare thead";
+    const { page } = await openDemo({ width: 375, height: 667 });
+    for (const { app, variant, name } of panels) {
+      await page.setViewportSize({ width: 375, height: 667 });
+      await pick(page, app.label, variant.label);
+      const closed = await undrawn(page, { root: ".demo", veiled: NARROW });
+      expect(closed.undrawn, `${name} 375px 접힌 채`).toEqual([]);
+      const folds = await page.locator(".demo details:not([open])").count();
+      await page.evaluate(() => {
+        for (const details of document.querySelectorAll<HTMLDetailsElement>(".demo details")) details.open = true;
+      });
+      const opened = await undrawn(page, { root: ".demo", veiled: NARROW });
+      expect(opened.undrawn, `${name} 375px 펼친 채`).toEqual([]);
+      // 본 글이 있다. 접어 둔 것이 있었으면 펼친 뒤에 볼 글이 는다(접어 둔 글을 빼고 본 것이 맞다).
+      expect(closed.texts, name).toBeGreaterThan(40);
+      if (folds > 0) expect(opened.texts, name).toBeGreaterThan(closed.texts);
+      else expect(opened.texts, name).toBe(closed.texts);
+      await page.setViewportSize({ width: 1280, height: 720 });
+      expect((await undrawn(page, { root: ".demo", veiled: ".visually-hidden" })).undrawn, `${name} 1280px`).toEqual([]);
+    }
+  });
+
+  it("접근성 트리: 두 결과의 표는 그 제목을 이름으로 가진 표이고, 그려진 칸이 모두 칸으로 드러난다. 넓은 화면에서 칸의 이름은 값뿐이다", async () => {
+    // 좁은 화면에서는 CSS 가 표의 display 를 바꾼다. role 을 직접 적어 표로 남게 했다(components/demo/DemoPanel.tsx).
+    // Chrome 의 접근성 트리를 CDP 로 읽는다(site.ts 의 accessibleNodes. 시험 도구의 getByRole 은 태그와 role 속성으로 셈해서
+    // 브라우저가 표의 뜻을 버려도 표로 센다). Chrome 155 는 role 이 없어도 표로 드러낸다(결과 화면의 표와 같다).
+    // 좁은 화면의 칸 이름에는 칸 앞에 CSS 가 그린 판 이름이 함께 든다(대체 글이 없다). 고칠지는 ROADMAP 9번이 정한다.
+    const { context, page } = await openDemo({ width: 375, height: 667 });
+    const nodes = (selector: string) => accessibleNodes(context, page, selector);
+    for (const { app, variant, name } of panels) {
+      await pick(page, app.label, variant.label);
+      const want = EXPECTED[name];
+      for (const width of [375, 1280]) {
+        await page.setViewportSize({ width, height: 720 });
+        const at = `${name} ${width}px`;
+        expect(await nodes(".compare"), at).toEqual([{ role: "table", name: "고치기 전과 고친 뒤의 결과" }]);
+        expect((await nodes(".compare tr")).map((node) => node.role), at).toEqual(Array(1 + want.policies.length).fill("row"));
+        // 그려진 칸이 모두 칸으로 드러난다.
+        const drawn = await page.locator(".compare td").evaluateAll((all) => all.map((td) => td.getClientRects().length > 0));
+        expect(drawn, at).toEqual(want.compare.map(() => true));
+        const cells = await nodes(".compare td");
+        expect(cells.map((node) => node.role), at).toEqual(drawn.map(() => "cell"));
+        expect(await nodes(".compare tbody th"), at).toEqual(want.policies.map(([policy]) => ({ role: "rowheader", name: policy })));
+        expect(await nodes(".compare thead th"), at).toEqual(COMPARE_COLUMNS.map((column) => ({ role: "columnheader", name: column })));
+        if (width === 1280) expect(cells.map((node) => node.name), at).toEqual(want.compare);
+      }
+      await page.setViewportSize({ width: 375, height: 667 });
+    }
   });
 });

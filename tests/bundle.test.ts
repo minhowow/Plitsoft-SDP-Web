@@ -7,7 +7,8 @@ import { root, walk } from "./helpers";
 // 브라우저로 가는 JS 묶음에 팩 메타데이터 전체가 실리지 않게 한다.
 // 팩 메타데이터에는 화면에 싣지 않기로 한 팩 작성자 메모가 들어 있다(docs/commitments.md 의 1). 브라우저에서 도는
 // 부품이 그 파일을 불러오면, 화면에 그리지 않아도 묶음에 통째로 실려 나간다.
-// 이 시험은 소스의 불러오기만 따라간다. 빌드된 out/ 의 파일을 보는 것은 아니다(docs/ROADMAP.md 의 8번).
+// 이 시험은 소스의 불러오기만 따라간다. 빌드된 out/ 의 파일은 tests/browser/out-files.test.ts 의 "팩 작성자 메모의 글은
+// 어느 파일에도 없다"가 본다(빌드 뒤에 돈다).
 
 const SOURCE = /\.(ts|tsx)$/;
 const read = (file: string) => readFileSync(path.join(root, file), "utf8");
