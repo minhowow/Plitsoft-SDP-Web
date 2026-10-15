@@ -201,6 +201,25 @@ const inside = async (page: Page, selector: string) => {
   return { x: box.x + Math.min(20, box.width / 2), y: box.y + Math.min(10, box.height / 2) };
 };
 
+describe("파비콘", () => {
+  it("브라우저가 청한 파비콘은 404 가 아니다 (첫 화면, 결과 보기, 데모, 조문 도감)", async () => {
+    // 9번 전에는 파비콘이 없어서, 쪽을 열 때마다 브라우저가 스스로 /favicon.ico 를 청해 404 를 받고 콘솔에 오류 한 줄이 남았다
+    // (시험이 그 한 줄을 봐주고 있었다. site.ts 의 newPage). 이제는 쪽의 머리에 파비콘의 link 가 있고(빌드된 HTML 은
+    // out-files.test.ts 가 본다), 브라우저는 그것을 받는다. 봐주던 것을 걷었으므로 404 가 다시 나면 어느 시험에서든 실패한다.
+    for (const pathname of ["/", "/view/", "/demo/", "/policy/"]) {
+      const start = site.requests.length;
+      await openView({ width: 1280, height: 720 }, pathname);
+      // 브라우저는 쪽을 다 읽은 뒤에 파비콘을 청한다. 창마다 한 번이다.
+      await expect.poll(() => site.requests.slice(start).some((request) => request.url.startsWith("/favicon.ico")), { timeout: 5_000 }).toBe(true);
+      const icons = site.requests.slice(start).filter((request) => request.url.startsWith("/favicon.ico"));
+      await expect.poll(() => icons.every((request) => request.status !== 0), { timeout: 5_000 }).toBe(true);
+      expect(icons.map((request) => request.status), pathname).toEqual(icons.map(() => 200));
+      // 쪽을 여는 동안 서버가 404 로 돌려준 요청이 하나도 없다.
+      expect(site.requests.slice(start).filter((request) => request.status === 404), pathname).toEqual([]);
+    }
+  });
+});
+
 describe("연 파일을 어디로도 보내지 않는다", () => {
   it("파일을 열고 맨 아래까지 스크롤한 뒤에도 네트워크 요청이 없다 (기본 예시와 정책 순서가 달라지는 파일)", async () => {
     const start = site.requests.length;
@@ -953,8 +972,9 @@ describe("좁은 화면에서 가로로 넘치지 않는다", () => {
     // 사라지고 쪽이 가로로 넘친다(ROADMAP 3번에서 넘어온 것). 뷰어의 칸을 minmax(0, 1fr) 로 정해 막았다(globals.css).
     const { page } = await openView({ width: 320, height: 640 });
     expect(await overflow(page)).toEqual({ ...NONE, limit: 300 });
-    // 넓은 글꼴을 흉내 낸다. 이 컴퓨터의 글꼴로는 상자의 제 너비(276px)가 칸보다 좁아서, 여기까지만 재면 칸을 붙드는
-    // 줄을 지워도 통과한다(예시 이름을 줄인 뒤로 그랬다). 상자의 글자만 키워 제 너비가 칸보다 넓어지게 한다.
+    // 넓은 글꼴을 흉내 낸다. 이 컴퓨터의 글꼴로는 상자의 제 너비(264px. 9번에서 고르기 줄의 글자를 작은 글로 맞춘 뒤의 값이다.
+    // 8번까지는 276px)가 칸보다 좁아서, 여기까지만 재면 칸을 붙드는 줄을 지워도 통과한다(예시 이름을 줄인 뒤로 그랬다).
+    // 상자의 글자만 키워 제 너비가 칸보다 넓어지게 한다(20px 에서 363px).
     await page.addStyleTag({ content: "#sample-select { font-size: 20px; }" });
     const select = await selectWidths(page);
     // 칸을 밀 만큼 넓어야 이 시험이 무엇인가를 본다. 여기서 실패하면 글자를 더 키운다.
@@ -969,7 +989,7 @@ describe("좁은 화면에서 가로로 넘치지 않는다", () => {
   it("320px: 예시 고르기 상자가 가장 긴 항목도 자르지 않는다", async () => {
     // 고르기 상자는 가장 긴 항목에 맞춰 넓어진다. 그 너비가 칸(280px)보다 넓으면 칸에 맞춰 줄고(max-width), 고른 항목의
     // 끝이 잘려 보인다. 이름에 출처를 한 번 더 적던 때 그랬다("… (v1 초안) · v1 초안 예시"). 줄이지 않았을 때의 너비가
-    // 칸 안에 드는지를 본다. 이 컴퓨터의 글꼴로 잰 것이다(글꼴이 더 넓으면 달라진다).
+    // 칸 안에 드는지를 본다. 이 컴퓨터의 글꼴로 잰 것이다(글꼴이 더 넓으면 달라진다). 9번 뒤에 264px(칸 280px)이다.
     const { page } = await openView({ width: 320, height: 640 });
     const widths = await selectWidths(page);
     expect(widths.options).toBe(SAMPLES.length + 1);

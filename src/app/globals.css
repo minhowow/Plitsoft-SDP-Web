@@ -1,10 +1,19 @@
-/* 색과 글꼴은 모두 여기 토큰에서 가져다 쓴다. 상태 색(검토 필요·보류·충족·없음)은 강조색과 따로 둔다. */
+/*
+ * 색, 글꼴, 글자 크기, 줄 간격, 간격은 모두 여기 토큰에서 가져다 쓴다(9번에서 되풀이되던 값을 몇 단계로 모았다).
+ * 상태 색(검토 필요·보류·충족·없음)은 강조색과 따로 둔다. 글자색은 어느 바탕에 놓이든 두 테마에서 명도 대비 4.5:1 이상이다
+ * (tests/browser/colors.test.ts 가 그려진 글자마다 잰다).
+ */
 :root {
   --bg: #f4f5f7;
   --surface: #ffffff;
   --ink: #151c25;
-  --muted: #5a6472;
+  --muted: #59626f;
   --rule: #d9dde3;
+  /*
+   * 누르거나 고르는 것(고르기 상자, 파일 고르기 단추, 고르는 단추)의 테두리. 나누는 선(--rule)보다 짙다. 그 바깥의 바탕(--bg,
+   * --surface)과 명도 대비 3:1 이상이라, 테두리만으로도 그 자리가 단추인 줄 보인다(tests/browser/colors.test.ts).
+   */
+  --control-line: #828a96;
   --accent: #2c3f8f;
   --accent-soft: #e7eaf6;
   --code-bg: #eff1f4;
@@ -15,24 +24,68 @@
   --st-pending-bg: #eceaf7;
   --st-ok: #1b6f44;
   --st-ok-bg: #ddf0e5;
-  --st-none: #616a78;
+  --st-none: #576070;
   --st-none-bg: #eceef2;
-  --font-body: "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
-  --font-law: "Noto Serif KR", "AppleMyungjo", "Batang", serif;
+
+  /*
+   * 글꼴은 사용자의 컴퓨터에 깔린 것만 쓴다(글꼴 파일을 싣거나 밖에서 받지 않는다). 맥·iOS, 윈도, 리눅스·안드로이드에
+   * 기본으로 깔리는 한글 고딕의 이름만 차례로 적는다. 따로 깔아야 하는 글꼴은 적지 않는다. 깔린 컴퓨터에서만 글자 너비가
+   * 달라져, 이 맥의 글꼴로 잰 것(320px 의 예시 고르기 상자, 검사 기록의 쪽수)이 맞지 않게 된다.
+   *
+   * 조문 원문도 같은 고딕으로 적는다. 8번까지는 원문만 명조로 적었다. 이 맥에서 그 자리에 쓰인 AppleMyungjo 는 글자 사이가
+   * 성기고 획이 고르지 않아, 375px 에서 한 줄에 든 글자가 적고 긴 원문이 읽기 어려웠다(docs/architecture.md 의 "글꼴·간격·색").
+   */
+  --font-body: "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans CJK KR", system-ui, sans-serif;
   --font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+
+  /* 글자 크기. 본문(16px) 아래로 세 단계, 위로 머리말과 제목 셋. */
+  --text-xs: 0.8rem; /* 이름표, 칩, 수, 칸 머리 */
+  --text-sm: 0.875rem; /* 풀이, 덧붙인 말, 판정 경로 */
+  --text-md: 0.9375rem; /* 알림, 질문, 표의 값, 조문 원문 */
+  --text-lg: 1.125rem; /* 머리말 */
+  --text-h3: 1.0625rem;
+  --text-h2: 1.375rem;
+  --text-h1: 1.875rem;
+
+  /* 줄 간격. 문단은 넉넉히, 작은 글과 표는 조금 좁게, 제목은 좁게. */
+  --leading: 1.7;
+  --leading-snug: 1.6;
+  --leading-tight: 1.35;
+
+  /*
+   * 풀이 문단의 한 줄 길이(672px). 글자 크기와 상관없는 한 값이라, 한 상자 안의 글(작은 풀이, 질문, 목록)이 같은 오른쪽 끝을
+   * 갖는다. 넓은 화면에서 작은 글(14px)은 빈칸까지 일흔 자 안팎, 머리말(18px)은 예순 자 안팎에서 줄을 바꾼다. 처음(9번)에는
+   * 42em 이라 글자 크기마다 끊는 자리가 달랐고, 한 줄에 조금 넘치는 한 문장짜리 풀이가 마지막 낱말 하나만 다음 줄에 남겼다.
+   */
+  --measure: 42rem;
+
+  /* 간격 */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 40px;
+  --radius: 10px;
+  --radius-sm: 8px;
 }
 
-@media (prefers-color-scheme: dark) {
+/*
+ * 어두운 테마는 화면에서만 쓴다(screen). 인쇄할 때는 운영체제가 어두운 테마여도 위의 밝은 색으로 찍는다. 브라우저는 바탕색을
+ * 찍지 않으므로, 어두운 테마의 옅은 글자색이 그대로 흰 종이에 남는다(아래 @media print).
+ */
+@media screen and (prefers-color-scheme: dark) {
   :root {
     --bg: #0f1318;
     --surface: #161c23;
     --ink: #e5e9ef;
-    --muted: #99a3b0;
-    --rule: #29313b;
+    --muted: #9ba5b2;
+    --rule: #2f3843;
+    --control-line: #647080;
     --accent: #a3b3f4;
     --accent-soft: #222a47;
     --code-bg: #11171e;
-    --mark: #4a3d12;
+    --mark: #3a3320;
     --st-review: #f2ad62;
     --st-review-bg: #3a2912;
     --st-pending: #b9adf2;
@@ -49,40 +102,48 @@
   box-sizing: border-box;
 }
 
-body {
+/*
+ * 선택자에 html 을 앞세워 명시도를 높였다. Next 가 빌드하는 기본 404 쪽(out/404.html)은 본문 안에 body 의 색을 정하는
+ * <style> 을 싣는다(body{color:#000;background:#fff}, 어두운 테마면 #fff 와 #000. 그 갈래는 screen 에 묶이지 않아 인쇄에도
+ * 듣는다). 그 규칙이 이 파일보다 뒤에 와서, 그대로 두면 그 쪽만 사이트의 바탕과 다르고 어두운 테마에서 인쇄하면 흰 종이에 흰
+ * 글자로 찍힌다. 아래 @media print 의 바탕도 같은 명시도로 적는다.
+ */
+html body {
   margin: 0;
   background: var(--bg);
   color: var(--ink);
   font-family: var(--font-body);
   font-size: 16px;
-  line-height: 1.7;
+  line-height: var(--leading);
   word-break: keep-all;
   overflow-wrap: anywhere;
 }
 
 a {
   color: var(--accent);
-  text-underline-offset: 2px;
+  text-underline-offset: 0.2em;
 }
 
 h1,
 h2,
 h3 {
-  line-height: 1.35;
+  line-height: var(--leading-tight);
   text-wrap: balance;
   margin: 0;
 }
 
 h1 {
-  font-size: 1.9rem;
+  font-size: var(--text-h1);
+  letter-spacing: -0.01em;
 }
 
 h2 {
-  font-size: 1.3rem;
+  font-size: var(--text-h2);
 }
 
 h3 {
-  font-size: 1.05rem;
+  font-size: var(--text-h3);
+  font-weight: 600;
 }
 
 p {
@@ -106,6 +167,22 @@ code {
   outline-offset: 2px;
 }
 
+/* 풀이 문단은 넓은 화면에서도 한 줄이 너무 길어지지 않게 한다. 조문별 검사 기록은 종이 너비를 다 쓴다(아래 .record). */
+.lede,
+.hint,
+.pending,
+.ask,
+.question,
+.reasons li,
+.alt-message,
+.status-notes li,
+.not-seen > li,
+.legend li,
+.viewer-note,
+.demo-note {
+  max-width: var(--measure);
+}
+
 /* 화면에는 보이지 않고 화면 낭독기에는 읽히는 글. 끌어서 골라 복사한 글에는 섞이지 않게 한다. */
 .visually-hidden {
   position: absolute;
@@ -126,6 +203,14 @@ code {
   white-space: nowrap;
 }
 
+/*
+ * 닫는 따옴표·괄호와 그 앞(빈칸 없는 말을 감쌌으면 여는 부호부터, 아니면 앞 글자), 뒤에 붙은 조사는 한 덩어리로 다닌다
+ * (components/text.tsx 의 keepParticles). 조사만 다음 줄 머리에 남지 않는다.
+ */
+.nobreak {
+  white-space: nowrap;
+}
+
 .wrap {
   max-width: 920px;
   margin: 0 auto;
@@ -133,21 +218,25 @@ code {
 }
 
 main.wrap {
-  padding-block: 36px 64px;
+  padding-block: var(--space-6) 64px;
   display: grid;
-  gap: 24px;
+  gap: var(--space-5);
 }
 
 main.wrap > section,
 .policy-page {
   display: grid;
-  gap: 14px;
+  gap: var(--space-3);
+}
+
+/* 쪽의 머리말은 제목에 붙여 둔다(제목 바로 아래의 한 덩어리). 그 아래 내용과는 쪽의 간격만큼 띄운다. */
+main.wrap > h1 + .lede {
+  margin-top: calc(var(--space-2) - var(--space-5));
 }
 
 .lede {
-  font-size: 1.08rem;
+  font-size: var(--text-lg);
   color: var(--muted);
-  max-width: 44em;
 }
 
 /* 머리·바닥 */
@@ -159,10 +248,10 @@ main.wrap > section,
 .site-header .wrap {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px 24px;
+  gap: var(--space-2) var(--space-5);
   align-items: center;
   justify-content: space-between;
-  padding-block: 14px;
+  padding-block: var(--space-3);
 }
 
 .brand {
@@ -174,46 +263,50 @@ main.wrap > section,
 .site-header nav {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 18px;
+  gap: var(--space-1) var(--space-4);
 }
 
 .site-footer {
   border-top: 1px solid var(--rule);
   color: var(--muted);
-  font-size: 0.86rem;
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
 }
 
 .site-footer .wrap {
-  padding-block: 20px;
+  padding-block: var(--space-5);
   display: grid;
-  gap: 4px;
+  gap: var(--space-1);
 }
 
 /* 첫 화면 */
 .entries {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
-  gap: 14px;
+  gap: var(--space-3);
 }
 
+/* 카드의 높이가 같아져도 제목과 설명은 위에서부터 붙여 적는다(설명이 짧은 카드에서 둘 사이가 벌어지지 않게). */
 .entry {
   display: grid;
-  gap: 6px;
-  padding: 16px 18px;
+  align-content: start;
+  gap: var(--space-1);
+  padding: var(--space-4);
   background: var(--surface);
   border: 1px solid var(--rule);
-  border-radius: 10px;
+  border-radius: var(--radius);
   color: var(--ink);
   text-decoration: none;
 }
 
 .entry h2 {
   color: var(--accent);
-  font-size: 1.1rem;
+  font-size: var(--text-lg);
 }
 
 .entry p {
-  font-size: 0.92rem;
+  font-size: var(--text-md);
+  line-height: var(--leading-snug);
   color: var(--muted);
 }
 
@@ -225,35 +318,38 @@ main.wrap > section,
 }
 
 .policy-index li {
-  padding: 12px 0;
+  padding: var(--space-3) 0;
   border-bottom: 1px solid var(--rule);
   display: grid;
   gap: 2px;
+  line-height: var(--leading-snug);
 }
 
 .policy-index p {
-  font-size: 0.92rem;
+  font-size: var(--text-md);
   color: var(--muted);
 }
 
 /* 목록에서 정책마다 적는 한 줄(근거 조문과 규칙의 수, 재검토 기한). */
 .policy-counts {
-  font-size: 0.82rem;
+  font-size: var(--text-xs);
   color: var(--muted);
 }
 
 .law {
-  font-size: 0.86rem;
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
   color: var(--muted);
 }
 
-/* 상태 칩 */
+/* 상태 칩. 뜻은 글로 말한다. 색은 갈래(검토 필요·확인 대기·충족 근거·그 밖)만 가른다. */
 .chip {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 0.8rem;
+  font-size: var(--text-xs);
   font-weight: 500;
+  line-height: var(--leading-snug);
   padding: 2px 10px;
   border-radius: 999px;
   white-space: nowrap;
@@ -293,7 +389,7 @@ main.wrap > section,
 /* 결과 */
 .report {
   display: grid;
-  gap: 16px;
+  gap: var(--space-4);
 }
 
 /*
@@ -305,14 +401,15 @@ main.wrap > section,
   margin: 0;
   display: flex;
   flex-wrap: wrap;
-  gap: 8px 28px;
-  font-size: 0.88rem;
+  gap: var(--space-2) var(--space-5);
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
 }
 
 .report-meta dt,
 .meta-row dt {
   color: var(--muted);
-  font-size: 0.78rem;
+  font-size: var(--text-xs);
 }
 
 .report-meta dd,
@@ -322,15 +419,17 @@ main.wrap > section,
 
 .coverage {
   display: grid;
-  gap: 6px;
-  font-size: 0.92rem;
+  gap: var(--space-2);
+  font-size: var(--text-md);
+  line-height: var(--leading-snug);
 }
 
 .notice {
   background: var(--accent-soft);
-  border-radius: 8px;
-  padding: 10px 14px;
-  font-size: 0.92rem;
+  border-radius: var(--radius-sm);
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--text-md);
+  line-height: var(--leading-snug);
 }
 
 .notice-warn {
@@ -339,13 +438,13 @@ main.wrap > section,
 }
 
 .notice ul {
-  margin: 6px 0 0;
+  margin: var(--space-2) 0 0;
   padding-left: 18px;
 }
 
 /* 알림 안에 문단이 여럿일 때(읽지 못한 파일의 안내). */
 .notice > * + p {
-  margin-top: 6px;
+  margin-top: var(--space-2);
 }
 
 /* 접어 둔 것(목록의 나머지 파일, 결과에 실린 오류 문장, 이 도구가 보지 못하는 것). */
@@ -353,11 +452,11 @@ main.wrap > section,
   cursor: pointer;
   width: fit-content;
   color: var(--accent);
-  font-size: 0.88rem;
+  font-size: var(--text-sm);
 }
 
 .fold > :not(summary) {
-  margin-top: 6px;
+  margin-top: var(--space-2);
 }
 
 /* 접힌 이름 옆에 적는, 안에 무엇이 있는지 알리는 말. */
@@ -377,14 +476,14 @@ main.wrap > section,
 }
 
 .gaps caption {
-  padding-bottom: 4px;
+  padding-bottom: var(--space-1);
   text-align: left;
-  font-size: 0.84rem;
+  font-size: var(--text-sm);
   font-weight: 600;
 }
 
 .gaps .caption-note {
-  margin-left: 4px;
+  margin-left: var(--space-1);
   font-weight: 400;
   color: var(--muted);
 }
@@ -419,7 +518,7 @@ main.wrap > section,
 }
 
 .gaps tbody th {
-  font-size: 0.84rem;
+  font-size: var(--text-sm);
   font-weight: 600;
 }
 
@@ -439,12 +538,12 @@ main.wrap > section,
   padding: 0;
   display: grid;
   gap: 2px;
-  font-size: 0.88rem;
+  font-size: var(--text-sm);
 }
 
 /* 칸 안의 뜻 · 덧붙인 말 · 파일 목록 · 접어 둔 것 사이. 목록의 여백을 0으로 되돌리는 위 규칙과 명시도가 같아서 그 뒤에 둔다. */
 .gap-detail > * + * {
-  margin-top: 4px;
+  margin-top: var(--space-1);
 }
 
 /*
@@ -452,9 +551,9 @@ main.wrap > section,
  * 한 문장이 여러 줄로 접히므로, 문장끼리 붙어 한 문단처럼 읽히지 않게 사이를 띄운다.
  */
 .gap-texts {
-  gap: 8px;
+  gap: var(--space-2);
   font-family: var(--font-mono);
-  font-size: 0.84rem;
+  font-size: var(--text-sm);
 }
 
 .gap-texts li {
@@ -464,7 +563,7 @@ main.wrap > section,
 /* 파일 이름 옆에 적는, 이 결과에서 그 파일에 나온 발견의 수. 줄이 바뀌어도 한 덩어리로 다닌다. */
 .gap-found {
   margin-left: 2px;
-  font-size: 0.8rem;
+  font-size: var(--text-xs);
   color: var(--muted);
   white-space: nowrap;
 }
@@ -524,47 +623,48 @@ main.wrap > section,
 .empty-report {
   background: var(--surface);
   border: 1px solid var(--rule);
-  border-radius: 10px;
-  padding: 14px 16px;
+  border-radius: var(--radius);
+  padding: var(--space-4);
   display: grid;
-  gap: 14px;
+  gap: var(--space-4);
   min-width: 0;
 }
 
 .empty-report section {
   display: grid;
-  gap: 8px;
+  gap: var(--space-2);
   min-width: 0;
 }
 
 .empty-report section + section {
   border-top: 1px solid var(--rule);
-  padding-top: 14px;
+  padding-top: var(--space-4);
 }
 
 /* 줄마다 같은 자리에 이름표가 온다. 좁은 화면에서는 이름표를 글 위에 둔다. */
 .examined {
   margin: 0;
   display: grid;
-  gap: 8px;
+  gap: var(--space-2);
+  line-height: var(--leading-snug);
 }
 
 .examined > div {
   display: grid;
   grid-template-columns: 9.5em minmax(0, 1fr);
-  gap: 0 12px;
+  gap: 0 var(--space-3);
   align-items: baseline;
 }
 
 .examined dt {
-  font-size: 0.84rem;
+  font-size: var(--text-sm);
   font-weight: 600;
   color: var(--muted);
 }
 
 .examined dd {
   margin: 0;
-  font-size: 0.92rem;
+  font-size: var(--text-md);
 }
 
 /* 값(결과에 실린 수)이 먼저 눈에 들어오고, 그 수가 무엇인지는 옅게 뒤따른다. */
@@ -589,13 +689,14 @@ main.wrap > section,
   margin: 0;
   padding-left: 18px;
   display: grid;
-  gap: 6px;
-  font-size: 0.92rem;
+  gap: var(--space-2);
+  font-size: var(--text-md);
+  line-height: var(--leading-snug);
 }
 
 /* 한 항목 안에서 까닭마다 한 줄씩 나눠 적은 목록. */
 .not-seen-cases {
-  margin: 4px 0 0;
+  margin: var(--space-1) 0 0;
   padding-left: 18px;
   display: grid;
   gap: 2px;
@@ -603,49 +704,56 @@ main.wrap > section,
 
 .policies {
   display: grid;
-  gap: 12px;
+  gap: var(--space-3);
 }
 
 .policy {
   background: var(--surface);
   border: 1px solid var(--rule);
-  border-radius: 10px;
-  padding: 14px 16px;
+  border-radius: var(--radius);
+  padding: var(--space-4);
   display: grid;
-  gap: 10px;
+  gap: var(--space-3);
   min-width: 0;
   /* 같은 쪽 안에서 이 카드로 옮겨 왔을 때(데모의 두 결과의 표) 카드가 창 위쪽에 바짝 붙지 않게 한다. */
-  scroll-margin-top: 12px;
+  scroll-margin-top: var(--space-3);
 }
 
 .policy-head {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px 16px;
+  gap: var(--space-2) var(--space-4);
   justify-content: space-between;
   align-items: flex-start;
 }
 
+/* 카드 제목은 링크다. 굵게 적은 글에 밑줄이 겹쳐 무거워 보이지 않게 밑줄을 가늘게 둔다. */
+.policy-head h3 a {
+  text-decoration-thickness: 1px;
+}
+
 .policy-state {
   display: flex;
-  gap: 8px;
+  gap: var(--space-2);
   align-items: center;
 }
 
 .count {
-  font-size: 0.82rem;
+  font-size: var(--text-xs);
   color: var(--muted);
 }
 
 .hint {
-  font-size: 0.88rem;
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
   color: var(--muted);
 }
 
 .question {
-  font-size: 0.92rem;
+  font-size: var(--text-md);
+  line-height: var(--leading-snug);
   border-left: 2px solid var(--accent);
-  padding-left: 10px;
+  padding-left: var(--space-3);
 }
 
 .findings,
@@ -656,34 +764,35 @@ main.wrap > section,
   margin: 0;
   padding: 0;
   display: grid;
-  gap: 10px;
+  gap: var(--space-3);
 }
 
 /* 규칙 묶음. 같은 규칙의 발견을 한데 두고, 접는 것도 이 안에서만 한다. */
 .rule-group {
   border-top: 1px solid var(--rule);
-  padding-top: 10px;
+  padding-top: var(--space-3);
   display: grid;
-  gap: 8px;
+  gap: var(--space-2);
   min-width: 0;
 }
 
 .rule-head {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 10px;
+  gap: var(--space-1) var(--space-3);
   align-items: center;
 }
 
 .rule-head h4 {
   margin: 0;
   font-family: var(--font-mono);
-  font-size: 0.86rem;
+  font-size: var(--text-sm);
+  font-weight: 600;
   line-height: 1.5;
 }
 
 .rule-count {
-  font-size: 0.82rem;
+  font-size: var(--text-xs);
   color: var(--muted);
 }
 
@@ -704,7 +813,7 @@ main.wrap > section,
   cursor: pointer;
   list-style: none;
   padding: 6px 10px 6px 28px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
 }
 
 .finding summary::-webkit-details-marker,
@@ -756,7 +865,7 @@ main.wrap > section,
 
 /* 판정이 본 범위(파일 전체·함수). 닫힌 줄에서도 줄 번호 옆에 늘 보인다. */
 .finding-scope {
-  font-size: 0.8rem;
+  font-size: var(--text-xs);
   color: var(--muted);
   white-space: nowrap;
 }
@@ -781,7 +890,7 @@ main.wrap > section,
 .more > summary {
   width: fit-content;
   color: var(--accent);
-  font-size: 0.88rem;
+  font-size: var(--text-sm);
 }
 
 .more > .findings {
@@ -791,34 +900,36 @@ main.wrap > section,
 /* 펼친 안쪽: 판정이 본 범위 → 확인되지 않은 대안(질문·고치는 법) → 판정을 끝까지 하지 못한 이유 → 판정 경로. */
 .finding-body {
   display: grid;
-  gap: 14px;
-  margin: 8px 0 8px 12px;
-  padding-left: 14px;
+  gap: var(--space-4);
+  margin: var(--space-2) 0 var(--space-2) var(--space-3);
+  padding-left: var(--space-4);
   border-left: 2px solid var(--rule);
   min-width: 0;
 }
 
 .step {
   display: grid;
-  gap: 6px;
+  gap: var(--space-2);
   min-width: 0;
 }
 
 .step h5 {
   margin: 0;
-  font-size: 0.84rem;
+  font-size: var(--text-sm);
+  font-weight: 600;
   line-height: 1.5;
 }
 
 .alternatives {
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 .alt {
-  font-size: 0.9rem;
+  font-size: var(--text-md);
+  line-height: var(--leading-snug);
   border: 1px solid var(--rule);
-  border-radius: 8px;
-  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
   display: grid;
   gap: 2px;
   min-width: 0;
@@ -826,35 +937,35 @@ main.wrap > section,
 
 .alt-id {
   font-family: var(--font-mono);
-  font-size: 0.82rem;
+  font-size: var(--text-xs);
   color: var(--muted);
 }
 
 /* 대안마다 같은 자리에 "질문", "고치는 법"이 온다. 좁은 화면에서는 이름표를 글 위에 둔다. */
 .alt-rows {
-  margin: 6px 0 0;
-  padding-top: 6px;
+  margin: var(--space-2) 0 0;
+  padding-top: var(--space-2);
   border-top: 1px dashed var(--rule);
   display: grid;
-  gap: 6px;
+  gap: var(--space-2);
 }
 
 .alt-rows > div {
   display: grid;
   grid-template-columns: 4.6em minmax(0, 1fr);
-  gap: 0 10px;
+  gap: 0 var(--space-3);
   align-items: baseline;
 }
 
 .alt-rows dt {
-  font-size: 0.8rem;
+  font-size: var(--text-xs);
   font-weight: 600;
   color: var(--muted);
 }
 
 .alt-rows dd {
   margin: 0;
-  font-size: 0.88rem;
+  font-size: var(--text-sm);
 }
 
 .alt-rows .none {
@@ -871,7 +982,8 @@ main.wrap > section,
 .pending,
 .reasons li,
 .evidence li {
-  font-size: 0.88rem;
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
   color: var(--muted);
 }
 
@@ -883,14 +995,16 @@ main.wrap > section,
 .path {
   margin: 0;
   padding-left: 22px;
-  font-size: 0.84rem;
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
   font-family: var(--font-mono);
 }
 
 .ai-decisions {
   display: grid;
-  gap: 12px;
-  font-size: 0.9rem;
+  gap: var(--space-3);
+  font-size: var(--text-md);
+  line-height: var(--leading-snug);
 }
 
 .ai-decisions summary {
@@ -899,17 +1013,18 @@ main.wrap > section,
 }
 
 .ai-decisions ul {
-  margin: 6px 0 0;
+  margin: var(--space-2) 0 0;
   padding-left: 18px;
   display: grid;
-  gap: 6px;
+  gap: var(--space-2);
 }
 
 .disclaimer {
-  font-size: 0.84rem;
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
   color: var(--muted);
   border-top: 1px solid var(--rule);
-  padding-top: 12px;
+  padding-top: var(--space-3);
 }
 
 /* 뷰어 */
@@ -924,7 +1039,16 @@ main.wrap > section,
 .report-switch {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 16px;
+  gap: var(--space-4);
+}
+
+/*
+ * 고르는 것(파일, 예시, 데모의 단추)과 그 아래의 결과를 떼어 둔다. 결과의 제목 위를 한 단계 더 띄워, 제목부터가 연 결과라는
+ * 것이 보이게 한다.
+ */
+.viewer-title,
+.demo-title {
+  margin-top: var(--space-2);
 }
 
 /*
@@ -938,11 +1062,11 @@ main.wrap > section,
 
 .dropzone {
   border: 1.5px dashed var(--rule);
-  border-radius: 10px;
-  padding: 18px;
+  border-radius: var(--radius);
+  padding: var(--space-4);
   background: var(--surface);
   display: grid;
-  gap: 10px;
+  gap: var(--space-3);
 }
 
 .dropzone-on {
@@ -973,7 +1097,7 @@ main.wrap > section,
   border-radius: 999px;
   background: var(--accent);
   color: var(--surface);
-  font-size: 0.88rem;
+  font-size: var(--text-sm);
   font-weight: 600;
 }
 
@@ -983,16 +1107,21 @@ main.wrap > section,
 }
 
 .dropzone span {
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
   color: var(--muted);
 }
 
+/*
+ * 예시 고르기. 고르기 상자는 줄을 바꾸지 못한다. 글자가 커지면 320px 에서 가장 긴 항목이 잘린다(tests/browser/view.test.ts 가
+ * 잰다). 그래서 이 줄의 글자는 작은 글(--text-sm)로 둔다.
+ */
 .samples {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px 12px;
+  gap: var(--space-2) var(--space-3);
   align-items: center;
-  font-size: 0.92rem;
+  font-size: var(--text-sm);
 }
 
 select,
@@ -1001,25 +1130,47 @@ input {
   font: inherit;
 }
 
+/*
+ * 고르기 상자와 파일 고르기 단추는 사이트의 단추(.segmented)와 같은 테두리·모서리·색으로 그린다. 브라우저의 기본 모양(회색
+ * 단추, 회색 상자)은 사이트의 색과 따로 놀았다.
+ */
+select,
+input[type="file"]::file-selector-button {
+  border: 1px solid var(--control-line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+}
+
 select {
   max-width: 100%;
-  padding: 4px 8px;
+  padding: 5px 8px;
 }
 
 /* 파일 입력은 기본 최소 너비가 넓어 좁은 화면에서 쪽을 밀어낸다. */
 input[type="file"] {
   width: 100%;
   min-width: 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+input[type="file"]::file-selector-button {
+  margin-right: var(--space-3);
+  padding: 5px var(--space-3);
+  font: inherit;
+  cursor: pointer;
 }
 
 /* 파일을 연 뒤 제목으로 스크롤할 때(ReportViewer) 제목이 창 위쪽에 바짝 붙지 않게 한다. */
 .viewer-title {
-  scroll-margin-top: 16px;
+  scroll-margin-top: var(--space-4);
 }
 
 .viewer-note,
 .demo-note {
-  font-size: 0.92rem;
+  font-size: var(--text-md);
+  line-height: var(--leading-snug);
   color: var(--muted);
 }
 
@@ -1028,7 +1179,7 @@ input[type="file"] {
 /* 고르는 단추 두 줄: 어느 코드인지, 그리고 고치기 전인지 고친 뒤인지. */
 .demo-pick {
   display: grid;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 /*
@@ -1043,11 +1194,13 @@ input[type="file"] {
 }
 
 .segmented button {
-  border: 1px solid var(--rule);
-  border-radius: 8px;
+  border: 1px solid var(--control-line);
+  border-radius: var(--radius-sm);
   background: var(--surface);
   color: var(--muted);
   padding: 6px 14px;
+  font-size: var(--text-md);
+  line-height: var(--leading-snug);
   white-space: nowrap;
   cursor: pointer;
 }
@@ -1058,18 +1211,38 @@ input[type="file"] {
   color: var(--bg);
 }
 
+/*
+ * 강제 색 모드(윈도의 고대비 테마 등)에서는 위의 색이 시스템 색으로 바뀌어, 눌린 단추와 눌리지 않은 단추의 바탕·글자·테두리가
+ * 똑같아진다. 눌린 단추는 시스템이 고른 것에 쓰는 색(Highlight, HighlightText)으로 칠한다(tests/browser/colors.test.ts 의
+ * "강제 색 모드").
+ *
+ * 이 단추만 강제 색을 받지 않게 한다(forced-color-adjust: none). 받으면 브라우저가 글자 뒤에 쪽의 바탕색(Canvas)을 한 겹
+ * 깔아, 그 색과 같은 HighlightText 의 글자가 보이지 않는다. 대신 색은 모두 시스템 색으로 적는다. 초점 둘레선도 강제 색을
+ * 받지 않게 되므로 시스템의 글자색(CanvasText)으로 적는다(둘레선은 단추 바깥, 쪽의 바탕 위에 그려진다).
+ */
+@media (forced-colors: active) {
+  .segmented button[aria-pressed="true"] {
+    forced-color-adjust: none;
+    border-color: Highlight;
+    background: Highlight;
+    color: HighlightText;
+    outline-color: CanvasText;
+  }
+}
+
 .codeblock {
   margin: 0;
   border: 1px solid var(--rule);
-  border-radius: 10px;
+  border-radius: var(--radius);
   overflow: hidden;
   background: var(--surface);
 }
 
 .codeblock figcaption {
-  padding: 8px 14px;
+  padding: var(--space-2) 14px;
   border-bottom: 1px solid var(--rule);
-  font-size: 0.84rem;
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
   color: var(--muted);
 }
 
@@ -1174,9 +1347,10 @@ input[type="file"] {
 }
 
 .code-legend {
-  padding: 6px 14px;
+  padding: var(--space-2) 14px;
   border-top: 1px solid var(--rule);
-  font-size: 0.84rem;
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
   color: var(--muted);
 }
 
@@ -1190,35 +1364,36 @@ input[type="file"] {
 .demo-compare {
   background: var(--surface);
   border: 1px solid var(--rule);
-  border-radius: 10px;
-  padding: 12px 16px;
+  border-radius: var(--radius);
+  padding: var(--space-4);
   display: grid;
-  gap: 10px;
+  gap: var(--space-3);
   min-width: 0;
 }
 
 .compare {
   width: 100%;
   border-collapse: collapse;
+  line-height: var(--leading-snug);
 }
 
 .compare caption {
-  padding-bottom: 4px;
+  padding-bottom: var(--space-1);
   text-align: left;
-  font-size: 0.84rem;
+  font-size: var(--text-sm);
   font-weight: 600;
 }
 
 .compare th,
 .compare td {
-  padding: 6px 14px 6px 0;
+  padding: var(--space-2) 14px var(--space-2) 0;
   text-align: left;
   vertical-align: baseline;
 }
 
 .compare thead th {
-  padding-block: 0 4px;
-  font-size: 0.78rem;
+  padding-block: 0 var(--space-1);
+  font-size: var(--text-xs);
   font-weight: 400;
   color: var(--muted);
 }
@@ -1229,7 +1404,7 @@ input[type="file"] {
 }
 
 .compare tbody th {
-  font-size: 0.92rem;
+  font-size: var(--text-md);
   font-weight: 500;
 }
 
@@ -1270,8 +1445,8 @@ input[type="file"] {
 
   .compare tbody tr {
     display: grid;
-    gap: 2px;
-    padding: 6px 0;
+    gap: var(--space-1);
+    padding: var(--space-2) 0;
     border-top: 1px solid var(--rule);
   }
 
@@ -1297,11 +1472,17 @@ input[type="file"] {
     text-indent: 0;
   }
 
+  /*
+   * 칸 앞의 판 이름은 눈에만 보이게 그린다. 둘째 선언이 빈 대체 글을 준다. 화면 낭독기에는 가려 둔 칸 머리가 그대로 있어서,
+   * 이 이름까지 알리면 칸마다 판 이름이 두 번 읽힌다(대체 글이 없을 때 Chrome 의 접근성 트리에서 칸이 "고치기 전 검토 필요 ·
+   * AI 확인 전 발견 1건"으로 드러났다). 대체 글의 문법을 모르는 브라우저는 첫 선언을 쓴다(조문별 검사 기록의 표와 같다).
+   */
   .compare tbody td::before {
     content: attr(data-label);
+    content: attr(data-label) / "";
     display: inline-block;
     min-width: 3.75rem;
-    font-size: 0.78rem;
+    font-size: var(--text-xs);
     color: var(--muted);
     text-indent: 0;
   }
@@ -1312,29 +1493,61 @@ input[type="file"] {
   }
 }
 
+/*
+ * 표 아래의 상태의 뜻. 칩과 그 뜻을 한 줄씩. 칩은 제 줄의 맨 앞에 두고 뜻은 그 아래(좁은 화면) 또는 옆(넓은 화면)에 적는다.
+ * 뜻을 칩에 이어 흘려 적으면 둘째 줄부터 칩 아래로 파고들어 어디까지가 한 칩의 뜻인지 흐려진다.
+ */
 .status-notes {
   list-style: none;
   margin: 0;
   padding: 0;
   display: grid;
-  gap: 6px;
-  font-size: 0.88rem;
+  gap: var(--space-3);
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
   color: var(--muted);
+}
+
+.status-notes li {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-1);
+}
+
+/* 넓은 화면: 칩의 칸(가장 넓은 칩의 너비)과 뜻의 칸. 줄마다 뜻이 같은 자리에서 시작한다. */
+@media (min-width: 641px) {
+  .status-notes {
+    grid-template-columns: max-content minmax(0, var(--measure));
+    column-gap: var(--space-3);
+  }
+
+  .status-notes li {
+    grid-column: 1 / -1;
+    grid-template-columns: subgrid;
+    align-items: baseline;
+    max-width: none;
+  }
+
+  /* 칩이 없는 줄(AI 가 푼 경고의 풀이)은 뜻의 칸에 적는다. */
+  .status-notes li:not(:has(> .chip)) {
+    display: block;
+    grid-column: 2;
+  }
 }
 
 /* 조문 도감: 정책 한 쪽. 머리 → 한눈에 보는 것 → 근거 조문 → 규칙. */
 .policy-page {
-  gap: 24px;
+  gap: var(--space-5);
 }
 
 .policy-page-head {
   display: grid;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 .policy-section {
   display: grid;
-  gap: 12px;
+  gap: var(--space-3);
 }
 
 /* 팩에 없는 값의 자리에 적는 말("팩에 실려 있지 않습니다", "팩이 아직 알려 주지 않습니다"). 있는 값보다 옅게 적는다. */
@@ -1345,32 +1558,33 @@ input[type="file"] {
 /* 한눈에 보는 것: 값을 옆으로 늘어놓고, 그 값이 무엇인지는 바로 아래에 옅게 적는다. */
 .policy-facts {
   display: grid;
-  gap: 6px;
+  gap: var(--space-2);
 }
 
 /* 규칙마다 같은 자리에 이름표가 오는 목록(판정 단위, 적용 조건, 적용 질문). 좁은 화면에서는 이름표를 글 위에 둔다. */
 .facts {
   margin: 0;
   display: grid;
-  gap: 8px;
+  gap: var(--space-2);
+  line-height: var(--leading-snug);
 }
 
 .facts > div {
   display: grid;
   grid-template-columns: 6em minmax(0, 1fr);
-  gap: 0 12px;
+  gap: 0 var(--space-3);
   align-items: baseline;
 }
 
 .facts dt {
-  font-size: 0.84rem;
+  font-size: var(--text-sm);
   font-weight: 600;
   color: var(--muted);
 }
 
 .facts dd {
   margin: 0;
-  font-size: 0.92rem;
+  font-size: var(--text-md);
 }
 
 @media (max-width: 480px) {
@@ -1382,23 +1596,24 @@ input[type="file"] {
 /* 근거 조문 하나. 조문 사이는 선으로 나눈다. */
 .legal {
   display: grid;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 .legal + .legal {
   border-top: 1px solid var(--rule);
-  padding-top: 12px;
+  padding-top: var(--space-4);
 }
 
 /* 대표 조문이라는 표시. 상태가 아니므로 상태 칩의 색을 쓰지 않는다. */
 .tag {
   display: inline-block;
-  padding: 1px 8px;
+  padding: 1px var(--space-2);
   border-radius: 999px;
   background: var(--accent-soft);
   color: var(--accent);
-  font-size: 0.74rem;
+  font-size: var(--text-xs);
   font-weight: 500;
+  line-height: var(--leading-snug);
   white-space: nowrap;
   vertical-align: middle;
 }
@@ -1409,27 +1624,36 @@ input[type="file"] {
   font-weight: 600;
 }
 
-/* 조문 원문. 팩에 실린 글자 그대로다. 줄바꿈과 빈칸을 그대로 보이고, 긴 줄은 상자 안에서 줄을 바꾼다. */
+/*
+ * 조문 원문. 팩에 실린 글자 그대로다. 줄바꿈과 빈칸을 그대로 보이고, 긴 줄은 상자 안에서 줄을 바꾼다. 글꼴은 본문과 같다
+ * (위 :root 의 글꼴 풀이). 원문이라는 것은 상자와, 그 위의 "조문 원문"이라는 이름이 말한다.
+ *
+ * 글이 놓이는 너비를 풀이 문단의 한 줄 길이(--measure)로 묶는다(content-box 라 안쪽 여백과 테두리는 그 밖이다). 넓은 화면에서
+ * 쪽에서 가장 길고 촘촘한 글의 한 줄이 풀이와 비슷한 길이에서 끊긴다. 묶지 않으면 고딕으로 바꾼 뒤 한 줄이 빈칸까지 여든 자
+ * 안팎이었다. 좁은 화면에는 영향이 없다.
+ */
 .statute {
+  box-sizing: content-box;
+  max-width: var(--measure);
   margin: 0;
-  font-family: var(--font-law);
-  font-size: 0.95rem;
-  line-height: 1.9;
+  font-family: var(--font-body);
+  font-size: var(--text-md);
+  line-height: 1.85;
   white-space: pre-wrap;
   background: var(--surface);
   border: 1px solid var(--rule);
-  border-radius: 10px;
-  padding: 14px 18px;
+  border-radius: var(--radius);
+  padding: var(--space-4) 18px;
 }
 
 /* 규칙 하나. 정책 카드와 같은 면에 둔다. */
 .rule-doc {
   background: var(--surface);
   border: 1px solid var(--rule);
-  border-radius: 10px;
-  padding: 14px 16px;
+  border-radius: var(--radius);
+  padding: var(--space-4);
   display: grid;
-  gap: 12px;
+  gap: var(--space-3);
 }
 
 /* 적용 조건: id 옆이 설명 자리다. */
@@ -1443,9 +1667,10 @@ input[type="file"] {
 
 /* 접어 둔 것 안의 글(판정자에게 묻는 글)은 둘레의 글보다 조금 작게, 왼쪽에 선을 두어 인용처럼 보인다. */
 .rule-doc .fold > p {
-  font-size: 0.88rem;
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
   border-left: 2px solid var(--rule);
-  padding-left: 10px;
+  padding-left: var(--space-3);
 }
 
 /*
@@ -1455,25 +1680,26 @@ input[type="file"] {
 .alts {
   width: 100%;
   border-collapse: collapse;
+  line-height: var(--leading-snug);
 }
 
 .alts caption {
-  padding-bottom: 4px;
+  padding-bottom: var(--space-1);
   text-align: left;
-  font-size: 0.84rem;
+  font-size: var(--text-sm);
   font-weight: 600;
 }
 
 .alts th,
 .alts td {
-  padding: 8px 14px 8px 0;
+  padding: var(--space-2) 14px var(--space-2) 0;
   text-align: left;
   vertical-align: baseline;
 }
 
 .alts thead th {
-  padding-block: 0 4px;
-  font-size: 0.78rem;
+  padding-block: 0 var(--space-1);
+  font-size: var(--text-xs);
   font-weight: 400;
   color: var(--muted);
 }
@@ -1495,7 +1721,7 @@ input[type="file"] {
 }
 
 .alts .alt-kind {
-  font-size: 0.8rem;
+  font-size: var(--text-xs);
   color: var(--muted);
 }
 
@@ -1506,32 +1732,32 @@ input[type="file"] {
 
 /* 칸 안의 덧붙인 말 · 하는 말 · 접어 둔 것 사이. */
 .alt-says > * + * {
-  margin-top: 6px;
+  margin-top: var(--space-2);
 }
 
 /* 대안마다 같은 자리에 "알리는 말", "질문", "고치는 법"이 온다. 좁은 화면에서는 이름표를 글 위에 둔다. */
 .says {
   margin: 0;
   display: grid;
-  gap: 6px;
+  gap: var(--space-2);
 }
 
 .says > div {
   display: grid;
   grid-template-columns: 4.6em minmax(0, 1fr);
-  gap: 0 10px;
+  gap: 0 var(--space-3);
   align-items: baseline;
 }
 
 .says dt {
-  font-size: 0.8rem;
+  font-size: var(--text-xs);
   font-weight: 600;
   color: var(--muted);
 }
 
 .says dd {
   margin: 0;
-  font-size: 0.88rem;
+  font-size: var(--text-sm);
 }
 
 @media (max-width: 480px) {
@@ -1575,8 +1801,8 @@ input[type="file"] {
     display: flex;
     flex-wrap: wrap;
     align-items: baseline;
-    gap: 4px 10px;
-    padding: 8px 0;
+    gap: var(--space-1) var(--space-3);
+    padding: var(--space-3) 0;
     border-top: 1px solid var(--rule);
   }
 
@@ -1609,16 +1835,18 @@ input[type="file"] {
 .record-tools {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px 12px;
+  gap: var(--space-2) var(--space-3);
   align-items: center;
 }
 
 .record-tools button {
   border: 1px solid var(--ink);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: var(--ink);
   color: var(--bg);
   padding: 6px 18px;
+  font-size: var(--text-md);
+  line-height: var(--leading-snug);
   white-space: nowrap;
   cursor: pointer;
 }
@@ -1626,10 +1854,10 @@ input[type="file"] {
 .record {
   background: var(--surface);
   border: 1px solid var(--rule);
-  border-radius: 10px;
-  padding: 18px 20px;
-  font-size: 0.92rem;
-  line-height: 1.6;
+  border-radius: var(--radius);
+  padding: var(--space-4) 20px;
+  font-size: var(--text-md);
+  line-height: var(--leading-snug);
   min-width: 0;
 }
 
@@ -1690,7 +1918,7 @@ input[type="file"] {
 .record-notice,
 .record-warning {
   border: 1px solid var(--ink);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   padding: 0.6em 0.9em;
 }
 
@@ -1706,9 +1934,15 @@ input[type="file"] {
   color: var(--muted);
 }
 
+/*
+ * 기록 안의 풀이는 기록의 바탕 크기와 줄 간격을 따르고(인쇄할 때는 9pt 와 그 줄 간격이다), 한 줄의 길이를 묶지 않는다.
+ * 종이의 너비를 다 써야 기록이 쪽을 덜 넘긴다.
+ */
 .record .hint,
 .record-notes {
   font-size: 0.9em;
+  line-height: inherit;
+  max-width: none;
   color: var(--muted);
 }
 
@@ -2032,10 +2266,25 @@ input[type="file"] {
 }
 
 /*
- * 인쇄. 검사 기록이 열려 있으면 기록만 인쇄한다. 열려 있지 않은 쪽(조문 도감, 결과 화면)에서는 아래 규칙이 아무것도
- * 바꾸지 않는다.
+ * 인쇄. 검사 기록이 열려 있으면 기록만 인쇄한다(아래 :has(.record) 의 규칙들).
+ *
+ * 기록이 열려 있지 않은 쪽(결과 화면, 데모, 조문 도감)은 화면 그대로 찍되, 두 가지만 다르다. 색은 늘 밝은 테마의 것이다
+ * (어두운 테마는 screen 에서만 듣는다. 위 :root). 화면에서 고르는 데만 쓰는 것(파일 고르기, 예시 고르기, 데모의 단추,
+ * 결과와 기록을 오가는 단추)은 종이에서 쓸 수 없어서 찍지 않는다. 무엇을 열었는지는 그 아래의 제목이 말한다.
  */
 @media print {
+  /* 명시도는 위의 html body 와 같다(Next 의 기본 404 쪽이 싣는 body 의 색보다 높다). */
+  html body {
+    background: #fff;
+  }
+
+  .dropzone,
+  .samples,
+  .demo-pick,
+  .report-switch > .segmented {
+    display: none;
+  }
+
   /*
    * 기록, 기록 안의 것, 기록을 품은 것만 남긴다. 사이트의 머리와 바닥글, 고르는 단추와 인쇄 단추, 코드 상자를 비롯한
    * 다른 화면 요소는 인쇄하지 않는다.
@@ -2081,12 +2330,28 @@ input[type="file"] {
     border-radius: 0;
     padding: 0;
     font-size: 9pt;
-    line-height: 1.4;
+    line-height: 1.35;
   }
 
-  /* 구역 사이를 화면보다 조금 좁힌다. 발견이 한두 건인 결과의 기록이 한 쪽에 들어간다. */
+  /*
+   * 줄 간격(위의 1.35)과 구역 사이, 표의 줄 안쪽 여백을 화면보다 좁힌다. 발견이 두 건까지인 결과의 기록이 A4 한 쪽에
+   * 들어가고 아래에 네 줄쯤 남는다. 9번에서 정책 표 아래에 대표 조문의 뜻을 한 줄 더하며 좁혔다. 그 전의 간격(줄 간격 1.4,
+   * 구역 사이 1.1em)으로는 그 한 줄로 두 쪽이 된다. 표의 줄 안쪽 여백은 9번의 첫 검토 뒤에 0.3em 에서 0.2em 으로 더
+   * 좁혔다. 발견이 세 건인 데모 판(광고 푸시의 고친 뒤)의 기록이 둘째 쪽에 발견 한 줄만 남기고 있었다. 지금은 한 쪽이지만
+   * 이 맥의 글꼴로 1px 남짓 남는 빠듯한 한 쪽이다(docs/architecture.md 의 "조문별 검사 기록"의 "인쇄").
+   */
   .record > * + * {
-    margin-top: 1.1em;
+    margin-top: 0.9em;
+  }
+
+  .record th,
+  .record td {
+    padding-block: 0.2em;
+  }
+
+  /* 발견 표의 묶음 머리는 앞의 묶음과 조금 더 띄운다(화면과 같은 뜻으로). */
+  .record .record-group th {
+    padding-top: 0.6em;
   }
 
   /*

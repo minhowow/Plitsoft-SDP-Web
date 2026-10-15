@@ -1,4 +1,5 @@
 import { Fragment, useId, type ReactNode } from "react";
+import { keepParticles } from "@/components/text";
 import { GAPS_NOTE, GAPS_TITLE } from "@/lib/report/coverage";
 import {
   AI_CLEARED,
@@ -134,7 +135,7 @@ function GapDetail({ gap }: { gap: RecordGap }) {
   return (
     <>
       {gap.meaning && <p>{gap.meaning}</p>}
-      {gap.note && <p className="hint">{gap.note}</p>}
+      {gap.note && <p className="hint">{keepParticles(gap.note)}</p>}
       {gap.files.length > 0 && (
         <ul className="record-files">
           {gap.files.map((item, i) => (
@@ -263,7 +264,7 @@ function Policies({ record }: { record: RecordView }) {
       </table>
       <ul className="record-notes">
         {record.policyNotes.map((note) => (
-          <li key={note}>{note}</li>
+          <li key={note}>{keepParticles(note)}</li>
         ))}
         {record.quiet.map((entry) => (
           <li key={entry.label}>

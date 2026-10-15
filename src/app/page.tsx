@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { keepParticles } from "@/components/text";
 import { packMeta, policyHref, primaryLaw } from "@/lib/pack";
 import { SITE } from "@/lib/site";
 
@@ -8,8 +9,9 @@ export default function Home() {
       <section className="hero">
         <h1>코드에서 국내 법 검토 지점을 조문과 함께 봅니다</h1>
         <p className="lede">
-          {SITE.cli} CLI 가 JS/TS 코드(누가 썼든)를 검사한 결과를, 조문 원문·확인되지 않은 적법한 대안·개발자에게 할 질문과
-          함께 보여 주는 화면입니다.
+          {keepParticles(
+            `${SITE.cli} CLI 가 JS/TS 코드(누가 썼든)를 검사한 결과를, 조문 원문·확인되지 않은 적법한 대안·개발자에게 할 질문과 함께 보여 주는 화면입니다.`,
+          )}
         </p>
       </section>
 

@@ -132,13 +132,16 @@ describe("빌드된 out/ 의 파일", () => {
     expect(mainChildren(html("demo"))).toEqual(["<h1>", '<p class="lede">', '<div class="demo">']);
   });
 
-  it("조문별 검사 기록의 칸 앞 이름: 빈 대체 글을 단 선언 앞에, 대체 글 없는 선언이 배포되는 CSS 에 남아 있다", () => {
+  it.each([
+    ["조문별 검사 기록의 표", /\.record-table tbody td::?before\s*\{([^}]*)\}/g],
+    ["데모의 두 결과의 표", /\.compare tbody td::?before\s*\{([^}]*)\}/g],
+  ])("%s의 칸 앞 이름: 빈 대체 글을 단 선언 앞에, 대체 글 없는 선언이 배포되는 CSS 에 남아 있다", (_, rule) => {
     // 쌓은 표의 칸 앞 이름은 CSS 가 그린다. 빈 대체 글(`content: … / ""`)을 줘서 화면 낭독기가 그 이름을 칸 머리와 함께 두 번
     // 읽지 않게 한다(src/app/globals.css). 그 문법을 모르는 브라우저는 그 선언을 버리므로, 앞에 대체 글 없는 선언을 하나 더
     // 둔다. 앞의 것이 빌드에서 빠지면 그런 브라우저에서는 칸 앞 이름이 아예 그려지지 않는다. 브라우저 시험은 Chrome 으로만
-    // 보고, Chrome 은 뒤의 선언을 쓴다. 그래서 배포되는 CSS 를 직접 읽는다.
+    // 보고, Chrome 은 뒤의 선언을 쓴다. 그래서 배포되는 CSS 를 직접 읽는다. 데모의 표는 9번에서 기록과 같게 했다.
     const css = contents.filter(({ file }) => file.endsWith(".css")).map(({ text }) => text);
-    const rules = css.flatMap((text) => [...text.matchAll(/\.record-table tbody td::?before\s*\{([^}]*)\}/g)].map((match) => match[1]));
+    const rules = css.flatMap((text) => [...text.matchAll(rule)].map((match) => match[1]));
     expect(rules).toHaveLength(1);
     const contentOf = rules[0]
       .split(";")
@@ -146,6 +149,24 @@ describe("빌드된 out/ 의 파일", () => {
       .filter((declaration) => declaration.startsWith("content:"))
       .map((declaration) => declaration.replace(/\s+/g, ""));
     expect(contentOf).toEqual(["content:attr(data-label)", 'content:attr(data-label)/""']);
+  });
+
+  it("파비콘: out/favicon.ico 가 소스의 파일(src/app/favicon.ico) 그대로이고, 모든 쪽의 머리에 그 파일을 가리키는 link 가 하나 있다", () => {
+    // 9번 전에는 파비콘이 없어 브라우저가 스스로 청한 /favicon.ico 가 404 로 돌아왔다(브라우저 시험이 그 콘솔 오류를 봐주고
+    // 있었다). Next 의 파일 규칙(app/favicon.ico)으로 두면 빌드가 그 파일을 out/ 에 옮기고 쪽마다 link 를 단다.
+    const source = readFileSync(path.join(outDir, "..", "src", "app", "favicon.ico"));
+    expect(existsSync(path.join(outDir, "favicon.ico"))).toBe(true);
+    expect(readFileSync(path.join(outDir, "favicon.ico")).equals(source)).toBe(true);
+    // ICO 파일이다(머리의 예약 0, 종류 1, 그림이 하나 이상).
+    expect([source.readUInt16LE(0), source.readUInt16LE(2), source.readUInt16LE(4) > 0]).toEqual([0, 1, true]);
+    const pages = contents.filter(({ file }) => file.endsWith(".html"));
+    expect(pages.length).toBeGreaterThan(5);
+    for (const { file, text } of pages) {
+      const head = elementAt(text, text.indexOf("<head"));
+      const icons = [...head.matchAll(/<link\b[^>]*\brel="(?:shortcut )?icon"[^>]*>/g)].map((match) => match[0]);
+      expect(icons, file).toHaveLength(1);
+      expect(icons[0], file).toMatch(/\bhref="\/favicon\.ico(\?[^"]*)?"/);
+    }
   });
 });
 

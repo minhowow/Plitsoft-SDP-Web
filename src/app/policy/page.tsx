@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { keepParticles } from "@/components/text";
 import { packMeta, policyHref, primaryLaw } from "@/lib/pack";
 import { PACK_DIGEST_NOTE } from "@/lib/pack/guide";
 import type { PolicyDoc } from "@/lib/pack/types";
@@ -28,7 +29,7 @@ export default function PolicyIndexPage() {
       </p>
       {/* 이 도감이 어느 판의 팩으로 만들어졌는지. 결과 화면의 '팩 판'과 견줄 수 있다. */}
       <p className="hint">
-        이 도감을 만든 팩 판은 <code>{pack.digest}</code> 입니다. {PACK_DIGEST_NOTE}
+        이 도감을 만든 팩 판은 <code>{pack.digest}</code> 입니다. {keepParticles(PACK_DIGEST_NOTE)}
       </p>
       <ul className="policy-index">
         {policies.map((policy) => (

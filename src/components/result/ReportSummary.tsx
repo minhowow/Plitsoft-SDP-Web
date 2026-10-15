@@ -1,4 +1,5 @@
 import { coverageSummary } from "@/lib/report/coverage";
+import { keepParticles } from "@/components/text";
 import { examinedFacts, UNIT_GLOSS } from "@/lib/report/examined";
 import { CONTRACT_LABEL, type ReportView } from "@/lib/report/view-model";
 import { SITE } from "@/lib/site";
@@ -71,7 +72,7 @@ function EmptyReport({ view }: { view: ReportView }) {
             <div key={fact.label}>
               <dt>{fact.label}</dt>
               <dd className={fact.warn ? "warn" : undefined}>
-                <strong>{fact.value}.</strong> <span className="fact-note">{fact.note}</span>
+                <strong>{fact.value}.</strong> <span className="fact-note">{keepParticles(fact.note)}</span>
               </dd>
             </div>
           ))}

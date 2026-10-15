@@ -58,6 +58,18 @@ export const FINGERPRINT_NOTE = "지문은 발견마다 결과에 실린 값 그
 export const SAME_TEXT_NOTE = "원문 해시가 같은 줄은 팩에 실린 원문이 같은 조문입니다.";
 
 /**
+ * 정책 표 아래에 적는 말: "대표 조문"이 무엇인지(9번). 기록은 정책마다 팩의 첫 조문 하나만 적는다(결과에 적히는 조문 이름이
+ * 그 조문이다). 조문 도감의 정책 페이지는 그 정책의 근거 조문을 모두 싣는다. 종이만 보면 근거 조문이 그것뿐인 것처럼 읽히므로,
+ * 표에 든 정책 가운데 근거 조문이 더 있는 정책의 수를 함께 적고(이 사이트의 팩에 적힌 조문의 수로 센다. `PackIndex` 의
+ * `legal`) 나머지는 조문 도감에 있다고 가리킨다. 어느 조문인지는 적지 않는다. 정책마다 적으면 종이에 실을 줄이 늘고, 그
+ * 이름은 조문 도감에 있다.
+ */
+export function primaryLawNote(more: number): string {
+  const first = "대표 조문은 팩에 적힌 정책의 근거 조문 가운데 첫째입니다.";
+  return more === 0 ? first : `${first} 근거 조문이 더 있는 정책이 ${more}개이고, 그 조문은 조문 도감에 있습니다.`;
+}
+
+/**
  * 정책 표 아래의 첫 줄: 표에 적은 것 가운데 무엇이 이 사이트의 팩에서 왔는지.
  *
  * 정책의 제목, 대표 조문의 이름, 그 시행일과 원문 해시는 어느 출력으로 연 결과에서나 팩의 것을 적는다(`buildRecord`).
@@ -437,7 +449,12 @@ export function buildRecord(view: ReportView, pack: PackIndex): RecordResult {
       })),
       aiNotes,
       policies,
-      policyNotes: [policySourceNote(view.contract, pack.pack.digest), ...(sameText ? [SAME_TEXT_NOTE] : []), EFFECTIVE_FROM_NOTE],
+      policyNotes: [
+        policySourceNote(view.contract, pack.pack.digest),
+        ...(sameText ? [SAME_TEXT_NOTE] : []),
+        primaryLawNote(view.policies.filter((policy) => known.get(policy.id)!.legal.length > 1).length),
+        EFFECTIVE_FROM_NOTE,
+      ],
       quiet,
       findingGroups,
       findingNote: findingNote(locations),

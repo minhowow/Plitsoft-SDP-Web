@@ -613,13 +613,14 @@ describe("좁은 화면", () => {
       for (const note of box.notes) expect(note.inside, `${name} ${note.after}행 아래의 설명`).toBe(true);
 
       // 두 결과의 표는 줄을 세로로 쌓는다. 칸 머리가 가려지므로, 어느 판의 칸인지는 칸마다 앞에 적힌 판 이름이 말한다.
+      // 그 이름은 눈에만 보인다(빈 대체 글 `/ ""` 이 붙어 있다. 화면 낭독기에는 가려 둔 칸 머리가 있다. 아래 "접근성 트리").
       const table = await compareTable(page);
       expect(table.rows.map((row) => row.name), name).toEqual(EXPECTED[name].policies.map(([policy]) => policy));
       for (const th of await page.locator(".compare tbody th").all()) expect(await th.isVisible(), name).toBe(true);
       for (const row of table.rows) {
-        expect(row.cells.map((cell) => cell.label), `${name} ${row.name}`).toEqual(['"고치기 전"', '"고친 뒤"']);
+        expect(row.cells.map((cell) => cell.label), `${name} ${row.name}`).toEqual(['"고치기 전" / ""', '"고친 뒤" / ""']);
         // 지금 보는 판의 이름만 짙게 적는다.
-        expect(row.cells.filter((cell) => cell.current).map((cell) => cell.label), `${name} ${row.name}`).toEqual([`"${variant.label}"`]);
+        expect(row.cells.filter((cell) => cell.current).map((cell) => cell.label), `${name} ${row.name}`).toEqual([`"${variant.label}" / ""`]);
         expect(row.cells.map((cell) => cell.labelWeight), `${name} ${row.name}`).toEqual(row.cells.map((cell) => (cell.current ? "600" : "400")));
         // 칸은 정책 이름 아래에 한 줄씩 쌓인다(나란히 놓이지 않는다).
         expect(new Set(row.cells.map((cell) => cell.left)).size, `${name} ${row.name}`).toBe(1);
@@ -910,14 +911,15 @@ describe("데모의 글과 꾸밈 (조문 도감·기록의 시험과 같은 기
 
   /**
    * 데모가 CSS 로 그리는 글. 셋 다 그 요소의 속성 값을 그대로 옮겨 그린다. 코드의 줄 번호(복사한 글에 섞이지 않게 CSS 로
-   * 그린다), 다른 판과 다른 줄의 표시와 줄 번호, 좁은 화면에서 두 결과의 표의 칸 앞에 적는 판 이름(칸 머리를 가린다).
+   * 그린다), 다른 판과 다른 줄의 표시와 줄 번호, 좁은 화면에서 두 결과의 표의 칸 앞에 적는 판 이름(칸 머리를 가린다). 판
+   * 이름에는 빈 대체 글이 붙어 있어야 한다(9번. 조문별 검사 기록의 칸 앞 이름과 같다). 없으면 칸마다 판 이름이 두 번 읽힌다.
    */
   const ALLOWED = [
     { selector: ".codeline:not([data-sign])", pseudo: "::before" as const, attributes: ["data-line"] },
     { selector: ".codeline[data-sign]", pseudo: "::before" as const, attributes: ["data-sign", "data-line"] },
-    { selector: ".compare tbody td", pseudo: "::before" as const, attributes: ["data-label"] },
+    { selector: ".compare tbody td", pseudo: "::before" as const, attributes: ["data-label"], alt: "" },
   ];
-  const ALLOWED_RULES = ["content: attr(data-line)", 'content: attr(data-sign) " " attr(data-line)', "content: attr(data-label)"];
+  const ALLOWED_RULES = ["content: attr(data-line)", 'content: attr(data-sign) " " attr(data-line)', 'content: attr(data-label) / ""'];
   /** 데모(`.demo`)에 붙는 속성. 결과 화면의 것(`RESULT_ATTRIBUTES`)에 고르는 단추와 그 묶음, 코드 줄, 두 결과의 표의 칸이 더해진다. */
   const DEMO_ATTRIBUTES: Record<string, string> = {
     ...RESULT_ATTRIBUTES,
@@ -1004,11 +1006,12 @@ describe("데모의 글과 꾸밈 (조문 도감·기록의 시험과 같은 기
     }
   });
 
-  it("접근성 트리: 두 결과의 표는 그 제목을 이름으로 가진 표이고, 그려진 칸이 모두 칸으로 드러난다. 넓은 화면에서 칸의 이름은 값뿐이다", async () => {
+  it("접근성 트리: 두 결과의 표는 그 제목을 이름으로 가진 표이고, 그려진 칸이 모두 칸으로 드러난다. 좁은 화면에서도 넓은 화면에서도 칸의 이름은 값뿐이다", async () => {
     // 좁은 화면에서는 CSS 가 표의 display 를 바꾼다. role 을 직접 적어 표로 남게 했다(components/demo/DemoPanel.tsx).
     // Chrome 의 접근성 트리를 CDP 로 읽는다(site.ts 의 accessibleNodes. 시험 도구의 getByRole 은 태그와 role 속성으로 셈해서
     // 브라우저가 표의 뜻을 버려도 표로 센다). Chrome 155 는 role 이 없어도 표로 드러낸다(결과 화면의 표와 같다).
-    // 좁은 화면의 칸 이름에는 칸 앞에 CSS 가 그린 판 이름이 함께 든다(대체 글이 없다). 고칠지는 ROADMAP 9번이 정한다.
+    // 좁은 화면의 칸 앞에 CSS 가 그린 판 이름은 빈 대체 글을 단다(9번). 대체 글이 없던 8번까지는 칸의 이름이
+    // "고치기 전 검토 필요 · AI 확인 전 발견 1건"처럼 판 이름으로 시작해, 가려 둔 칸 머리와 함께 판 이름이 두 번 읽혔다.
     const { context, page } = await openDemo({ width: 375, height: 667 });
     const nodes = (selector: string) => accessibleNodes(context, page, selector);
     for (const { app, variant, name } of panels) {
@@ -1026,7 +1029,7 @@ describe("데모의 글과 꾸밈 (조문 도감·기록의 시험과 같은 기
         expect(cells.map((node) => node.role), at).toEqual(drawn.map(() => "cell"));
         expect(await nodes(".compare tbody th"), at).toEqual(want.policies.map(([policy]) => ({ role: "rowheader", name: policy })));
         expect(await nodes(".compare thead th"), at).toEqual(COMPARE_COLUMNS.map((column) => ({ role: "columnheader", name: column })));
-        if (width === 1280) expect(cells.map((node) => node.name), at).toEqual(want.compare);
+        expect(cells.map((node) => node.name), at).toEqual(want.compare);
       }
       await page.setViewportSize({ width: 375, height: 667 });
     }

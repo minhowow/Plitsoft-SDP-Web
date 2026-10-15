@@ -7,6 +7,7 @@ import {
   type GapFile,
   type GapRow,
 } from "@/lib/report/coverage";
+import { keepParticles } from "@/components/text";
 import type { ReportView } from "@/lib/report/view-model";
 import { SITE } from "@/lib/site";
 import { Where } from "./Where";
@@ -109,7 +110,7 @@ function GapDetail({ row }: { row: GapRow }) {
   return (
     <>
       {row.meaning && <p>{row.meaning}</p>}
-      {row.note && <p className="hint">{row.note}</p>}
+      {row.note && <p className="hint">{keepParticles(row.note)}</p>}
       <GapFiles files={row.files} />
       {row.texts.length > 0 && (
         <details className="fold">

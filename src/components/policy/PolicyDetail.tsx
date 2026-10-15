@@ -1,3 +1,4 @@
+import { keepParticles } from "@/components/text";
 import {
   altKind,
   ASKED_TO_JUDGE,
@@ -288,7 +289,7 @@ export function PolicyDetail({ policy, pack }: { policy: PolicyDoc; pack: PackMe
           </div>
         </dl>
         <p className="hint">
-          이 페이지는 위에 적은 팩 판으로 만들었습니다. {PACK_DIGEST_NOTE}
+          이 페이지는 위에 적은 팩 판으로 만들었습니다. {keepParticles(PACK_DIGEST_NOTE)}
           {policy.review_by && ` ${REVIEW_BY_NOTE}`}
         </p>
       </div>

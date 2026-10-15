@@ -19,6 +19,7 @@ import {
   NOT_IN_PACK,
   NOT_IN_RESULT,
   policySourceNote,
+  primaryLawNote,
   RECORD_OMITS,
   RECORD_REFUSED,
   SAME_TEXT_NOTE,
@@ -316,7 +317,7 @@ describe("기록에 싣는 것", () => {
       expect(seen).toBeGreaterThan(30);
     });
 
-    it.each(every)("%s: 표 아래에 값의 출처(이 결과와 판이 같은 팩)와 시행일의 한계를 적는다. 해시가 같은 줄이 있으면 그 까닭도 적는다", (name, parts) => {
+    it.each(every)("%s: 표 아래에 값의 출처(이 결과와 판이 같은 팩), 대표 조문이 무엇인지, 시행일의 한계를 적는다. 해시가 같은 줄이 있으면 그 까닭도 적는다", (name, parts) => {
       const data = readJson(...parts);
       const record = recordOf(data);
       // 팩 메타데이터에서: 기록에 나온 정책들 가운데 대표 조문의 이름은 다른데 원문 해시가 같은 것이 있는지.
@@ -327,11 +328,15 @@ describe("기록에 싣는 것", () => {
       const fromPack = `이 결과와 판이 같은 팩(팩 판 ${packFile.pack.digest})에 적힌 값입니다.`;
       const draft = name.startsWith("contract/samples-v1-draft/");
       expect(viewOf(data).contract === "v1-draft", name).toBe(draft);
+      // 대표 조문은 정책의 첫 근거 조문이다. 표에 든 정책 가운데 근거 조문이 더 있는 정책의 수를 팩 메타데이터에서 센다(9번).
+      const more = record.policies.filter((policy) => metaOf(policy.id).legal.length > 1).length;
+      if (!draft) expect(more, name).toBe(packFile.policies.filter((policy) => policy.legal.length > 1).length);
       expect(record.policyNotes).toEqual([
         draft
           ? `정책의 제목과 대표 조문, 시행일, 원문 해시(SHA-256)는 ${fromPack}`
           : `정책 목록과 대표 조문, 시행일, 원문 해시(SHA-256)는 ${fromPack} 결과에는 정책 목록이 없습니다.`,
         ...(shared ? [SAME_TEXT_NOTE] : []),
+        `대표 조문은 팩에 적힌 정책의 근거 조문 가운데 첫째입니다.${more === 0 ? "" : ` 근거 조문이 더 있는 정책이 ${more}개이고, 그 조문은 조문 도감에 있습니다.`}`,
         EFFECTIVE_FROM_NOTE,
       ]);
       expect(record.policyNotes[0]).toBe(policySourceNote(viewOf(data).contract, packFile.pack.digest));
@@ -380,6 +385,32 @@ describe("기록에 싣는 것", () => {
       expect(LEGAL_NOTE.endsWith(` ${EFFECTIVE_FROM_NOTE}`)).toBe(true);
     });
 
+    it("대표 조문의 뜻: 근거 조문이 더 있는 정책의 수는 넘긴 팩 정보의 조문 수로 센다. 그런 정책이 없으면 첫 문장만 적는다", () => {
+      // 이 사이트의 팩에서는 늘 그런 정책이 있다(수는 위의 시험이 팩 메타데이터로 센다). 넘기는 팩 정보의 조문을 손으로 덜어 본다.
+      // 대표 조문(첫 조문)은 그대로 둔다. 발견에 적힌 조문 이름이 그것과 같아야 기록을 만든다.
+      const data = capture("kids-signup.main");
+      const packWith = (keep: (policy: PackIndex["policies"][number]) => number): PackIndex => ({
+        ...packIndex,
+        policies: packIndex.policies.map((policy) => ({ ...policy, legal: policy.legal.slice(0, keep(policy)) })),
+      });
+      const noteWith = (pack: PackIndex) => {
+        const result = buildRecord(viewOf(data, pack), pack);
+        if (!result.ok) throw new Error(result.reasons.join(" "));
+        return result.record.policyNotes.filter((note) => note.startsWith("대표 조문은"));
+      };
+      const first = "대표 조문은 팩에 적힌 정책의 근거 조문 가운데 첫째입니다.";
+      expect(primaryLawNote(0)).toBe(first);
+      expect(primaryLawNote(2)).toBe(`${first} 근거 조문이 더 있는 정책이 2개이고, 그 조문은 조문 도감에 있습니다.`);
+      // 모든 정책이 조문 하나뿐이면 첫 문장만.
+      expect(noteWith(packWith(() => 1))).toEqual([first]);
+      // 조문이 둘 이상인 정책 가운데 하나만 그대로 두면 1개다.
+      const longer = packIndex.policies.find((policy) => policy.legal.length > 1)!;
+      expect(longer).toBeDefined();
+      expect(noteWith(packWith((policy) => (policy === longer ? policy.legal.length : 1)))).toEqual([primaryLawNote(1)]);
+      // 넘긴 팩 정보 그대로면 팩 메타데이터에서 센 수다.
+      expect(noteWith(packIndex)).toEqual([primaryLawNote(packFile.policies.filter((policy) => policy.legal.length > 1).length)]);
+    });
+
     it("대표 조문의 이름은 다른데 원문 해시가 같은 줄이 있을 때만 '원문이 같은 조문'이라고 적는다", () => {
       // 팩의 원문 파일은 조 단위라, 한 조의 다른 항을 대표 조문으로 든 정책들은 해시가 같다. 그 말이 없으면 한쪽 해시를
       // 잘못 옮겨 적은 것처럼 읽힌다. 넘기는 팩 정보를 손으로 바꿔 본다(팩에 어떤 조문이 실려 있든 같은 것을 본다).
@@ -402,14 +433,14 @@ describe("기록에 싣는 것", () => {
       expect([one, other].every((i) => i !== undefined)).toBe(true);
       expect(packIndex.policies[one].legal[0].label).not.toBe(packIndex.policies[other].legal[0].label);
 
-      // 정책마다 해시가 다르면 적지 않는다.
+      // 정책마다 해시가 다르면 적지 않는다(값의 출처, 대표 조문의 뜻, 시행일의 한계 셋만 적는다. 둘째는 9번에서 더했다).
       const distinct = packWith((primary, i) => ({ ...primary, text_sha256: hash(i), text_sha256_matches: true }));
-      expect(notesWith(distinct)).toHaveLength(2);
+      expect(notesWith(distinct)).toHaveLength(3);
       expect(notesWith(distinct)).not.toContain(SAME_TEXT_NOTE);
-      // 두 정책의 해시가 같으면 적는다. 값의 출처 다음, 시행일의 한계 앞이다.
+      // 두 정책의 해시가 같으면 적는다. 값의 출처 다음, 대표 조문의 뜻과 시행일의 한계 앞이다.
       const same = (extra: Partial<Primary> = {}) =>
         packWith((primary, i) => ({ ...primary, text_sha256: hash(i === other ? one : i), text_sha256_matches: true, ...(i === other ? extra : {}) }));
-      expect(notesWith(same())).toHaveLength(3);
+      expect(notesWith(same())).toHaveLength(4);
       expect(notesWith(same())[1]).toBe(SAME_TEXT_NOTE);
       // 한쪽 해시가 팩 안의 원문 파일과 맞지 않거나 견주지 못했으면 원문이 같은지 알 수 없다. 적지 않는다.
       expect(notesWith(same({ text_sha256_matches: false }))).not.toContain(SAME_TEXT_NOTE);

@@ -3,7 +3,7 @@ import path from "node:path";
 import type { Browser, BrowserContext, Locator, Page } from "playwright-core";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { DEMO_APPS, DEMO_VARIANTS } from "@/lib/demo/apps";
-import { RECORD_OMITS, RECORD_REFUSED } from "@/lib/report/record";
+import { primaryLawNote, RECORD_OMITS, RECORD_REFUSED } from "@/lib/report/record";
 import type { Report } from "@/lib/report/types";
 import { SAMPLES } from "@/lib/samples";
 import { SITE } from "@/lib/site";
@@ -351,6 +351,11 @@ describe("결과가 열려 있는 자리에서 바로 기록을 본다", () => {
     expect(squash(await recordText(page))).toContain(
       `정책 목록과 대표 조문, 시행일, 원문 해시(SHA-256)는 이 결과와 판이 같은 팩(팩 판 ${packFile.pack.digest})에 적힌 값입니다. 결과에는 정책 목록이 없습니다.`,
     );
+    // 대표 조문이 정책의 첫 근거 조문이라는 것과, 근거 조문이 더 있는 정책의 수가 그 아래에 적혀 있다(9번). 수는 그 파일의
+    // 조문 수로 센다. 어느 조문인지는 조문 도감이 말한다.
+    const more = packFile.policies.filter((policy) => policy.legal.length > 1).length;
+    expect(more).toBeGreaterThan(0);
+    expect(await page.locator(".record-notes li").allTextContents()).toContain(primaryLawNote(more));
     // 발견이 0인 결과(파일에 정책 id 가 하나도 없다)를 열어도 표에는 팩의 정책이 모두 있고, 같은 말이 적혀 있다.
     await pick(page, ["contract", "cli-current", "kids-signup.fixed.json"]);
     await showRecord(page);
@@ -459,11 +464,18 @@ describe("인쇄하면 기록만 나온다", () => {
     expect(await drawn(page, VIEW_CHROME)).toEqual(VIEW_CHROME.map(() => true));
   });
 
-  it("대조: 기록을 고르지 않은 채 인쇄하면 쪽이 그대로 나온다 (다른 쪽의 인쇄는 바꾸지 않는다)", async () => {
+  it("대조: 기록을 고르지 않은 채 인쇄하면 기록만 찍는 규칙이 듣지 않는다 (화면에서 고르는 데만 쓰는 것만 빠진다)", async () => {
     const { page } = await open("/view/");
+    // 기록이 없으면 기록만 찍는 규칙이 듣지 않는다. 화면에서 고르는 데만 쓰는 것(파일 고르기, 예시 고르기, 결과와 기록을
+    // 오가는 단추)만 찍지 않는다(9번. 인쇄할 때 밝은 색으로 찍는 것과 함께 tests/browser/colors.test.ts 가 본다). 인쇄 단추는
+    // 기록을 고르기 전에는 없다.
+    const controls = [".dropzone", ".samples", ".report-switch > .segmented"];
+    const kept = VIEW_CHROME.filter((selector) => selector !== ".record-tools" && !controls.includes(selector));
+    expect(kept.length).toBeGreaterThan(4);
+    expect(await drawn(page, controls)).toEqual(controls.map(() => true));
     await asPrint(page);
-    const kept = VIEW_CHROME.filter((selector) => selector !== ".record-tools");
     expect(await drawn(page, kept)).toEqual(kept.map(() => true));
+    expect(await drawn(page, controls)).toEqual(controls.map(() => false));
     expect(await drawn(page, [".report"])).toEqual([true]);
     expect(await drawnText(page)).toContain(SITE.disclaimer);
     await asScreen(page);
@@ -604,15 +616,45 @@ describe("인쇄하면 기록만 나온다", () => {
 
   it("한 쪽을 넘는 발견 표는 앞 쪽의 남은 자리부터 채운다 (묶음 사이에서 쪽이 넘어간다)", async () => {
     const { page } = await open("/view/");
-    // 묶음 스물, 묶음마다 발견 하나. 발견 표(묶음 머리 스물과 발견 스물)는 한 쪽에 다 들어가지 않는다. 묶음 사이에서 쪽을
-    // 넘기지 못하면 표가 통째로 둘째 쪽으로 밀려 셋째 쪽까지 간다. 이 컴퓨터의 글꼴로 재어 보니, 묶음마다 첫 줄을 앞의
-    // 것에 붙이는 CSS 로는 묶음 17개부터 세 쪽이고 지금의 CSS 로는 23개까지 두 쪽이다. 스물은 그 가운데다.
-    await pickContent(page, "single-finding-groups.json", singleFindingGroups(20));
+    // 묶음 스물다섯, 묶음마다 발견 하나. 발견 표(묶음 머리 스물다섯과 발견 스물다섯)는 한 쪽에 다 들어가지 않는다. 묶음
+    // 사이에서 쪽을 넘기지 못하면 표가 통째로 둘째 쪽으로 밀려 셋째 쪽까지 간다. 이 컴퓨터의 글꼴로 재어 보니, 묶음마다 첫
+    // 줄을 앞의 것에 붙이는 CSS 로는 묶음 21개부터 세 쪽이고 지금의 CSS 로는 29개까지 두 쪽이다. 스물다섯은 그 가운데다.
+    // 인쇄할 때의 간격을 좁힐 때마다 다시 쟀다(9번 전 17개와 23개, 9번에서 19개와 26개. 그때는 묶음 스물로 봤다. 9번의 첫
+    // 검토 뒤 표의 줄 안쪽 여백을 좁히자 스물은 붙이는 CSS 로도 두 쪽이 되어 이 시험이 그 꾸밈을 가려내지 못했다).
+    await pickContent(page, "single-finding-groups.json", singleFindingGroups(25));
     await showRecord(page);
     expect(await page.locator(".record-table").first().locator("tbody tr").count()).toBe(1);
-    expect(await page.locator(".record-findings tbody").count()).toBe(20);
-    expect(await page.locator(".record-findings tbody tr").count()).toBe(40);
+    expect(await page.locator(".record-findings tbody").count()).toBe(25);
+    expect(await page.locator(".record-findings tbody tr").count()).toBe(50);
     expect(await printedPages(page)).toBe(2);
+  });
+
+  it("발견이 두 건인 기록(광고 푸시·생성형 AI 채팅의 고치기 전)은 A4 한 쪽이고, 맨 끝에 두 줄이 더 들어갈 자리가 남는다", async () => {
+    // 7번의 첫 검토 뒤에 발견 표 위에 한 줄이 더해져, 이 둘은 아래에 4.5px 만 남는 빠듯한 한 쪽이었다. 한 줄만 더 적혀도 두
+    // 쪽이 된다. 9번에서 인쇄할 때의 줄 간격과 구역 사이, 표의 줄 안쪽 여백을 좁혀, 정책 표 아래에 대표 조문의 뜻 한 줄을
+    // 더한 뒤에도 50px 쯤(9pt 로 세 줄쯤) 남게 했다. 9번의 첫 검토 뒤 표의 줄 안쪽 여백을 더 좁혀 70px 쯤 남는다. 이 컴퓨터의
+    // 글꼴로 잰 것이다(docs/architecture.md 의 "조문별 검사 기록"의 "인쇄"). 9번 전의 인쇄 꾸밈으로는 그 한 줄만 더해도 두
+    // 쪽이다(사본에서 꾸밈만 되돌려 봤다).
+    const { page } = await open("/view/");
+    for (const id of ["night-push.main", "genai-chat.main"]) {
+      const sample = SAMPLES.find((entry) => entry.id === id)!;
+      await page.locator("#sample-select").selectOption(id);
+      await opened(page, `${sample.label} (${sample.origin})`);
+      await showRecord(page);
+      expect(await page.locator(".record-findings tbody tr:not(.record-group)").count(), id).toBe(2);
+      expect(await printedPages(page), id).toBe(1);
+      // 기록의 맨 끝에 기록의 줄 간격으로 두 줄 높이(2lh)인 빈 상자를 넣는다. 구역 사이의 여백은 주지 않는다.
+      await page.locator(".record").evaluate((record) => {
+        const room = document.createElement("div");
+        room.className = "room-probe";
+        room.style.cssText = "height: 2lh; margin: 0; padding: 0; border: 0;";
+        record.append(room);
+      });
+      expect(await page.locator(".room-probe").evaluate((el) => el.getBoundingClientRect().height), id).toBeGreaterThan(20);
+      expect(await printedPages(page), `${id}: 두 줄을 더해도`).toBe(1);
+      await page.locator(".room-probe").evaluate((el) => el.remove());
+      await showResult(page);
+    }
   });
 
   it("못 본 파일이 많은 목록은 앞 쪽의 남은 자리부터 채운다 (파일 사이에서 쪽이 넘어간다). 짧은 목록은 갈리지 않는다", async () => {
@@ -660,8 +702,9 @@ describe("인쇄하면 기록만 나온다", () => {
 
     // 검사하지 않은 파일 쉰다섯 개. 그 줄(이름과 뜻, 파일 쉰다섯 줄)은 첫 쪽의 남은 자리에 들어가지 않는다. 줄을 통째로 묶어
     // 두면 줄이 둘째 쪽으로 밀려 첫 쪽에는 머리와 검사 정보만 남고, 기록은 세 쪽이 된다. 파일 사이에서 쪽이 넘어가면 두
-    // 쪽이다. 이 컴퓨터의 글꼴로 재어 보니 묶어 두는 CSS 로는 파일 42개부터 세 쪽이었고, 지금의 CSS 로는 68개까지 두
-    // 쪽이다. 쉰다섯은 그 가운데다.
+    // 쪽이다. 이 컴퓨터의 글꼴로 재어 보니 묶어 두는 CSS 로는 파일 44개부터 세 쪽이었고, 지금의 CSS 로는 74개까지 두
+    // 쪽이다. 쉰다섯은 그 가운데다(인쇄할 때의 간격을 좁힐 때마다 다시 쟀다. 9번 전에는 42개와 68개, 9번에서는 44개와
+    // 72개였다).
     await pickContent(page, "long-list.json", withLists(55, 0));
     await showRecord(page);
     await asPrint(page);

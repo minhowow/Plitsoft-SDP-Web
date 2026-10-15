@@ -51,8 +51,11 @@ const TYPES: Record<string, string> = {
 export interface Site {
   /** 예: 127.0.0.1 의 빈 포트. 끝에 "/" 가 없다. */
   origin: string;
-  /** 서버가 받은 요청 전부(받은 순서). 브라우저가 알리지 않는 요청(파비콘 등)도 여기에는 남는다. */
-  requests: { method: string; url: string }[];
+  /**
+   * 서버가 받은 요청 전부(받은 순서). 브라우저가 알리지 않는 요청(파비콘 등)도 여기에는 남는다. `status` 는 서버가 돌려준
+   * 응답의 상태(응답하기 전에는 0).
+   */
+  requests: { method: string; url: string; status: number }[];
   close(): Promise<void>;
 }
 
@@ -61,21 +64,25 @@ export async function serveOut(): Promise<Site> {
   assertFreshBuild();
   const requests: Site["requests"] = [];
   const server = createServer((request, response) => {
-    requests.push({ method: request.method ?? "", url: request.url ?? "" });
+    const entry = { method: request.method ?? "", url: request.url ?? "", status: 0 };
+    requests.push(entry);
     void (async () => {
       const pathname = decodeURIComponent(new URL(request.url ?? "/", "http://127.0.0.1").pathname);
       let file = path.join(outDir, pathname);
       // out/ 밖은 내주지 않는다.
       if (file !== outDir && !file.startsWith(outDir + path.sep)) {
+        entry.status = 403;
         response.writeHead(403).end();
         return;
       }
       try {
         if ((await stat(file)).isDirectory()) file = path.join(file, "index.html");
         const body = await readFile(file);
+        entry.status = 200;
         response.writeHead(200, { "content-type": TYPES[path.extname(file)] ?? "application/octet-stream" });
         response.end(request.method === "HEAD" ? undefined : body);
       } catch {
+        entry.status = 404;
         response.writeHead(404, { "content-type": "text/plain; charset=utf-8" }).end("not found");
       }
     })();
@@ -487,9 +494,10 @@ export async function newPage(browser: Browser, site: Site, options: OpenOptions
   }, UNROUTED));
   const page = await within("새 탭 열기", context.newPage());
   page.on("pageerror", (error) => options.problems.push(`예외: ${error.message}`));
+  // 콘솔의 오류 줄은 모두 적는다. 9번 전에는 파비콘이 없어 브라우저가 스스로 청한 /favicon.ico 가 404 로 돌아와 그 한 줄을
+  // 뺐다. 9번에서 파비콘(src/app/favicon.ico)을 두고 봐주던 것을 걷었다. 그 404 가 다시 나면 어느 시험에서든 실패한다.
   page.on("console", (message) => {
-    // 파비콘이 아직 없어서 브라우저가 스스로 청한 /favicon.ico 가 404 로 돌아온다(ROADMAP 9번). 그 한 줄은 뺀다.
-    if (message.type() === "error" && !message.location().url.endsWith("/favicon.ico")) options.problems.push(`콘솔: ${message.text()}`);
+    if (message.type() === "error") options.problems.push(`콘솔: ${message.text()}`);
   });
   return { context, page, outside };
 }
@@ -577,13 +585,9 @@ export async function overflow(page: Page, scrollers = ""): Promise<{ page: numb
   );
 }
 
-/**
- * 창의 한 점에 실제로 칠해진 색("rgb(r, g, b)"). 그 점 하나만 찍은 그림(PNG)을 풀어 읽는다. 브라우저가 계산한 꾸밈
- * (`getComputedStyle`)이 아니라 그려진 결과라서, 그림자로 편 칠처럼 꾸밈의 값만으로는 알 수 없는 것을 본다. 좌표는 창
- * 기준(CSS px)이다. 새 의존성 없이 Node 의 zlib 로 푼다.
- */
-export async function pixelAt(page: Page, x: number, y: number): Promise<string> {
-  const png = await page.screenshot({ clip: { x, y, width: 1, height: 1 } });
+/** 창의 네모 하나(창 기준 CSS px)를 찍은 그림(PNG)을 풀어 점마다의 색 [r, g, b] 를 줄 차례로 돌려준다. */
+async function pixelsIn(page: Page, clip: { x: number; y: number; width: number; height: number }): Promise<[number, number, number][]> {
+  const png = await page.screenshot({ clip });
   const data: Buffer[] = [];
   let header: Buffer | null = null;
   // 8바이트 서명 뒤에 덩어리(길이, 이름, 내용, 검사 값)가 이어진다.
@@ -595,13 +599,54 @@ export async function pixelAt(page: Page, x: number, y: number): Promise<string>
     if (name === "IDAT") data.push(body);
     at += 12 + length;
   }
-  // 깊이 8비트, 색 형식 RGB(2) 또는 RGBA(6)만 읽는다. 그 밖의 그림이면 읽는 법이 틀린 것이다.
-  if (header === null || header.readUInt32BE(0) !== 1 || header.readUInt32BE(4) !== 1 || header[8] !== 8 || ![2, 6].includes(header[9])) {
-    throw new Error("점 하나를 찍은 그림을 읽지 못했습니다.");
+  // 깊이 8비트, 색 형식 RGB(2) 또는 RGBA(6), 엇걸기 없음만 읽는다. 그 밖의 그림이면 읽는 법이 틀린 것이다.
+  if (header === null || header[8] !== 8 || ![2, 6].includes(header[9]) || header[12] !== 0) throw new Error("찍은 그림을 읽지 못했습니다.");
+  const width = header.readUInt32BE(0);
+  const height = header.readUInt32BE(4);
+  const size = header[9] === 6 ? 4 : 3;
+  const stride = width * size;
+  const raw = inflateSync(Buffer.concat(data));
+  const out = Buffer.alloc(height * stride);
+  // 줄마다 맨 앞의 거르개(filter) 한 바이트를 보고 그 줄의 값을 되돌린다(PNG 의 다섯 거르개).
+  for (let y = 0; y < height; y++) {
+    const filter = raw[y * (stride + 1)];
+    for (let x = 0; x < stride; x++) {
+      const a = x >= size ? out[y * stride + x - size] : 0;
+      const b = y > 0 ? out[(y - 1) * stride + x] : 0;
+      const c = x >= size && y > 0 ? out[(y - 1) * stride + x - size] : 0;
+      const p = a + b - c;
+      const paeth = Math.abs(p - a) <= Math.abs(p - b) && Math.abs(p - a) <= Math.abs(p - c) ? a : Math.abs(p - b) <= Math.abs(p - c) ? b : c;
+      const add = [0, a, b, (a + b) >> 1, paeth][filter];
+      if (add === undefined) throw new Error(`모르는 거르개입니다: ${filter}`);
+      out[y * stride + x] = (raw[y * (stride + 1) + 1 + x] + add) & 0xff;
+    }
   }
-  // 줄마다 맨 앞에 거르개(filter)가 한 바이트 있다. 줄에 점이 하나뿐이면 어느 거르개든 그 뒤의 바이트가 그 점의 값이다.
-  const [r, g, b] = inflateSync(Buffer.concat(data)).subarray(1, 4);
+  return Array.from({ length: width * height }, (_, i) => [out[i * size], out[i * size + 1], out[i * size + 2]]);
+}
+
+/**
+ * 창의 한 점에 실제로 칠해진 색("rgb(r, g, b)"). 그 점 하나만 찍은 그림(PNG)을 풀어 읽는다. 브라우저가 계산한 꾸밈
+ * (`getComputedStyle`)이 아니라 그려진 결과라서, 그림자로 편 칠처럼 꾸밈의 값만으로는 알 수 없는 것을 본다. 좌표는 창
+ * 기준(CSS px)이다. 새 의존성 없이 Node 의 zlib 로 푼다.
+ */
+export async function pixelAt(page: Page, x: number, y: number): Promise<string> {
+  const [[r, g, b]] = await pixelsIn(page, { x, y, width: 1, height: 1 });
   return `rgb(${r}, ${g}, ${b})`;
+}
+
+/**
+ * 창의 네모 하나(창 기준 CSS px)에 실제로 칠해진 점들 가운데 가장 밝은 점과 가장 어두운 점의 명도 대비. 글자 상자를 주면
+ * 글자가 바탕과 갈려 보이게 그려졌는지를 본다(글자의 획과 바탕). 글자가 바탕과 같은 색으로 칠해졌으면 1 에 가깝다.
+ * 계산된 꾸밈이 아니라 그려진 결과다(예: 강제 색 모드에서 브라우저가 글자 뒤에 까는 바탕은 계산된 꾸밈에 드러나지 않는다).
+ */
+export async function inkContrast(page: Page, clip: { x: number; y: number; width: number; height: number }): Promise<number> {
+  const luminance = ([r, g, b]: [number, number, number]) =>
+    [r, g, b]
+      .map((v) => v / 255)
+      .map((s) => (s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4))
+      .reduce((sum, v, i) => sum + v * [0.2126, 0.7152, 0.0722][i], 0);
+  const values = (await pixelsIn(page, clip)).map(luminance);
+  return (Math.max(...values) + 0.05) / (Math.min(...values) + 0.05);
 }
 
 /** 두 색의 명도 대비(WCAG 2 의 식). 색은 브라우저가 계산한 "rgb(…)" 꼴이다. 비치는 색은 재지 않는다(실패한다). */
@@ -620,12 +665,481 @@ export function contrast(a: string, b: string): number {
   return (light + 0.05) / (dark + 0.05);
 }
 
+/** 명도 대비가 모자란 글자 조각 하나. */
+export interface LowContrast {
+  /** 그 글이 든 요소(`태그.class`, CSS 가 그린 글이면 뒤에 `::before` 등, 입력 부품이면 그 이름). */
+  what: string;
+  /** 글의 앞 24자. */
+  text: string;
+  color: string;
+  /** 그 글 뒤에 실제로 깔린 바탕(비치는 조상의 바탕을 겹쳐 셈한 색). `paper` 를 준 재기에서는 종이의 색일 수도 있다. */
+  background: string;
+  ratio: number;
+}
+
+export interface ContrastScan {
+  /** 잰 글자 조각의 수(글 조각, CSS 가 그린 글, 목록 표시, 입력 부품의 글). */
+  measured: number;
+  /** 기준에 못 미친 것. 앞의 열 개만. */
+  low: LowContrast[];
+  /** 기준에 못 미친 것의 수(모두). */
+  lowCount: number;
+  /** 잰 것 가운데 가장 낮은 대비. */
+  lowest: number;
+  /** 그려진 상태 칩의 상태(`chip-<상태>` 의 <상태>). */
+  chips: string[];
+}
+
+export interface ContrastOptions {
+  /** 볼 곳(선택자). 기본은 쪽 전체(body). */
+  root?: string;
+  /** 기준 명도 대비. 기본 4.5. 큰 글자라고 낮추지 않는다. */
+  minimum?: number;
+  /**
+   * 종이의 색("rgb(255, 255, 255)"). 주면 계산된 바탕과 함께 이 색 위에서도 잰다(둘 가운데 낮은 쪽). 브라우저는 바탕색을
+   * 찍지 않는 것이 기본이라, 인쇄물의 글자는 흰 종이 위에 놓인다.
+   */
+  paper?: string;
+}
+
+/**
+ * 그려진 글자 조각마다 글자색과 그 뒤에 실제로 깔린 바탕색의 명도 대비(WCAG 2 의 식)를 잰다. 쪽마다 한 번의 evaluate 다.
+ *
+ * - 잰 것: 그려진 글 조각(텍스트 노드)마다 그 요소의 글자색. CSS 가 그린 글(`::before`·`::after` 의 content 가 글인 것)과 목록
+ *   표시(`::marker`. 접어 둔 것의 세모, 목록의 점과 번호)도 글자로 잰다. 고르기 상자의 보이는 글, 파일 입력의 글과 그 단추도.
+ *   글자를 칠하는 색(`-webkit-text-fill-color`)이 글자색과 다르면 칠하는 색으로 잰다(실제로 그 색이 칠해진다).
+ * - 바탕: 그 요소에서 문서의 뿌리까지 조상의 바탕색을 아래에서부터 겹쳐 셈한다. 비치는 바탕(알파가 1보다 작은 색)과 흐리게 한
+ *   조상(opacity)도 겹친다. 뿌리가 비치면 테마의 기본 바탕(밝음: 흰색, 어두움: Chrome 의 어두운 바탕) 위에 겹친다. CSS 가 그린
+ *   글은 그 가상 요소의 opacity 도 곱한다.
+ * - 셈할 수 없는 것은 "색을 읽지 못함"으로 실패한다: 글자색이나 바탕색을 읽지 못한 것, 그 요소나 조상(CSS 가 그린 글이면 그
+ *   가상 요소도)에 필터(`filter`, `backdrop-filter`)나 섞어 그리기(`mix-blend-mode`)가 걸린 것. 그런 꾸밈은 그려지는 색을 바꾸는데
+ *   계산된 색에는 드러나지 않는다(9번의 첫 검토에서, 정책 카드를 `filter: opacity(.35)` 로 흐려도 이 재기가 통과했다). 사이트는
+ *   이 셋을 쓰지 않는다.
+ * - 빼는 것: 그려지지 않는 글(display·visibility·content-visibility, 닫힌 details 의 안), 일부러 가린 글(1px 로 자른 상자 안.
+ *   화면 낭독기용 글과 좁은 화면의 칸 머리), 빈칸뿐인 글, `<option>` 의 글(고르기 상자가 보이는 글로 잰다).
+ * - 보지 못하는 것: 바탕 그림(이 사이트는 쓰지 않는다), 다른 요소가 위에 겹친 글(조상이 아닌 요소의 바탕은 셈하지 않는다).
+ */
+export const textContrast = (page: Page, options: ContrastOptions = {}) =>
+  within(
+    "명도 대비 재기",
+    page.evaluate(
+      ({ root, minimum, paper }) => {
+        type Rgba = [number, number, number, number];
+        const parse = (color: string): Rgba | null => {
+          const m = /^rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)(?:\s*[,/]\s*([\d.]+%?))?\s*\)$/.exec(color.trim());
+          if (!m) return null;
+          const alpha = m[4] === undefined ? 1 : m[4].endsWith("%") ? Number(m[4].slice(0, -1)) / 100 : Number(m[4]);
+          return [Number(m[1]), Number(m[2]), Number(m[3]), alpha];
+        };
+        /** 위의 색을 아래(불투명)의 색 위에 겹친다. */
+        const over = (top: Rgba, bottom: Rgba): Rgba => {
+          const a = top[3];
+          return [0, 1, 2].map((i) => top[i] * a + bottom[i] * (1 - a)).concat(1) as Rgba;
+        };
+        const show = (c: Rgba) => `rgb(${c.slice(0, 3).map((v) => Math.round(v)).join(", ")})`;
+        const luminance = (c: Rgba) => {
+          const [r, g, b] = c.slice(0, 3).map((v) => {
+            const s = v / 255;
+            return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+          });
+          return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+        };
+        const ratio = (a: Rgba, b: Rgba) => {
+          const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+          return (hi + 0.05) / (lo + 0.05);
+        };
+
+        const dark = matchMedia("(prefers-color-scheme: dark)").matches && !matchMedia("print").matches;
+        // 뿌리까지 비칠 때 그 아래에 깔리는 바탕: 브라우저의 기본 바탕(Canvas).
+        const canvas: Rgba = dark ? [18, 18, 18, 1] : [255, 255, 255, 1];
+        const paperColor = paper === null ? null : parse(paper);
+
+        /** 그 요소까지(그 요소를 포함해) 조상의 opacity 를 곱한 값. */
+        const opacityCache = new Map<Element, number>();
+        const opacityOf = (el: Element | null): number => {
+          if (el === null) return 1;
+          const known = opacityCache.get(el);
+          if (known !== undefined) return known;
+          const value = Number(getComputedStyle(el).opacity) * opacityOf(el.parentElement);
+          opacityCache.set(el, value);
+          return value;
+        };
+        /** 그 요소의 상자 안에 깔린 바탕(불투명한 색): 조상의 바탕을 뿌리부터 차례로 겹친 것. */
+        const backgroundCache = new Map<Element, Rgba>();
+        const unreadable: string[] = [];
+        const backgroundOf = (el: Element | null): Rgba => {
+          if (el === null) return canvas;
+          const known = backgroundCache.get(el);
+          if (known !== undefined) return known;
+          const below = backgroundOf(el.parentElement);
+          const own = parse(getComputedStyle(el).backgroundColor);
+          if (own === null) unreadable.push(`${el.tagName.toLowerCase()} 바탕 ${getComputedStyle(el).backgroundColor}`);
+          const color = own === null ? below : over([own[0], own[1], own[2], own[3] * opacityOf(el)], below);
+          backgroundCache.set(el, color);
+          return color;
+        };
+        /** 일부러 가린 곳(1px 로 자른 상자) 안인지. 화면 낭독기용 글과 좁은 화면의 칸 머리. */
+        const veiledCache = new Map<Element, boolean>();
+        const veiled = (el: Element | null): boolean => {
+          if (el === null || el === document.body) return false;
+          const known = veiledCache.get(el);
+          if (known !== undefined) return known;
+          const style = getComputedStyle(el);
+          const box = style.overflow === "visible" && style.clipPath === "none" ? null : el.getBoundingClientRect();
+          const value = (box !== null && box.width <= 1 && box.height <= 1) || veiled(el.parentElement);
+          veiledCache.set(el, value);
+          return value;
+        };
+        /** 닫힌 details 의 안(이름 summary 는 빼고). */
+        const folded = (el: Element): boolean => {
+          for (let fold = el.closest("details:not([open])"); fold; fold = fold.parentElement?.closest("details:not([open])") ?? null) {
+            if (!fold.querySelector(":scope > summary")?.contains(el)) return true;
+          }
+          return false;
+        };
+        const drawnCache = new Map<Element, boolean>();
+        const drawnEl = (el: Element) => {
+          const known = drawnCache.get(el);
+          if (known !== undefined) return known;
+          const value =
+            el.checkVisibility({ visibilityProperty: true, opacityProperty: true, contentVisibilityAuto: true }) && !folded(el) && !veiled(el);
+          drawnCache.set(el, value);
+          return value;
+        };
+        /** 실패 글에 적는 요소의 이름: `태그.class.class`(class 가 없으면 태그만). */
+        const name = (el: Element) => [el.tagName.toLowerCase(), ...(el.getAttribute("class") ?? "").split(/\s+/).filter(Boolean)].join(".");
+
+        /** 그려지는 색을 바꾸지만 계산된 색에는 드러나지 않는 꾸밈. 있으면 그 선언. */
+        const effectIn = (style: CSSStyleDeclaration): string | null => {
+          if (style.filter !== "none") return `filter: ${style.filter}`;
+          if (style.backdropFilter !== "none") return `backdrop-filter: ${style.backdropFilter}`;
+          if (style.mixBlendMode !== "normal") return `mix-blend-mode: ${style.mixBlendMode}`;
+          return null;
+        };
+        /** 그 요소나 조상에 걸린 그런 꾸밈. */
+        const effectCache = new Map<Element, string | null>();
+        const effectOf = (el: Element | null): string | null => {
+          if (el === null) return null;
+          const known = effectCache.get(el);
+          if (known !== undefined) return known;
+          const value = effectIn(getComputedStyle(el)) ?? effectOf(el.parentElement);
+          effectCache.set(el, value);
+          return value;
+        };
+        /** 글자를 칠하는 색. `-webkit-text-fill-color` 를 따로 주지 않으면 글자색과 같다. */
+        const fillOf = (style: CSSStyleDeclaration) => (style.webkitTextFillColor && style.webkitTextFillColor !== style.color ? style.webkitTextFillColor : style.color);
+
+        const low: { what: string; text: string; color: string; background: string; ratio: number }[] = [];
+        let measured = 0;
+        let lowest = Infinity;
+        /**
+         * 글 하나를 잰다. `style` 은 그 글을 그리는 것의 계산된 꾸밈이다(요소, 또는 CSS 가 그린 글이면 그 가상 요소). 가상
+         * 요소면(`pseudo`) 그 가상 요소의 opacity 와 꾸밈도 본다.
+         */
+        const measure = (what: string, text: string, el: Element, style: CSSStyleDeclaration, pseudo = false) => {
+          const effect = effectOf(el) ?? (pseudo ? effectIn(style) : null);
+          if (effect !== null) {
+            unreadable.push(`${what} ${effect}`);
+            return;
+          }
+          const colorText = fillOf(style);
+          const color = parse(colorText);
+          if (color === null) {
+            unreadable.push(`${what} 글자색 ${colorText}`);
+            return;
+          }
+          const background = backgroundOf(el);
+          const alpha = color[3] * opacityOf(el) * (pseudo ? Number(style.opacity) : 1);
+          const fg = over([color[0], color[1], color[2], alpha], background);
+          const backs = paperColor === null ? [background] : [background, paperColor];
+          for (const back of backs) {
+            const value = ratio(fg, back);
+            lowest = Math.min(lowest, value);
+            if (value < minimum) low.push({ what, text: text.slice(0, 24), color: show(fg), background: show(back), ratio: Math.round(value * 100) / 100 });
+          }
+          measured += 1;
+        };
+
+        const SKIP = new Set(["SCRIPT", "STYLE", "TEMPLATE", "NOSCRIPT", "OPTION", "TITLE"]);
+        const NO_TEXT = new Set(["none", "normal", '""']);
+        for (const scope of document.querySelectorAll(root)) {
+          // 글 조각.
+          const walker = document.createTreeWalker(scope, NodeFilter.SHOW_TEXT);
+          for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+            const text = (node.textContent ?? "").trim();
+            const el = node.parentElement;
+            if (text === "" || el === null || SKIP.has(el.tagName) || el.closest("select") || !drawnEl(el)) continue;
+            measure(name(el), text, el, getComputedStyle(el));
+          }
+          for (const el of [scope, ...scope.querySelectorAll("*")]) {
+            if (SKIP.has(el.tagName) || !drawnEl(el)) continue;
+            // CSS 가 그린 글.
+            for (const pseudo of ["::before", "::after"]) {
+              const style = getComputedStyle(el, pseudo);
+              if (NO_TEXT.has(style.content) || style.display === "none") continue;
+              measure(`${name(el)}${pseudo}`, style.content, el, style, true);
+            }
+            // 목록 표시(점, 번호, 접어 둔 것의 세모).
+            const style = getComputedStyle(el);
+            if (style.display.includes("list-item") && style.listStyleType !== "none" && style.listStyleImage === "none") {
+              measure(`${name(el)}::marker`, style.listStyleType, el, getComputedStyle(el, "::marker"), true);
+            }
+            // 입력 부품의 글: 고르기 상자에 보이는 항목, 파일 입력의 글과 그 단추.
+            if (el instanceof HTMLSelectElement) {
+              measure(name(el), el.selectedOptions[0]?.textContent ?? "", el, style);
+            }
+            if (el instanceof HTMLInputElement && el.type === "file") {
+              measure(name(el), "(파일 입력의 글)", el, style);
+              const button = getComputedStyle(el, "::file-selector-button");
+              const back = parse(button.backgroundColor);
+              const color = parse(fillOf(button));
+              const effect = effectOf(el) ?? effectIn(button);
+              if (effect !== null) unreadable.push(`파일 고르기 단추 ${effect}`);
+              else if (back === null || color === null) unreadable.push(`파일 고르기 단추 ${fillOf(button)} / ${button.backgroundColor}`);
+              else {
+                const behind = over(back, backgroundOf(el));
+                const value = ratio(over(color, behind), behind);
+                lowest = Math.min(lowest, value);
+                measured += 1;
+                if (value < minimum) low.push({ what: "input::file-selector-button", text: "(파일 고르기 단추)", color: show(color), background: show(behind), ratio: Math.round(value * 100) / 100 });
+              }
+            }
+          }
+        }
+        for (const entry of unreadable) low.push({ what: "색을 읽지 못함", text: entry, color: "", background: "", ratio: 0 });
+        const chips = [...document.querySelectorAll(".chip")]
+          .filter((chip) => drawnEl(chip) && chip.getBoundingClientRect().width > 1)
+          .flatMap((chip) => [...chip.classList].filter((c) => c.startsWith("chip-")).map((c) => c.slice("chip-".length)));
+        return { measured, low: low.slice(0, 10), lowCount: low.length, lowest: Math.round(lowest * 100) / 100, chips: [...new Set(chips)].sort() };
+      },
+      { root: options.root ?? "body", minimum: options.minimum ?? 4.5, paper: options.paper ?? null },
+    ),
+  );
+
+/**
+ * 키보드 초점의 둘레선과 그 바깥 바탕의 명도 대비. 지금 초점이 있는 요소를 잰다. 둘레선이 없으면 0.
+ * 둘레선은 요소의 바깥(outline-offset 만큼 떨어진 곳)에 그려지므로 바탕은 부모 요소의 상자 안에 깔린 색으로 본다.
+ */
+export const focusRingContrast = (page: Page) =>
+  within(
+    "초점 둘레선 재기",
+    page.evaluate(() => {
+      const el = document.activeElement;
+      if (!el || el === document.body) return { what: "(초점 없음)", ratio: 0, color: "", background: "" };
+      // 데모의 코드 상자는 둘레선을 상자 전체(.codeblock)의 바깥에 그린다(globals.css).
+      const ringed = getComputedStyle(el).outlineStyle === "none" && el.closest(".codeblock") ? el.closest(".codeblock")! : el;
+      const style = getComputedStyle(ringed);
+      const parse = (color: string) => (/^rgba?\(([^)]+)\)$/.exec(color)?.[1].split(/[,\s/]+/).filter(Boolean).map(Number) ?? null);
+      const backOf = (node: Element | null): number[] => {
+        const chain: number[][] = [];
+        for (let up = node; up; up = up.parentElement) {
+          const c = parse(getComputedStyle(up).backgroundColor);
+          if (c) chain.push(c);
+        }
+        let base = matchMedia("(prefers-color-scheme: dark)").matches ? [18, 18, 18] : [255, 255, 255];
+        for (const c of chain.reverse()) {
+          const a = c[3] ?? 1;
+          base = [0, 1, 2].map((i) => c[i] * a + base[i] * (1 - a));
+        }
+        return base;
+      };
+      const lum = (c: number[]) =>
+        c
+          .slice(0, 3)
+          .map((v) => v / 255)
+          .map((s) => (s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4))
+          .reduce((sum, v, i) => sum + v * [0.2126, 0.7152, 0.0722][i], 0);
+      const color = parse(style.outlineColor);
+      if (style.outlineStyle === "none" || color === null) return { what: ringed.tagName.toLowerCase(), ratio: 0, color: style.outlineColor, background: "" };
+      // 필터나 섞어 그리기가 걸리면 그려지는 색을 셈할 수 없다(`textContrast` 와 같다). 재지 못한 것(0)으로 적는다.
+      for (let up: Element | null = ringed; up; up = up.parentElement) {
+        const s = getComputedStyle(up);
+        if (s.filter !== "none" || s.backdropFilter !== "none" || s.mixBlendMode !== "normal") {
+          return { what: `${ringed.tagName.toLowerCase()} (필터나 섞어 그리기가 걸림)`, ratio: 0, color: style.outlineColor, background: "" };
+        }
+      }
+      const offset = parseFloat(style.outlineOffset);
+      // 바깥에 그리면 부모의 바탕 위에, 안쪽에 그리면(음수) 제 바탕 위에 놓인다.
+      const back = backOf(offset < 0 ? ringed : ringed.parentElement);
+      const [hi, lo] = [lum(color), lum(back)].sort((a, b) => b - a);
+      return {
+        what: [ringed.tagName.toLowerCase(), ...(ringed.getAttribute("class") ?? "").split(/\s+/).filter(Boolean)].join("."),
+        ratio: Math.round(((hi + 0.05) / (lo + 0.05)) * 100) / 100,
+        color: style.outlineColor,
+        background: `rgb(${back.map((v) => Math.round(v)).join(", ")})`,
+      };
+    }),
+  );
+
+/** 테두리 하나를 잰 것. */
+export interface BorderContrast {
+  /** 그 요소(`#id` 또는 `태그.class`). 가상 요소면 뒤에 그 이름, 단추면 그 글. */
+  what: string;
+  /** 네 변 가운데 가장 낮은 명도 대비. 테두리가 없으면 0. */
+  ratio: number;
+  border: string;
+  background: string;
+}
+
+/**
+ * 누르거나 고르는 것의 테두리와 그 바깥 바탕의 명도 대비(WCAG 2 의 비텍스트 대비, 3:1 을 본다). 선택자에 맞는 요소 가운데
+ * 그려진 것마다 잰다. `pseudo` 를 주면 그 가상 요소의 테두리를 잰다(파일 입력의 단추). 바깥 바탕은 그 요소를 품은 것(가상
+ * 요소면 그 요소)부터 문서의 뿌리까지 조상의 바탕을 겹쳐 셈한다. 비치는 테두리는 그 바탕 위에 겹친다.
+ */
+export const borderContrast = (page: Page, selector: string, pseudo?: "::file-selector-button") =>
+  within(
+    "테두리 재기",
+    page.evaluate(
+      ({ selector, pseudo }) => {
+        const parse = (color: string) => (/^rgba?\(([^)]+)\)$/.exec(color)?.[1].split(/[,\s/]+/).filter(Boolean).map(Number) ?? null);
+        const over = (top: number[], bottom: number[]) => [0, 1, 2].map((i) => top[i] * (top[3] ?? 1) + bottom[i] * (1 - (top[3] ?? 1)));
+        const backOf = (node: Element | null): number[] => {
+          const chain: number[][] = [];
+          for (let up = node; up; up = up.parentElement) {
+            const c = parse(getComputedStyle(up).backgroundColor);
+            if (c) chain.push(c);
+          }
+          let base = matchMedia("(prefers-color-scheme: dark)").matches && !matchMedia("print").matches ? [18, 18, 18] : [255, 255, 255];
+          for (const c of chain.reverse()) base = over(c, base);
+          return base;
+        };
+        const lum = (c: number[]) =>
+          c
+            .slice(0, 3)
+            .map((v) => v / 255)
+            .map((s) => (s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4))
+            .reduce((sum, v, i) => sum + v * [0.2126, 0.7152, 0.0722][i], 0);
+        const ratio = (a: number[], b: number[]) => {
+          const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x);
+          return Math.round(((hi + 0.05) / (lo + 0.05)) * 100) / 100;
+        };
+        const show = (c: number[]) => `rgb(${c.slice(0, 3).map((v) => Math.round(v)).join(", ")})`;
+        return [...document.querySelectorAll(selector)]
+          .filter((el) => el.checkVisibility({ visibilityProperty: true, opacityProperty: true }) && el.getBoundingClientRect().width > 1)
+          .map((el) => {
+            const name = el.id ? `#${el.id}` : [el.tagName.toLowerCase(), ...(el.getAttribute("class") ?? "").split(/\s+/).filter(Boolean)].join(".");
+            const what = `${name}${pseudo ?? ""}${el instanceof HTMLButtonElement ? ` "${(el.textContent ?? "").trim()}"` : ""}`;
+            const style = getComputedStyle(el, pseudo);
+            const back = backOf(pseudo ? el : el.parentElement);
+            // 필터나 섞어 그리기가 걸리면 그려지는 색을 셈할 수 없다(`textContrast` 와 같다). 재지 못한 것(0)으로 적는다.
+            const effected = (s: CSSStyleDeclaration) => s.filter !== "none" || s.backdropFilter !== "none" || s.mixBlendMode !== "normal";
+            let effect = pseudo !== null && effected(style);
+            for (let up: Element | null = el; up && !effect; up = up.parentElement) effect = effected(getComputedStyle(up));
+            if (effect) return { what, ratio: 0, border: "(필터나 섞어 그리기가 걸림)", background: show(back) };
+            const sides = (["Top", "Right", "Bottom", "Left"] as const).map((side) => {
+              const color = parse(style.getPropertyValue(`border-${side.toLowerCase()}-color`));
+              const drawn = style.getPropertyValue(`border-${side.toLowerCase()}-style`) !== "none" && parseFloat(style.getPropertyValue(`border-${side.toLowerCase()}-width`)) > 0;
+              return { color: color ? over(color, back) : null, drawn };
+            });
+            if (sides.some((side) => !side.drawn || side.color === null)) return { what, ratio: 0, border: "(테두리 없음)", background: show(back) };
+            const lowest = sides.reduce((low, side) => (ratio(side.color!, back) < ratio(low.color!, back) ? side : low));
+            return { what, ratio: ratio(lowest.color!, back), border: show(lowest.color!), background: show(back) };
+          });
+      },
+      { selector, pseudo: pseudo ?? null },
+    ),
+  ) as Promise<BorderContrast[]>;
+
+/** 닫는 따옴표·괄호 바로 뒤에서 줄이 바뀐 곳 하나. */
+export interface ParticleBreak {
+  /** 그 글이 든 요소(`태그.class`). */
+  what: string;
+  /** 줄이 바뀐 자리의 앞뒤(⏎ 가 줄이 바뀐 자리). 같은 블록 안의 앞뒤 글 조각까지 이어 붙여 보인다. */
+  around: string;
+  /** 부호가 든 글 조각 전체(앞뒤 빈칸은 걷는다). 팩·CLI 출력의 글인지 가려낼 때 쓴다. */
+  node: string;
+  /** 사이트가 묶어 둔 조각(`.nobreak`) 안의 글인지. 그 안의 글은 사이트가 쓴 글이다(조각이 짧아 `node` 로는 가려내지 못한다). */
+  kept: boolean;
+}
+
+/**
+ * 닫는 따옴표·괄호(’ ” 」 』 ) ] ' ")와 바로 뒤에 붙은 한글 사이에서 줄이 바뀐 곳('‘판정 경로’ ⏎ 에'). Chrome 은
+ * `word-break: keep-all` 이어도 그 사이를 줄바꿈 자리로 본다(사이트는 그 자리를 `.nobreak` 로 묶는다. src/components/text.tsx).
+ * 그려진 글 조각마다 부호와 그 다음 글자의 자리를 재어, 다음 글자가 아래 줄에 있으면 적는다. 부호가 글 조각의 끝이면 같은
+ * 블록(한 줄 흐름) 안의 다음 글 조각의 첫 글자를 본다. `checked` 는 본 자리(부호 바로 뒤에 한글이 붙은 곳)의 수다.
+ * 그려지지 않는 글(닫힌 details 의 안)은 자리가 없어 빠진다.
+ */
+export const particleBreaks = (page: Page) =>
+  within(
+    "닫는 부호 뒤의 줄바꿈 찾기",
+    page.evaluate(() => {
+      const CLOSE = /[’”」』)\]'"]/;
+      const HANGUL = /[가-힣]/;
+      const nodes: Text[] = [];
+      const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        const el = node.parentElement;
+        if (el && !el.closest("script, style, template") && el.checkVisibility({ visibilityProperty: true })) nodes.push(node as Text);
+      }
+      /** 그 글자의 상자(크기가 있는 것). 그려지지 않았으면 null. */
+      const box = (node: Text, at: number) => {
+        const range = document.createRange();
+        range.setStart(node, at);
+        range.setEnd(node, at + 1);
+        return [...range.getClientRects()].find((rect) => rect.width > 0 && rect.height > 0) ?? null;
+      };
+      /** 글 조각이 놓인 블록(가장 가까운, inline 이 아닌 조상). */
+      const blockOf = (node: Text) => {
+        for (let el = node.parentElement; el; el = el.parentElement) if (!getComputedStyle(el).display.startsWith("inline")) return el;
+        return null;
+      };
+      /** k 번째 글 조각의 처음부터 upto 글자 앞까지에, 같은 블록 안의 앞 조각들을 이어 붙인 끝 12자. */
+      const before = (k: number, upto: number) => {
+        const block = blockOf(nodes[k]);
+        let text = nodes[k].data.slice(0, upto);
+        for (let j = k - 1; j >= 0 && text.length < 12 && blockOf(nodes[j]) === block; j--) text = nodes[j].data + text;
+        return text.slice(-12);
+      };
+      /** k 번째 글 조각의 from 글자부터에, 같은 블록 안의 뒤 조각들을 이어 붙인 처음 8자. */
+      const after = (k: number, from: number) => {
+        const block = blockOf(nodes[k]);
+        let text = nodes[k].data.slice(from);
+        for (let j = k + 1; j < nodes.length && text.length < 8 && blockOf(nodes[j]) === block; j++) text += nodes[j].data;
+        return text.slice(0, 8);
+      };
+      const found: { what: string; around: string; node: string; kept: boolean }[] = [];
+      let checked = 0;
+      nodes.forEach((node, k) => {
+        const text = node.data;
+        for (let i = 0; i < text.length; i++) {
+          if (!CLOSE.test(text[i])) continue;
+          let n = k;
+          let at = i + 1;
+          if (at >= text.length) {
+            n = k + 1;
+            at = 0;
+            if (n >= nodes.length || blockOf(nodes[n]) !== blockOf(node)) continue;
+          }
+          const next = nodes[n];
+          if (!HANGUL.test(next.data[at] ?? "")) continue;
+          const mark = box(node, i);
+          const later = box(next, at);
+          if (mark === null || later === null) continue;
+          checked += 1;
+          if (later.top > mark.top + mark.height / 2) {
+            const el = node.parentElement!;
+            found.push({
+              what: [el.tagName.toLowerCase(), ...(el.getAttribute("class") ?? "").split(/\s+/).filter(Boolean)].join("."),
+              around: `…${before(k, i + 1)}⏎${after(n, at)}…`,
+              node: text.trim(),
+              kept: el.closest(".nobreak") !== null,
+            });
+          }
+        }
+      });
+      return { checked, found };
+    }),
+  ) as Promise<{ checked: number; found: ParticleBreak[] }>;
+
 export interface UndrawnOptions {
   /** 볼 곳(선택자). 그 안의 글 조각을 모두 본다. 여럿이면 모두 본다. */
   root: string;
   /** 일부러 화면에서만 가린 것(화면 낭독기용 글, 좁은 화면의 칸 머리). 그 안의 글은 보지 않는다. */
   veiled: string;
-  /** 가장 작은 글자 크기(px). 기본은 10px(이 사이트의 가장 작은 글자는 0.74rem 이다). 인쇄할 때는 더 작다. */
+  /**
+   * 가장 작은 글자 크기(px). 기본은 10px(화면에서 가장 작은 글자는 작은 글 안의 코드로 12px 남짓이다. 9번 전에는 11.6px). 인쇄할
+   * 때는 더 작다.
+   */
   minFont?: number;
 }
 

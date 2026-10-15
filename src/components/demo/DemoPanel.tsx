@@ -3,6 +3,7 @@
 import { Fragment, useRef, type MouseEvent, type RefObject } from "react";
 import { ReportWithRecord, type ReportSwitch } from "@/components/result/ReportWithRecord";
 import { StatusChip } from "@/components/result/StatusChip";
+import { keepParticles } from "@/components/text";
 import type { DemoApp, DemoFile, DemoVariant } from "@/lib/demo/apps";
 import { compareByPolicy, type CompareCell } from "@/lib/demo/compare";
 import { lineMarks } from "@/lib/demo/marks";
@@ -190,8 +191,8 @@ function Compare({ app, current, report }: { app: DemoApp; current: DemoVariant;
       {zeroElsewhere && <p className="hint">{SITE.zeroIsNotClearance}</p>}
       {linked && (
         <p className="hint">
-          표의 정책 이름을 누르면 아래 결과({current.label})의 그 정책으로 갑니다.
-          {hasPath && " 발견마다의 까닭은 그 안의 ‘판정 경로’에 CLI 가 남긴 문장으로 나옵니다."}
+          {keepParticles(`표의 정책 이름을 누르면 아래 결과(${current.label})의 그 정책으로 갑니다.`)}
+          {hasPath && keepParticles(" 발견마다의 까닭은 그 안의 ‘판정 경로’에 CLI 가 남긴 문장으로 나옵니다.")}
         </p>
       )}
       {elsewhere.map((variant) => (
@@ -217,7 +218,7 @@ export function DemoPanel({ app, variant, pack }: { app: DemoApp; variant: DemoV
   return (
     <>
       <h2 className="demo-title">{name}</h2>
-      <p className="demo-note">합성 예시입니다. {variant.note}</p>
+      <p className="demo-note">합성 예시입니다. {keepParticles(variant.note)}</p>
       {variant.files.map((file) => (
         <CodeBox key={file.path} file={file} variant={variant} />
       ))}
