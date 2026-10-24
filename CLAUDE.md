@@ -2,15 +2,17 @@
 
 # Plitsoft-SDP-Web — 작업 안내
 
-policypack CLI(가칭)가 낸 결과를 조문과 함께 보여 주는 웹이다. 아주대 2026-2 자기주도프로젝트, 플리트소프트 연계.
+policypack CLI(가칭)로 GitHub 공개 저장소를 분석하고, 그 결과를 조문과 함께 누구나 보게 하는 웹 서비스다(방향 B,
+`docs/direction.md`). 오너의 개인 개발 프로젝트로 진행한다. 아주대 2026-2 자기주도프로젝트, 플리트소프트 연계.
 CLI 는 옆 폴더 `../Plitsoft-SDP` 에 따로 있고, 다른 사람(에이전트)이 개발한다.
 
 일을 시작하기 전에 이 순서로 읽는다.
 
-1. `docs/ROADMAP.md` — 무엇을 어떤 순서로 하는지, 지금 해도 되는 일과 사람 결정이 필요한 일
-2. `docs/commitments.md` — 어기면 안 되는 약속 (문구, 저장, 공개 범위)
-3. `contract/README.md` — CLI 와 이어지는 방식
-4. `docs/architecture.md` — 세 개의 층과 지금 있는 것
+1. `docs/direction.md` — 지금의 방향, 쪽 구조, 서버·실행기 구조, 일정(B0~B4)
+2. `docs/ROADMAP.md` — 무엇을 어떤 순서로 하는지, 지금 해도 되는 일과 사람 결정이 필요한 일
+3. `docs/commitments.md` — 어기면 안 되는 약속 (문구, 저장, 공개 범위)
+4. `contract/README.md` — CLI 와 이어지는 방식
+5. `docs/architecture.md` — 세 개의 층과 지금 있는 것
 
 ## 절대 규칙
 
@@ -18,13 +20,16 @@ CLI 는 옆 폴더 `../Plitsoft-SDP` 에 따로 있고, 다른 사람(에이전�
   CLI 와는 설치된 명령의 출력(`contract/`)과 팩 메타데이터(`data/pack-meta.json`)로만 이어진다.
 - **CLI 출력에 없는 정보를 꾸며 내지 않는다.** `decision_path` 같은 자유 문장을 해석해 구조를 만들지 않는다.
   필요한 것이 출력에 없으면 `docs/cli-requests.md` 에 요청으로 적고, 화면에는 "아직 알 수 없음"으로 정직하게 보인다.
-- **지금은 1층이다. 서버가 없다.** `next.config.ts` 의 `output: "export"` 를 지우지 않는다. route handler,
-  server action, 쿠키, 미들웨어(proxy), 데이터베이스, 로그인, 분석 도구, 외부로 나가는 요청(fetch, 외부 글꼴·스크립트)을
-  넣지 않는다. 브라우저 저장소(localStorage 등)도 사람이 정할 때까지 쓰지 않는다. 연 결과는 메모리에만 둔다.
-- **`tests/commitments.test.ts` 와 `tests/wording.ts` 를 고쳐서 통과시키지 않는다.** 약속을 바꾸려면 사람의 결정이 먼저다.
+- **서버는 `docs/direction.md` 의 구조 안에서만 넣는다.** route handler, DB, GitHub API 호출, 실행기(GitHub Actions)
+  콜백은 그 구조대로 둔다. 분석 도구·광고·외부 글꼴·외부 스크립트는 넣지 않는다. 브라우저 쪽 코드는 같은 사이트의 `/api/`
+  말고는 요청하지 않는다(코드 줄은 GitHub 링크로 보낸다). 비밀값(토큰, API 키)은 서버 환경 변수와 Actions secret 에만 두고
+  저장소·로그·화면에 남기지 않는다. 브라우저 저장소(localStorage 등)는 쓰지 않는다. `/view` 에서 연 파일은 브라우저 안에만 둔다.
+- **`tests/commitments.test.ts` 와 `tests/wording.ts` 를 고쳐서 통과시키지 않는다.** 시험을 고치는 것은 `docs/commitments.md`
+  가 먼저 바뀌었을 때, 그 바뀐 약속에 맞추는 경우뿐이다.
   이 시험은 흔한 실수를 잡는 그물일 뿐이다. 통과했다고 약속을 지킨 것은 아니다. `docs/commitments.md` 를 기준으로 판단한다.
-- **사람만 하는 일을 대신하지 않는다.** 배포(Vercel 등), 계정·저장소·도메인 만들기, 원격에 올리기(push),
-  라이선스 정하기, 실제 남의 저장소를 검사해 결과를 보여 주기. 필요해지면 멈추고 `docs/ROADMAP.md` 의
+- **사람만 하는 일을 대신하지 않는다.** 배포(Vercel 등), 계정·저장소·도메인 만들기, 비밀값 만들기, 원격에 올리기(push),
+  라이선스 정하기, 비용 상한 정하기. 실제 공개 저장소의 분석은 서비스가 사용자의 요청으로 한다. 에이전트가 남의 저장소를
+  스스로 골라 분석하지 않는다(개발 중 시험은 합성 저장소나 오너가 정한 저장소로). 필요해지면 멈추고 `docs/ROADMAP.md` 의
   "사람 결정이 필요한 것"에 적는다.
 - **법에 관한 사실을 지어내지 않는다.** 조문은 `data/pack-meta.json` 의 `legal[].text` 원문만 쓴다. 팩에서 온 다른 글
   가운데 제목·질문·메시지·고치는 법은 화면에 써도 된다. 팩 작성자 메모(`rationale`)는 쓰지 않는다(처분·액수 같은 주장이
@@ -45,7 +50,7 @@ CLI 는 옆 폴더 `../Plitsoft-SDP` 에 따로 있고, 다른 사람(에이전�
 
 ```bash
 npm run dev         # 개발 서버
-npm run check       # lint + typecheck + test + build. 일을 마쳤다고 하기 전에 반드시 통과시킨다
+npm run check       # lint + typecheck + test + build + 브라우저 시험. 일을 마쳤다고 하기 전에 반드시 통과시킨다
 npm run test        # vitest (계약·화면 구조·약속)
 npm run capture     # 합성 데모 코드를 설치된 CLI 로 다시 검사 → contract/cli-current/
 npm run pack-meta   # 팩에서 data/pack-meta.json 다시 만들기
