@@ -190,6 +190,7 @@ async function compareTable(page: Page) {
 const AI = STATUS_LABEL["needs-review-ai-pending"];
 const UNCERTAIN = STATUS_LABEL.uncertain;
 const NONE = STATUS_LABEL["not-reported"];
+const EVIDENCE = STATUS_LABEL["evidence-found"];
 // 코드 상자에는 곁에 조문 이름이 없다. "이 조문"이라고 적지 않는다(채팅의 1행에는 조문이 다른 발견이 둘 실린다).
 const FILE_SCOPE = "파일 전체를 보고 내린 판정입니다. 줄 번호는 조문이 닿는다고 본 첫 줄입니다.";
 
@@ -208,7 +209,8 @@ interface Expected {
   policies: [name: string, card: string][];
 }
 
-const KIDS = [`${AI} 발견 1건`, NONE];
+// 고친 뒤에는 강한 정적 대안(under14-branch)으로 풀린 단위가 결과에 실려 있다(CLI 결과 판 1 의 run.static_cleared).
+const KIDS = [`${AI} 발견 1건`, EVIDENCE];
 // 고친 뒤에도 두 발견이 남고, 고치기 전에 없던 정책의 발견이 하나 나온다. 그대로 보인다.
 const PUSH = [`${AI} 발견 2건`, `${AI} 발견 2건`, NONE, `${UNCERTAIN} 발견 1건`];
 const CHAT = [`${AI} 발견 1건`, `${UNCERTAIN} 발견 1건`, `${AI} 발견 1건`, `${AI} 발견 1건`];
@@ -298,15 +300,18 @@ describe("세 앱 × 두 판", () => {
       expect(box.code, name).toBe(code);
       expect(box.numbers, name).toEqual(code.trimEnd().split("\n").map((_, i) => String(i + 1)));
 
-      // 칠한 줄은 결과의 발견에 실린 줄 번호뿐이다. 바로 아래에 파일 전체를 보고 내린 판정이라고 적혀 있다.
+      // 칠한 줄은 결과의 발견에 실린 줄 번호뿐이다. 바로 아래에 판정이 본 범위가 적혀 있다. 대개 파일 전체이고, 야간 광고
+      // 규칙(CLI 7300205 부터 함수 단위)의 발견은 그 함수 구역이다.
       expect(want.lines, name).toEqual([...new Set(data.findings.map((finding) => finding.line))].sort((a, b) => a! - b!));
       expect(box.painted, name).toEqual(want.lines);
       expect(box.notes, name).toEqual(
-        want.lines.map((line) => ({
-          after: line,
-          text: `발견 ${data.findings.filter((finding) => finding.line === line).length}건에 실린 줄 번호입니다. ${FILE_SCOPE}`,
-          inside: true,
-        })),
+        want.lines.map((line) => {
+          const here = data.findings.filter((finding) => finding.line === line);
+          const scope = here.every((finding) => finding.scope === "file")
+            ? FILE_SCOPE
+            : `함수 단위로 내린 판정입니다. 판정 구역은 ${here[0].region!.start_line}~${here[0].region!.end_line}행입니다.`;
+          return { after: line, text: `발견 ${here.length}건에 실린 줄 번호입니다. ${scope}`, inside: true };
+        }),
       );
       for (const note of await page.locator(".codenote").all()) expect(await note.isVisible(), name).toBe(true);
 
@@ -370,7 +375,7 @@ describe("세 앱 × 두 판", () => {
     expect(notes).toHaveLength(3);
     expect(notes[0]).toContain(`${AI} 정적 조건으로는 대안이 확인되지 않았고, AI 에게 물어야 할 조건은 판정에 넣을 답이 없습니다`);
     expect(notes[1]).toContain(`${UNCERTAIN} 적용 여부나 대안이 '모름'으로 남았습니다. 약한 근거만 있거나`);
-    expect(notes[2]).toBe(`${NONE} 발견이 없는 정책은 지금 CLI 출력으로는 '충족 근거 발견'과 '적용 신호 없음'을 구분할 수 없습니다.`);
+    expect(notes[2]).toBe(`${NONE} 발견이 없는 정책은 이 사이트가 아직 '충족 근거 발견'과 '적용 신호 없음'으로 나누어 적지 않습니다.`);
     // 표 아래의 글은 여러 정책을 두고 하는 말이다. 곁에 없는 정책이나 조문을 "이"로 가리키지 않는다.
     expect(await page.locator(".demo-compare").innerText()).not.toMatch(/이 (정책|조문|결과)/);
     // 판단 보류로 남은 발견의 판정 경로는 처음부터 펼쳐져 있다. 약한 근거라는 문장이 접히지 않은 채 보인다.

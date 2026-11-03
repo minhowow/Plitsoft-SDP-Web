@@ -8,11 +8,11 @@ contract/
 ├── fixtures/            합성 데모 코드. 검사 대상이다 (이 프로젝트의 코드가 아니다)
 │   └── <앱>/<판>/src/…  판은 main(고치기 전), fixed(고친 뒤)
 ├── cli-current/         지금 CLI 가 실제로 낸 출력. `npm run capture` 가 통째로 다시 만든다
-│   ├── MANIFEST.json    CLI 판·커밋·팩 판·수집한 날
+│   ├── MANIFEST.json    CLI 판·커밋·커밋 날짜·팩 판·수집한 날
 │   ├── <앱>.<판>.json   policypack scan src/ --output-format json
 │   └── kids-signup.main.sarif
 ├── schema/
-│   ├── report.cli-0.3.schema.json     지금 JSON 출력의 모양 (관찰해서 적은 것)
+│   ├── report.cli-0.3.schema.json     지금 JSON 출력의 모양 (관찰해서 적은 것. 판 번호 없는 출력과 결과 판 1)
 │   ├── sarif.cli-0.3.schema.json      지금 SARIF 출력 가운데 웹이 읽는 것 (관찰해서 적은 것)
 │   └── report.v1-draft.schema.json    웹이 요청하는 다음 모양 (CLI 가 아직 내지 않는다)
 └── samples-v1-draft/    v1 초안 예시. 실제 출력에 손으로 필드를 덧붙였다
@@ -31,6 +31,15 @@ contract/
   둘을 견준다. SARIF 수집본을 `src` 에서 불러오지 않는다(그 안에 팩 작성자 메모가 실려 있다).
 - `npm run capture` 와 `npm run pack-meta` 는 같은 출처로 함께 돌린다. 결과의 `run.pack_digest` 와
   `data/pack-meta.json` 의 `pack.digest` 가 같아야 한다.
+- 실행기(`.github/workflows/analyze.yml`)가 설치하는 CLI 도 같은 커밋이어야 한다. `MANIFEST.json` 의 `cli.commit` 이
+  `CLI_COMMIT` 의 앞자리이고, `cli.committed_on` 이 `CLI_EXCLUDE_NEWER` 의 날짜다. `tests/contract.test.ts` 의 "수집본, 팩
+  메타데이터, 실행기가 같은 CLI 커밋이다"가 본다. 고정 판을 옮길 때는 셋을 함께 바꾼다(`docs/cli-followup.md`).
+- 결과의 판(`schema_version`)은 둘을 안다. 없음(판 번호 없는 출력, CLI `8ae72d8` 까지)과 `1`(CLI 결과 판 1, `e1e46a9`
+  부터)이고, 둘 다 계약 `cli-0.3` 으로 읽는다. `"report/1-draft"` 는 웹이 만든 v1 초안 예시의 판이라 다른 것이다. 그 밖의
+  판은 파서가 거부한다. CLI 는 있던 키가 없어지거나 뜻이 바뀔 때 판을 올린다고 적는다(`report/json_out.py`). 그래도 판 1
+  안에서 판 번호를 그대로 둔 채 뜻이 넓어진 것이 하나 있다: CLI `bb76618`(`e1e46a9` 뒤, `7300205` 의 조상)부터 `run.incomplete` 와 `untested_reasons` 의
+  `engine-incomplete` 에 함수 단위 규칙에 쓸 함수 경계를 얻지 못한 파일도 든다. 화면의 설명(`src/lib/report/coverage.ts`,
+  `reasons.ts`)은 두 까닭을 함께 적는다.
 - `samples-v1-draft/` 는 수집본에서 손으로 만든 것이라 다시 수집해도 따라오지 않는다. 팩 판이 바뀌면 시험이 알려 준다.
   그때는 수집본에 `schema_version` 과 `run.policies` 를 덧붙여 예시를 다시 만든다.
 - `MANIFEST.json` 의 `dirty` 가 `true` 면 CLI 저장소에 커밋되지 않은 변경이 있던 것이다. 그 수집본은 커밋하지 않는다.
@@ -54,6 +63,12 @@ npm run capture && npm run pack-meta && npm test
 - 새 수집본이 계약 시험을 깨면(CLI 출력 모양이 바뀜) 수집본을 되돌리고 `docs/ROADMAP.md` 의 "사람 결정이 필요한 것"에 적는다.
 
 ## v1 로 넘어갈 때 (관문 G1)
+
+**2026-11-03: G1 의 한 부분을 넘었다(오너가 맡김).** 실행기가 설치하는 고정 CLI `7300205` 의 실제 출력(결과 판 1)을
+계약으로 받았다. 스키마 `report.cli-0.3.schema.json`, 타입, 파서가 `schema_version: 1` 과 그 판에서 더해진 선택 키
+(`run.static_cleared`, `run.fingerprint_version`, `run.questions_skipped`)를 받는다. 판정자를 켰을 때의 `run.judge_usage` 는
+`7300205` 에 없어서(그 뒤의 커밋에서 생겼다) 넣지 않았다. CLI 가 정책별 요약과 공식 스키마를 아직 내지 않으므로 아래 네
+단계는 그대로 남는다.
 
 CLI 가 판 번호가 붙은 결과와 공식 스키마를 내면:
 

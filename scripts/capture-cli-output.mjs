@@ -155,6 +155,8 @@ function main() {
       // 절대 경로는 적지 않는다. 옆 폴더면 상대 경로, 그 밖의 폴더면 이름만, 폴더가 아니면 준 값 그대로.
       from: !fromIsDir ? from : /^\.\.[\\/][^\\/]+$/.test(relative) ? relative : path.basename(from),
       commit: fromIsDir ? git(["rev-parse", "--short", "HEAD"]) : null,
+      // 그 커밋의 날짜(커미터 날짜, YYYY-MM-DD). 실행기의 CLI_EXCLUDE_NEWER 와 견준다(tests/contract.test.ts).
+      committed_on: fromIsDir ? git(["show", "-s", "--format=%cs", "HEAD"]) : null,
       // 커밋되지 않은 변경이 있었는지. git 저장소가 아니면 모른다(null).
       dirty: status === null ? null : status !== "",
     },

@@ -10,7 +10,7 @@ import { STATUS_HINT, STATUS_LABEL } from "@/lib/report/status";
 import type { Finding, Report } from "@/lib/report/types";
 import { buildReportView, type ReportView } from "@/lib/report/view-model";
 import { SITE } from "@/lib/site";
-import { closedDetailsAt, elementAt, elementsOf, jsonFiles, linesOf, readJson, textOf } from "./helpers";
+import { closedDetailsAt, elementAt, elementsOf, jsonFiles, linesOf, readJson, textOf, withoutKeys } from "./helpers";
 import { BANNED_WORDING } from "./wording";
 
 // 결과 화면을 실제로 그려서 글자를 본다. 소스만 보는 시험이 놓치는 것(데이터에서 온 글, 조건에 따라 달라지는 글)을 잡는다.
@@ -247,7 +247,7 @@ describe("판정자에 관한 문구", () => {
     expect(html).toContain("인용한 코드가 확인되지 않았습니다");
   });
 
-  it("AI 가 푼 경고를 숨기지 않고, 구분할 수 없다고도 하지 않는다", () => {
+  it("AI 가 푼 경고를 숨기지 않고, 나누어 적지 않는다고도 하지 않는다", () => {
     const html = render("tests", "fixtures", "judge-on.cleared.json");
     expect(html).toContain("AI 가 푼 경고 1건");
     expect(html).toContain("const age = calcKoreanAge(form.birthDate);");
@@ -270,8 +270,8 @@ describe("커버리지 보기 (다 보지 못한 것)", () => {
     skipped: "코드를 보지 않았습니다. 이 파일들에서 나올 수 있었던 발견은 결과에 없습니다.",
     unparsed: `검사했지만 구문을 다 읽지 못했습니다. 구문을 봐야 하는 조건이 '모름'이 되어, ${LEFT_UNCERTAIN}`,
     incomplete:
-      "검사했지만 엔진이 조건을 끝까지 돌리지 못했습니다(시간 초과·메모리 부족 등). " +
-      `끝나지 않은 조건이 '모름'이 되어, ${LEFT_UNCERTAIN}`,
+      "검사했지만 엔진이 조건을 끝까지 돌리지 못했거나(시간 초과·메모리 부족 등) 함수 단위 규칙에 쓸 함수 경계를 얻지 못했습니다. " +
+      `끝나지 않은 조건이나 함수 경계가 필요한 판정이 '모름'이 되어, ${LEFT_UNCERTAIN}`,
     engineErrors:
       "어느 파일에서 난 오류인지 엔진이 밝히지 않았습니다. CLI 는 이때 함께 검사한 파일을 모두 '엔진이 끝내지 못한 파일'에 넣습니다.",
   };
@@ -352,7 +352,9 @@ describe("커버리지 보기 (다 보지 못한 것)", () => {
       expect(examined).not.toContain("결과에 없습니다");
     }
     expect(unparsed).toContain("구문을 다 읽지 못했습니다.");
-    expect(unfinished).toContain("엔진이 조건을 끝까지 돌리지 못했습니다");
+    expect(unfinished).toContain("엔진이 조건을 끝까지 돌리지 못했거나");
+    // CLI bb76618(7300205 의 조상)부터 함수 경계를 얻지 못한 파일도 run.incomplete 에 실린다. 그 경우를 빼고 적지 않는다.
+    expect(unfinished).toContain("함수 경계를 얻지 못했습니다");
 
     // 설명은 이 결과의 발견과 맞는다. 파일 옆의 수는 그 파일에 나온 발견의 수다. 검사하지 않은 파일에는 발견이 없고
     // 수도 적지 않는다.
@@ -840,9 +842,12 @@ describe("빈 결과 화면 (발견이 0인 결과)", () => {
     for (const text of texts.slice(1)) expect(text).toContain("이 정책의 판정 단위는 0개입니다.");
   });
 
-  it("CLI 0.3: 같은 두 결과는 정책 카드의 설명이 같고 전체 판정 단위 수만 다르다. 그 한계를 적는다", () => {
-    const plain = render("contract", "cli-current", "plain.main.json");
-    const fixed = render("contract", "cli-current", "kids-signup.fixed.json");
+  it("CLI 0.3 판 번호 없는 출력: 같은 두 결과는 정책 카드의 설명이 같고 전체 판정 단위 수만 다르다. 그 한계를 적는다", () => {
+    // 판 번호 없는 출력(CLI 8ae72d8 까지)에는 정적 대안으로 풀린 단위(run.static_cleared)가 없었다. 수집본에서 그것을 빼서 본다.
+    const old = (file: string) =>
+      renderData(withoutKeys(readJson("contract", "cli-current", file) as Report, ["schema_version"], ["static_cleared"]));
+    const plain = old("plain.main.json");
+    const fixed = old("kids-signup.fixed.json");
 
     // 정책 카드는 글자까지 같다. 정책별로 "적용 신호를 본 곳"을 알 수 없어서 모두 발견 없음이다.
     expect(cards(fixed)).toEqual(cards(plain));
@@ -855,13 +860,13 @@ describe("빈 결과 화면 (발견이 0인 결과)", () => {
         evidence: [],
       });
     }
-    expect(STATUS_HINT["not-reported"]).toContain("'충족 근거 발견'과 '적용 신호 없음'을 구분할 수 없습니다");
+    expect(STATUS_HINT["not-reported"]).toContain("'충족 근거 발견'과 '적용 신호 없음'으로 나누어 적지 않습니다");
     expect(plain).not.toContain("이 정책의 판정 단위");
     expect(fixed).not.toContain("이 정책의 판정 단위");
 
     // 화면 전체에서 다른 줄은 둘뿐이다: 전체 판정 단위 수가 든 줄과, 그 수 옆에 적은 한계.
     // 0이면 정책별 수도 모두 0이라 "정책별 수가 없다"는 한계가 아니다. 어느 정책에서도 판정한 곳이 없다고 적고,
-    // 그런데도 카드가 "발견 없음"(구분할 수 없다)인 까닭을 함께 적는다. 카드의 상태는 바꾸지 않는다.
+    // 그런데도 카드가 "발견 없음"(나누어 적지 않는다)인 까닭을 함께 적는다. 카드의 상태는 바꾸지 않는다.
     const [a, b] = [linesOf(plain), linesOf(fixed)];
     expect(b).toHaveLength(a.length);
     expect(a.flatMap((line, i) => (line === b[i] ? [] : [[line, b[i]]]))).toEqual([
@@ -873,6 +878,26 @@ describe("빈 결과 화면 (발견이 0인 결과)", () => {
     ]);
     expect(emptyParts(fixed)!.facts["정책"].text).toBe(
       "5개. 결과에는 정책 목록이 없어, 팩 판이 같은 이 사이트의 팩에서 가져와 아래에 적었습니다.",
+    );
+  });
+
+  it("CLI 결과 판 1: 정적 대안으로 풀린 단위가 실린 정책만 충족 근거 발견이고 그 자리를 적는다. 다른 카드와 정책별 수는 그대로다", () => {
+    const plain = render("contract", "cli-current", "plain.main.json");
+    const fixed = render("contract", "cli-current", "kids-signup.fixed.json");
+    const [pipa, ...rest] = cards(fixed);
+    expect(pipa).toMatchObject({
+      title: PIPA,
+      status: "충족 근거 발견",
+      description: STATUS_HINT["evidence-found"],
+      // 결과의 run.static_cleared 에 실린 파일, 대안이 맞은 줄, 대안 id 그대로다.
+      evidence: ["src/auth/signup.ts:7 에서 대안 under14-branch 확인"],
+      // 정책별 수는 여전히 결과에 없다. 짐작해 적지 않는다.
+      units: null,
+    });
+    expect(rest).toEqual(cards(plain).filter((card) => card.title !== PIPA));
+    expect(fixed).not.toContain("이 정책의 판정 단위");
+    expect(emptyParts(fixed)!.facts["판정 단위"].text).toBe(
+      "1개. 모든 정책을 합친 수입니다. 이 출력 형식(CLI 0.3)에는 정책별 수가 없어서, 어느 정책의 것인지는 아래 정책 카드의 충족 근거 위치에 실린 것만 알 수 있습니다.",
     );
   });
 
@@ -958,9 +983,18 @@ describe("빈 결과 화면 (발견이 0인 결과)", () => {
     expect(units(readJson("tests", "fixtures", "judge-on.cleared.json") as Report)).toBe(
       `1개. ${total} ${format}, 어느 정책의 것인지는 아래 'AI 가 푼 경고'에 실린 것만 알 수 있습니다. ${notCounted(2)}`,
     );
-    // 판정 단위가 있을 때.
-    expect(units(readJson("contract", "cli-current", "kids-signup.fixed.json") as Report)).toBe(
+    // 판정 단위가 있을 때. 정적 대안으로 풀린 단위가 실려 있으면 그 자리를 가리킨다.
+    const fixed = readJson("contract", "cli-current", "kids-signup.fixed.json") as Report;
+    expect(units(fixed)).toBe(
+      `1개. ${total} ${format}, 어느 정책의 것인지는 아래 정책 카드의 충족 근거 위치에 실린 것만 알 수 있습니다. ${notCounted(2)}`,
+    );
+    expect(units(fixed, { static_cleared: [] })).toBe(
       `1개. ${total} ${format}, 어느 정책에서 적용 신호를 봤는지 알 수 없습니다. ${notCounted(2)}`,
+    );
+    // AI 가 푼 경고와 정적 대안으로 풀린 단위가 함께 있을 때.
+    const cleared = readJson("tests", "fixtures", "judge-on.cleared.json") as Report;
+    expect(units(cleared, { static_cleared: fixed.run.static_cleared })).toBe(
+      `1개. ${total} ${format}, 어느 정책의 것인지는 아래 'AI 가 푼 경고'와 정책 카드의 충족 근거 위치에 실린 것만 알 수 있습니다. ${notCounted(2)}`,
     );
     // v1 초안. run.units 는 같은 필드다(스키마가 같은 정의를 가리킨다).
     expect(units(readJson("contract", "samples-v1-draft", "plain.main.json") as Report)).toBe(
@@ -1405,7 +1439,7 @@ describe("발견을 펼친 안쪽", () => {
     const text = textOf(body(render("contract", "cli-current", "kids-signup.main.json")));
     expect(
       inOrder(text, [
-        "확인되지 않은 적법한 대안 2개",
+        "확인되지 않은 적법한 대안 3개",
         "under14-branch",
         "만 14세 미만을 가르는 연령 분기가 보이지 않습니다.",
         "질문",
@@ -1416,6 +1450,11 @@ describe("발견을 펼친 안쪽", () => {
         "보호자 동의를 확인하는 것으로 보이는 함수 호출이 없습니다.",
         "질문",
         "법정대리인 동의를 확인하는 함수 이름이 무엇인가요?",
+        "고치는 법",
+        "age-gate-text",
+        "가입자가 만 14세 이상인지 확인하는 항목(예 '만 14세 이상입니다' 필수 체크)이 보이지 않습니다.",
+        "질문",
+        "가입자가 만 14세 이상인지 어디서 확인하나요? 그 확인을 거치지 않으면 가입이 막히나요?",
         "고치는 법",
         "판정을 끝까지 하지 못한 이유",
         "ai-guard",
@@ -1430,18 +1469,15 @@ describe("발견을 펼친 안쪽", () => {
 
   it("고치는 법이 실려 있지 않은 대안은 지어내지 않고 그렇다고 적는다", () => {
     const html = body(render("contract", "cli-current", "kids-signup.main.json"));
-    // 수집본에서 guardian-call 의 remediation 은 null 이다.
-    const guardian = textOf(elementAt(html, html.lastIndexOf('<li class="alt">')));
-    expect(
-      inOrder(guardian, [
-        "guardian-call",
-        "질문",
-        "법정대리인 동의를 확인하는 함수 이름이 무엇인가요?",
-        "고치는 법",
-        "이 대안에는 고치는 법이 실려 있지 않습니다.",
-      ]),
-      guardian,
-    ).toBe(true);
+    // 수집본에서 guardian-call 과 age-gate-text 의 remediation 은 null 이다.
+    const alternatives = elementsOf(html, '<li class="alt">').map(textOf);
+    expect(alternatives).toHaveLength(3);
+    for (const [alt, id, question] of [
+      [alternatives[1], "guardian-call", "법정대리인 동의를 확인하는 함수 이름이 무엇인가요?"],
+      [alternatives[2], "age-gate-text", "가입자가 만 14세 이상인지 어디서 확인하나요? 그 확인을 거치지 않으면 가입이 막히나요?"],
+    ]) {
+      expect(inOrder(alt, [id, "질문", question, "고치는 법", "이 대안에는 고치는 법이 실려 있지 않습니다."]), alt).toBe(true);
+    }
   });
 
   it("판정 경로는 CLI 가 낸 문장을 순서대로, 글자 그대로 보인다", () => {
@@ -1489,7 +1525,7 @@ describe("발견을 펼친 안쪽", () => {
     const unfinished = data.findings.filter((f) => f.untested_reasons.includes("engine-incomplete"));
     expect(unfinished.map((f) => f.untested_reasons)).toEqual([["engine-incomplete", "no-judge"]]);
     const stopped = body(renderData({ ...data, findings: unfinished }));
-    expect(stopped).toContain("엔진이 이 파일을 끝까지 돌리지 못했습니다");
+    expect(stopped).toContain("엔진이 이 파일을 끝까지 돌리지 못했거나 함수 경계를 얻지 못했습니다");
     expect(count(stopped, "판정자가 꺼져")).toBe(1);
     // 파일 일부를 읽지 못해 적용 여부가 '모름'으로 남으면 CLI 는 parse-error 를 싣는다(합성 코드를 검사해 확인. 이
     // 자료의 가입 코드는 적용 여부가 참이라 그 이유가 없다. 여기서는 그 모양으로 바꿔 본다).
@@ -1531,7 +1567,7 @@ describe("발견을 펼친 안쪽", () => {
       })),
     });
     const alternatives = elementsOf(html, '<li class="alt">');
-    expect(alternatives).toHaveLength(2);
+    expect(alternatives).toHaveLength(3);
     for (const alt of alternatives) {
       expect(alt).not.toContain("alt-message");
       expect(textOf(alt)).not.toContain("null");

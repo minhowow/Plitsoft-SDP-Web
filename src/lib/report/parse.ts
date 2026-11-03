@@ -7,6 +7,7 @@ import {
   isOutcome,
   isScope,
   isStr,
+  isStaticCleared,
   isStrArr,
   isUnsatisfiedAlternatives,
 } from "./guards";
@@ -17,7 +18,14 @@ export type ParseResult =
   | { ok: true; report: Report; contract: Contract }
   | { ok: false; errors: string[] };
 
+/** 웹이 만든 v1 초안 예시의 판. CLI 가 내는 판이 아니다(`contract/samples-v1-draft/`). */
 const V1_DRAFT = "report/1-draft";
+/**
+ * CLI 가 실제로 내는 결과의 판(CLI `e1e46a9` 부터, 실행기가 설치하는 `7300205` 도 같다). 정수다. 판 번호 없는 출력에
+ * 키를 더한 것이라 같은 계약(`cli-0.3`)으로 읽는다. CLI 는 있던 키가 없어지거나 뜻이 바뀔 때 이 수를 올린다. 그때는
+ * 모르는 판으로 거부한다.
+ */
+const CLI_SCHEMA_VERSION = 1;
 
 /**
  * 결과를 확인한다. 브라우저에서 돌기 때문에 스키마 검증기를 쓰지 않고 웹이 읽는 필드만 손으로 본다.
@@ -46,10 +54,12 @@ export function parseReport(input: unknown): ParseResult {
   if (input.schema_version !== undefined) {
     if (input.schema_version === V1_DRAFT) {
       contract = "v1-draft";
-    } else {
+    } else if (input.schema_version !== CLI_SCHEMA_VERSION) {
       return {
         ok: false,
-        errors: [`모르는 schema_version 입니다: ${String(input.schema_version)}. 이 뷰어가 아는 판은 ${V1_DRAFT} 입니다.`],
+        errors: [
+          `모르는 schema_version 입니다: ${String(input.schema_version)}. 이 뷰어가 아는 판은 ${CLI_SCHEMA_VERSION}(CLI 결과)과 ${V1_DRAFT}(v1 초안 예시)입니다.`,
+        ],
       };
     }
   }
@@ -81,6 +91,12 @@ export function parseReport(input: unknown): ParseResult {
       !Array.isArray(run.ai_cleared) || haveAlternativeIds(run.ai_cleared),
       "run.ai_cleared[].alternatives 모양이 다릅니다.",
     );
+    // CLI 결과 판 1 부터 실리는 키. 없어도 읽는다(판 번호 없는 출력). 있으면 화면에 쓰는 모양인지 본다.
+    need(run.static_cleared === undefined || isStaticCleared(run.static_cleared), "run.static_cleared 모양이 다릅니다.");
+    need(run.fingerprint_version === undefined || isStr(run.fingerprint_version), "run.fingerprint_version 은 문자열이어야 합니다.");
+    for (const key of ["questions_asked", "ai_answered", "questions_sent", "questions_skipped"] as const) {
+      need(run[key] === undefined || isInt(run[key]), `run.${key} 는 정수여야 합니다.`);
+    }
 
     if (contract === "v1-draft") {
       if (need(Array.isArray(run.policies), "run.policies 가 없습니다(v1 초안 필수).") && Array.isArray(run.policies)) {

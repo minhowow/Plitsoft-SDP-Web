@@ -2,6 +2,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { PackMeta } from "@/lib/pack/types";
+import type { Report } from "@/lib/report/types";
 
 export const root = fileURLToPath(new URL("..", import.meta.url));
 
@@ -16,6 +17,17 @@ export function readJson(...parts: string[]): unknown {
  * 바로잡았을 때) 화면과 기대값이 함께 달라져 시험이 통과한다. 빌드된 쪽을 보는 시험(tests/browser/)은 이것과 견준다.
  * 부품 시험은 `packMeta` 를 쓴다. 그것이 파일과 같은지는 tests/contract.test.ts 가 본다.
  */
+/**
+ * 결과에서 키를 뺀 사본. 수집본(CLI 결과 판 1)에서 판 번호 없는 출력(CLI 8ae72d8 까지)의 모양이나, 정적 대안으로 풀린
+ * 단위가 실리지 않는 SARIF 와 견줄 JSON 을 만들 때 쓴다. 최상위 키와 `run` 의 키를 함께 받는다.
+ */
+export function withoutKeys(report: Report, top: (keyof Report)[], run: (keyof Report["run"])[] = []): Report {
+  const copy = structuredClone(report);
+  for (const key of top) delete copy[key];
+  for (const key of run) delete copy.run[key];
+  return copy;
+}
+
 export function readPackFile(): PackMeta {
   return readJson("data", "pack-meta.json") as PackMeta;
 }

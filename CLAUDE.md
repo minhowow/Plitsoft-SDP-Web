@@ -67,7 +67,10 @@ npm run pack-meta   # 팩에서 data/pack-meta.json 다시 만들기
 - 돌린 뒤 `git diff contract/ data/` 를 읽는다. 판정이 바뀌었으면 왜 바뀌었는지 커밋 메시지에 적는다.
 - `MANIFEST.json` 의 `dirty` 가 `true` 면(CLI 저장소에 커밋되지 않은 변경) 수집본을 커밋하지 않고 되돌린다.
 - 새 수집본이 계약 시험을 깨면(예: CLI 출력 모양이 바뀜) 파서를 서둘러 고치지 말고 수집본을 되돌린 뒤
-  `docs/ROADMAP.md` 의 "사람 결정이 필요한 것"에 적는다. 출력 계약을 바꾸는 것은 관문 G1 의 일이다.
+  `docs/ROADMAP.md` 의 "사람 결정이 필요한 것"에 적는다. 출력 계약을 바꾸는 것(새 결과 판, `--agent` 처럼 뜻이 다른 출력을
+  받기)은 관문 G1 의 일이다. 2026-11-03 에 고정 CLI(`7300205`)의 결과 판 1(`schema_version: 1`)은 받았다.
+- 수집본, `data/pack-meta.json`, 실행기의 `CLI_COMMIT`·`CLI_EXCLUDE_NEWER` 는 같은 CLI 커밋이어야 한다(시험이 본다).
+  CLI 를 따라가는 때와 순서는 `docs/cli-followup.md` 에 있다. 원격에 없는 CLI 커밋은 고정하지 않는다.
 - `scripts/export-pack-meta.mjs` 는 팩의 필드를 그대로 옮기기만 한다. 읽는 필드를 더하는 것은 된다. Semgrep 패턴이나
   YAML 주석을 해석해 설명을 만들어 내는 것은 안 된다.
 
@@ -89,7 +92,7 @@ npm run pack-meta   # 팩에서 data/pack-meta.json 다시 만들기
 | `scripts/` | 수집, 팩 메타데이터 생성, 가짜 GitHub API(`github-stub.mjs`), 로컬 실행기(`local-runner.mjs`, `--fixture`) |
 | `.env.example` | 환경 변수 이름(값은 비운다). 배포할 때 오너가 할 일은 `docs/deploy.md` |
 | `tests/` | 계약 시험, 화면 구조 시험, 그려 본 화면 시험, 약속 시험, 서버 시험(`server-*.test.ts`, 메모리 PGlite + 가짜 GitHub), 실행기 시험(`runner.test.ts`). `tests/browser/` 는 빌드된 사이트를 `next start` 로 띄워 Chrome 으로 연다. `tests/fixtures/` 는 손으로 만든 시험용 자료 |
-| `docs/` | 로드맵, 약속, 구조, CLI 에 보낸 요청 |
+| `docs/` | 로드맵, 약속, 구조, CLI 에 보낸 요청, CLI 따라가기(`cli-followup.md`) |
 
 ## 일하는 방식
 

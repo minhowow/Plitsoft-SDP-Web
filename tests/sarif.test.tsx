@@ -8,7 +8,7 @@ import { parseReport } from "@/lib/report/parse";
 import type { JudgedScope } from "@/lib/report/scope";
 import type { Finding, Report } from "@/lib/report/types";
 import { buildReportView, type LocationView, type ReportView } from "@/lib/report/view-model";
-import { elementAt, elementsOf, jsonFiles, linesOf, readJson, textOf } from "./helpers";
+import { elementAt, elementsOf, jsonFiles, linesOf, readJson, textOf, withoutKeys } from "./helpers";
 import { toSarif } from "./sarif-mirror";
 import { BANNED_WORDING } from "./wording";
 
@@ -83,7 +83,8 @@ describe("같은 검사의 SARIF 와 JSON (contract/cli-current 의 수집본 �
     expect(textOf(found)).toContain("사람이 확인할 발견이 1건 있습니다.");
     expect(elementsOf(found, '<article class="policy ')).toHaveLength(packMeta.policies.length);
     expect(elementsOf(found, '<li class="finding">')).toHaveLength(1);
-    expect(elementsOf(found, '<li class="alt">')).toHaveLength(2);
+    // 확인되지 않은 대안 셋: under14-branch, guardian-call, age-gate-text(CLI 7300205 의 팩에서 더해진 약한 대안).
+    expect(elementsOf(found, '<li class="alt">')).toHaveLength(3);
     const row = textOf(elementsOf(found, '<li class="finding">')[0]);
     for (const text of [
       "src/auth/signup.ts:5",
@@ -92,6 +93,7 @@ describe("같은 검사의 SARIF 와 JSON (contract/cli-current 의 수집본 �
       "파일 전체를 보고 내린 판정입니다. 줄 번호는 이 조문이 닿는다고 본 첫 줄입니다.",
       "만 14세 미만을 가르는 연령 분기가 보이지 않습니다.",
       "생년월일로 만 나이를 계산해 14세 미만 분기를 두세요.",
+      "가입자가 만 14세 이상인지 확인하는 항목(예 '만 14세 이상입니다' 필수 체크)이 보이지 않습니다.",
       "AI 에게 묻지 않은 조건: ai-guard.",
       "대안 ai-guard: AI 필요(판정자 없음) → 판정에 넣지 않음",
     ]) {
@@ -155,7 +157,8 @@ describe("같은 검사의 SARIF 와 JSON (contract/cli-current 의 수집본 �
     const memos = Object.values(packMeta.policies.find((p) => p.id === "kr.pipa.22-2")!.rationale).filter(Boolean);
     expect(memos).toHaveLength(2);
     expect(rule.fullDescription.text).toBe(memos[1]);
-    expect(rule.help.markdown.startsWith(memos[0])).toBe(true);
+    // CLI 7300205 부터 작성자 메모 위에 "법 원문이 아닙니다"라는 제목이 붙는다. 그래도 웹은 읽지 않는다.
+    expect(rule.help.markdown.startsWith(`### 팩 작성자의 설명 (법 원문이 아닙니다)\n\n${memos[0]}`)).toBe(true);
     const shown = textOf(sarif);
     for (const memo of memos) expect(shown, memo!).not.toContain(memo);
     expect(shown).not.toContain("법정대리인이 동의하였는지를 확인하여야 한다");
@@ -180,6 +183,13 @@ function regionCarried(f: Finding): boolean {
 /** SARIF 로 옮겨도 잃는 것이 없는 발견인지: 파일 단위 판정이고 줄이 2행 이상이다. */
 const lossless = (f: Finding) => f.scope === "file" && f.line !== null && f.line > 1;
 
+/**
+ * 강한 정적 대안으로 풀린 단위(`run.static_cleared`, CLI 결과 판 1)는 SARIF 에 실리지 않는다(CLI 7300205 의
+ * `report/sarif.py`). SARIF 로 옮기면 잃는 것이다. JSON 과 견줄 때는 그것을 뺀 JSON 과 견준다.
+ */
+const withoutStatic = (data: Report): Report => withoutKeys(data, [], ["static_cleared"]);
+const hasStatic = (data: Report) => (data.run.static_cleared ?? []).length > 0;
+
 describe("JSON 결과를 SARIF 로 옮겨 열어 본다 (시험용 흉내)", () => {
   it("흉내가 만든 것이 실제 SARIF 수집본에 그대로 들어 있다", () => {
     // 흉내는 웹이 읽는 필드만 만든다. 그 필드가 모두 실제 수집본과 같은 자리에 같은 값으로 있어야 한다.
@@ -193,7 +203,6 @@ describe("JSON 결과를 SARIF 로 옮겨 열어 본다 (시험용 흉내)", () 
     const names = (keep: (parts: string[]) => boolean) => samples.filter(keep).map((parts) => parts.join("/"));
     expect(names((parts) => findings(parts).length > 0 && findings(parts).every(lossless))).toEqual([
       "contract/cli-current/kids-signup.main.json",
-      "contract/cli-current/night-push.fixed.json",
       "contract/cli-current/night-push.main.json",
       "tests/fixtures/incomplete-coverage.json",
       "tests/fixtures/judge-on.citation-rejected.json",
@@ -202,15 +211,21 @@ describe("JSON 결과를 SARIF 로 옮겨 열어 본다 (시험용 흉내)", () 
     expect(names((parts) => findings(parts).some((f) => !lossless(f)))).toEqual([
       "contract/cli-current/genai-chat.fixed.json",
       "contract/cli-current/genai-chat.main.json",
+      // 야간 광고 규칙은 CLI 7300205 부터 함수 단위다.
+      "contract/cli-current/night-push.fixed.json",
       "tests/fixtures/uncommon-shapes.json",
     ]);
+    // 정적 대안으로 풀린 단위가 실린 결과. SARIF 로 옮기면 그것을 잃는다.
+    expect(names((parts) => hasStatic(readJson(...parts) as Report))).toEqual(["contract/cli-current/kids-signup.fixed.json"]);
     expect(names((parts) => !(readJson(...parts) as Report).run.coverage_complete)).toEqual(["tests/fixtures/incomplete-coverage.json"]);
     expect(names((parts) => (readJson(...parts) as Report).run.judge !== null)).toHaveLength(3);
   });
 
   it.each(named(samples))("%s: 발견은 JSON 과 같고, 달라지는 것은 SARIF 가 싣지 않는 것뿐이다", (_name, parts) => {
     const data = readJson(...parts) as Report;
-    const [a, b] = [viewOf(data), viewOf(toSarif(data))];
+    // SARIF 에 실리지 않는 정적 대안으로 풀린 단위는 뺀 JSON 과 견준다(아래 "SARIF 로는 알 수 없는 것"에서 따로 본다).
+    const [a, b] = [viewOf(withoutStatic(data)), viewOf(toSarif(data))];
+    expect(b.staticCleared).toBeNull();
 
     // 결과 머리와 정책 카드: 같은 정책이 같은 차례, 같은 상태로 나온다.
     for (const key of ["tool", "engine", "judge", "packDigest", "packMatches", "policyCount", "findingCount"] as const) {
@@ -262,7 +277,10 @@ describe("JSON 결과를 SARIF 로 옮겨 열어 본다 (시험용 흉내)", () 
     }
   });
 
-  const whole = samples.filter((parts) => (readJson(...parts) as Report).findings.every(lossless));
+  const whole = samples.filter((parts) => {
+    const data = readJson(...parts) as Report;
+    return data.findings.every(lossless) && !hasStatic(data);
+  });
 
   it.each(named(whole))("%s: 잃는 것이 없는 결과라 그려 낸 발견 부분이 글자까지 같다", (_name, parts) => {
     const data = readJson(...parts) as Report;
@@ -369,8 +387,13 @@ describe("SARIF 로는 알 수 없는 것", () => {
       정책: "5개. 결과에는 정책 목록이 없어, 팩 판이 같은 이 사이트의 팩에서 가져와 아래에 적었습니다.",
     });
     expect(examinedFacts(b).every((fact) => !fact.warn)).toBe(true);
-    const [json, sarif] = [render(data), render(toSarif(data))];
+    const [json, sarif] = [render(withoutStatic(data)), render(toSarif(data))];
     expect(part(sarif, '<div class="policies">')).toBe(part(json, '<div class="policies">'));
+    // 정적 대안으로 풀린 단위는 SARIF 에 없다. JSON 으로는 충족 근거 발견이고 그 자리가 보이지만, SARIF 로는 발견 없음이다.
+    expect(a.policies.find((p) => p.id === "kr.pipa.22-2")!.status).toBe("evidence-found");
+    expect(b.policies.find((p) => p.id === "kr.pipa.22-2")!.status).toBe("not-reported");
+    expect(render(data)).toContain("under14-branch");
+    expect(sarif).not.toContain("under14-branch");
     expect(textOf(sarif)).toContain("검토 필요 신호가 0이어도 법적 문제가 없다는 뜻은 아닙니다.");
     // 수가 없으니 그 수가 0이라는 풀이("어느 정책에서도 판정한 곳이 없습니다")도 없다.
     const plain = render(toSarif(readJson("contract", "cli-current", "plain.main.json") as Report));

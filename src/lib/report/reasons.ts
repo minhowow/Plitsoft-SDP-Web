@@ -7,7 +7,7 @@ const REASON_LABEL: Record<string, string> = {
   "weak-unconfirmed": "이름·문자열만 본 약한 근거라 혼자서는 풀지 않았습니다",
   timeout: "판정자가 시간 안에 답하지 않았습니다",
   "parse-error": "파일 일부를 읽지 못했습니다",
-  "engine-incomplete": "엔진이 이 파일을 끝까지 돌리지 못했습니다",
+  "engine-incomplete": "엔진이 이 파일을 끝까지 돌리지 못했거나 함수 경계를 얻지 못했습니다",
 };
 
 export function reasonLabel(reason: string): string {

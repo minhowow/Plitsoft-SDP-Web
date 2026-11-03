@@ -73,6 +73,19 @@ export interface AiDismissed {
   answer?: string;
 }
 
+/**
+ * 강한 정적 대안으로 풀린 판정 단위. CLI 결과 판 1(`schema_version: 1`, CLI `e1e46a9` 부터)에만 있다. 판정자와 상관없이
+ * 실린다. 줄 번호만 싣고 코드는 싣지 않는다(CLI 소스 `evaluate/engine.py` 의 `_cleared_by_static`).
+ * `line` 은 그 단위의 줄(발견의 `line` 과 같은 기준)이고, 대안마다의 `lines` 는 그 대안이 맞은 자리의 첫 줄들이다.
+ */
+export interface StaticCleared {
+  policy: string;
+  rule: string;
+  file: string;
+  line: number | null;
+  alternatives: { id: string; lines: number[] }[];
+}
+
 /** v1 초안에만 있다. 정책마다 한 줄. */
 export interface PolicySummary {
   policy: string;
@@ -89,6 +102,15 @@ export interface Run {
   ai_pending: number;
   ai_cleared?: AiCleared[];
   ai_dismissed?: AiDismissed[];
+  /** CLI 결과 판 1 부터. 없으면 정적 대안으로 풀린 단위가 결과에 실리지 않은 출력이다(없었다는 뜻이 아니다). */
+  static_cleared?: StaticCleared[];
+  /** CLI 결과 판 1 부터. `findings[].fingerprint` 를 만든 방식의 이름(예: "policypack/v1"). */
+  fingerprint_version?: string;
+  questions_asked?: number;
+  ai_answered?: number;
+  questions_sent?: number;
+  /** CLI 결과 판 1 부터. 판정자가 연달아 시간 안에 답하지 않아 보내지 않은 서로 다른 질문 수. */
+  questions_skipped?: number;
   engine: { name: string; version: string | null } | null;
   /**
    * 판정 단위 수. JSON 결과에는 늘 있다(스키마의 필수 필드이고 파서가 확인한다). SARIF 에는 실리지 않아서,
@@ -109,15 +131,22 @@ export interface Run {
 }
 
 export interface Report {
-  /** v1 초안부터 있다. 없으면 CLI 0.3 의 판 번호 없는 출력이다. */
-  schema_version?: string;
+  /**
+   * 결과의 판. 없으면 CLI 0.3 의 판 번호 없는 출력(CLI `8ae72d8` 까지)이다. `1` 은 CLI 가 실제로 내는 판 번호다(CLI
+   * `e1e46a9` 부터. 키가 더해져도 그대로이고, 있던 키가 없어지거나 뜻이 바뀌면 올린다). `"report/1-draft"` 는 웹이 만든
+   * 초안 예시의 판이고 CLI 가 내는 것이 아니다. 둘은 다른 것이다.
+   */
+  schema_version?: 1 | "report/1-draft";
   tool: { name: string; version: string };
   run: Run;
   findings: Finding[];
 }
 
 /**
- * 어느 계약으로 읽었는지. `sarif` 는 CLI 0.3 의 SARIF 출력을 결과 JSON 의 모양으로 옮긴 것이다. 정책별 요약이 없는
+ * 어느 계약으로 읽었는지. `cli-0.3` 은 CLI 0.3 의 결과 JSON 이다. 판 번호가 없는 출력과 결과 판 1(`schema_version: 1`)을
+ * 함께 이 이름으로 읽는다. 결과 판 1 은 판 번호 없는 출력에 키를 더한 것이고(다만 판 1 안에서 판 번호를 그대로 둔 채, CLI `bb76618` 부터
+ * `run.incomplete` 와 `engine-incomplete` 에 함수 경계를 얻지 못한 파일도 들게 됐다. `coverage.ts`), `tool.version` 도 둘 다
+ * 0.3 이다. 정책별 요약이 없는 것도 같다. `sarif` 는 CLI 0.3 의 SARIF 출력을 결과 JSON 의 모양으로 옮긴 것이다. 정책별 요약이 없는
  * 것은 `cli-0.3` 과 같고, 판정 단위 수와 검사한 파일 수가 더 없다.
  */
 export type Contract = "cli-0.3" | "v1-draft" | "sarif";
