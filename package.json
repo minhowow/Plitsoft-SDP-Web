@@ -16,7 +16,8 @@
     "capture": "node scripts/capture-cli-output.mjs",
     "pack-meta": "node scripts/export-pack-meta.mjs",
     "github-stub": "node scripts/github-stub.mjs",
-    "local-runner": "node scripts/local-runner.mjs"
+    "local-runner": "node scripts/local-runner.mjs",
+    "local": "node scripts/dev-local.mjs"
   },
   "dependencies": {
     "next": "16.3.8",
