@@ -64,6 +64,16 @@ export const SITE = {
   tagline: "JS/TS 코드에서 국내 법·정책상 검토가 필요한 지점을 조문과 함께 보여 줍니다.",
   /** 모든 화면에 붙는 면책. docs/commitments.md 의 표기 약속. */
   disclaimer: `${NOT_LEGAL_ADVICE} ${PEOPLE_DECIDE}`,
+  /**
+   * 분석 서비스(방향 B, docs/direction.md)의 고정 문구. B1 에는 서버가 없어 저장소와 분석이 모두 합성이다. 합성인 쪽마다
+   * `synthetic` 을 보인다. 결과는 합성 데모 코드를 CLI 로 검사한 실제 출력이라 그 사실도 함께 적는다.
+   */
+  service: {
+    synthetic:
+      "합성 예시입니다. 이 사이트의 저장소와 분석은 모두 만들어 낸 것이고, 끝난 분석의 결과는 합성 데모 코드를 CLI 로 검사한 실제 출력입니다.",
+    noServer: "지금은 서버가 없는 합성 예시 사이트라 분석 요청을 받지 않습니다. 서버가 붙으면 이 단추로 요청합니다.",
+    searchPlaceholder: "저장소 이름이나 설명 (예: kids-signup)",
+  },
   /** 발견이 없을 때 반드시 함께 보여 주는 문구. */
   zeroIsNotClearance: "검토 필요 신호가 0이어도 법적 문제가 없다는 뜻은 아닙니다.",
   /**

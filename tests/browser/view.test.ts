@@ -342,13 +342,13 @@ describe("키보드만으로", () => {
     // 300번에 0번이었다). 사이트의 동작과는 무관하다.
     page.on("filechooser", () => {});
 
-    // Tab 으로 머리의 링크를 지나 파일 고르기, 예시 고르기 차례로 닿는다.
+    // Tab 으로 머리의 링크와 검색창을 지나 파일 고르기, 예시 고르기 차례로 닿는다(id 가 없는 것은 걸러 낸다).
     const order: string[] = [];
     for (let i = 0; i < 10 && order.at(-1) !== "sample-select"; i++) {
       await page.keyboard.press("Tab");
       order.push(await focusedId(page));
     }
-    expect(order.filter(Boolean)).toEqual(["report-file", "sample-select"]);
+    expect(order.filter(Boolean)).toEqual(["site-q", "report-file", "sample-select"]);
     await page.keyboard.press("Shift+Tab");
     expect(await focusedId(page)).toBe("report-file");
     // 초점이 어디 있는지 보인다.
@@ -793,7 +793,7 @@ describe("다른 쪽에 다녀오거나 새로 고친 뒤", () => {
     // 머리의 링크로 다녀와도(뒤로 가기가 아니다) 그대로다.
     await page.locator(".site-header nav a", { hasText: "조문 도감" }).click();
     await page.waitForURL("**/policy/");
-    await page.locator(".site-header nav a", { hasText: "결과 보기" }).click();
+    await page.locator(".site-header nav a", { hasText: "결과 파일 열기" }).click();
     await page.waitForURL("**/view/");
     await opened(page, "night-push.fixed.json");
     expect(await cards(page)).toBe(before.cards);

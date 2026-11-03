@@ -1,20 +1,31 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { policyCardId, policyHref } from "@/lib/pack/href";
 import { reasonLabel } from "@/lib/report/reasons";
 import { scopeLabel, scopeNote } from "@/lib/report/scope";
 import { STATUS_HINT } from "@/lib/report/status";
+import { fileLink, shortCommit } from "@/lib/service/href";
 import type { UnsatisfiedAlternative } from "@/lib/report/types";
 import type { LocationView, PolicyView, RuleGroupView } from "@/lib/report/view-model";
 import { FindingSummary } from "./FindingSummary";
 import { StatusChip } from "./StatusChip";
 import { Where } from "./Where";
 
-function AiPending({ location }: { location: LocationView }) {
+function AiPending({ location, service }: { location: LocationView; service: boolean }) {
   const { finding } = location;
   if (finding.ai_pending.length === 0) return null;
   const conditions = finding.ai_pending.join(", ");
   // 판정자가 꺼져 있었을 때만 켜 보라고 권한다. 켰는데 답을 쓰지 못한 경우에는 아래 이유가 설명한다.
   if (finding.untested_reasons.includes("no-judge")) {
+    // 분석 서비스의 쪽에서는 권하지 않는다. 서버의 분석은 판정자를 늘 켜고, 권하는 자리는 `/view` 에만 둔다
+    // (docs/commitments.md 의 "CLI 가 이미 약속한 것"). 판정자 없이 만든 결과라는 사실만 적는다.
+    if (service) {
+      return (
+        <p className="pending">
+          AI 에게 묻지 않은 조건: {conditions}. 이 결과는 판정자 없이 만들어졌습니다.
+        </p>
+      );
+    }
     return (
       <p className="pending">
         AI 에게 묻지 않은 조건: {conditions}. 판정자가 꺼져 있었습니다. 로컬에서 판정자를 켜고 다시 검사하면 풀릴 수
@@ -60,8 +71,9 @@ function Alternative({ alt }: { alt: UnsatisfiedAlternative }) {
  * 발견 하나를 펼친 안쪽. 맨 위에 판정이 본 범위를 문장으로 적고, 그 아래는
  * 확인되지 않은 대안(질문·고치는 법) → 판정을 끝까지 하지 못한 이유 → 판정 경로 순서다.
  */
-function FindingBody({ location }: { location: LocationView }) {
+function FindingBody({ location, code, service }: { location: LocationView; code: CodeSource | null; service: boolean }) {
   const { finding } = location;
+  const link = code && fileLink(code.htmlUrl, code.commit, location.file, location.line);
   const alternatives = finding.unsatisfied_alternatives;
   // 판정자가 꺼져 있었다는 이유는 AI 조건 안내가 이미 말한다. 같은 말을 두 번 적지 않는다.
   const reasons = finding.untested_reasons.filter(
@@ -76,6 +88,14 @@ function FindingBody({ location }: { location: LocationView }) {
           finding.decision_path.length > 0,
         )}
       </p>
+      {link && code && (
+        <p className="code-link">
+          <a href={link} target="_blank" rel="noopener noreferrer">
+            GitHub 에서 이 줄 보기
+          </a>{" "}
+          <span className="hint">커밋 {shortCommit(code.commit)} 에 고정한 링크입니다. 새 창으로 열립니다.</span>
+        </p>
+      )}
 
       <section className="step">
         <h5>확인되지 않은 적법한 대안{alternatives.length > 0 && ` ${alternatives.length}개`}</h5>
@@ -97,7 +117,7 @@ function FindingBody({ location }: { location: LocationView }) {
       {(finding.ai_pending.length > 0 || reasons.length > 0) && (
         <section className="step">
           <h5>판정을 끝까지 하지 못한 이유</h5>
-          <AiPending location={location} />
+          <AiPending location={location} service={service} />
           {reasons.length > 0 && (
             <ul className="reasons">
               {reasons.map((reason, i) => (
@@ -133,7 +153,17 @@ function FindingBody({ location }: { location: LocationView }) {
  * 닫힌 줄에서도 보여야 하는 것은 줄 안(summary)에 둔다: 경로·줄, 판정이 본 범위, 상태. 줄 번호는 문제의 줄이 아니라
  * 판정이 본 범위 안의 한 줄이므로, 줄 번호가 보이는 곳에는 범위가 늘 함께 보여야 한다.
  */
-function FindingItem({ location, open }: { location: LocationView; open: boolean }) {
+function FindingItem({
+  location,
+  open,
+  code,
+  service,
+}: {
+  location: LocationView;
+  open: boolean;
+  code: CodeSource | null;
+  service: boolean;
+}) {
   return (
     <li className="finding">
       <details open={open}>
@@ -148,7 +178,7 @@ function FindingItem({ location, open }: { location: LocationView; open: boolean
             <span className="visually-hidden">규칙 {location.rule}</span>
           </span>
         </FindingSummary>
-        <FindingBody location={location} />
+        <FindingBody location={location} code={code} service={service} />
       </details>
     </li>
   );
@@ -158,7 +188,7 @@ function FindingItem({ location, open }: { location: LocationView; open: boolean
  * 같은 규칙의 발견 묶음. 대표 위치를 먼저 보이고, 같은 규칙이 그보다 많이 반복될 때만 나머지를 접는다.
  * 접는 것은 이 묶음 안에서만 한다. 규칙이 다른 발견은 서로 다른 의무라서 접어 가리지 않는다.
  */
-function RuleGroup({ group }: { group: RuleGroupView }) {
+function RuleGroup({ group, code, service }: { group: RuleGroupView; code: CodeSource | null; service: boolean }) {
   const total = group.shown.length + group.folded.length;
   return (
     <section className="rule-group">
@@ -177,7 +207,7 @@ function RuleGroup({ group }: { group: RuleGroupView }) {
       <ul className="findings">
         {group.shown.map((location, i) => (
           // 묶음의 첫 발견만 펼쳐 둔다. 같은 규칙의 다른 곳은 대안이 대개 같으므로 한 줄로 둔다.
-          <FindingItem key={`${location.fingerprint}:${i}`} location={location} open={i === 0} />
+          <FindingItem key={`${location.fingerprint}:${i}`} location={location} open={i === 0} code={code} service={service} />
         ))}
       </ul>
       {group.folded.length > 0 && (
@@ -185,7 +215,7 @@ function RuleGroup({ group }: { group: RuleGroupView }) {
           <summary>같은 규칙의 나머지 {group.folded.length}곳</summary>
           <ul className="findings">
             {group.folded.map((location, i) => (
-              <FindingItem key={`${location.fingerprint}:${i}`} location={location} open={false} />
+              <FindingItem key={`${location.fingerprint}:${i}`} location={location} open={false} code={code} service={service} />
             ))}
           </ul>
         </details>
@@ -194,8 +224,32 @@ function RuleGroup({ group }: { group: RuleGroupView }) {
   );
 }
 
-/** 정책 하나. 같은 정책의 발견은 한 장에 묶고, 그 안에서 규칙별로 나눠 보여 준다. */
-export function PolicyCard({ policy }: { policy: PolicyView }) {
+/**
+ * 파일·줄을 GitHub 의 커밋 고정 링크로 보낼 때 쓰는 것(분석 서비스의 쪽만 준다). 저장소 주소(GitHub 이 돌려준 html_url)와
+ * 검사한 커밋. 없으면 링크를 걸지 않는다(`/view` 에서 연 파일, 데모, 합성 저장소).
+ */
+export interface CodeSource {
+  htmlUrl: string;
+  commit: string;
+}
+
+/**
+ * 정책 하나. 같은 정책의 발견은 한 장에 묶고, 그 안에서 규칙별로 나눠 보여 준다.
+ *
+ * `service` 는 분석 서비스의 쪽이 그릴 때다(판정자를 켜 보라고 권하지 않는다). `statute` 는 질문 아래에 끼워 넣는 것(분석
+ * 쪽이 접어 둔 근거 조문 원문을 넘긴다).
+ */
+export function PolicyCard({
+  policy,
+  code = null,
+  service = false,
+  statute,
+}: {
+  policy: PolicyView;
+  code?: CodeSource | null;
+  service?: boolean;
+  statute?: ReactNode;
+}) {
   const question = policy.locations[0]?.finding.ask_developer;
   // 발견이 없는 정책에는 왜 없는지(상태의 설명)를 늘 적는다. 충족 근거 위치가 함께 실려 있어도 적는다.
   const quiet = policy.locations.length === 0;
@@ -242,6 +296,8 @@ export function PolicyCard({ policy }: { policy: PolicyView }) {
 
       {question && <p className="question">개발자에게 할 질문: {question}</p>}
 
+      {statute}
+
       {policy.evidence.length > 0 && (
         <ul className="evidence" aria-label="충족 근거 위치">
           {policy.evidence.map((e, i) => (
@@ -253,7 +309,7 @@ export function PolicyCard({ policy }: { policy: PolicyView }) {
       )}
 
       {policy.rules.map((group) => (
-        <RuleGroup key={group.rule} group={group} />
+        <RuleGroup key={group.rule} group={group} code={code} service={service} />
       ))}
     </article>
   );

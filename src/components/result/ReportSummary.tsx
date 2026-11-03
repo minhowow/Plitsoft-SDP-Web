@@ -11,7 +11,7 @@ function where(file: string, line?: number | null): string {
 }
 
 /** AI 가 푼 경고와 적용 질문으로 빠진 판정. CLI 가 사람이 검토하라고 남긴 것이라 숨기지 않는다. */
-function AiDecisions({ view }: { view: ReportView }) {
+export function AiDecisions({ view }: { view: ReportView }) {
   if (view.aiCleared.length === 0 && view.aiDismissed.length === 0) return null;
   return (
     <div className="ai-decisions">
@@ -62,7 +62,7 @@ function AiDecisions({ view }: { view: ReportView }) {
  * 검사한 것(파일 수, 판정 단위 수, 검사하지 않은 파일, 정책)과 이 도구가 보지 못하는 것을 함께 적는다.
  * 정책 목록은 바로 아래의 정책 카드다.
  */
-function EmptyReport({ view }: { view: ReportView }) {
+export function EmptyReport({ view }: { view: ReportView }) {
   return (
     <div className="empty-report">
       <section>

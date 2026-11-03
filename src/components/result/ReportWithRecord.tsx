@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useDeferredValue, useImperativeHandle, useState, type Ref } from "react";
+import { memo, useDeferredValue, useImperativeHandle, useState, type ReactNode, type Ref } from "react";
 import { flushSync } from "react-dom";
 import type { PackIndex } from "@/lib/pack/types";
 import { buildRecord, type RecordSource } from "@/lib/report/record";
@@ -16,7 +16,7 @@ import { ReportSummary } from "./ReportSummary";
  * 열려 있으면 기록만 나온다). 브라우저의 메뉴나 단축키로 인쇄해도 같다. PDF 는 브라우저의 인쇄 창이 만든다.
  */
 function RecordPanel({ view, pack, source }: { view: ReportView; pack: PackIndex; source: RecordSource }) {
-  const result = buildRecord(view, pack);
+  const result = buildRecord(view, pack, source);
   if (!result.ok) return <RecordRefused reasons={result.reasons} />;
   return (
     <>
@@ -57,17 +57,22 @@ export interface ReportSwitch {
  * 같다). 발견이 수천 건인 결과의 기록을 만드는 일이 잘게 나뉘어, 그동안 화면이 멈추는 시간이 줄어든다. 다 그린 것을
  * 화면에 붙이는 동안은 멈춘다(잰 값은 `docs/architecture.md` 의 "조문별 검사 기록"). 결과로 돌아갈 때는 늦추지 않는다.
  * 기록을 걷고 가려 둔 결과 화면을 드러내는 일뿐이다.
+ *
+ * `children` 을 주면 결과 화면 자리에 `ReportSummary` 대신 그것을 그린다. 분석 쪽이 같은 결과를 대시보드로 배치해 넘긴다
+ * (`components/service/AnalysisDashboard.tsx`. 서버 부품이 그려 넘긴 것이다).
  */
 export function ReportWithRecord({
   view,
   pack,
   source,
   ref,
+  children,
 }: {
   view: ReportView;
   pack: PackIndex;
   source: RecordSource;
   ref?: Ref<ReportSwitch>;
+  children?: ReactNode;
 }) {
   const [record, setRecord] = useState(false);
   const drawn = useDeferredValue(record);
@@ -94,7 +99,7 @@ export function ReportWithRecord({
         </button>
       </div>
       <div hidden={shown}>
-        <Summary view={view} />
+        {children ?? <Summary view={view} />}
       </div>
       {shown && <RecordPanel view={view} pack={pack} source={source} />}
     </div>

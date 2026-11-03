@@ -95,6 +95,11 @@ export interface RecordSource {
   name: string;
   /** 합성 예시인지. 예시 결과에는 늘 그렇다고 밝힌다(`docs/commitments.md` 의 1). */
   synthetic: boolean;
+  /**
+   * 분석 서비스의 분석 기록에서 온 것(분석 쪽만 준다). 결과 JSON 에는 커밋과 검사한 날이 없지만, 분석 기록에는 있다. 기록은
+   * 이 값을 적되 출처가 분석 기록이라는 것을 이름에 함께 적는다. 결과에 커밋이 실려 있으면 결과의 것을 적는다.
+   */
+  analysis?: { id: string; commit: string; scannedAt: string };
 }
 
 /**
@@ -105,6 +110,7 @@ export interface RecordSource {
  */
 export function sourceLine(source: RecordSource): string {
   if (source.synthetic) return `합성 예시입니다. ${source.name}`;
+  if (source.analysis) return `분석 ${source.analysis.id} 의 결과를 옮긴 기록입니다. ${source.name}`;
   return `연 파일(${source.name})에 적힌 것을 옮긴 기록입니다. 그 파일이 CLI 가 낸 그대로인지는 확인하지 않았습니다.`;
 }
 
@@ -279,7 +285,8 @@ const lineOf = (line: unknown): number | null => (typeof line === "number" && Nu
  *
  * 뒤의 둘은 팩 판이 같은 결과에서는 생기지 않는다(CLI 는 팩의 첫 조문을 싣는다). 손으로 고친 파일에서만 생긴다.
  */
-export function buildRecord(view: ReportView, pack: PackIndex): RecordResult {
+export function buildRecord(view: ReportView, pack: PackIndex, source?: RecordSource): RecordResult {
+  const analysis = source?.analysis;
   if (view.packDigest !== pack.pack.digest) {
     return {
       ok: false,
@@ -338,8 +345,14 @@ export function buildRecord(view: ReportView, pack: PackIndex): RecordResult {
     coverage.files === null ? fact("검사한 파일", UNKNOWN, "missing") : fact("검사한 파일", `${coverage.files}개`),
     coverage.units === null ? fact("판정 단위", UNKNOWN, "missing") : fact("판정 단위", `${coverage.units}개`),
     fact("검사한 범위", NOT_IN_RESULT, "missing"),
-    fact("검사한 날", NOT_IN_RESULT, "missing"),
-    view.commit === null ? fact("커밋", NOT_IN_RESULT, "missing") : fact("커밋", view.commit, "code"),
+    analysis
+      ? fact("검사한 날(분석 기록)", analysis.scannedAt)
+      : fact("검사한 날", NOT_IN_RESULT, "missing"),
+    view.commit !== null
+      ? fact("커밋", view.commit, "code")
+      : analysis
+        ? fact("커밋(분석 기록)", analysis.commit, "code")
+        : fact("커밋", NOT_IN_RESULT, "missing"),
   ];
 
   // 엔진 오류는 수만 적는다. 결과 화면의 표는 오류가 있을 때만 그 줄을 두지만, 기록에는 없을 때도 없다고 적는다.
@@ -436,6 +449,9 @@ export function buildRecord(view: ReportView, pack: PackIndex): RecordResult {
       facts,
       factNotes: [
         ...(view.contract === "sarif" ? [SARIF_COUNTS_NOTE] : []),
+        ...(analysis
+          ? ["'(분석 기록)'이 붙은 줄은 결과 JSON 이 아니라 이 사이트의 분석 기록에서 옮긴 값입니다. 시각은 한국 표준시입니다."]
+          : []),
         "브라우저가 인쇄물에 적는 날짜는 인쇄한 날이고, 검사한 날이 아닙니다.",
       ],
       gaps,

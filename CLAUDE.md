@@ -70,7 +70,9 @@ npm run pack-meta   # 팩에서 data/pack-meta.json 다시 만들기
 
 | 경로 | 내용 |
 |---|---|
-| `src/app/` | 페이지: `/`(소개), `/view`(결과 뷰어), `/demo`(고치기 전·후), `/policy`(조문 도감) |
+| `src/app/` | 페이지: `/`(온보딩·검색), `/search`, `/r/[owner]/[repo]`(저장소), `/r/[owner]/[repo]/a/[id]`(분석), `/view`(결과 파일), `/demo`(고치기 전·후), `/policy`(조문 도감) |
+| `src/lib/service/` | 분석 서비스의 데이터 모델과 `ServiceStore`. B1 은 합성 구현(`synthetic.ts`), B2 에서 `index.ts` 한 줄로 바꿔 끼운다 |
+| `src/components/service/` | 검색창, 저장소·분석 쪽 부품, 분석 대시보드 |
 | `src/components/result/` | 결과 화면 부품. 모든 페이지가 함께 쓴다 |
 | `src/lib/report/` | 결과 JSON 타입, 파서, 상태 문구, 화면용 구조 |
 | `src/lib/pack/` | 팩 메타데이터 타입과 읽기 |

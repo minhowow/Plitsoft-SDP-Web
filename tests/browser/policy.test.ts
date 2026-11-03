@@ -748,13 +748,16 @@ describe("키보드만으로", () => {
         if (el.tagName === "SUMMARY") return `접어 둔 것: ${name}`;
         return el.closest(".legal-facts") ? "법제처 링크" : el.tagName.toLowerCase();
       });
-    // 머리의 링크 넷을 지나, 조문마다 법제처 링크 → 조문 원문, 그다음 규칙 읽는 법 차례다.
+    // 머리(이름, 검색창과 그 단추, 메뉴의 링크 넷)를 지나, 조문마다 법제처 링크 → 조문 원문, 그다음 규칙 읽는 법 차례다.
     const order: string[] = [];
-    for (let i = 0; i < 4 + policy.legal.length * 2 + 1; i++) {
+    for (let i = 0; i < 7 + policy.legal.length * 2 + 1; i++) {
       await page.keyboard.press("Tab");
       order.push(await focused());
     }
     expect(order).toEqual([
+      "a",
+      "input",
+      "button",
       "a",
       "a",
       "a",
