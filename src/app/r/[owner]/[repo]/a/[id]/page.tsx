@@ -1,54 +1,81 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { ReportWithRecord } from "@/components/result/ReportWithRecord";
-import { AnalysisHeader, Failed, InProgress, StepList } from "@/components/service/analysis";
+import { AnalysisHeader, Failed, InProgress, PROGRESS_NOTE, StepList } from "@/components/service/analysis";
+import { LiveAnalysis } from "@/components/service/LiveAnalysis";
 import { AnalysisDashboard, type Statute } from "@/components/service/AnalysisDashboard";
 import { packIndex, packMeta } from "@/lib/pack";
 import { parseReport } from "@/lib/report/parse";
 import { buildReportView } from "@/lib/report/view-model";
-import { store } from "@/lib/service";
+import { orUnavailable } from "@/lib/service/errors";
+import { analysisHref } from "@/lib/service/href";
+import { isAnalysisId } from "@/lib/service/id";
+import { isRepoFullName } from "@/lib/service/names";
 import { formatKst } from "@/lib/service/steps";
 import { SITE } from "@/lib/site";
+import { getStore } from "@/server/store";
 
-// 정적 내보내기에서는 빌드 때 아는 분석만 쪽이 된다(합성 분석). B2 에서 서버가 그리면 이 두 줄을 걷는다.
-export const dynamicParams = false;
-
-export async function generateStaticParams() {
-  const params: { owner: string; repo: string; id: string }[] = [];
-  for (const { repository } of await store.listRepositories()) {
-    for (const analysis of await store.listAnalyses(repository.owner, repository.name)) {
-      params.push({ owner: repository.owner.toLowerCase(), repo: repository.name.toLowerCase(), id: analysis.id });
-    }
-  }
-  return params;
-}
+// 분석의 진행과 결과(DB)를 요청 때 읽는다.
+export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }: PageProps<"/r/[owner]/[repo]/a/[id]">): Promise<Metadata> {
   const { owner, repo, id } = await params;
-  const repository = await store.getRepository(owner, repo);
-  return { title: repository ? `분석 ${id} · ${repository.owner}/${repository.name}` : `분석 ${id}` };
+  return { title: `분석 ${id} · ${owner}/${repo}` };
 }
 
 export default async function AnalysisPage({ params }: PageProps<"/r/[owner]/[repo]/a/[id]">) {
   const { owner, repo, id } = await params;
-  const repository = await store.getRepository(owner, repo);
-  const analysis = repository && (await store.getAnalysis(repository.owner, repository.name, id));
-  if (!repository || !analysis) notFound();
+  if (!isAnalysisId(id) || !isRepoFullName(owner, repo)) notFound();
+  if (owner !== owner.toLowerCase() || repo !== repo.toLowerCase()) redirect(analysisHref(owner, repo, id));
+  const store = getStore();
+  const found = await orUnavailable(
+    (async () => {
+      const repository = await store.getRepository(owner, repo);
+      const analysis = repository && (await store.getAnalysis(repository.owner, repository.name, id));
+      return repository && analysis ? { repository, analysis, result: analysis.status === "succeeded" ? await store.getResult(analysis.id) : null } : null;
+    })(),
+  );
+  if (!found.ok) {
+    return (
+      <div className="page-wide an-page">
+        <h1>분석 {id}</h1>
+        <p className="notice notice-warn">{found.message}</p>
+      </div>
+    );
+  }
+  if (!found.value) notFound();
+  const { repository, analysis, result } = found.value;
 
   const synthetic = store.synthetic && <p className="notice">{SITE.service.synthetic}</p>;
 
-  if (analysis.status !== "succeeded") {
+  if (analysis.status === "failed") {
     return (
       <div className="page-wide an-page">
         <AnalysisHeader repository={repository} analysis={analysis} />
         {synthetic}
-        {analysis.status === "failed" ? <Failed analysis={analysis} /> : <InProgress analysis={analysis} />}
+        <Failed analysis={analysis} />
+      </div>
+    );
+  }
+  if (analysis.status !== "succeeded") {
+    // 대기·분석 중. 실제 분석은 브라우저 부품이 몇 초마다 다시 읽고 끝나면 이 쪽을 새로 그린다. 합성 예시는 움직이지 않는다.
+    return (
+      <div className="page-wide an-page">
+        {store.synthetic ? (
+          <>
+            <AnalysisHeader repository={repository} analysis={analysis} />
+            {synthetic}
+            <InProgress analysis={analysis} note={PROGRESS_NOTE.synthetic} />
+          </>
+        ) : (
+          <LiveAnalysis repository={repository} analysis={analysis} />
+        )}
       </div>
     );
   }
 
-  // 끝난 분석: 결과 JSON 을 결과 화면과 같은 파서와 화면 구조로 읽는다. 빌드할 때 하므로 팩 메타데이터는 브라우저로 가지 않는다.
-  const parsed = parseReport(await store.getResult(analysis.id));
+  // 끝난 분석: 결과 JSON 을 결과 화면과 같은 파서와 화면 구조로 읽는다. 서버에서 하므로 팩 메타데이터는 브라우저로 가지 않는다.
+  const parsed = parseReport(result);
   if (!parsed.ok) {
     return (
       <div className="page-wide an-page">
@@ -60,15 +87,15 @@ export default async function AnalysisPage({ params }: PageProps<"/r/[owner]/[re
   }
   const view = buildReportView(parsed.report, parsed.contract, packMeta);
   const code = repository.htmlUrl ? { htmlUrl: repository.htmlUrl, commit: analysis.commit } : null;
-  // 정책마다 대표 근거 조문(원문이 있는 첫 조문). 팩 메타데이터의 글을 그대로 옮긴다. 빌드할 때 HTML 에 들어간다.
+  // 정책마다 대표 근거 조문(원문이 있는 첫 조문). 팩 메타데이터의 글을 그대로 옮긴다. 서버가 HTML 에 넣는다.
   // 결과가 다른 판의 팩으로 만들어졌으면 이 사이트의 팩 조문이 그 정책의 근거라고 말할 수 없으므로 싣지 않는다.
   const statutes: Record<string, Statute> = {};
   for (const policy of view.packMatches ? packMeta.policies : []) {
     const ref = policy.legal.find((legal) => legal.text);
     if (ref?.text) statutes[policy.id] = { label: ref.label, text: ref.text };
   }
-  // 기록의 "검사한 날"은 정적 검사 단계가 시작한 때다(분석 기록의 값).
-  const scannedAt = analysis.steps.find((step) => step.name === "static")?.startedAt ?? analysis.requestedAt;
+  // 기록의 "검사한 날"은 검사 단계가 시작한 때다(분석 기록의 값).
+  const scannedAt = analysis.steps.find((step) => step.name === "scan")?.startedAt ?? analysis.requestedAt;
 
   return (
     <div className="page-wide an-page">

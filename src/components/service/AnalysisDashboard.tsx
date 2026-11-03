@@ -80,7 +80,7 @@ export function AnalysisDashboard({
 }: {
   view: ReportView;
   code: CodeSource | null;
-  /** 정책 id → 대표 근거 조문. 빌드할 때 팩 메타데이터에서 고른다(분석 쪽). 없으면 조문을 싣지 않는다. */
+  /** 정책 id → 대표 근거 조문. 서버가 팩 메타데이터에서 고른다(분석 쪽). 없으면 조문을 싣지 않는다. */
   statutes?: Record<string, Statute | undefined>;
 }) {
   const coverage = coverageSummary(view);

@@ -1,8 +1,8 @@
 import type { Browser, BrowserContext, Page } from "playwright-core";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import { store } from "@/lib/service";
+import { syntheticRepositories, syntheticStore as store } from "@/lib/service/synthetic";
 import { analysisHref, repoHref } from "@/lib/service/href";
-import { closeChrome, launchChrome, openPage, serveOut, textContrast, type ContrastScan, type Site } from "./site";
+import { closeChrome, launchChrome, openPage, serveSite, textContrast, type ContrastScan, type Site } from "./site";
 
 // 분석 서비스(방향 B, B1)의 쪽의 명도 대비. tests/browser/colors.test.ts 와 같은 재기(`textContrast`)다. 그 파일과 나란히 돌게
 // 따로 둔다(한 파일 안의 시험은 차례로 돈다. 그 파일이 가장 오래 걸린다). 첫 화면은 그 파일이 잰다.
@@ -17,7 +17,7 @@ const contexts: BrowserContext[] = [];
 const problems: string[] = [];
 
 beforeAll(async () => {
-  site = await serveOut();
+  site = await serveSite();
   try {
     browser = await launchChrome();
   } catch (error) {
@@ -38,7 +38,7 @@ afterAll(async () => {
 
 type Scheme = "light" | "dark";
 
-const hits = await store.listRepositories();
+const hits = syntheticRepositories();
 const PAGES = ["/search/", "/search/?q=example"];
 const WIDE = ["/search/?q=example"];
 for (const { repository: r } of hits) {

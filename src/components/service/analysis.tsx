@@ -7,6 +7,7 @@ import type { Analysis, Repository } from "@/lib/service/types";
 import { STATUS_LABEL } from "@/lib/report/status";
 import { SITE } from "@/lib/site";
 import { AnalysisBadge, RepoName } from "./parts";
+import { RequestButton } from "./RequestButton";
 
 /**
  * 분석 쪽과 저장소 쪽의 서버 부품: 쪽 머리, 진행 단계, 요청 단추, 분석 목록.
@@ -88,7 +89,7 @@ export function AnalysisHeader({ repository, analysis, extra }: { repository: Re
 }
 
 /**
- * 진행 단계. 단계마다 형편(끝남, 진행 중, 대기 중, 기다림, 건너뜀, 멈춤, 하지 않음)과 시각을 적는다. 진행 중인 단계는 화면 낭독기에도 그렇다고
+ * 진행 단계. 단계마다 형편(끝남, 진행 중, 대기 중, 기다림, 멈춤, 하지 않음)과 시각을 적는다. 진행 중인 단계는 화면 낭독기에도 그렇다고
  * 알린다(aria-current).
  */
 export function StepList({ analysis }: { analysis: Analysis }) {
@@ -104,7 +105,6 @@ export function StepList({ analysis }: { analysis: Analysis }) {
             <span className="step-time">
               {step.startedAt && <time dateTime={step.startedAt}>{formatKst(step.startedAt)}</time>}
               {step.startedAt && step.endedAt && ` · ${duration(step.startedAt, step.endedAt)}`}
-              {state === "skipped" && step.name === "judge" && "판정자 없이 만든 결과라 이 단계가 없었습니다."}
             </span>
           </li>
         );
@@ -113,13 +113,38 @@ export function StepList({ analysis }: { analysis: Analysis }) {
   );
 }
 
+/** 진행 중인 분석 쪽의 맨 아래 말. 합성은 움직이지 않는 한 순간이고, 실제 분석은 쪽이 몇 초마다 다시 읽는다(`LiveAnalysis`). */
+export const PROGRESS_NOTE = {
+  synthetic: "합성 예시의 한 순간을 고정해 보인 것이라 이 쪽은 움직이지 않습니다.",
+  live: "이 쪽은 몇 초마다 진행을 다시 읽고, 끝나면 이 자리에 결과를 그립니다. 탭이 보이지 않는 동안은 읽기를 쉽니다.",
+} as const;
+
 /**
- * 진행 중(대기·분석 중)인 분석의 본문. `compact` 는 저장소 쪽에 끼워 넣을 때다(제목과 고정된 순간이라는 말을 뺀다. 저장소 쪽이
- * 합성 예시라는 것을 따로 밝힌다).
+ * 진행 중(대기·분석 중)인 분석의 본문. `compact` 는 저장소 쪽에 끼워 넣을 때다(제목과 맨 아래 말을 뺀다. 저장소 쪽이
+ * 합성 예시라는 것을 따로 밝힌다). `note` 는 맨 아래 말(`PROGRESS_NOTE`). `live` 면 지금 단계를 알리는 줄이 바뀔 때 화면
+ * 낭독기가 읽는다(role="status").
  */
-export function InProgress({ analysis, compact = false }: { analysis: Analysis; compact?: boolean }) {
+export function InProgress({
+  analysis,
+  compact = false,
+  note = null,
+  live = false,
+}: {
+  analysis: Analysis;
+  compact?: boolean;
+  note?: ReactNode;
+  live?: boolean;
+}) {
   const step = activeStep(analysis);
-  const now = step ? keepParticles(`지금 ‘${STEP_LABEL[step.name]}’ 단계입니다.`) : "다음 단계를 기다리고 있습니다.";
+  // 다시 읽는 쪽(`LiveAnalysis`)은 끝난 분석을 서버가 새로 그리기 전 잠깐 이 부품으로 그린다.
+  const now =
+    analysis.status === "succeeded"
+      ? "분석이 끝났습니다."
+      : analysis.status === "failed"
+        ? "분석이 멈췄습니다."
+        : step
+          ? keepParticles(`지금 ‘${STEP_LABEL[step.name]}’ 단계입니다.`)
+          : "다음 단계를 기다리고 있습니다.";
   if (compact) {
     return (
       <>
@@ -131,13 +156,11 @@ export function InProgress({ analysis, compact = false }: { analysis: Analysis; 
   return (
     <section className="an-progress" aria-labelledby="progress-title">
       <h2 id="progress-title">진행 상황</h2>
-      <p className="notice">
+      <p className="notice" role={live ? "status" : undefined}>
         {now} 진행 중인 분석은 누구나 볼 수 있고, 끝나면 이 주소에 결과가 그려집니다.
       </p>
       <StepList analysis={analysis} />
-      <p className="hint">
-        합성 예시의 한 순간을 고정해 보인 것이라 이 쪽은 움직이지 않습니다. 서버가 붙으면 몇 초마다 새로 읽습니다.
-      </p>
+      {note && <div className="hint an-progress-note">{note}</div>}
     </section>
   );
 }
@@ -158,10 +181,12 @@ export function Failed({ analysis }: { analysis: Analysis }) {
 }
 
 /**
- * 분석 요청. B1 에는 서버가 없어 단추가 듣지 않는다. 누를 수 없게 두고 그 까닭을 바로 옆에 적는다(눌러도 아무 일이 없는 단추를
- * 두지 않는다).
+ * 분석 요청. 요청을 받으면(`closed` 가 null) 같은 사이트의 `/api/analyses/` 를 부르는 단추(`RequestButton`, 브라우저 부품)를
+ * 둔다. 받지 않을 때(합성 미리보기, 실행기 없음)는 단추가 듣지 않는다. 누를 수 없게 두고 그 까닭(`closed`)을 바로 옆에 적는다
+ * (눌러도 아무 일이 없는 단추를 두지 않는다).
  */
-export function RequestPanel({ repository, latest }: { repository: Repository; latest: Analysis | null }) {
+export function RequestPanel({ repository, latest, closed }: { repository: Repository; latest: Analysis | null; closed: string | null }) {
+  const label = latest ? "다시 분석 요청" : "분석 요청";
   return (
     <section className="request" aria-labelledby="request-title">
       <div>
@@ -169,18 +194,24 @@ export function RequestPanel({ repository, latest }: { repository: Repository; l
         <p className="hint">
           기본 브랜치 <code>{repository.defaultBranch}</code> 의 끝 커밋을 검사합니다. 로그인 없이 누구나 요청하고, 결과는 누구나
           봅니다.
-          {latest && " 이미 분석이 있어도 다시 요청할 수 있습니다. 분석마다 따로 남습니다."}
+          {latest && " 이미 분석이 있어도 다시 요청할 수 있습니다. 분석마다 따로 남습니다. 같은 커밋을 최근에 분석했으면 그 분석으로 갑니다."}
         </p>
       </div>
       <div className="request-action">
-        {/* disabled 대신 aria-disabled: 키보드로 단추에 닿아 까닭(aria-describedby)을 들을 수 있게 한다. 듣는 손잡이가 없어
-            눌러도 아무 일이 없다. */}
-        <button type="button" aria-disabled="true" aria-describedby="request-off">
-          {latest ? "다시 분석 요청" : "분석 요청"}
-        </button>
-        <p id="request-off" className="hint">
-          {SITE.service.noServer}
-        </p>
+        {closed === null ? (
+          <RequestButton owner={repository.owner} name={repository.name} label={label} />
+        ) : (
+          <>
+            {/* disabled 대신 aria-disabled: 키보드로 단추에 닿아 까닭(aria-describedby)을 들을 수 있게 한다. 듣는 손잡이가 없어
+                눌러도 아무 일이 없다. */}
+            <button type="button" aria-disabled="true" aria-describedby="request-off">
+              {label}
+            </button>
+            <p id="request-off" className="hint">
+              {closed}
+            </p>
+          </>
+        )}
       </div>
     </section>
   );

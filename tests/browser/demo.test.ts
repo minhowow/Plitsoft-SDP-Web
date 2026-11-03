@@ -22,7 +22,7 @@ import {
   pixelAt,
   RESULT_ATTRIBUTES,
   scrollThrough,
-  serveOut,
+  serveSite,
   settle,
   stored,
   undrawn,
@@ -31,7 +31,7 @@ import {
   type Site,
 } from "./site";
 
-// `/demo` 를 실제 브라우저로 열어 본다. 빌드된 out/ 을 127.0.0.1 에 띄우고 이 컴퓨터의 Chrome(헤드리스)으로 연다.
+// `/demo` 를 실제 브라우저로 열어 본다. 빌드된 사이트를 127.0.0.1 에 띄우고(next start) 이 컴퓨터의 Chrome(헤드리스)으로 연다.
 // 그려 낸 HTML 만 보는 시험(tests/demo.test.tsx)이 볼 수 없는 것을 본다: 단추로 고른 세 앱 × 두 판이 실제로 보이는지,
 // 판을 바꿀 때 요청이 나가는지, 좁은 화면의 가로 넘침과 표의 쌓임, 코드 상자의 스크롤과 키보드 초점, 표의 정책 이름으로
 // 아래 결과의 그 정책으로 옮겨 가는 것, 칠한 줄의 색(두 테마), 다른 쪽에 다녀온 뒤, 글이 실제로 그려지는지, CSS 가 그린 글,
@@ -44,7 +44,7 @@ const contexts: BrowserContext[] = [];
 const problems: string[] = [];
 
 beforeAll(async () => {
-  site = await serveOut();
+  site = await serveSite();
   try {
     browser = await launchChrome();
   } catch (error) {
@@ -947,7 +947,7 @@ describe("데모의 글과 꾸밈 (조문 도감·기록의 시험과 같은 기
       text: el.textContent ?? "",
     }));
     expect(main.children).toEqual(["h1.", "p.lede", "div.demo"]);
-    expect(partingOf(squash(main.text), builtMainText("demo"))).toBeNull();
+    expect(partingOf(squash(main.text), await builtMainText(site.origin, "demo"))).toBeNull();
   });
 
   it("여섯 판: 그린 글이 판 부품(DemoPanel)이 그린 글과 같고, 정해 둔 속성만 있고, CSS 가 그린 글은 줄 번호·다른 줄의 표시·좁은 화면의 판 이름과 목록 표시뿐이다", async () => {

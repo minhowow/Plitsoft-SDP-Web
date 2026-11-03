@@ -18,7 +18,7 @@ import {
   NO_STORAGE,
   openPage,
   overflow,
-  serveOut,
+  serveSite,
   settle,
   stored,
   undrawn as undrawnIn,
@@ -26,7 +26,7 @@ import {
   type Site,
 } from "./site";
 
-// 조문별 검사 기록(인쇄용)을 실제 브라우저로 열어 본다. 빌드된 out/ 을 127.0.0.1 에 띄우고 이 컴퓨터의 Chrome(헤드리스)으로 연다.
+// 조문별 검사 기록(인쇄용)을 실제 브라우저로 열어 본다. 빌드된 사이트를 127.0.0.1 에 띄우고(next start) 이 컴퓨터의 Chrome(헤드리스)으로 연다.
 // 그려 낸 HTML 만 보는 시험(tests/record.test.tsx)이 볼 수 없는 것을 본다: 결과가 열려 있는 자리(`/view`, `/demo`)에서
 // 단추로 기록을 고르는 것, 인쇄할 때 기록만 나오는지와 색, A4 로 몇 쪽인지, 좁은 화면의 가로 넘침, 지문을 골라 복사한
 // 글, 기록을 보는 동안 요청·저장·주소가 그대로인지, 문서에 있는 글이 눈에도 그려지는지, CSS 가 글을 그려 넣지 않는지.
@@ -40,7 +40,7 @@ const contexts: BrowserContext[] = [];
 const problems: string[] = [];
 
 beforeAll(async () => {
-  site = await serveOut();
+  site = await serveSite();
   try {
     browser = await launchChrome();
   } catch (error) {

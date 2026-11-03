@@ -3,7 +3,7 @@ import { configDefaults, defineConfig } from "vitest/config";
 
 const dir = (p: string) => fileURLToPath(new URL(p, import.meta.url));
 
-// 부품 시험(`npm test`). 빌드 없이 돈다. 빌드된 out/ 을 브라우저로 여는 시험은 vitest.browser.config.mts 가 따로 돌린다.
+// 부품 시험(`npm test`). 빌드 없이 돈다. 빌드된 사이트(.next)를 `next start` 로 띄워 브라우저로 여는 시험은 vitest.browser.config.mts 가 따로 돌린다.
 export default defineConfig({
   resolve: {
     // tsconfig.json 의 paths 와 같게 둔다.
@@ -11,6 +11,8 @@ export default defineConfig({
       "@data": dir("./data"),
       "@contract": dir("./contract"),
       "@": dir("./src"),
+      // Next 가 스스로 처리하는 이름이라 패키지가 없다. 시험에서는 빈 모듈이다(tests/stubs/server-only.ts).
+      "server-only": dir("./tests/stubs/server-only.ts"),
     },
   },
   test: {

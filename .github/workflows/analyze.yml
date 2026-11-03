@@ -1,0 +1,119 @@
+# 분석 실행기(설계 8). 사이트(src/server/runner.ts)가 workflow_dispatch 로 부른다. 공개 저장소 하나를 그 커밋으로 받아
+# policypack CLI(고정 커밋)로 검사하고, 단계마다 사이트에 서명한 콜백을 보낸다. 대상 코드는 읽기만 한다(설치·빌드·실행 없음).
+#
+# 비밀값(Actions secret, 값은 오너가 만든다. docs/deploy.md):
+#   RUNNER_SECRET      콜백 서명 열쇠. 사이트의 RUNNER_SECRET 과 같은 값. 콜백 단계(notify·finish·fail)에만 넘긴다.
+#   ANTHROPIC_API_KEY  AI 판정자. 검사 단계에만 넘긴다.
+#   CLI_REPO_TOKEN     (CLI 저장소가 비공개일 때만) 읽기 토큰. 도구 설치 단계에만 넘긴다.
+#
+# 워크플로 입력은 셸 글에 끼워 넣지 않고 환경 변수로만 넘긴다(입력으로 명령을 끼워 넣지 못하게). runner/run.mjs 가 모양을 본다.
+
+name: analyze
+run-name: analyze ${{ inputs.analysis_id }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      analysis_id:
+        description: 분석 id
+        required: true
+        type: string
+      owner:
+        description: 저장소 계정
+        required: true
+        type: string
+      repo:
+        description: 저장소 이름
+        required: true
+        type: string
+      commit:
+        description: 검사할 커밋(40자리)
+        required: true
+        type: string
+      callback_url:
+        description: 사이트의 콜백 주소(https://…/api/runner/{분석 id}/)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: analyze-${{ inputs.analysis_id }}
+  cancel-in-progress: false
+
+jobs:
+  analyze:
+    runs-on: ubuntu-24.04
+    # 실행 시간 상한. 사이트는 요청한 뒤 25분(RUN_TIMEOUT_MINUTES)이 지나도 끝나지 않은 분석을 '시간 초과'로 적는다.
+    timeout-minutes: 20
+    env:
+      # 도구는 워크플로 입력이 아니라 이 파일에서 고정한다(요청하는 쪽이 바꾸지 못한다).
+      CLI_REPO: minhowow/Plitsoft-SDP
+      CLI_COMMIT: 7300205b7e0db18e171aa2d730120416f2136d3c
+      UV_VERSION: 0.13.0
+      # 딸린 꾸러미는 이 날짜까지 나온 판에서만 고른다(git 설치는 CLI 의 uv.lock 을 쓰지 않는다). CLI 고정 커밋의 날짜
+      # (2026-10-08)로 둔다. 그 커밋의 uv.lock 에 있는 판은 모두 이보다 앞서 나왔다. CLI_COMMIT 을 바꿀 때 함께 바꾼다.
+      CLI_EXCLUDE_NEWER: "2026-10-08T00:00:00Z"
+      JUDGE_MODEL: haiku
+      MAX_TARBALL_MB: "100"
+      MAX_EXTRACT_MB: "400"
+      MAX_JSTS_FILES: "3000"
+      RESULT_MAX_KB: "4000"
+      SCAN_TIMEOUT_MINUTES: "15"
+      ANALYSIS_ID: ${{ inputs.analysis_id }}
+      REPO_OWNER: ${{ inputs.owner }}
+      REPO_NAME: ${{ inputs.repo }}
+      REPO_COMMIT: ${{ inputs.commit }}
+      CALLBACK_URL: ${{ inputs.callback_url }}
+      # 콜백을 받을 사이트의 주소. 워크플로 입력이 아니라 이 저장소의 Actions 변수(SITE_URL, 오너가 둔다)에서 읽는다.
+      # callback_url 의 출처가 이것과 다르면 입력 확인에서 멈춘다(콜백을 다른 곳으로 돌리지 못하게).
+      SITE_ORIGIN: ${{ vars.SITE_URL }}
+      # 작업 폴더는 runner/run.mjs 가 RUNNER_TEMP 아래에 정한다(runner 문맥은 job 의 env 에서 쓸 수 없다).
+    steps:
+      - name: 실행기 코드 받기
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+          sparse-checkout: runner
+
+      - name: 입력 확인
+        run: node runner/run.mjs check
+
+      - name: "알림: 저장소 받기·도구 설치 시작"
+        env:
+          RUNNER_SECRET: ${{ secrets.RUNNER_SECRET }}
+        run: node runner/run.mjs notify fetch
+
+      - name: 저장소 받기
+        env:
+          # 이 워크플로의 읽기 토큰. 공개 저장소의 tarball 을 받는 요청 수 상한을 넉넉하게 한다.
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node runner/run.mjs fetch
+
+      - name: 도구 설치
+        env:
+          CLI_REPO_TOKEN: ${{ secrets.CLI_REPO_TOKEN }}
+        run: node runner/run.mjs install
+
+      - name: "알림: 검사 시작"
+        env:
+          RUNNER_SECRET: ${{ secrets.RUNNER_SECRET }}
+        run: node runner/run.mjs notify scan
+
+      - name: 검사(정적 검사와 AI 판정)
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: node runner/run.mjs scan
+
+      - name: 정리(결과 보내기)
+        env:
+          RUNNER_SECRET: ${{ secrets.RUNNER_SECRET }}
+        run: node runner/run.mjs finish
+
+      - name: "알림: 멈춤"
+        if: failure() || cancelled()
+        env:
+          RUNNER_SECRET: ${{ secrets.RUNNER_SECRET }}
+          JOB_STATUS: ${{ job.status }}
+        run: node runner/run.mjs fail

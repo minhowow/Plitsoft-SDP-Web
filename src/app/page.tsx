@@ -4,11 +4,11 @@ import { findingCount } from "@/components/service/analysis";
 import { SearchForm } from "@/components/service/SearchForm";
 import { keepParticles } from "@/components/text";
 import { packMeta, policyHref, primaryLaw } from "@/lib/pack";
-import { parseReport } from "@/lib/report/parse";
-import { store } from "@/lib/service";
+import { orUnavailable } from "@/lib/service/errors";
 import { analysisHref, shortCommit } from "@/lib/service/href";
 import { formatKst } from "@/lib/service/steps";
 import { SITE } from "@/lib/site";
+import { getStore } from "@/server/store";
 
 /** 쓰는 길. 찾기 → 보기 → 요청 → 진행 보기. */
 const HOW = [
@@ -26,13 +26,21 @@ const NOT = [
   "검사하는 JS/TS 코드(누가 썼든)를 읽기만 하고 실행하지 않습니다. 서버 설정이나 데이터에만 있는 동의 상태는 보지 못합니다.",
 ];
 
+// 최근 분석은 요청 때 DB 에서 읽는다.
+export const dynamic = "force-dynamic";
+
 export default async function Home() {
-  const recent = await store.recentSucceeded(3);
-  const counts = new Map<string, number>();
-  for (const { analysis } of recent) {
-    const parsed = parseReport(await store.getResult(analysis.id));
-    if (parsed.ok) counts.set(analysis.id, parsed.report.findings.length);
-  }
+  const store = getStore();
+  const loaded = await orUnavailable(
+    (async () => {
+      const recent = await store.recentSucceeded(3);
+      const counts = new Map<string, number>();
+      const found = await store.findingCounts(recent.map(({ analysis }) => analysis.id));
+      for (const [id, count] of Object.entries(found)) if (count !== null) counts.set(id, count);
+      return { recent, counts };
+    })(),
+  );
+  const { recent, counts } = loaded.ok ? loaded.value : { recent: [], counts: new Map<string, number>() };
 
   return (
     <>
@@ -62,6 +70,8 @@ export default async function Home() {
       <section aria-labelledby="recent-title">
         <h2 id="recent-title">최근 분석된 저장소</h2>
         {store.synthetic && <p className="hint">{SITE.service.synthetic}</p>}
+        {!loaded.ok && <p className="notice notice-warn">{loaded.message}</p>}
+        {loaded.ok && recent.length === 0 && <p className="hint">아직 끝난 분석이 없습니다. 저장소를 찾아 분석을 요청해 보세요.</p>}
         <ul className="recent">
           {recent.map(({ repository, analysis }) => (
             <li key={analysis.id}>

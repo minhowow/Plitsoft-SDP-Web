@@ -17,7 +17,7 @@ import {
   openPage,
   overflow,
   scrollThrough,
-  serveOut,
+  serveSite,
   settle,
   stored,
   undrawn as undrawnIn,
@@ -25,7 +25,7 @@ import {
   type Site,
 } from "./site";
 
-// 조문 도감(`/policy`, `/policy/<이름>`)을 실제 브라우저로 열어 본다. 빌드된 out/ 을 127.0.0.1 에 띄우고 이 컴퓨터의
+// 조문 도감(`/policy`, `/policy/<이름>`)을 실제 브라우저로 열어 본다. 빌드된 사이트를 127.0.0.1 에 띄우고(next start) 이 컴퓨터의
 // Chrome(헤드리스)으로 연다. 빌드된 HTML 을 읽는 시험(out-files.test.ts)이 볼 수 없는 것을 본다: 브라우저가 읽은 조문
 // 원문과 화면에 보이는 줄바꿈·빈칸, 목록에서 눌러 왔을 때(쪽을 다시 받지 않는다), 좁은 화면의 가로 넘침과 표의 쌓임,
 // 글이 실제로 그려지는지, 쪽이 스스로 내는 요청, 법제처 링크를 눌렀을 때, 두 테마의 색, 키보드, 화면 낭독기에 읽히는 이름,
@@ -44,7 +44,7 @@ const contexts: BrowserContext[] = [];
 const problems: string[] = [];
 
 beforeAll(async () => {
-  site = await serveOut();
+  site = await serveSite();
   try {
     browser = await launchChrome();
   } catch (error) {

@@ -1,12 +1,12 @@
 import type { Browser, BrowserContext, Page } from "playwright-core";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import { store } from "@/lib/service";
+import { syntheticRepositories, syntheticStore as store } from "@/lib/service/synthetic";
 import { analysisHref, repoHref } from "@/lib/service/href";
 import type { Analysis } from "@/lib/service/types";
 import { SITE } from "@/lib/site";
-import { closeChrome, launchChrome, NO_STORAGE, openPage, overflow, serveOut, stored, type Site } from "./site";
+import { closeChrome, launchChrome, NO_STORAGE, openPage, overflow, serveSite, stored, type Site } from "./site";
 
-// 분석 서비스(방향 B, B1)의 다섯 쪽을 빌드된 out/ 에서 연다: 첫 화면, 검색, 저장소, 분석(진행 중·실패·끝남).
+// 분석 서비스(방향 B)의 다섯 쪽을 빌드된 사이트(합성 저장소, SERVICE_STORE=synthetic)에서 연다: 첫 화면, 검색, 저장소, 분석(진행 중·실패·끝남).
 // 검색이 거르는지, 저장소에서 분석으로 옮겨 가는지, 세 상태가 그려지는지, 375·1280px 의 두 테마에서 넘치지 않는지,
 // 밖으로 나가는 요청과 브라우저 저장소가 없는지 본다. 명도 대비는 tests/browser/colors.test.ts 가 본다.
 
@@ -16,7 +16,7 @@ const contexts: BrowserContext[] = [];
 const problems: string[] = [];
 
 beforeAll(async () => {
-  site = await serveOut();
+  site = await serveSite();
   try {
     browser = await launchChrome();
   } catch (error) {
@@ -38,7 +38,7 @@ afterAll(async () => {
 const open = (pathname: string, width = 375, colorScheme: "light" | "dark" = "light") =>
   openPage(browser, site, pathname, { viewport: { width, height: 800 }, colorScheme, contexts, problems });
 
-const hits = await store.listRepositories();
+const hits = syntheticRepositories();
 const analyses: Analysis[] = (await Promise.all(hits.map(({ repository: r }) => store.listAnalyses(r.owner, r.name)))).flat();
 const byStatus = (status: Analysis["status"]) => analyses.find((a) => a.status === status)!;
 const hrefOf = (a: Analysis) => analysisHref(a.owner, a.name, a.id);
@@ -48,6 +48,11 @@ const PAGES = [
   "/",
   "/search/",
   "/search/?q=kids",
+  "/search/?q=example",
+  // 빈칸 없는 긴 검색어도 되뇌는 줄이 넘치지 않는다(검토 1). 검색어 길이 상한(256)까지.
+  `/search/?q=${"a".repeat(60)}`,
+  `/search/?q=${"가".repeat(80)}`,
+  `/search/?q=${"a".repeat(256)}`,
   ...hits.map(({ repository: r }) => repoHref(r.owner, r.name)),
   ...analyses.map(hrefOf),
 ];
@@ -55,25 +60,29 @@ const PAGES = [
 const rowNames = (page: Page) => page.locator(".repo-row .repo-link").allTextContents();
 
 describe("검색", () => {
-  it("주소의 질의로 거르고, 치는 대로 다시 거르며 주소를 바꿔 둔다", async () => {
+  it("서버가 주소의 질의로 찾아 그리고, 검색창에서 엔터를 누르면 그 질의의 주소로 간다", async () => {
     const { page } = await open("/search/?q=kids");
-    await expect.poll(() => rowNames(page)).toEqual(["example-org / kids-signup"]);
+    expect(await rowNames(page)).toEqual(["example-org / kids-signup"]);
     const input = page.locator("#search-page-q");
     expect(await input.inputValue()).toBe("kids");
 
     await input.fill("example-labs");
+    await input.press("Enter");
+    await page.waitForURL(/\/search\/\?q=example-labs$/);
     await expect.poll(() => rowNames(page)).toEqual(["example-labs / plain-utils", "example-labs / shop-front", "example-labs / todo-web"]);
-    expect(new URL(page.url()).search).toBe("?q=example-labs");
 
-    await input.fill("no-such-repository");
+    await page.locator("#search-page-q").fill("no-such-repository");
+    await page.locator("#search-page-q").press("Enter");
+    await page.waitForURL(/\/search\/\?q=no-such-repository$/);
     expect(await page.locator(".repo-row").count()).toBe(0);
-    await expect.poll(() => page.locator(".search-page .notice").textContent()).toContain("맞는 저장소가 없습니다");
+    expect(await page.locator(".search-page .notice").textContent()).toContain("맞는 저장소가 없습니다");
     // 검색 쪽에서는 머리글의 검색창을 감춰 검색창이 하나만 보인다.
     expect(await page.locator("#site-q").isVisible()).toBe(false);
 
-    // 빈 질의는 모든 합성 저장소를 늘어놓는다.
-    await input.fill("");
-    await expect.poll(async () => (await rowNames(page)).length).toBe(hits.length);
+    // 빈 질의는 아무것도 늘어놓지 않고 무엇을 넣을지 알린다(GitHub 을 부르지 않는다).
+    await page.goto(`${site.origin}/search/`);
+    expect(await page.locator(".repo-row").count()).toBe(0);
+    expect(await page.locator(".search-count").textContent()).toContain("찾을 저장소의 이름이나 설명을 넣으세요");
   });
 
   it("머리글의 검색창은 어느 쪽에서든 검색 쪽으로 간다", async () => {
@@ -109,13 +118,20 @@ describe("저장소 → 분석", () => {
     await page.waitForSelector(".dash");
     expect(outside).toEqual([]);
   });
+
+  it("주소의 대소문자는 소문자 주소로 보낸다(GitHub 은 이름의 대소문자를 가리지 않는다)", async () => {
+    const { page } = await open("/r/Example-Org/KIDS-SIGNUP/");
+    expect(page.url()).toBe(`${site.origin}${repoHref("example-org", "kids-signup")}`);
+    await page.goto(`${site.origin}/r/EXAMPLE-ORG/kids-signup/a/wtk33e9zuf/`);
+    expect(page.url()).toBe(`${site.origin}${analysisHref("example-org", "kids-signup", "wtk33e9zuf")}`);
+  });
 });
 
 describe("분석 쪽의 세 상태", () => {
   it("진행 중: 단계별 진행과 지금의 단계", async () => {
     const { page } = await open(hrefOf(byStatus("running")));
-    expect(await page.locator(".step-item").count()).toBe(5);
-    expect(await page.locator(".step-active .step-name").allTextContents()).toEqual(["AI 판정"]);
+    expect(await page.locator(".step-item").count()).toBe(4);
+    expect(await page.locator(".step-active .step-name").allTextContents()).toEqual(["검사(정적 검사와 AI 판정)"]);
     expect(await page.locator(".dash").count()).toBe(0);
     expect(await page.locator("main").textContent()).toContain("합성 예시");
   });
@@ -129,7 +145,7 @@ describe("분석 쪽의 세 상태", () => {
     const failed = byStatus("failed");
     const { page } = await open(hrefOf(failed));
     expect(await page.locator(".notice-warn").textContent()).toContain(failed.failure!.reason);
-    expect(await page.locator(".step-failed .step-name").allTextContents()).toEqual(["저장소 받기"]);
+    expect(await page.locator(".step-failed .step-name").allTextContents()).toEqual(["저장소 받기·도구 설치"]);
     expect(await page.locator(".dash").count()).toBe(0);
   });
 
@@ -155,21 +171,25 @@ describe("분석 쪽의 세 상태", () => {
 });
 
 describe("너비·테마·요청", () => {
-  it.each([375, 1280])("%ipx: 모든 쪽이 두 테마에서 가로로 넘치지 않고, 밖으로 나가는 요청과 브라우저 저장소가 없다", async (width) => {
+  // 너비와 테마마다 따로 돈다(쪽이 스물 남짓이라 한데 묶으면 창 하나의 한도(28초)에 가까워진다).
+  it.each([
+    [375, "light"],
+    [375, "dark"],
+    [1280, "light"],
+    [1280, "dark"],
+  ] as const)("%ipx %s: 모든 쪽이 가로로 넘치지 않고, 밖으로 나가는 요청과 브라우저 저장소가 없다", async (width, scheme) => {
     const fits: string[] = [];
-    for (const scheme of ["light", "dark"] as const) {
-      const { page, outside } = await open(PAGES[0], width, scheme);
-      for (const pathname of PAGES) {
-        if (pathname !== PAGES[0]) await page.goto(`${site.origin}${pathname}`, { waitUntil: "networkidle" });
-        await page.evaluate(() => {
-          for (const details of document.querySelectorAll("details")) details.open = true;
-        });
-        const measured = await overflow(page);
-        if (measured.page !== 0 || measured.over.length > 0) fits.push(`${scheme} ${pathname}: ${JSON.stringify(measured)}`);
-      }
-      expect(outside, scheme).toEqual([]);
-      expect(await stored(page), scheme).toEqual(NO_STORAGE);
+    const { page, outside } = await open(PAGES[0], width, scheme);
+    for (const pathname of PAGES) {
+      if (pathname !== PAGES[0]) await page.goto(`${site.origin}${pathname}`, { waitUntil: "networkidle" });
+      await page.evaluate(() => {
+        for (const details of document.querySelectorAll("details")) details.open = true;
+      });
+      const measured = await overflow(page);
+      if (measured.page !== 0 || measured.over.length > 0) fits.push(`${scheme} ${pathname}: ${JSON.stringify(measured)}`);
     }
+    expect(outside, scheme).toEqual([]);
+    expect(await stored(page), scheme).toEqual(NO_STORAGE);
     expect(fits).toEqual([]);
   });
 });

@@ -2461,6 +2461,11 @@ h1 .repo-name {
   color: var(--muted);
 }
 
+/* 되뇌는 검색어는 주소에서 온 남의 글이라 빈칸 없이 길 수 있다. 아무 데서나 줄을 바꾼다(좁은 화면에서 넘치지 않게). */
+.search-q {
+  overflow-wrap: anywhere;
+}
+
 .repo-list {
   list-style: none;
   margin: 0;
@@ -2651,6 +2656,15 @@ h1 .repo-name {
   gap: var(--space-1);
 }
 
+/* 요청을 받지 않은 까닭(서버가 돌려준 말). 비어 있을 때는 자리를 차지하지 않는다. */
+.request-refused {
+  color: var(--st-review);
+}
+
+#request-note:empty {
+  display: none;
+}
+
 .request button:disabled,
 .request button[aria-disabled="true"] {
   cursor: not-allowed;
@@ -2658,6 +2672,11 @@ h1 .repo-name {
   color: var(--muted);
   border-color: var(--control-line);
   border-style: dashed;
+}
+
+/* 요청을 보내고 답을 기다리는 동안(다시 누를 수 없다). */
+.request button[aria-busy="true"] {
+  cursor: progress;
 }
 
 /* 진행 단계: 세로 줄 위의 점. 진행 중인 단계는 강조색, 멈춘 단계는 검토 필요의 색이다. */
@@ -2719,10 +2738,6 @@ h1 .repo-name {
   border-color: var(--st-review);
 }
 
-.step-skipped .step-dot {
-  border-style: dashed;
-}
-
 /* 실패한 분석에서 시작하지 않은 단계: 옅게 그린다. */
 .step-notrun .step-dot {
   border-style: dotted;
@@ -2770,6 +2785,16 @@ h1 .repo-name {
 
 .an-progress h2 {
   font-size: var(--text-h3);
+}
+
+/* 진행 중인 분석 쪽의 맨 아래 말(다시 읽는다는 것, 읽지 못한 까닭). */
+.an-progress-note {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.an-progress-trouble {
+  color: var(--st-review);
 }
 
 .repo-moving {

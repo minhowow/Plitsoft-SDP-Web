@@ -1,0 +1,430 @@
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { createServer, type Server } from "node:http";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { gzipSync } from "node:zlib";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { postAnalysis, postRunnerClaim, postRunnerEvent, type ApiDeps } from "@/server/api";
+import { readConfig } from "@/server/config";
+import { openDatabase, type Database } from "@/server/db";
+import { createGitHub } from "@/server/github";
+import { sign as serverSign } from "@/server/signature";
+import { createDbStore } from "@/server/store/db";
+import {
+  checkFileCount,
+  checkResultSize,
+  childEnv,
+  copyRepository,
+  countJsTs,
+  fetchRepository,
+  installCli,
+  readInputs,
+  runScan,
+  sign as runnerSign,
+  StepError,
+} from "../runner/run.mjs";
+import { extractTar, extractTarGz } from "../runner/tar.mjs";
+import { createGitHubStub } from "../scripts/github-stub.mjs";
+import { main as localRunner, sourceFor } from "../scripts/local-runner.mjs";
+import { root } from "./helpers";
+
+// 실행기(runner/run.mjs, runner/tar.mjs)와 로컬 실행기(scripts/local-runner.mjs). 실제 GitHub·Anthropic·CLI 를 부르지 않는다.
+// 압축 파일은 시험이 손으로 만들고, CLI 는 가짜 spawn 으로 바꾼다. 로컬 실행기는 --fixture 로만 돈다.
+
+let scratch: string;
+beforeEach(() => {
+  scratch = mkdtempSync(path.join(tmpdir(), "runner-test-"));
+});
+afterEach(() => {
+  rmSync(scratch, { recursive: true, force: true });
+});
+
+// ---- 시험용 tar 만들기 ----
+
+type Entry = { name: string; type?: string; data?: string | Buffer; linkname?: string; prefix?: string };
+
+function header(name: string, size: number, type: string, linkname = "", prefix = ""): Buffer {
+  const block = Buffer.alloc(512);
+  block.write(name, 0, 100, "utf8");
+  block.write("0000644\0", 100);
+  block.write("0000000\0", 108);
+  block.write("0000000\0", 116);
+  block.write(`${size.toString(8).padStart(11, "0")}\0`, 124);
+  block.write("00000000000\0", 136);
+  block.write("        ", 148);
+  block.write(type, 156);
+  block.write(linkname, 157, 100, "utf8");
+  block.write("ustar\0", 257);
+  block.write("00", 263);
+  block.write(prefix, 345, 155, "utf8");
+  let sum = 0;
+  for (const byte of block) sum += byte;
+  block.write(`${sum.toString(8).padStart(6, "0")}\0 `, 148);
+  return block;
+}
+
+function tar(entries: Entry[]): Buffer {
+  const parts: Buffer[] = [];
+  for (const entry of entries) {
+    const data = Buffer.isBuffer(entry.data) ? entry.data : Buffer.from(entry.data ?? "");
+    parts.push(header(entry.name, data.length, entry.type ?? "0", entry.linkname, entry.prefix));
+    parts.push(data, Buffer.alloc((512 - (data.length % 512)) % 512));
+  }
+  parts.push(Buffer.alloc(1024));
+  return Buffer.concat(parts);
+}
+
+const pax = (records: Record<string, string>) =>
+  Buffer.from(
+    Object.entries(records)
+      .map(([key, value]) => {
+        const body = ` ${key}=${value}\n`;
+        let length = Buffer.byteLength(body) + 1;
+        while (String(length).length + Buffer.byteLength(body) !== length) length = String(length).length + Buffer.byteLength(body);
+        return `${length}${body}`;
+      })
+      .join(""),
+  );
+
+const TOP = "example-org-kids-signup-e8d8015/";
+
+describe("압축 풀기 (runner/tar.mjs)", () => {
+  it("최상위 폴더를 떼고 일반 파일·폴더만 푼다. 파일은 실행 권한 없이 쓴다", () => {
+    const counts = extractTarGz(
+      gzipSync(
+        tar([
+          { name: "pax_global_header", type: "g", data: pax({ comment: "e8d8015c26e6e1c553cf79187eabc073558efe4c" }) },
+          { name: TOP, type: "5" },
+          { name: `${TOP}src/`, type: "5" },
+          { name: `${TOP}src/app.ts`, data: "export const a = 1;\n" },
+          { name: `${TOP}run.sh`, data: "#!/bin/sh\n" },
+        ]),
+      ),
+      path.join(scratch, "out"),
+      { maxBytes: 1_000_000 },
+    );
+    expect(counts).toEqual({ files: 2, bytes: 30, links: 0, others: 0 });
+    expect(readFileSync(path.join(scratch, "out", "src", "app.ts"), "utf8")).toBe("export const a = 1;\n");
+    expect(lstatSync(path.join(scratch, "out", "run.sh")).mode & 0o111).toBe(0);
+    expect(existsSync(path.join(scratch, "out", "pax_global_header"))).toBe(false);
+  });
+
+  it("심볼릭 링크와 하드 링크는 만들지 않고 센다", () => {
+    const counts = extractTar(
+      tar([
+        { name: `${TOP}src/real.ts`, data: "x" },
+        { name: `${TOP}src/link.ts`, type: "2", linkname: "/etc/passwd" },
+        { name: `${TOP}src/hard.ts`, type: "1", linkname: `${TOP}src/real.ts` },
+      ]),
+      path.join(scratch, "out"),
+    );
+    expect(counts.links).toBe(2);
+    expect(readdirSync(path.join(scratch, "out", "src"))).toEqual(["real.ts"]);
+  });
+
+  it.each([
+    ["..", `${TOP}../escape.ts`],
+    ["절대 경로", "/tmp/escape.ts"],
+    ["가운데 ..", `${TOP}src/../../escape.ts`],
+    ["역빗금", `${TOP}src\\..\\..\\escape.ts`],
+    ["밖을 가리키는 링크 이름", `${TOP}../link`],
+  ])("경로가 폴더 밖을 가리키면(%s) 압축 파일 전체를 받지 않는다", (_what, name) => {
+    const entries: Entry[] = [{ name: `${TOP}ok.ts`, data: "ok" }, { name, data: "bad", type: name.endsWith("link") ? "2" : "0" }];
+    expect(() => extractTar(tar(entries), path.join(scratch, "out"))).toThrow("저장소 밖을 가리키는 경로");
+    expect(existsSync(path.join(scratch, "escape.ts"))).toBe(false);
+  });
+
+  it("pax 의 path 와 GNU 긴 이름도 같은 검사를 받는다", () => {
+    const long = `${TOP}${"d/".repeat(70)}deep.ts`;
+    const counts = extractTar(
+      tar([
+        { name: "PaxHeader", type: "x", data: pax({ path: `${TOP}한글 이름.ts` }) },
+        { name: "short", data: "pax" },
+        { name: "././@LongLink", type: "L", data: `${long}\0` },
+        { name: long.slice(0, 99), data: "gnu" },
+      ]),
+      path.join(scratch, "out"),
+    );
+    expect(counts.files).toBe(2);
+    expect(readFileSync(path.join(scratch, "out", "한글 이름.ts"), "utf8")).toBe("pax");
+    expect(readFileSync(path.join(scratch, "out", ...Array(70).fill("d"), "deep.ts"), "utf8")).toBe("gnu");
+    expect(() =>
+      extractTar(tar([{ name: "PaxHeader", type: "x", data: pax({ path: `${TOP}../../x.ts` }) }, { name: "short", data: "x" }]), path.join(scratch, "o2")),
+    ).toThrow("저장소 밖을 가리키는 경로");
+  });
+
+  it("푼 크기 상한을 넘으면(압축 폭탄) 그만 푼다. gzip 이 아니거나 머리가 깨졌으면 받지 않는다", () => {
+    const bomb = gzipSync(tar([{ name: `${TOP}zeros.ts`, data: Buffer.alloc(2_000_000) }]));
+    expect(bomb.length).toBeLessThan(10_000);
+    expect(() => extractTarGz(bomb, path.join(scratch, "out"), { maxBytes: 1_000_000 })).toThrow("상한");
+    expect(() => extractTarGz(Buffer.from("not gzip"), path.join(scratch, "o2"), { maxBytes: 1_000_000 })).toThrow("풀지 못했습니다");
+    const broken = tar([{ name: `${TOP}a.ts`, data: "a" }]);
+    broken[0] ^= 0xff;
+    expect(() => extractTar(broken, path.join(scratch, "o3"))).toThrow("깨져");
+  });
+});
+
+describe("저장소 받기 (fetchRepository)", () => {
+  const archive = gzipSync(tar([{ name: `${TOP}src/a.ts`, data: "a" }]));
+  const respond = (status: number, body: Buffer | null, headers: Record<string, string> = {}) =>
+    (async () => new Response(body === null ? null : new Uint8Array(body), { status, headers })) as unknown as typeof fetch;
+
+  it("그 커밋의 tarball 을 받는다. 토큰이 있으면 머리에만 싣는다", async () => {
+    const seen: { url: string; auth: string | null }[] = [];
+    const fetcher = (async (url: string, init: RequestInit) => {
+      seen.push({ url, auth: new Headers(init.headers).get("authorization") });
+      return new Response(new Uint8Array(archive), { status: 200 });
+    }) as unknown as typeof fetch;
+    const commit = "e8d8015c26e6e1c553cf79187eabc073558efe4c";
+    await fetchRepository({ apiBase: "http://gh.test", owner: "o", repo: "r", commit, token: "t0ken", dest: path.join(scratch, "src"), maxTarballBytes: 1e6, maxExtractBytes: 1e6, fetcher });
+    expect(seen).toEqual([{ url: `http://gh.test/repos/o/r/tarball/${commit}`, auth: "Bearer t0ken" }]);
+    expect(readFileSync(path.join(scratch, "src", "src", "a.ts"), "utf8")).toBe("a");
+  });
+
+  it("없음·큰 압축 파일·응답 오류는 저장소 받기 단계의 까닭이 된다", async () => {
+    const base = { apiBase: "http://gh.test", owner: "o", repo: "r", commit: "a".repeat(40), token: null, dest: path.join(scratch, "src"), maxTarballBytes: 100, maxExtractBytes: 1e6 };
+    const failure = async (fetcher: typeof fetch) => {
+      try {
+        await fetchRepository({ ...base, fetcher });
+      } catch (error) {
+        return error as StepError;
+      }
+      throw new Error("던지지 않았다");
+    };
+    expect(await failure(respond(404, null))).toMatchObject({ step: "fetch", reason: expect.stringContaining("없거나 비공개") });
+    expect(await failure(respond(200, Buffer.alloc(500)))).toMatchObject({ step: "fetch", reason: expect.stringContaining("상한") });
+    expect(await failure(respond(200, Buffer.alloc(10), { "content-length": "999999" }))).toMatchObject({ reason: expect.stringContaining("상한") });
+    expect(await failure(respond(502, Buffer.alloc(1)))).toMatchObject({ reason: expect.stringContaining("응답 502") });
+  });
+});
+
+describe("입력·파일 수·결과 크기", () => {
+  const good = {
+    ANALYSIS_ID: "abcdefghjk",
+    REPO_OWNER: "example-org",
+    REPO_NAME: "kids.signup",
+    REPO_COMMIT: "a".repeat(40),
+    CALLBACK_URL: "https://site.example/api/runner/abcdefghjk/",
+    SITE_ORIGIN: "https://site.example",
+  };
+
+  it("워크플로 입력의 모양을 본다. 콜백 주소는 https 이고 그 분석의 주소여야 한다", () => {
+    expect(readInputs(good).problems).toEqual([]);
+    for (const [key, value] of [
+      ["ANALYSIS_ID", "ABC"],
+      ["REPO_OWNER", "a;rm -rf /"],
+      ["REPO_NAME", ".."],
+      ["REPO_COMMIT", "main"],
+      ["CALLBACK_URL", "http://site.example/api/runner/abcdefghjk/"],
+      ["CALLBACK_URL", "https://site.example/api/runner/zzzzzzzzzz/"],
+      ["CALLBACK_URL", "https://user:pw@site.example/api/runner/abcdefghjk/"],
+      ["CALLBACK_URL", "https://site.example/api/runner/abcdefghjk/?x=1"],
+      // 콜백 주소의 출처는 워크플로 파일이 정한 사이트(SITE_ORIGIN)와 같아야 한다(입력으로 다른 곳에 돌리지 못한다).
+      ["CALLBACK_URL", "https://evil.example/api/runner/abcdefghjk/"],
+      ["CALLBACK_URL", "https://site.example:8443/api/runner/abcdefghjk/"],
+      ["SITE_ORIGIN", ""],
+      ["SITE_ORIGIN", "not a url"],
+    ]) {
+      expect(readInputs({ ...good, [key]: value }).problems.length, `${key}=${value}`).toBeGreaterThan(0);
+    }
+    expect(
+      readInputs({ ...good, CALLBACK_URL: "http://127.0.0.1:3000/api/runner/abcdefghjk/", SITE_ORIGIN: "http://127.0.0.1:3000" }, { allowHttp: true }).problems,
+    ).toEqual([]);
+    expect(readInputs({ ...good, SITE_ORIGIN: "https://site.example/" }).problems).toEqual([]);
+  });
+
+  it("JS/TS 파일 수는 CLI 가 보지 않는 폴더(node_modules 등)와 심볼릭 링크를 빼고 센다. 상한을 넘으면 저장소 받기에서 멈춘다", () => {
+    const dir = path.join(scratch, "repo");
+    for (const file of ["src/a.ts", "src/b.tsx", "src/c.mjs", "README.md", "node_modules/x/index.js", "dist/out.js", "src/d.cjs"]) {
+      mkdirSync(path.dirname(path.join(dir, file)), { recursive: true });
+      writeFileSync(path.join(dir, file), "");
+    }
+    symlinkSync(path.join(dir, "src"), path.join(dir, "loop"));
+    expect(countJsTs(dir)).toBe(4);
+    expect(checkFileCount(dir, 4)).toBe(4);
+    expect(() => checkFileCount(dir, 3)).toThrow("상한(3개)");
+    // 로컬 폴더를 옮길 때도 링크는 옮기지 않는다.
+    copyRepository(dir, path.join(scratch, "copy"));
+    expect(existsSync(path.join(scratch, "copy", "loop"))).toBe(false);
+    expect(existsSync(path.join(scratch, "copy", "src", "a.ts"))).toBe(true);
+  });
+
+  it("결과 크기 상한을 넘으면 정리 단계에서 멈춘다", () => {
+    expect(() => checkResultSize("x".repeat(2048), 2)).not.toThrow();
+    expect(() => checkResultSize("x".repeat(2049), 2)).toThrow(StepError);
+  });
+});
+
+describe("도구 설치와 검사", () => {
+  it("검사 명령: policypack scan . --judge <판정자> --output-format json 을 저장소 폴더에서, 넘긴 환경만으로 돌린다", () => {
+    const calls: { bin: string; args: string[]; cwd: string; env: Record<string, string> }[] = [];
+    const fake = ((bin: string, args: string[], options: { cwd: string; env: Record<string, string> }) => {
+      calls.push({ bin, args, cwd: options.cwd, env: options.env });
+      return { status: 1, stdout: '{"ok":1}', stderr: "" };
+    }) as never;
+    const env = childEnv({ PATH: "/bin", HOME: "/h", RUNNER_SECRET: "s", GITHUB_TOKEN: "g" }, { ANTHROPIC_API_KEY: "k" });
+    expect(runScan({ dir: "/w/src", judge: "anthropic:haiku", env, timeoutMs: 1000, run: fake })).toBe('{"ok":1}');
+    expect(calls).toEqual([
+      { bin: "policypack", args: ["scan", ".", "--judge", "anthropic:haiku", "--output-format", "json"], cwd: "/w/src", env: { PATH: "/bin", HOME: "/h", ANTHROPIC_API_KEY: "k" } },
+    ]);
+  });
+
+  it("종료 코드 0·1 은 결과, 2 는 검사 단계의 실패, 빈 출력·시간 초과도 실패다", () => {
+    const with_ = (result: object) => () => runScan({ dir: ".", judge: "none", env: {}, timeoutMs: 60_000, run: (() => result) as never });
+    expect(with_({ status: 0, stdout: "{}" })()).toBe("{}");
+    expect(with_({ status: 2, stdout: "" })).toThrow("종료 코드 2");
+    expect(with_({ status: 0, stdout: "  " })).toThrow("결과를 내지 않았습니다");
+    expect(with_({ status: null, error: Object.assign(new Error("t"), { code: "ETIMEDOUT" }) })).toThrow("1분 안에 끝나지 않아");
+  });
+
+  it("도구 설치: uv 판·CLI 저장소·커밋이 고정 모양이 아니면 설치하지 않는다. CLI 저장소 토큰은 git 설정 환경으로만 넘긴다", () => {
+    const calls: { bin: string; args: string[]; env: Record<string, string> }[] = [];
+    const fake = ((bin: string, args: string[], options: { env: Record<string, string> }) => {
+      calls.push({ bin, args, env: options.env });
+      return { status: 0 };
+    }) as never;
+    const env = { PATH: "/bin", UV_VERSION: "0.13.0", CLI_REPO: "minhowow/Plitsoft-SDP", CLI_COMMIT: "7300205b7e0db18e171aa2d730120416f2136d3c", CLI_EXCLUDE_NEWER: "2026-10-08T00:00:00Z", CLI_REPO_TOKEN: "tok" };
+    installCli(env, { run: fake });
+    expect(calls.map((c) => [c.bin, ...c.args])).toEqual([
+      ["pipx", "install", "uv==0.13.0"],
+      ["uv", "tool", "install", "--quiet", "--python", "3.12", "--exclude-newer", "2026-10-08T00:00:00Z", "policypack[api] @ git+https://github.com/minhowow/Plitsoft-SDP@7300205b7e0db18e171aa2d730120416f2136d3c"],
+    ]);
+    expect(JSON.stringify(calls.map((c) => c.args))).not.toContain("tok");
+    expect(calls[0].env.GIT_CONFIG_COUNT).toBeUndefined();
+    expect(calls[1].env.GIT_CONFIG_KEY_0).toContain("tok");
+    for (const bad of [{ UV_VERSION: "latest" }, { CLI_COMMIT: "main" }, { CLI_REPO: "a b" }, { CLI_EXCLUDE_NEWER: "" }, { CLI_EXCLUDE_NEWER: "2026-10-08" }]) {
+      expect(() => installCli({ ...env, ...bad }, { run: fake }), JSON.stringify(bad)).toThrow("도구를 설치하지 못했습니다");
+    }
+  });
+});
+
+describe("서명: 실행기와 서버가 같은 글을 서명한다", () => {
+  it("runner/run.mjs 의 sign 과 src/server/signature.ts 의 sign 이 같다", () => {
+    for (const [scope, body] of [["abcdefghjk", '{"event":"step","step":"fetch"}'], ["claim", "{}"], ["abcdefghjk", "한글 본문"]]) {
+      expect(runnerSign("s3cret", "1762138800", scope, body)).toBe(serverSign("s3cret", "1762138800", scope, body));
+    }
+  });
+});
+
+describe("워크플로 (.github/workflows/analyze.yml)", () => {
+  const workflow = readFileSync(path.join(root, ".github", "workflows", "analyze.yml"), "utf8");
+
+  it("workflow_dispatch 의 입력은 사이트가 보내는 다섯이고(src/server/runner.ts), 셸 글에 끼워 넣지 않는다", () => {
+    expect(workflow).toMatch(/workflow_dispatch:/);
+    for (const input of ["analysis_id", "owner", "repo", "commit", "callback_url"]) expect(workflow).toContain(`      ${input}:\n`);
+    // run: 줄에는 ${{ }} 가 없다(입력은 env 로만 넘긴다).
+    for (const line of workflow.split("\n").filter((l) => /^\s*run:/.test(l))) expect(line, line).not.toContain("${{");
+  });
+
+  it("job 의 env 에는 그 자리에서 쓸 수 있는 문맥(inputs·vars·secrets·github 등)만 쓴다. runner 문맥은 쓰면 워크플로가 거절된다", () => {
+    const jobEnv = workflow.split(/\n    env:\n/)[1].split(/\n    steps:\n/)[0];
+    expect(jobEnv).not.toMatch(/\$\{\{\s*(runner|job|steps|env)\./);
+  });
+
+  it("실행 시간 상한 20분, 도구는 이 파일에서 고정(CLI 저장소·커밋, uv 판), 비밀값은 그것이 필요한 단계에만", () => {
+    expect(workflow).toMatch(/timeout-minutes: 20\n/);
+    expect(workflow).toMatch(/CLI_REPO: minhowow\/Plitsoft-SDP\n/);
+    expect(workflow).toMatch(/CLI_COMMIT: [0-9a-f]{40}\n/);
+    expect(workflow).toMatch(/UV_VERSION: \d+\.\d+\.\d+\n/);
+    // 딸린 꾸러미의 판을 고정한 날짜까지로 묶는다. 그 날짜는 오늘보다 2주 넘게 앞이다(새로 나온 판이 곧바로 돌지 않게).
+    const excludeNewer = /CLI_EXCLUDE_NEWER: "(\d{4}-\d{2}-\d{2})T00:00:00Z"\n/.exec(workflow);
+    expect(excludeNewer).not.toBeNull();
+    expect(Date.now() - Date.parse(`${excludeNewer![1]}T00:00:00Z`)).toBeGreaterThan(14 * 24 * 60 * 60 * 1000);
+    // 콜백 받을 사이트는 워크플로 입력이 아니라 Actions 변수에서 온다.
+    expect(workflow).toMatch(/SITE_ORIGIN: \$\{\{ vars\.SITE_URL \}\}\n/);
+    expect(workflow).toMatch(/permissions:\n {2}contents: read\n/);
+    // 단계별로 나눈다: 어느 단계가 어느 비밀값을 받는지.
+    const steps = workflow.split(/\n {6}- name: /).slice(1);
+    const secretsOf = (step: string) => [...step.matchAll(/secrets\.([A-Z_]+)/g)].map((m) => m[1]);
+    const byName = Object.fromEntries(steps.map((step) => [step.split("\n")[0], secretsOf(step)]));
+    expect(byName).toEqual({
+      "실행기 코드 받기": [],
+      "입력 확인": [],
+      '"알림: 저장소 받기·도구 설치 시작"': ["RUNNER_SECRET"],
+      "저장소 받기": [],
+      "도구 설치": ["CLI_REPO_TOKEN"],
+      '"알림: 검사 시작"': ["RUNNER_SECRET"],
+      "검사(정적 검사와 AI 판정)": ["ANTHROPIC_API_KEY"],
+      "정리(결과 보내기)": ["RUNNER_SECRET"],
+      '"알림: 멈춤"': ["RUNNER_SECRET"],
+    });
+    // 쓰는 action 은 커밋으로 고정한다.
+    for (const match of workflow.matchAll(/uses: (\S+)/g)) expect(match[1]).toMatch(/@[0-9a-f]{40}$/);
+    // 대상 코드를 설치·빌드·실행하지 않는다.
+    expect(workflow).not.toMatch(/npm (install|ci|run)|yarn|pnpm|npx/);
+  });
+});
+
+// ---- 로컬 실행기: 요청 → 집어 감 → 단계 콜백 → 결과 (--fixture) ----
+
+describe("로컬 실행기 (scripts/local-runner.mjs --fixture)", () => {
+  const SECRET = "local-test-secret";
+  let db: Database;
+  let server: Server;
+  let site: string;
+  let deps: ApiDeps;
+
+  beforeAll(async () => {
+    db = await openDatabase({ databaseUrl: null, pgliteDir: "memory://" });
+    const stub = createGitHubStub({ origin: "http://stub.test" });
+    const config = readConfig({ RUNNER: "local", RUNNER_SECRET: SECRET, CONCURRENT_LIMIT: "5" });
+    const store = createDbStore({
+      db: async () => db,
+      github: createGitHub({ apiBase: "http://stub.test", token: null, searchCacheSeconds: 60, repoCacheSeconds: 300, fetch: stub.fetch as typeof fetch }),
+      config,
+    });
+    deps = { store: () => store, db: async () => db, config: () => config, now: () => new Date() };
+    // route handler 대신 같은 함수를 부르는 작은 서버.
+    server = createServer(async (req, res) => {
+      const chunks: Buffer[] = [];
+      for await (const chunk of req) chunks.push(chunk as Buffer);
+      const request = new Request(`http://127.0.0.1${req.url}`, { method: req.method, headers: req.headers as Record<string, string>, body: Buffer.concat(chunks) });
+      const match = /^\/api\/runner\/([^/]+)\/$/.exec(req.url ?? "");
+      const response = req.url === "/api/runner/claim/" ? await postRunnerClaim(request, deps) : match ? await postRunnerEvent(request, match[1], deps) : new Response(null, { status: 404 });
+      res.writeHead(response.status, { "content-type": "application/json" });
+      res.end(Buffer.from(await response.arrayBuffer()));
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    site = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
+  });
+
+  afterAll(async () => {
+    await new Promise((resolve) => server?.close(resolve));
+    await db?.close();
+  });
+
+  const request = async (owner: string, repo: string) => {
+    const response = await postAnalysis(new Request(`${site}/api/analyses/`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ owner, repo }) }), deps);
+    return ((await response.json()) as { analysis: { id: string } }).analysis.id;
+  };
+
+  it("대기 중인 분석을 모두 집어 끝까지 돌린다. 결과는 그 저장소의 합성 데모 코드 수집본 그대로다", async () => {
+    const kids = await request("example-org", "kids-signup");
+    const chat = await request("Example-Studio", "GenAI-Chat");
+    await localRunner(["--fixture", "--once", "--site", site], { RUNNER_SECRET: SECRET });
+    for (const [id, fixture] of [[kids, "kids-signup"], [chat, "genai-chat"]]) {
+      const analysis = await deps.store().findAnalysis(id);
+      expect(analysis?.status, id).toBe("succeeded");
+      expect(analysis?.steps.every((step) => step.startedAt && step.endedAt)).toBe(true);
+      expect(await deps.store().getResult(id)).toEqual(JSON.parse(readFileSync(path.join(root, "contract", "cli-current", `${fixture}.main.json`), "utf8")));
+    }
+    expect(sourceFor("example-labs", "plain.utils", { source: "/x" }).dir).toBe(path.join(root, "contract", "fixtures", "plain", "main"));
+    expect(sourceFor("someone", "else", { source: "/x" }).dir).toBe("/x");
+  });
+
+  it("검사할 폴더에 문제가 있으면 그 단계와 까닭을 실패로 알린다", async () => {
+    const id = await request("example-org", "night-push");
+    // 가짜 GitHub 에 있는 저장소라 합성 데모 코드를 쓴다. 상한을 넘게 하려고 다른 저장소의 폴더를 비워 둔 것처럼 시험하는 대신,
+    // 없는 폴더를 가리키는 저장소를 흉내 낸다.
+    await db.query("UPDATE analyses SET owner = 'someone', repo = 'else', repo_key = 'someone/else' WHERE id = $1", [id]);
+    await localRunner(["--fixture", "--once", "--site", site, "--source", path.join(scratch, "missing")], { RUNNER_SECRET: SECRET });
+    const analysis = await deps.store().findAnalysis(id);
+    expect(analysis?.status).toBe("failed");
+    expect(analysis?.failure?.step).toBe("fetch");
+  });
+
+  it("서명 열쇠가 다르면 집어 가지 못한다", async () => {
+    await expect(localRunner(["--fixture", "--once", "--site", site], { RUNNER_SECRET: "other" })).rejects.toThrow("응답 401");
+    await expect(localRunner(["--fixture", "--once", "--site", site], {})).rejects.toThrow("RUNNER_SECRET");
+  });
+});

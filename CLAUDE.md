@@ -49,7 +49,12 @@ CLI 는 옆 폴더 `../Plitsoft-SDP` 에 따로 있고, 다른 사람(에이전�
 ## 명령
 
 ```bash
-npm run dev         # 개발 서버
+npm run dev         # 개발 서버. 환경 변수 없이 띄우면 실제 GitHub API 를 부르므로 개발 중에는 아래 둘 가운데 하나로 띄운다
+SERVICE_STORE=synthetic npm run dev                 # 합성 예시 미리보기(DB·GitHub 없음)
+npm run github-stub                                 # 가짜 GitHub API(127.0.0.1:4010). 그 뒤
+GITHUB_API_BASE=http://127.0.0.1:4010 npm run dev   # PGlite(.data/) + 가짜 GitHub
+#   요청부터 결과까지 이 컴퓨터에서: 위 dev 에 RUNNER=local RUNNER_SECRET=<아무 글> 을 더하고, 다른 창에서
+RUNNER_SECRET=<같은 글> npm run local-runner -- --fixture   # 로컬 실행기(합성 데모 코드의 수집본을 결과로. 판정자 없음)
 npm run check       # lint + typecheck + test + build + 브라우저 시험. 일을 마쳤다고 하기 전에 반드시 통과시킨다
 npm run test        # vitest (계약·화면 구조·약속)
 npm run capture     # 합성 데모 코드를 설치된 CLI 로 다시 검사 → contract/cli-current/
@@ -70,16 +75,20 @@ npm run pack-meta   # 팩에서 data/pack-meta.json 다시 만들기
 
 | 경로 | 내용 |
 |---|---|
-| `src/app/` | 페이지: `/`(온보딩·검색), `/search`, `/r/[owner]/[repo]`(저장소), `/r/[owner]/[repo]/a/[id]`(분석), `/view`(결과 파일), `/demo`(고치기 전·후), `/policy`(조문 도감) |
-| `src/lib/service/` | 분석 서비스의 데이터 모델과 `ServiceStore`. B1 은 합성 구현(`synthetic.ts`), B2 에서 `index.ts` 한 줄로 바꿔 끼운다 |
-| `src/components/service/` | 검색창, 저장소·분석 쪽 부품, 분석 대시보드 |
+| `src/app/` | 페이지: `/`(온보딩·검색), `/search`, `/r/[owner]/[repo]`(저장소), `/r/[owner]/[repo]/a/[id]`(분석) — 이 넷은 요청 때 그린다, `/view`(결과 파일), `/demo`(고치기 전·후), `/policy`(조문 도감) — 빌드할 때 그린다 |
+| `src/lib/service/` | 분석 서비스의 데이터 모델과 `ServiceStore` 인터페이스, 합성 구현(`synthetic.ts`, SERVICE_STORE=synthetic 미리보기·시험용), 이름 검사 |
+| `src/server/` | 서버 코드(모두 `import "server-only"`): 설정(`config.ts`, 환경 변수와 기본값), DB(`db/`, pg·PGlite, `migrations/*.sql`), GitHub 클라이언트(`github.ts`), 실행기 깨우기(`runner.ts`), 저장소 구현(`store/`, `getStore()` 가 고른다), `/api/` 의 일(`api.ts`), 실행기 콜백의 상태 전이(`callbacks.ts`)와 서명(`signature.ts`) |
+| `src/app/api/` | route handler: `analyses/`(요청), `analyses/[id]/`(진행), `runner/[id]/`(실행기 콜백), `runner/claim/`(로컬 실행기). `src/server/api.ts` 를 부르기만 한다. 서버 코드는 `src/server/` 와 여기에만 둔다 |
+| `runner/`, `.github/workflows/analyze.yml` | 분석 실행기(GitHub Actions). `run.mjs`·`tar.mjs` 는 Node 내장 모듈만 쓴다. 대상 코드를 실행하지 않는다 |
+| `src/components/service/` | 검색창, 저장소·분석 쪽 부품, 분석 대시보드. 브라우저 부품은 요청 단추(`RequestButton.tsx`)와 진행 다시 읽기(`LiveAnalysis.tsx`) 둘이고 같은 사이트의 `/api/` 만 부른다 |
 | `src/components/result/` | 결과 화면 부품. 모든 페이지가 함께 쓴다 |
 | `src/lib/report/` | 결과 JSON 타입, 파서, 상태 문구, 화면용 구조 |
 | `src/lib/pack/` | 팩 메타데이터 타입과 읽기 |
 | `contract/` | CLI 와의 이음매: 스키마, 실제 출력 수집본, v1 초안 예시, 합성 데모 코드 |
 | `data/pack-meta.json` | 생성물. 정책·조문 원문·대안·질문 |
-| `scripts/` | 수집과 팩 메타데이터 생성 |
-| `tests/` | 계약 시험, 화면 구조 시험, 그려 본 화면 시험, 약속 시험. `tests/fixtures/` 는 손으로 만든 시험용 자료 |
+| `scripts/` | 수집, 팩 메타데이터 생성, 가짜 GitHub API(`github-stub.mjs`), 로컬 실행기(`local-runner.mjs`, `--fixture`) |
+| `.env.example` | 환경 변수 이름(값은 비운다). 배포할 때 오너가 할 일은 `docs/deploy.md` |
+| `tests/` | 계약 시험, 화면 구조 시험, 그려 본 화면 시험, 약속 시험, 서버 시험(`server-*.test.ts`, 메모리 PGlite + 가짜 GitHub), 실행기 시험(`runner.test.ts`). `tests/browser/` 는 빌드된 사이트를 `next start` 로 띄워 Chrome 으로 연다. `tests/fixtures/` 는 손으로 만든 시험용 자료 |
 | `docs/` | 로드맵, 약속, 구조, CLI 에 보낸 요청 |
 
 ## 일하는 방식

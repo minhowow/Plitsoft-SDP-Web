@@ -1,27 +1,35 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { AnalysisDashboard } from "@/components/service/AnalysisDashboard";
-import { AnalysisList, Failed, InProgress, RequestPanel, StepList } from "@/components/service/analysis";
+import { AnalysisList, Failed, InProgress, PROGRESS_NOTE, RequestPanel, StepList } from "@/components/service/analysis";
+import { LiveAnalysis, POLL_MS } from "@/components/service/LiveAnalysis";
 import { RepoRow } from "@/components/service/parts";
+import { SearchResults } from "@/components/service/SearchResults";
 import { packMeta } from "@/lib/pack";
 import { parseReport } from "@/lib/report/parse";
 import type { Report } from "@/lib/report/types";
 import { buildReportView, type ReportView } from "@/lib/report/view-model";
-import { store } from "@/lib/service";
 import { analysisHref, commitLink, fileLink, repoHref, repoKey, searchHref, shortCommit } from "@/lib/service/href";
 import { ID_ALPHABET, ID_LENGTH, isAnalysisId, newAnalysisId } from "@/lib/service/id";
 import { matchRepositories } from "@/lib/service/search";
 import { activeStep, duration, finishedAt, formatKst, STEP_ORDER, stepState } from "@/lib/service/steps";
-import { SYNTHETIC_RESULT_SOURCES, syntheticStore } from "@/lib/service/synthetic";
+import { SYNTHETIC_RESULT_SOURCES, syntheticRepositories, syntheticStore as store } from "@/lib/service/synthetic";
 import type { Analysis, Repository } from "@/lib/service/types";
 import { SITE } from "@/lib/site";
 import { readJson, textOf } from "./helpers";
 import { BANNED_WORDING } from "./wording";
 
-// 분석 서비스(방향 B, B1): 데이터 모델, 합성 저장소, 주소, 그리고 쪽의 부품. 브라우저에서만 드러나는 것(검색이 거르는 것,
-// 이동, 넘침, 대비, 요청)은 tests/browser/service.test.ts 가 본다.
+// 분석 서비스(방향 B): 데이터 모델, 합성 저장소(SERVICE_STORE=synthetic 의 미리보기), 주소, 그리고 쪽의 부품. 운영 구현
+// (DB + GitHub)은 tests/server-store.test.ts, 브라우저에서만 드러나는 것(이동, 넘침, 대비, 요청)은 tests/browser/service.test.ts 가 본다.
 
-const repos = await store.listRepositories();
+// 브라우저 부품(요청 단추, 진행 다시 읽기)은 Next 의 라우터를 쓴다. 부품 시험에는 라우터가 없어 빈 것으로 바꿔 끼운다
+// (누르고 다시 읽는 것은 브라우저 시험이 본다: tests/browser/service-db.test.ts).
+vi.mock("next/navigation", async (original) => ({
+  ...(await original<typeof import("next/navigation")>()),
+  useRouter: () => ({ push: () => {}, replace: () => {}, refresh: () => {}, prefetch: () => {}, back: () => {}, forward: () => {} }),
+}));
+
+const repos = syntheticRepositories();
 const analyses = (await Promise.all(repos.map(({ repository: r }) => store.listAnalyses(r.owner, r.name)))).flat();
 
 function viewOf(id: string): ReportView {
@@ -31,15 +39,15 @@ function viewOf(id: string): ReportView {
   return buildReportView(parsed.report, parsed.contract, packMeta);
 }
 
-describe("쪽이 읽는 저장소는 인터페이스 뒤에 있다", () => {
-  it("B1 의 저장소는 합성 구현이고, 합성이라고 밝힌다", () => {
-    expect(store).toBe(syntheticStore);
+describe("합성 저장소는 인터페이스 뒤에 있다", () => {
+  it("합성 구현은 합성이라고 밝힌다", () => {
     expect(store.synthetic).toBe(true);
   });
 
-  it("분석 요청은 서버 없이 받지 않는다고 정직하게 돌려준다", async () => {
+  it("분석 요청은 합성 미리보기라 받지 않는다고 정직하게 돌려준다", async () => {
     expect(await store.requestAnalysis("example-org", "kids-signup")).toMatchObject({ ok: false, reason: "no-server" });
     expect(await store.requestAnalysis("nobody", "nothing")).toMatchObject({ ok: false, reason: "not-found" });
+    expect(store.requestsClosed()).toBe(SITE.service.noServer);
   });
 
   it("저장소는 대소문자를 가리지 않고 찾는다", async () => {
@@ -77,7 +85,7 @@ describe("합성 데이터", () => {
       expect(analysis.steps.map((step) => step.name), analysis.id).toEqual(STEP_ORDER);
       expect(analysis.commit, analysis.id).toMatch(/^[0-9a-f]{40}$/);
       const states = analysis.steps.map((step) => stepState(analysis, step));
-      if (analysis.status === "succeeded") expect(states.every((s) => s === "done" || s === "skipped"), analysis.id).toBe(true);
+      if (analysis.status === "succeeded") expect(states.every((s) => s === "done"), analysis.id).toBe(true);
       if (analysis.status === "running" || analysis.status === "queued") {
         expect(states.filter((s) => s === "active"), analysis.id).toHaveLength(1);
         expect(activeStep(analysis), analysis.id).not.toBeNull();
@@ -89,15 +97,13 @@ describe("합성 데이터", () => {
     }
   });
 
-  it("끝난 분석의 결과는 contract/cli-current 의 수집본 그대로이고, 판·판정자 단계가 결과와 맞는다", async () => {
+  it("끝난 분석의 결과는 contract/cli-current 의 수집본 그대로이고, 판이 결과와 맞는다", async () => {
     const done = analyses.filter((a) => a.status === "succeeded");
     expect(done.length).toBeGreaterThanOrEqual(4);
     for (const analysis of done) {
       const result = (await store.getResult(analysis.id)) as Report;
       expect(result, analysis.id).toEqual(readJson("contract", "cli-current", `${SYNTHETIC_RESULT_SOURCES[analysis.id]}.json`));
       expect(analysis.versions, analysis.id).toEqual({ tool: result.tool.version, pack: result.run.pack_digest });
-      const judge = analysis.steps.find((step) => step.name === "judge")!;
-      expect(Boolean(judge.skipped), analysis.id).toBe(result.run.judge === null);
     }
     for (const analysis of analyses.filter((a) => a.status !== "succeeded")) {
       expect(await store.getResult(analysis.id), analysis.id).toBeNull();
@@ -160,7 +166,9 @@ describe("검색", () => {
   });
 
   it("합성 저장소의 검색은 같은 거르기다", async () => {
-    expect(await store.search("genai")).toEqual(matchRepositories(repos, "genai"));
+    const hits = matchRepositories(repos, "genai");
+    expect(await store.search("genai")).toEqual({ ok: true, hits, total: hits.length });
+    expect(await store.search("")).toEqual({ ok: true, hits: [], total: 0 });
   });
 });
 
@@ -183,34 +191,82 @@ function expectNoBannedWording(html: string): void {
 }
 
 describe("부품", () => {
-  it("진행 중: 진행 중인 단계가 하나이고 aria-current 로 알린다. 고정된 순간이라는 것을 밝힌다", () => {
-    const html = renderToStaticMarkup(<InProgress analysis={find("running")} />);
+  it("진행 중: 진행 중인 단계가 하나이고 aria-current 로 알린다. 합성이면 고정된 순간이라는 것을 밝힌다", () => {
+    const html = renderToStaticMarkup(<InProgress analysis={find("running")} note={PROGRESS_NOTE.synthetic} />);
     expect(html.match(/aria-current="step"/g)).toHaveLength(1);
-    expect(textOf(html)).toContain("‘AI 판정’ 단계");
+    expect(textOf(html)).toContain("‘검사(정적 검사와 AI 판정)’ 단계");
     expect(textOf(html)).toContain("고정해 보인 것");
     expectNoBannedWording(html);
+    // 실제 분석에는 고정된 순간이라고 적지 않는다.
+    expect(textOf(renderToStaticMarkup(<InProgress analysis={find("running")} />))).not.toContain("고정해 보인 것");
+  });
+
+  it("진행 중인 실제 분석(LiveAnalysis): 머리와 단계를 그리고, 다시 읽는다고 적고, 지금 단계의 줄을 화면 낭독기가 읽는다", () => {
+    const running = find("running");
+    const html = renderToStaticMarkup(<LiveAnalysis repository={repoOf(running)} analysis={running} />);
+    expect(html).toContain(`분석 <code>${running.id}</code>`);
+    expect(html.match(/aria-current="step"/g)).toHaveLength(1);
+    expect(html).toMatch(/<p class="notice" role="status">지금 ‘검사\(정적 검사와 AI 판정\)’/);
+    expect(textOf(html)).toContain(PROGRESS_NOTE.live);
+    expect(textOf(html)).not.toContain("고정해 보인 것");
+    expect(POLL_MS).toBe(3_000);
+    expectNoBannedWording(html);
+  });
+
+  it("진행 중 부품이 끝난·멈춘 분석을 잠깐 그릴 때(다시 읽은 직후) '다음 단계를 기다린다'고 적지 않는다", () => {
+    expect(textOf(renderToStaticMarkup(<InProgress analysis={find("succeeded")} />))).toContain("분석이 끝났습니다.");
+    const failed = textOf(renderToStaticMarkup(<InProgress analysis={find("failed")} />));
+    expect(failed).toContain("분석이 멈췄습니다.");
+    expect(failed).not.toContain("기다리고");
+  });
+
+  it("실패: 다음 단계에서 멈췄다는 알림을 받아 앞 단계의 끝난 시각을 모르면, 앞 단계는 '끝남'(시각 없음)이고 멈춘 단계만 '멈춤'이다", () => {
+    const at = "2026-11-03T08:00:00.000Z";
+    const analysis: Analysis = {
+      ...find("failed"),
+      steps: STEP_ORDER.map((name) => ({ name, startedAt: name === "queued" || name === "fetch" ? at : null, endedAt: name === "fetch" ? at : null })),
+      failure: { step: "fetch", reason: "시험" },
+    };
+    expect(analysis.steps.map((step) => stepState(analysis, step))).toEqual(["done", "failed", "notrun", "notrun"]);
+    const html = renderToStaticMarkup(<StepList analysis={analysis} />);
+    expect(html.match(/step-failed/g)).toHaveLength(1);
   });
 
   it("실패: 멈춘 단계와 까닭을 보이고, 검토할 곳이 없다는 뜻이 아니라고 적는다", () => {
     const failed = find("failed");
     const html = renderToStaticMarkup(<Failed analysis={failed} />);
-    expect(textOf(html)).toContain("‘저장소 받기’ 단계에서 멈췄습니다.");
+    expect(textOf(html)).toContain("‘저장소 받기·도구 설치’ 단계에서 멈췄습니다.");
     expect(textOf(html)).toContain(failed.failure!.reason);
     expect(textOf(html)).toContain("검토할 곳이 없다는 뜻이 아닙니다");
   });
 
-  it("건너뛴 AI 판정 단계는 그 까닭을 적는다", () => {
+  it("단계는 넷이다. 정적 검사와 AI 판정은 CLI 명령 하나라 한 단계로 적는다(CLI 가 둘의 경계를 알려 주지 않는다)", () => {
     const html = renderToStaticMarkup(<StepList analysis={find("succeeded")} />);
-    expect(textOf(html)).toContain("판정자 없이 만든 결과라 이 단계가 없었습니다.");
+    expect([...html.matchAll(/<span class="step-name">([^<]*)<\/span>/g)].map((m) => m[1])).toEqual([
+      "대기",
+      "저장소 받기·도구 설치",
+      "검사(정적 검사와 AI 판정)",
+      "정리",
+    ]);
+    expect(textOf(html)).not.toContain("건너뜀");
   });
 
   it("분석 요청 단추는 누를 수 없고, 바로 옆에 까닭이 있다", () => {
     const repository = repos[0].repository;
-    const html = renderToStaticMarkup(<RequestPanel repository={repository} latest={null} />);
+    const html = renderToStaticMarkup(<RequestPanel repository={repository} latest={null} closed={SITE.service.noServer} />);
     // disabled 가 아니라 aria-disabled: 키보드로 닿아 까닭을 들을 수 있다.
     expect(html).toMatch(/<button type="button" aria-disabled="true" aria-describedby="request-off">분석 요청<\/button>/);
     expect(html).not.toMatch(/<button[^>]* disabled=""/);
     expect(textOf(html)).toContain(SITE.service.noServer);
+  });
+
+  it("요청을 받는 서버에서는 단추가 듣는다(같은 사이트의 /api/ 를 부르는 브라우저 부품). 까닭 자리는 비어 있다가 바뀌면 읽힌다", () => {
+    const repository = repos[0].repository;
+    const html = renderToStaticMarkup(<RequestPanel repository={repository} latest={find("succeeded")} closed={null} />);
+    expect(html).toMatch(/<button type="button" aria-describedby="request-note">다시 분석 요청<\/button>/);
+    expect(html).not.toContain("aria-disabled");
+    expect(html).toContain('<p id="request-note" class="hint" role="status"></p>');
+    expect(textOf(html)).toContain("같은 커밋을 최근에 분석했으면 그 분석으로 갑니다.");
   });
 
   it("분석 목록: 분석마다 그 쪽으로 가는 링크, 상태, 짧은 커밋. 끝난 분석에는 발견 수", () => {
@@ -220,7 +276,7 @@ describe("부품", () => {
     const html = renderToStaticMarkup(<AnalysisList repository={repository} analyses={list} findings={{ "64y4jdtazh": 2 }} />);
     for (const analysis of list) expect(html).toContain(linked(analysisHref(repository.owner, repository.name, analysis.id)));
     expect(textOf(html)).toContain("발견 2건");
-    expect(textOf(html)).toContain("AI 판정 중");
+    expect(textOf(html)).toContain("검사(정적 검사와 AI 판정) 중");
     // 합성 저장소의 커밋은 링크가 아니다.
     expect(html).not.toContain("/commit/");
   });
@@ -255,7 +311,7 @@ describe("부품", () => {
     const running = find("running");
     const between: Analysis = {
       ...running,
-      steps: running.steps.map((step) => (step.name === "judge" ? { ...step, startedAt: null, endedAt: null } : step)),
+      steps: running.steps.map((step) => (step.name === "scan" ? { ...step, startedAt: null, endedAt: null } : step)),
     };
     expect(activeStep(between)).toBeNull();
     const text = textOf(renderToStaticMarkup(<AnalysisList repository={repoOf(running)} analyses={[between]} findings={{}} />));
@@ -362,3 +418,14 @@ describe("대시보드", () => {
 /** 합성 저장소의 Repository 가 모양을 지킨다(타입이 바뀌면 여기서 드러난다). */
 const _shape: Repository = repos[0].repository;
 void _shape;
+
+describe("검색 쪽이 되뇌는 검색어 (검토 1)", () => {
+  it("글은 ‘검색어’에 맞는 저장소 N개 그대로이고, 검색어는 줄을 바꿀 수 있는 조각, 마지막 글자와 ’에 만 묶는다", () => {
+    const query = "a".repeat(60);
+    const html = renderToStaticMarkup(<SearchResults query={query} outcome={{ ok: true, hits: [], total: 0 }} synthetic={false} />);
+    const count = html.match(/<p class="search-count"[^>]*>(.*?)<\/p>/)![1];
+    expect(count).toBe(`‘<span class="search-q">${"a".repeat(59)}</span><span class="nobreak">a’에</span> 맞는 저장소 0개`);
+    // 검색어 전체가 줄을 바꾸지 않는 조각 안에 들어가지 않는다.
+    expect(html).not.toContain(`<span class="nobreak">‘${query}`);
+  });
+});

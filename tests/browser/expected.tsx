@@ -52,9 +52,14 @@ export function legalBlockMarkup(policy: PolicyMeta, pack: PackMeta["pack"], leg
   return first;
 }
 
-/** 빌드된 쪽(out/ 의 HTML)의 본문(main) 글 전체. 빈칸은 뺀다. 브라우저가 쪽을 그린 뒤의 글과 견준다. */
-export function builtMainText(pathname: string): string {
-  const html = readFileSync(path.join(root, "out", pathname, "index.html"), "utf8");
+/**
+ * `next start` 가 그 주소로 내주는 쪽(빌드된 HTML)의 본문(main) 글 전체. 빈칸은 뺀다. 브라우저가 쪽을 그린 뒤의 글과 견준다.
+ * 디스크의 낡은 빌드 산출물(예전의 out/)을 읽지 않고, 시험이 띄운 서버에 묻는다.
+ */
+export async function builtMainText(origin: string, pathname: string): Promise<string> {
+  const response = await fetch(`${origin}/${pathname}/`, { redirect: "error" });
+  if (response.status !== 200) throw new Error(`${pathname}: 서버가 ${response.status} 로 답했습니다.`);
+  const html = await response.text();
   const mains = elementsOf(html, "<main");
   if (mains.length !== 1) throw new Error(`${pathname}: 본문(main)이 하나가 아닙니다(${mains.length}개)`);
   return squash(plain(mains[0]));

@@ -32,7 +32,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <footer className="site-footer">
           <div className="wrap">
             <p>{SITE.disclaimer}</p>
-            <p>이 사이트는 정적 페이지입니다. 열어 본 결과 파일과 코드는 서버로 보내지 않습니다.</p>
+            <p>{SITE.footer}</p>
           </div>
         </footer>
       </body>

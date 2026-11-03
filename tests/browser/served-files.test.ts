@@ -1,17 +1,21 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
-import { beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { policyHref, policySlug } from "@/lib/pack";
+import { analysisHref, repoHref } from "@/lib/service/href";
+import { syntheticRepositories, syntheticStore } from "@/lib/service/synthetic";
 import { SITE } from "@/lib/site";
-import { elementAt, elementsOf, readPackFile } from "../helpers";
+import { elementAt, elementsOf, readPackFile, root } from "../helpers";
 import { DIGEST_NOTE, expectedPolicyPage, plain, POLICY_FRAME, readAround, readPolicyPage } from "../policy-page";
-import { assertFreshBuild, outDir } from "./site";
+import { nextDir, serveSite, type Site } from "./site";
 
-// 빌드된 out/ 의 파일을 본다. 브라우저는 쓰지 않지만 빌드 뒤에 돌아야 해서 이 단계(`npm run test:browser`)에 둔다.
+// 빌드된 사이트가 브라우저에 내주는 것을 본다. 브라우저는 쓰지 않지만 빌드 뒤에 돌아야 해서 이 단계(`npm run test:browser`)에 둔다.
+// B1 까지는 out/ 의 정적 파일을 읽었다. B2 에서 서버가 생겨(`next start`) 분석 서비스의 쪽은 요청 때 그린다. 그래서 쪽의 HTML 은
+// 띄운 서버(합성 저장소)에서 받고, JS 묶음·CSS 는 빌드가 내놓은 .next/static 에서, 미리 그려 둔 쪽(조문 도감 등)이 쪽을 옮겨 올 때
+// 쓰는 내용(.rsc)은 .next/server/app 에서 읽는다. 요청 때 그리는 쪽의 그 내용은 HTML 안에 함께 실려 있다.
 //
-// out/ 의 어느 파일에도 팩 작성자 메모의 글이 없어야 한다(docs/commitments.md 의 1, ROADMAP 8번에 넘어와 있던 확인).
-// tests/bundle.test.ts 는 소스의 불러오기만 따라가 본다. 여기서는 배포되는 파일 자체를 본다. 쪽의 HTML, 서버 부품의
-// 내용(.txt), JS 묶음, CSS 가 모두 들어 있다.
+// 어느 것에도 팩 작성자 메모의 글이 없어야 한다(docs/commitments.md 의 1, ROADMAP 8번에 넘어와 있던 확인).
+// tests/bundle.test.ts 는 소스의 불러오기만 따라가 본다. 여기서는 브라우저가 받는 것 자체를 본다.
 //
 // 조문 도감의 정책 쪽도 여기서 본다(ROADMAP 6번의 완료 조건). 쪽이 async 라 부품 시험으로는 그릴 수 없어서, 빌드된
 // HTML 을 읽어 팩 메타데이터와 견준다. 쪽이 그리는 부품은 tests/policy.test.tsx 가 같은 방법으로 읽는다. 쪽(page.tsx)이
@@ -24,13 +28,66 @@ import { assertFreshBuild, outDir } from "./site";
  */
 const packFile = readPackFile();
 
-/** out/ 아래 모든 파일(절대 경로). */
-function outFiles(dir = outDir): string[] {
+/** 받아 볼 쪽: 첫 화면, 결과 보기, 데모, 조문 도감(목록과 정책마다), 검색, 합성 저장소마다, 합성 분석마다. */
+const hits = syntheticRepositories();
+const PAGES = [
+  "/",
+  "/view/",
+  "/demo/",
+  "/policy/",
+  ...packFile.policies.map((policy) => policyHref(policy.id)),
+  "/search/",
+  "/search/?q=example",
+  ...hits.map(({ repository: r }) => repoHref(r.owner, r.name)),
+  ...(await Promise.all(hits.map(({ repository: r }) => syntheticStore.listAnalyses(r.owner, r.name))))
+    .flat()
+    .map((a) => analysisHref(a.owner, a.name, a.id)),
+];
+
+/** 쪽 주소를 out/ 때의 파일 이름처럼 적는다: "/" → "index.html", "/view/" → "view/index.html", 질의는 이름에 붙인다. */
+const pageFile = (pathname: string, ext: "html" | "txt") => {
+  const [route, query] = pathname.split("?");
+  const dir = route.replace(/^\//, "");
+  return path.join(dir, query ? `?${query}` : "", `index.${ext}`);
+};
+
+/** .next 아래의 모든 파일(저장소 기준 경로). */
+function filesUnder(dir: string): string[] {
+  if (!existsSync(dir)) return [];
   return readdirSync(dir).flatMap((name) => {
     const full = path.join(dir, name);
-    return statSync(full).isDirectory() ? outFiles(full) : [full];
+    return statSync(full).isDirectory() ? filesUnder(full) : [full];
   });
 }
+
+let site: Site | undefined;
+/** 브라우저가 받는 것: 쪽의 HTML, 미리 그린 쪽의 내용(.txt 로 적는다), JS 묶음, CSS. */
+const contents: { file: string; text: string }[] = [];
+let favicon: Buffer = Buffer.alloc(0);
+
+beforeAll(async () => {
+  site = await serveSite();
+  for (const pathname of PAGES) {
+    const response = await fetch(`${site.origin}${pathname}`);
+    if (response.status !== 200) throw new Error(`${pathname}: ${response.status}`);
+    contents.push({ file: pageFile(pathname, "html"), text: await response.text() });
+  }
+  // 미리 그린 쪽이 쪽을 옮겨 올 때 쓰는 내용. 서버가 이 파일을 그대로 내준다.
+  const app = path.join(nextDir, "server", "app");
+  for (const file of filesUnder(app).filter((f) => f.endsWith(".rsc"))) {
+    const route = path.relative(app, file).replace(/\.rsc$/, "");
+    if (route.startsWith("_")) continue;
+    contents.push({ file: path.join(route === "index" ? "" : route, "index.txt"), text: readFileSync(file, "utf8") });
+  }
+  for (const file of filesUnder(path.join(nextDir, "static")).filter((f) => /\.(js|css)$/.test(f))) {
+    contents.push({ file: path.join("_next", path.relative(nextDir, file)), text: readFileSync(file, "utf8") });
+  }
+  favicon = Buffer.from(await (await fetch(`${site.origin}/favicon.ico`)).arrayBuffer());
+}, 60_000);
+
+afterAll(async () => {
+  await site?.close();
+});
 
 /**
  * 글에서 찾을 조각을 뽑는다. 따옴표·꺾쇠·역빗금·줄바꿈은 HTML 과 JS 에서 다른 글자로 바뀌어 실리므로, 그런 글자에서
@@ -75,18 +132,15 @@ function mainChildren(html: string): string[] {
   return tags;
 }
 
-describe("빌드된 out/ 의 파일", () => {
-  // out/ 이 없거나 소스보다 낡았으면 까닭을 알리고 멈춘다.
-  beforeAll(assertFreshBuild);
-
-  const files = existsSync(outDir) ? outFiles() : [];
-  const contents = files.map((file) => ({ file: path.relative(outDir, file), text: readFileSync(file, "utf8") }));
+describe("빌드된 사이트가 내주는 것", () => {
   const found = (fragment: string) => contents.filter(({ text }) => text.includes(fragment)).map(({ file }) => file);
 
-  it("볼 파일이 있다 (쪽, 서버 부품의 내용, JS 묶음, CSS)", () => {
-    const kinds = new Set(files.map((file) => path.extname(file)));
+  it("볼 것이 있다 (쪽, 미리 그린 쪽의 내용, JS 묶음, CSS)", () => {
+    const kinds = new Set(contents.map(({ file }) => path.extname(file)));
     for (const kind of [".html", ".txt", ".js", ".css"]) expect(kinds.has(kind), kind).toBe(true);
-    expect(files.length).toBeGreaterThan(40);
+    expect(contents.length).toBeGreaterThan(40);
+    // 분석 서비스의 쪽(요청 때 그린다)도 들어 있다.
+    expect(contents.some(({ file }) => file === pageFile("/r/example-org/kids-signup/a/wtk33e9zuf/", "html"))).toBe(true);
   });
 
   it("같은 방법으로 찾으면, 화면에 싣는 팩의 글(정책마다 개발자에게 할 질문)은 나온다", () => {
@@ -123,7 +177,7 @@ describe("빌드된 out/ 의 파일", () => {
     // 빈 것끼리 견준 것이 아니다. 사이트의 머리와 바닥이 있다. 조문 도감의 쪽을 읽는 도구가 읽은 둘레와도 같다.
     expect(chromes[0].chrome).toContain('<header class="site-header">');
     expect(plain(chromes[0].chrome)).toContain(SITE.disclaimer);
-    const policyPage = readFileSync(path.join(outDir, policyHref(packFile.policies[0].id), "index.html"), "utf8");
+    const policyPage = contents.find(({ file }) => file === pageFile(policyHref(packFile.policies[0].id), "html"))!.text;
     expect(readAround(policyPage).chrome).toBe(chromes[0].chrome);
 
     // 결과 보기와 데모의 본문: 제목, 머리말, 그리고 부품 하나. 그 사이와 둘레에 다른 글이나 요소가 없다.
@@ -151,12 +205,11 @@ describe("빌드된 out/ 의 파일", () => {
     expect(contentOf).toEqual(["content:attr(data-label)", 'content:attr(data-label)/""']);
   });
 
-  it("파비콘: out/favicon.ico 가 소스의 파일(src/app/favicon.ico) 그대로이고, 모든 쪽의 머리에 그 파일을 가리키는 link 가 하나 있다", () => {
+  it("파비콘: /favicon.ico 가 소스의 파일(src/app/favicon.ico) 그대로이고, 모든 쪽의 머리에 그 파일을 가리키는 link 가 하나 있다", () => {
     // 9번 전에는 파비콘이 없어 브라우저가 스스로 청한 /favicon.ico 가 404 로 돌아왔다(브라우저 시험이 그 콘솔 오류를 봐주고
-    // 있었다). Next 의 파일 규칙(app/favicon.ico)으로 두면 빌드가 그 파일을 out/ 에 옮기고 쪽마다 link 를 단다.
-    const source = readFileSync(path.join(outDir, "..", "src", "app", "favicon.ico"));
-    expect(existsSync(path.join(outDir, "favicon.ico"))).toBe(true);
-    expect(readFileSync(path.join(outDir, "favicon.ico")).equals(source)).toBe(true);
+    // 있었다). Next 의 파일 규칙(app/favicon.ico)으로 두면 서버가 그 파일을 내주고 쪽마다 link 를 단다.
+    const source = readFileSync(path.join(root, "src", "app", "favicon.ico"));
+    expect(favicon.equals(source)).toBe(true);
     // ICO 파일이다(머리의 예약 0, 종류 1, 그림이 하나 이상).
     expect([source.readUInt16LE(0), source.readUInt16LE(2), source.readUInt16LE(4) > 0]).toEqual([0, 1, true]);
     const pages = contents.filter(({ file }) => file.endsWith(".html"));
@@ -170,25 +223,27 @@ describe("빌드된 out/ 의 파일", () => {
   });
 });
 
-describe("빌드된 out/ 의 조문 도감 쪽", () => {
-  beforeAll(assertFreshBuild);
-
+describe("빌드된 사이트의 조문 도감 쪽", () => {
   const { pack, policies } = packFile;
   const named = policies.map((policy) => [policy.id, policy] as const);
-  const file = (...parts: string[]) => path.join(outDir, "policy", ...parts);
-  /** 정책 쪽의 HTML. 빌드가 내보낸 파일 그대로다. */
-  const pageOf = (id: string) => readFileSync(file(policySlug(id), "index.html"), "utf8");
+  const textOf = (file: string) => {
+    const found = contents.find((entry) => entry.file === file);
+    if (!found) throw new Error(`받은 것에 없습니다: ${file}`);
+    return found.text;
+  };
+  /** 정책 쪽의 HTML. 서버가 내준 그대로다. */
+  const pageOf = (id: string) => textOf(path.join("policy", policySlug(id), "index.html"));
   /** 파일에 적힌 바깥 주소 전부(HTML 의 링크와, 쪽을 옮겨 올 때 쓰는 내용에 실린 것). */
   const outsideUrls = (html: string) => [...new Set([...html.matchAll(/https?:[^\s"'\\<>]*/g)].map((match) => match[0]))].sort();
 
-  it("정책마다 쪽이 하나씩 있다. 주소의 이름에는 점이 없다", () => {
-    const folders = readdirSync(file()).filter((name) => statSync(file(name)).isDirectory());
-    expect(folders.sort()).toEqual(policies.map((policy) => policySlug(policy.id)).sort());
-    expect(folders.length).toBeGreaterThan(1);
-    for (const name of folders) {
-      expect(name).not.toContain(".");
-      expect(existsSync(file(name, "index.html")), name).toBe(true);
-    }
+  it("정책마다 쪽이 하나씩 미리 그려져 있다. 주소의 이름에는 점이 없고, 팩에 없는 이름의 쪽은 없다", async () => {
+    const built = readdirSync(path.join(nextDir, "server", "app", "policy"))
+      .filter((name) => name.endsWith(".html"))
+      .map((name) => name.replace(/\.html$/, ""));
+    expect(built.sort()).toEqual(policies.map((policy) => policySlug(policy.id)).sort());
+    expect(built.length).toBeGreaterThan(1);
+    for (const name of built) expect(name).not.toContain(".");
+    expect((await fetch(`${site!.origin}/policy/no-such-policy/`)).status).toBe(404);
   });
 
   // 이름은 ROADMAP 6번의 완료 조건 그대로다. 정책의 수는 여기에 못 박지 않고 팩 메타데이터의 정책을 모두 본다(지금 다섯이다).
@@ -253,7 +308,7 @@ describe("빌드된 out/ 의 조문 도감 쪽", () => {
     expect(page.hrefs).toEqual(policy.legal.map((legal) => legal.url));
     // 쪽의 다른 곳(머리, 바닥, 쪽을 옮겨 올 때 쓰는 내용)에도 그 밖의 바깥 주소는 없다.
     expect(outsideUrls(html)).toEqual([...new Set(policy.legal.flatMap((legal) => legal.url ?? []))].sort());
-    expect(outsideUrls(readFileSync(file(policySlug(policy.id), "index.txt"), "utf8"))).toEqual(outsideUrls(html));
+    expect(outsideUrls(textOf(path.join("policy", policySlug(policy.id), "index.txt")))).toEqual(outsideUrls(html));
     // 링크는 눌러야 나간다. 스스로 받아 오는 것(그림, 틀, 글꼴)에는 바깥 주소가 없다.
     for (const tag of html.match(/<(?:img|iframe|script|link|source|video|audio|embed|object)\b[^>]*>/g) ?? []) {
       expect(tag, tag).not.toMatch(/https?:/);
@@ -262,14 +317,14 @@ describe("빌드된 out/ 의 조문 도감 쪽", () => {
   });
 
   it("목록(/policy/)의 링크가 정책 쪽의 주소이고, 이 도감을 만든 팩 판이 적혀 있다", () => {
-    const html = readFileSync(file("index.html"), "utf8");
+    const html = textOf(path.join("policy", "index.html"));
     const items = elementsOf(elementAt(html, html.indexOf('<ul class="policy-index">')), "<li>");
     expect(items).toHaveLength(policies.length);
     for (const [i, policy] of policies.entries()) {
       const link = elementAt(items[i], items[i].indexOf("<a "));
-      // 빌드된 쪽의 주소는 끝에 빗금이 있다(쪽마다 폴더/index.html 로 내보낸다).
+      // 쪽의 주소는 끝에 빗금이 있다(next.config 의 trailingSlash).
       expect(/href="([^"]*)"/.exec(link)?.[1], policy.id).toBe(policyHref(policy.id));
-      expect(existsSync(path.join(outDir, policyHref(policy.id), "index.html")), policy.id).toBe(true);
+      expect(contents.some(({ file }) => file === pageFile(policyHref(policy.id), "html")), policy.id).toBe(true);
       expect(plain(link)).toBe(policy.title);
     }
     expect(plain(html)).toContain(`이 도감을 만든 팩 판은 ${pack.digest} 입니다. ${DIGEST_NOTE}`);

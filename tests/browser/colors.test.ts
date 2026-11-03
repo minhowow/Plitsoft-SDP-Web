@@ -17,7 +17,7 @@ import {
   openPage,
   particleBreaks,
   pixelAt,
-  serveOut,
+  serveSite,
   textContrast,
   type ContrastScan,
   type ParticleBreak,
@@ -52,7 +52,7 @@ const contexts: BrowserContext[] = [];
 const problems: string[] = [];
 
 beforeAll(async () => {
-  site = await serveOut();
+  site = await serveSite();
   try {
     browser = await launchChrome();
   } catch (error) {
@@ -61,9 +61,22 @@ beforeAll(async () => {
   }
 });
 
+/** 없는 주소의 쪽. 서버는 이 주소에 404 상태로 Next 의 기본 404 쪽을 내준다. */
+const NOT_FOUND = "/no-such-page/";
+/** 브라우저가 404 응답마다 콘솔에 남기는 줄. 없는 주소의 쪽을 일부러 열었을 때만 봐준다. */
+const NOT_FOUND_CONSOLE = "콘솔: Failed to load resource: the server responded with a status of 404 (Not Found)";
+
 afterEach(async () => {
   for (const context of contexts.splice(0)) await context.close();
-  expect(problems.splice(0)).toEqual([]);
+  // 404 로 돌아온 요청은 일부러 연 없는 주소뿐이어야 하고, 봐주는 콘솔 줄도 그 수만큼이다.
+  const missing = site.requests.splice(0).filter((request) => request.status === 404);
+  expect(missing.map((request) => request.url).filter((url) => url !== NOT_FOUND)).toEqual([]);
+  const left = problems.splice(0);
+  for (let i = 0; i < missing.length; i += 1) {
+    const at = left.indexOf(NOT_FOUND_CONSOLE);
+    if (at !== -1) left.splice(at, 1);
+  }
+  expect(left).toEqual([]);
 });
 
 afterAll(async () => {
@@ -205,9 +218,9 @@ describe("두 테마의 명도 대비: 그려진 글자마다 4.5:1 이상", () 
   it.each(SCHEMES)("%s: 첫 화면, 조문 도감(목록, 모든 정책 쪽), 없는 주소의 쪽(404)", async (scheme) => {
     const scans = new Scans();
     const { policies } = readPackFile();
-    // 없는 주소에는 Next 가 빌드한 기본 404 쪽(out/404.html)이 뜬다. 사이트의 머리와 바닥글이 있고, 본문은 Next 의 기본 화면이다
+    // 없는 주소에는 Next 의 기본 404 쪽이 뜬다. 사이트의 머리와 바닥글이 있고, 본문은 Next 의 기본 화면이다
     // (그 쪽이 싣는 body 의 색을 사이트의 색이 이긴다. src/app/globals.css 의 html body).
-    const pages = ["/", "/policy/", ...policies.map((policy) => policyHref(policy.id)), "/404.html"];
+    const pages = ["/", "/policy/", ...policies.map((policy) => policyHref(policy.id)), NOT_FOUND];
     const { page } = await open(pages[0], scheme);
     await expectScheme(page, scheme);
     for (const pathname of pages) {
@@ -384,7 +397,7 @@ describe("인쇄: 기록이 열려 있지 않은 쪽", () => {
     const scans = new Scans();
     // 404 쪽(Next 의 기본 화면)은 본문 안에 body 의 색을 정하는 <style> 을 싣는다. 그 어두운 테마 갈래는 인쇄에도 들어서, 사이트의
     // 색이 이기지 않으면 어두운 테마에서 인쇄할 때 흰 종이에 흰 글자(1:1)로 찍힌다(9번의 첫 검토).
-    for (const pathname of ["/", "/view/", "/demo/", "/policy/", policyHref(policies[0].id), "/404.html"]) {
+    for (const pathname of ["/", "/view/", "/demo/", "/policy/", policyHref(policies[0].id), NOT_FOUND]) {
       const { page } = await open(pathname, scheme, 1280);
       if (pathname === "/view/") await pickFile(page, ["tests", "fixtures", "incomplete-coverage.json"]);
       // 화면에서는 고르는 것들이 그려져 있다(대조).

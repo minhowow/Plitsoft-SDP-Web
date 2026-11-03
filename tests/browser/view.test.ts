@@ -25,7 +25,7 @@ import {
   overflow,
   RESULT_ATTRIBUTES,
   scrollThrough,
-  serveOut,
+  serveSite,
   settle,
   stored,
   undrawn,
@@ -34,7 +34,7 @@ import {
   type Site,
 } from "./site";
 
-// `/view` 를 실제 브라우저로 열어 본다. 빌드된 out/ 을 127.0.0.1 에 띄우고 이 컴퓨터의 Chrome(헤드리스)으로 연다.
+// `/view` 를 실제 브라우저로 열어 본다. 빌드된 사이트를 127.0.0.1 에 띄우고(next start) 이 컴퓨터의 Chrome(헤드리스)으로 연다.
 // 그려 낸 HTML 만 보는 시험(tests/render.test.tsx)이 볼 수 없는 것을 본다: 네트워크 요청, 키보드, 끌어다 놓기,
 // 화면이 멈추는지, 다른 쪽에 다녀오거나 새로 고친 뒤에 무엇이 열려 있는지, 좁은 화면의 가로 넘침과 표의 쌓임, 접힌 곳과
 // 발견 줄이 실제로 여닫히는지, 글이 실제로 그려지는지, CSS 가 그린 글, 화면 낭독기에 드러나는 표와 이름.
@@ -48,7 +48,7 @@ const contexts: BrowserContext[] = [];
 const problems: string[] = [];
 
 beforeAll(async () => {
-  site = await serveOut();
+  site = await serveSite();
   try {
     browser = await launchChrome();
   } catch (error) {
@@ -1369,7 +1369,7 @@ describe("결과 화면의 글과 꾸밈 (조문 도감·기록의 시험과 같
     }));
     expect(main.children).toEqual(["h1.", "p.lede", "div.viewer"]);
     // 빈칸은 빼고 견준다. 붙은 뒤에 화면 낭독기 알림 줄이나 결과에 글이 더해지면 여기서 어긋난다.
-    expect(partingOf(squash(main.text), builtMainText("view"))).toBeNull();
+    expect(partingOf(squash(main.text), await builtMainText(site.origin, "view"))).toBeNull();
     // 처음에 열린 예시의 결과 화면은 결과 화면 부품이 그 예시로 그린 글과 같다.
     const report = await page.locator(".report").evaluate((el) => el.textContent ?? "");
     expect(partingOf(squash(report), reportText(viewOfText(JSON.stringify(SAMPLES[0].data))))).toBeNull();

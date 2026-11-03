@@ -32,7 +32,7 @@ import {
 import { BANNED_WORDING } from "./wording";
 
 // 조문 도감(`/policy`)의 정책 한 쪽을 그려서 본다. 쪽(src/app/policy/[id]/page.tsx)은 async 라 여기서 그리지 않고, 쪽이
-// 그리는 부품(PolicyDetail)을 그린다. 빌드된 쪽은 tests/browser/out-files.test.ts 가 같은 방법으로 읽는다.
+// 그리는 부품(PolicyDetail)을 그린다. 빌드된 쪽은 tests/browser/served-files.test.ts 가 같은 방법으로 읽는다.
 //
 // 팩에 실린 정책은 팩 메타데이터의 값과 통째로 견준다. 팩의 특정 값(날짜, 해시, 글)을 여기에 적어 두지 않는다. 팩 판이
 // 바뀌면 값도 바뀐다. 팩에 실린 정책에 없는 모양(값이 빠진 것, 모르는 값, 같은 원문이 되풀이되는 것)은 손으로 만들어 그린다.
@@ -179,7 +179,7 @@ describe("쪽을 읽는 도구: 읽은 것이 쪽의 전부여야 한다", () =>
 
 describe("쪽을 읽는 도구: 틀의 둘레 (빌드된 쪽 전체에서 읽는다)", () => {
   // 읽는 도구(readPolicyPage)는 틀(article) 안만 읽는다. 쪽(page.tsx)이 틀 밖에 무엇을 더해도 읽은 값과 틀은 그대로다.
-  // 빌드된 쪽에서는 틀의 둘레를 따로 읽는다(tests/browser/out-files.test.ts). 여기서는 빌드된 쪽의 모양을 손으로 지어 그
+  // 빌드된 쪽에서는 틀의 둘레를 따로 읽는다(tests/browser/served-files.test.ts). 여기서는 빌드된 쪽의 모양을 손으로 지어 그
   // 도구가 읽어 내는지 본다. 모양은 Next 가 내보내는 것을 따랐다: 머리 앞의 빈 상자, 본문 끝의 주석, 바닥 뒤의 스크립트.
   const article = render(policies[0]);
   const built = (main: string, tail = "", payload = "첫 쪽") =>
@@ -772,7 +772,7 @@ describe("한눈에 보는 것과 팩 판", () => {
       ["팩", pack.id],
       ["팩 판", pack.digest],
     ]);
-    // 화면의 글은 바닥글과 같은 말을 쓴다("이 사이트는 정적 페이지입니다").
+    // "만들었습니다"라고 쓴다(빌드할 때 그 팩 판으로 그려 둔 쪽이다).
     expect(MADE_WITH).toBe("이 페이지는 위에 적은 팩 판으로 만들었습니다.");
     expect(page.factsNote).toContain(MADE_WITH);
     expect(page.factsNote).toContain(DIGEST_NOTE);
@@ -922,7 +922,7 @@ describe("조문 도감 목록 (/policy)", () => {
     for (const [i, policy] of policies.entries()) {
       const link = elementAt(items[i], items[i].indexOf("<a "));
       // 부품 시험에는 Next 의 설정(trailingSlash)이 걸리지 않아 Link 가 주소 끝의 빗금을 뗀다. 빌드된 쪽의 주소는
-      // tests/browser/out-files.test.ts 가 본다.
+      // tests/browser/served-files.test.ts 가 본다.
       expect(policyHref(policy.id)).toMatch(/^\/policy\/[a-z0-9-]+\/$/);
       expect(/href="([^"]*)"/.exec(link)?.[1]).toBe(policyHref(policy.id).replace(/\/$/, ""));
       expect(plain(link)).toBe(policy.title);

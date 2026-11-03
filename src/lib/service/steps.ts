@@ -1,13 +1,18 @@
 import type { Analysis, AnalysisStatus, AnalysisStep, StepName } from "./types";
 
-/** 단계의 차례. 대기 → 저장소 받기 → 정적 검사 → AI 판정 → 정리. 끝나면 분석의 상태가 succeeded 다. */
-export const STEP_ORDER: StepName[] = ["queued", "fetch", "static", "judge", "finish"];
+/**
+ * 단계의 차례. 대기 → 저장소 받기·도구 설치 → 검사 → 정리. 끝나면 분석의 상태가 succeeded 다.
+ *
+ * 정적 검사와 AI 판정은 한 단계(`scan`)다. 실행기는 CLI 명령 하나(`policypack scan … --judge anthropic:…`)를 부르고, CLI 는
+ * 정적 검사가 끝나고 AI 판정이 시작한 때를 알려 주지 않는다(결과에는 걸린 초만 있다). 알 수 없는 경계를 꾸며 두 단계로 적지
+ * 않는다. AI 판정자가 무엇이었는지는 끝난 분석의 결과(`run.judge`)가 말한다.
+ */
+export const STEP_ORDER: StepName[] = ["queued", "fetch", "scan", "finish"];
 
 export const STEP_LABEL: Record<StepName, string> = {
   queued: "대기",
-  fetch: "저장소 받기",
-  static: "정적 검사",
-  judge: "AI 판정",
+  fetch: "저장소 받기·도구 설치",
+  scan: "검사(정적 검사와 AI 판정)",
   finish: "정리",
 };
 
@@ -20,11 +25,10 @@ export const ANALYSIS_STATUS_LABEL: Record<AnalysisStatus, string> = {
 };
 
 /** 화면에서 단계 하나의 형편. */
-export type StepState = "done" | "skipped" | "active" | "failed" | "waiting" | "notrun";
+export type StepState = "done" | "active" | "failed" | "waiting" | "notrun";
 
 export const STEP_STATE_LABEL: Record<StepState, string> = {
   done: "끝남",
-  skipped: "건너뜀",
   active: "진행 중",
   failed: "멈춤",
   waiting: "기다림",
@@ -43,9 +47,13 @@ export function stepStateLabel(analysis: Analysis, step: AnalysisStep): string {
 
 export function stepState(analysis: Analysis, step: AnalysisStep): StepState {
   if (analysis.failure?.step === step.name) return "failed";
-  if (step.skipped) return "skipped";
   if (step.endedAt) return "done";
-  if (step.startedAt) return analysis.status === "failed" ? "failed" : "active";
+  if (step.startedAt && analysis.status === "failed") {
+    // 멈춘 단계보다 앞 단계는 끝났다(실행기가 다음 단계로 갔다). 끝난 시각을 모르면 시각만 비운다(멈춤으로 적지 않는다).
+    const failedAt = analysis.failure ? STEP_ORDER.indexOf(analysis.failure.step) : -1;
+    return STEP_ORDER.indexOf(step.name) < failedAt ? "done" : "failed";
+  }
+  if (step.startedAt) return "active";
   // 실패한 분석에서 시작하지 않은 단계는 앞으로도 하지 않는다. "기다림"이라고 적으면 아직 돌 것처럼 읽힌다.
   return analysis.status === "failed" ? "notrun" : "waiting";
 }
@@ -81,7 +89,7 @@ export function duration(from: string, to: string): string {
 
 /**
  * 시각을 한국 표준시로 "2026-10-24 14:03"처럼 적는다. 빌드하는 컴퓨터와 보는 사람의 시간대에 기대지 않게 손으로 9시간을
- * 더한다. "몇 분 전"처럼 지금과 견주어 적지 않는다(정적 쪽은 빌드한 때에 멈춰 있다).
+ * 더한다. "몇 분 전"처럼 지금과 견주어 적지 않는다(쪽을 연 뒤에도 글이 그대로 맞게).
  */
 export function formatKst(iso: string): string {
   const at = new Date(Date.parse(iso) + 9 * 60 * 60 * 1000);

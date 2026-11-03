@@ -4,19 +4,22 @@ import kidsSignupFixed from "@contract/cli-current/kids-signup.fixed.json";
 import kidsSignupMain from "@contract/cli-current/kids-signup.main.json";
 import nightPushMain from "@contract/cli-current/night-push.main.json";
 import plainMain from "@contract/cli-current/plain.main.json";
+import { parseReport } from "@/lib/report/parse";
 import { repoKey } from "./href";
 import { matchRepositories } from "./search";
 import { STEP_ORDER } from "./steps";
+import { SITE } from "@/lib/site";
 import type { Analysis, AnalysisStep, Repository, RepositoryHit, ServiceStore, StepName } from "./types";
 
 /**
- * B1 의 합성 저장소. 서버도 DB 도 없이 `ServiceStore` 를 채운다.
+ * 합성 저장소. DB 도 GitHub 도 부르지 않고 `ServiceStore` 를 채운다. SERVICE_STORE=synthetic 일 때만 쓰는 미리보기·시험용이다
+ * (`src/server/store/index.ts`). 쪽은 `synthetic: true` 를 보고 "합성 예시"를 밝힌다.
  *
  * - 저장소는 모두 합성이다. 실제로 있는 남의 저장소 이름을 쓰지 않고, GitHub 주소(`htmlUrl`)도 없다(링크를 걸지 않는다).
  * - 끝난 분석의 결과는 contract/cli-current 의 CLI 실제 출력이다(합성 데모 코드 contract/fixtures 를 검사한 것). 손으로 고치지
- *   않는다. 그 출력은 판정자 없이 만들었으므로, 그 분석의 AI 판정 단계는 건너뛴 것으로 적는다.
+ *   않는다. 그 출력은 판정자 없이 만들었다(대시보드가 결과의 `run.judge` 대로 "판정자 꺼짐"을 보인다).
  * - 진행 중·대기·실패한 분석, 분석이 여러 번인 저장소, 분석이 없는 저장소를 모두 둔다. 진행 중인 분석은 한 순간을 고정한
- *   것이다(정적 쪽이라 움직이지 않는다).
+ *   것이다(합성 미리보기는 진행을 다시 읽지 않아 움직이지 않는다).
  */
 
 type Capture = { tool: { version: string }; run: { pack_digest: string; judge: string | null } };
@@ -61,13 +64,12 @@ export const SYNTHETIC_RESULT_SOURCES: Record<string, string> = {
 };
 
 /** 요청한 시각에서 몇 초 뒤인지로 단계의 시작·끝을 적는다. null 이면 그 일이 아직 없다. */
-type Timeline = Partial<Record<StepName, [number | null, number | null] | "skipped">>;
+type Timeline = Partial<Record<StepName, [number | null, number | null]>>;
 
 function steps(requestedAt: string, timeline: Timeline): AnalysisStep[] {
   const at = (seconds: number | null) => (seconds === null ? null : new Date(Date.parse(requestedAt) + seconds * 1000).toISOString());
   return STEP_ORDER.map((name) => {
     const entry = timeline[name];
-    if (entry === "skipped") return { name, startedAt: null, endedAt: null, skipped: true };
     return { name, startedAt: at(entry?.[0] ?? null), endedAt: at(entry?.[1] ?? null) };
   });
 }
@@ -86,9 +88,7 @@ function succeeded(id: string, owner: string, name: string, commit: string, requ
     steps: steps(requestedAt, {
       queued: [0, queued],
       fetch: [queued, fetched],
-      static: [fetched, scanned],
-      // 수집본은 판정자 없이 만든 결과다. 판정자를 켠 결과가 들어오면 이 단계에 시각을 적는다.
-      judge: result.run.judge === null ? "skipped" : [scanned, scanned],
+      scan: [fetched, scanned],
       finish: [scanned, finished],
     }),
     failure: null,
@@ -108,7 +108,7 @@ const ANALYSES: Analysis[] = [
     branch: "main",
     requestedAt: "2026-10-24T04:58:02Z",
     status: "running",
-    steps: steps("2026-10-24T04:58:02Z", { queued: [0, 18], fetch: [18, 37], static: [37, 91], judge: [91, null] }),
+    steps: steps("2026-10-24T04:58:02Z", { queued: [0, 18], fetch: [18, 37], scan: [37, null] }),
     failure: null,
     versions: { tool: "0.3.0.dev0", pack: "fa6fc2b3e62d8d0d" },
   },
@@ -166,13 +166,16 @@ function findRepository(owner: string, name: string): Repository | null {
   return REPOSITORIES.find((repository) => repoKey(repository.owner, repository.name) === key) ?? null;
 }
 
+/** 합성 저장소 모두(목록의 차례). 시험이 쪽을 모두 열어 볼 때 쓴다. */
+export function syntheticRepositories(): RepositoryHit[] {
+  return REPOSITORIES.map(hit);
+}
+
 export const syntheticStore: ServiceStore = {
   synthetic: true,
   async search(query) {
-    return matchRepositories(REPOSITORIES.map(hit), query);
-  },
-  async listRepositories() {
-    return REPOSITORIES.map(hit);
+    const hits = matchRepositories(REPOSITORIES.map(hit), query);
+    return { ok: true, hits, total: hits.length };
   },
   async getRepository(owner, name) {
     return findRepository(owner, name);
@@ -183,9 +186,22 @@ export const syntheticStore: ServiceStore = {
   async getAnalysis(owner, name, id) {
     return analysesOf(owner, name).find((analysis) => analysis.id === id) ?? null;
   },
+  async findAnalysis(id) {
+    return ANALYSES.find((analysis) => analysis.id === id) ?? null;
+  },
   async getResult(id) {
     const analysis = ANALYSES.find((entry) => entry.id === id);
     return analysis?.status === "succeeded" ? (RESULTS[id] ?? null) : null;
+  },
+  async findingCounts(ids) {
+    const counts: Record<string, number | null> = {};
+    for (const id of ids) {
+      const analysis = ANALYSES.find((entry) => entry.id === id);
+      if (analysis?.status !== "succeeded") continue;
+      const parsed = parseReport(RESULTS[id] ?? null);
+      counts[id] = parsed.ok ? parsed.report.findings.length : null;
+    }
+    return counts;
   },
   async recentSucceeded(limit) {
     return ANALYSES.filter((analysis) => analysis.status === "succeeded")
@@ -195,10 +211,9 @@ export const syntheticStore: ServiceStore = {
   },
   async requestAnalysis(owner, name) {
     if (!findRepository(owner, name)) return { ok: false, reason: "not-found", message: "그런 저장소를 찾지 못했습니다." };
-    return {
-      ok: false,
-      reason: "no-server",
-      message: "지금은 서버가 없는 합성 예시 사이트라 분석 요청을 받지 않습니다.",
-    };
+    return { ok: false, reason: "no-server", message: SITE.service.noServer };
+  },
+  requestsClosed() {
+    return SITE.service.noServer;
   },
 };

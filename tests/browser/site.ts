@@ -1,15 +1,18 @@
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { existsSync, mkdtempSync, readdirSync, rmSync, statSync } from "node:fs";
-import { readFile, stat } from "node:fs/promises";
-import { createServer } from "node:http";
+import { createServer, request as httpRequest } from "node:http";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { inflateSync } from "node:zlib";
 import { chromium, errors, type Browser, type BrowserContext, type Locator, type Page } from "playwright-core";
 import { root, walk } from "../helpers";
 
-// 브라우저 시험의 바탕: 빌드된 out/ 을 127.0.0.1 의 빈 포트에 띄우고, 이 컴퓨터에 깔린 Chrome 을 헤드리스로 연다.
-// 시험이 끝나면(실패해도) 띄운 서버와 브라우저를 닫는 것은 부르는 쪽의 afterAll 이 한다(`closeChrome`).
+// 브라우저 시험의 바탕: 빌드된 사이트(.next)를 `next start` 로 127.0.0.1 의 빈 포트에 띄우고, 그 앞에 요청을 적어 두는 작은
+// 중계 서버를 둔다. 그리고 이 컴퓨터에 깔린 Chrome 을 헤드리스로 연다. 시험이 끝나면(실패해도) 띄운 서버와 브라우저를 닫는
+// 것은 부르는 쪽의 afterAll 이 한다(`closeChrome`, `site.close`).
+//
+// 서버는 기본으로 합성 저장소(SERVICE_STORE=synthetic)로 돈다. 이 컴퓨터의 환경 변수(DATABASE_URL, 토큰 등)는 넘기지 않는다
+// (시험이 실제 DB·GitHub 을 부르지 않게). GitHub API 의 바탕 주소도 닿지 않는 로컬 주소로 둔다.
 //
 // 아래쪽은 쪽을 열고 재는 준비 코드다. 시험 파일 넷(view·demo·policy·record)이 함께 쓴다: 창을 만들며 요청을 가로채고
 // 오류를 적는 것(`newPage`. 시험이 쓰는 창은 모두 이것으로 만든다), 그 창에서 쪽을 여는 것(`openPage`), 요청이 잦아들기를
@@ -17,36 +20,27 @@ import { root, walk } from "../helpers";
 // 글이 그려지는지(`undrawn`), CSS 가 그린 글(`cssDrawn`), Chrome 의 접근성 트리에 드러나는 role 과 이름(`accessibleNodes`,
 // `accessibleNames`).
 
-export const outDir = path.join(root, "out");
+/** `next build` 가 만든 폴더. */
+export const nextDir = path.join(root, ".next");
 
-/** 빌드에 들어가는 것. 이 가운데 out/ 보다 새로 고친 파일이 있으면 낡은 빌드를 보는 것이다. */
+/** 빌드에 들어가는 것. 이 가운데 빌드보다 새로 고친 파일이 있으면 낡은 빌드를 보는 것이다. */
 const BUILD_INPUTS = ["src", "data", ...["cli-current", "samples-v1-draft", "fixtures"].map((dir) => path.join("contract", dir))];
 
-/** out/ 이 없거나 소스보다 낡았으면 시험을 돌리지 않고 까닭을 알린다. 낡은 빌드로 통과한 시험은 아무것도 말해 주지 않는다. */
+/** 빌드가 없거나 소스보다 낡았으면 시험을 돌리지 않고 까닭을 알린다. 낡은 빌드로 통과한 시험은 아무것도 말해 주지 않는다. */
 export function assertFreshBuild(): void {
-  const page = path.join(outDir, "view", "index.html");
-  if (!existsSync(page)) {
-    throw new Error("빌드된 out/ 이 없습니다. 브라우저 시험은 빌드 뒤에 돕니다. `npm run build` 를 먼저 돌리세요.");
+  const marker = path.join(nextDir, "BUILD_ID");
+  if (!existsSync(marker)) {
+    throw new Error("빌드(.next/BUILD_ID)가 없습니다. 브라우저 시험은 빌드 뒤에 돕니다. `npm run build` 를 먼저 돌리세요.");
   }
-  const built = statSync(page).mtimeMs;
+  const built = statSync(marker).mtimeMs;
   const newer = BUILD_INPUTS.flatMap((dir) => walk(dir)).filter((file) => statSync(path.join(root, file)).mtimeMs > built);
   if (newer.length > 0) {
     throw new Error(
-      `out/ 이 소스보다 낡았습니다(${newer.slice(0, 3).join(", ")}${newer.length > 3 ? " 등" : ""}). ` +
+      `빌드가 소스보다 낡았습니다(${newer.slice(0, 3).join(", ")}${newer.length > 3 ? " 등" : ""}). ` +
         "`npm run build` 를 다시 돌린 뒤 시험하세요.",
     );
   }
 }
-
-const TYPES: Record<string, string> = {
-  ".html": "text/html; charset=utf-8",
-  ".js": "text/javascript; charset=utf-8",
-  ".css": "text/css; charset=utf-8",
-  ".json": "application/json; charset=utf-8",
-  ".txt": "text/plain; charset=utf-8",
-  ".svg": "image/svg+xml",
-  ".ico": "image/x-icon",
-};
 
 export interface Site {
   /** 예: 127.0.0.1 의 빈 포트. 끝에 "/" 가 없다. */
@@ -56,53 +50,128 @@ export interface Site {
    * 응답의 상태(응답하기 전에는 0).
    */
   requests: { method: string; url: string; status: number }[];
+  /** `next start` 가 표준 출력·오류로 낸 글(시험이 실패할 때 까닭을 찾는 데 쓴다). */
+  log: string[];
   close(): Promise<void>;
 }
 
-/** 빌드된 out/ 을 그대로 내주는 서버. 정적 호스팅과 같게, 폴더 주소는 그 안의 index.html 을 준다. */
-export async function serveOut(): Promise<Site> {
+/** 서버 환경 변수. 이 컴퓨터의 것은 실행에 꼭 필요한 것(PATH, HOME, TMPDIR)만 넘긴다. */
+function serverEnv(extra: Record<string, string>): NodeJS.ProcessEnv {
+  const keep = ["PATH", "HOME", "TMPDIR", "LANG"];
+  const env: NodeJS.ProcessEnv = { NODE_ENV: "production" };
+  for (const name of keep) if (process.env[name] !== undefined) env[name] = process.env[name];
+  return {
+    ...env,
+    NEXT_TELEMETRY_DISABLED: "1",
+    SERVICE_STORE: "synthetic",
+    // 합성 저장소는 GitHub 을 부르지 않는다. 혹시 부르더라도 닿지 않는 로컬 주소다.
+    GITHUB_API_BASE: "http://127.0.0.1:9",
+    RUNNER: "none",
+    ...extra,
+  };
+}
+
+async function freePort(): Promise<number> {
+  const probe = createServer();
+  await new Promise<void>((resolve, reject) => {
+    probe.once("error", reject);
+    probe.listen(0, "127.0.0.1", resolve);
+  });
+  const address = probe.address();
+  await new Promise<void>((resolve) => probe.close(() => resolve()));
+  if (address === null || typeof address === "string") throw new Error("빈 포트를 찾지 못했습니다.");
+  return address.port;
+}
+
+/** `next start` 가 뜨기를 기다려 주는 시간(ms). 보통 1초 안에 뜬다. */
+const START_MS = 30_000;
+
+/**
+ * 빌드된 사이트를 띄운다. `env` 로 서버 환경 변수를 더한다(기본은 합성 저장소). 브라우저는 중계 서버(`origin`)로 들어오고,
+ * 중계 서버가 받은 요청을 `requests` 에 적는다.
+ */
+export async function serveSite(env: Record<string, string> = {}): Promise<Site> {
   assertFreshBuild();
+  const port = await freePort();
+  const log: string[] = [];
+  const child = spawn(process.execPath, [path.join(root, "node_modules", "next", "dist", "bin", "next"), "start", "-H", "127.0.0.1", "-p", String(port)], {
+    cwd: root,
+    env: serverEnv(env),
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  child.stdout?.setEncoding("utf8").on("data", (chunk: string) => log.push(chunk));
+  child.stderr?.setEncoding("utf8").on("data", (chunk: string) => log.push(chunk));
+  const exited = new Promise<void>((resolve) => child.once("exit", () => resolve()));
+  const stop = async () => {
+    if (child.exitCode === null && child.signalCode === null) {
+      child.kill("SIGTERM");
+      const timer = setTimeout(() => child.kill("SIGKILL"), 5_000);
+      await exited;
+      clearTimeout(timer);
+    }
+  };
+
+  // 뜰 때까지 기다린다.
+  const deadline = Date.now() + START_MS;
+  for (;;) {
+    if (child.exitCode !== null) throw new Error(`next start 가 끝나 버렸습니다: ${log.join("").slice(-2000)}`);
+    try {
+      const response = await fetch(`http://127.0.0.1:${port}/view/`, { signal: AbortSignal.timeout(2_000) });
+      await response.arrayBuffer();
+      if (response.ok) break;
+    } catch {
+      // 아직 뜨지 않았다.
+    }
+    if (Date.now() > deadline) {
+      await stop();
+      throw new Error(`next start 가 ${START_MS / 1000}초 안에 뜨지 않았습니다: ${log.join("").slice(-2000)}`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+
   const requests: Site["requests"] = [];
-  const server = createServer((request, response) => {
+  const proxy = createServer((request, response) => {
     const entry = { method: request.method ?? "", url: request.url ?? "", status: 0 };
     requests.push(entry);
-    void (async () => {
-      const pathname = decodeURIComponent(new URL(request.url ?? "/", "http://127.0.0.1").pathname);
-      let file = path.join(outDir, pathname);
-      // out/ 밖은 내주지 않는다.
-      if (file !== outDir && !file.startsWith(outDir + path.sep)) {
-        entry.status = 403;
-        response.writeHead(403).end();
-        return;
-      }
-      try {
-        if ((await stat(file)).isDirectory()) file = path.join(file, "index.html");
-        const body = await readFile(file);
-        entry.status = 200;
-        response.writeHead(200, { "content-type": TYPES[path.extname(file)] ?? "application/octet-stream" });
-        response.end(request.method === "HEAD" ? undefined : body);
-      } catch {
-        entry.status = 404;
-        response.writeHead(404, { "content-type": "text/plain; charset=utf-8" }).end("not found");
-      }
-    })();
+    const upstream = httpRequest(
+      { host: "127.0.0.1", port, method: request.method, path: request.url, headers: request.headers },
+      (answer) => {
+        entry.status = answer.statusCode ?? 0;
+        response.writeHead(answer.statusCode ?? 502, answer.headers);
+        answer.pipe(response);
+      },
+    );
+    upstream.on("error", () => {
+      entry.status = 502;
+      if (!response.headersSent) response.writeHead(502);
+      response.end();
+    });
+    request.pipe(upstream);
   });
-  await new Promise<void>((resolve, reject) => {
-    server.once("error", reject);
-    // 127.0.0.1 에만 연다. 포트는 비어 있는 것을 운영체제가 고른다.
-    server.listen(0, "127.0.0.1", resolve);
-  });
-  const address = server.address();
+  try {
+    await new Promise<void>((resolve, reject) => {
+      proxy.once("error", reject);
+      // 127.0.0.1 에만 연다. 포트는 비어 있는 것을 운영체제가 고른다.
+      proxy.listen(0, "127.0.0.1", resolve);
+    });
+  } catch (error) {
+    await stop();
+    throw error;
+  }
+  const address = proxy.address();
   if (address === null || typeof address === "string") throw new Error("서버 주소를 알 수 없습니다.");
   return {
     origin: `http://127.0.0.1:${address.port}`,
     requests,
-    close: () =>
-      new Promise<void>((resolve) => {
-        server.close(() => resolve());
+    log,
+    close: async () => {
+      await new Promise<void>((resolve) => {
+        proxy.close(() => resolve());
         // 브라우저가 붙들고 있는 연결 때문에 닫히지 않고 남는 일이 없게 한다.
-        server.closeAllConnections();
-      }),
+        proxy.closeAllConnections();
+      });
+      await stop();
+    },
   };
 }
 
