@@ -3,28 +3,25 @@ import { ServiceUnavailableError } from "@/lib/service/errors";
 import { repoKey } from "@/lib/service/href";
 import { isAnalysisId, newAnalysisId } from "@/lib/service/id";
 import { isRepoFullName } from "@/lib/service/names";
-import { STEP_LABEL, STEP_ORDER } from "@/lib/service/steps";
-import type {
-  Analysis,
-  AnalysisStatus,
-  AnalysisStep,
-  Repository,
-  RepositoryHit,
-  RequestOutcome,
-  ServiceStore,
-  StepName,
-} from "@/lib/service/types";
+import type { Analysis, AnalysisStatus, Repository, RepositoryHit, RequestOutcome, ServiceStore } from "@/lib/service/types";
 import { SITE } from "@/lib/site";
 import type { ServerConfig } from "../config";
 import { isUniqueViolation, type Database, type Queryable } from "../db";
 import { GitHubError, type GitHubClient } from "../github";
+import { readQueue, sweepStale, tidyQueue, type PumpDeps } from "../queue";
 import { wakeRunner, type WakeOutcome } from "../runner";
+import { COLUMNS, initialSteps, iso, rowToAnalysis, type Row } from "./rows";
+
+// 다른 곳(콜백, 시험)이 이 파일에서 읽던 것.
+export { COLUMNS, initialSteps, readSteps, rowToAnalysis, stalledStep, type Row } from "./rows";
+export { sweepStale, timeoutReason } from "../queue";
 
 /**
  * 운영 저장소 구현: 분석 기록은 DB, 저장소 정보와 검색은 GitHub API.
  *
- * 오래된 분석(설계 7): RUN_TIMEOUT_MINUTES 를 넘게 끝나지 않은 분석은 읽거나 요청할 때 실패로 적는다. 까닭은 "시간 초과"이고
- * 멈춘 단계는 그때 진행 중이던 단계다. 멈춘 시각은 모르므로 그 단계의 끝난 시각을 적지 않는다(화면이 멈춘 시각을 꾸미지 않게).
+ * 요청은 대기열에 받고, 실행 자리가 비면 실행기를 깨운다(`../queue.ts`). 읽거나 요청할 때 `tidyQueue` 를 한다: 실행기에 보낸
+ * 뒤 시간을 넘긴 분석을 실패로 적고, 빈 자리만큼 대기열을 넘기고, 그래도 보내지 못한 오래된 대기열의 분석을 대기 시간 초과로
+ * 적는다. 멈춘 시각은 모르므로 그 단계의 끝난 시각을 적지 않는다(화면이 멈춘 시각을 꾸미지 않게).
  */
 
 export interface DbStoreDeps {
@@ -37,99 +34,11 @@ export interface DbStoreDeps {
   newId?: () => string;
 }
 
-export interface Row {
-  id: string;
-  owner: string;
-  repo: string;
-  commit_sha: string;
-  branch: string;
-  status: AnalysisStatus;
-  failure_step: StepName | null;
-  failure_reason: string | null;
-  requested_at: Date | string;
-  steps: AnalysisStep[] | string;
-  tool_version: string | null;
-  pack_digest: string | null;
-}
-
-export const COLUMNS =
-  "id, owner, repo, commit_sha, branch, status, failure_step, failure_reason, requested_at, steps, tool_version, pack_digest";
-
-const iso = (value: Date | string): string => (value instanceof Date ? value : new Date(value)).toISOString();
-
-/** DB 의 단계 JSON 을 STEP_ORDER 의 차례로 모두 있게 읽는다. 없는 단계는 시작하지 않은 것으로 둔다. */
-export function readSteps(raw: Row["steps"]): AnalysisStep[] {
-  const list = (typeof raw === "string" ? JSON.parse(raw) : raw) as Partial<AnalysisStep>[];
-  return STEP_ORDER.map((name) => {
-    const found = Array.isArray(list) ? list.find((step) => step?.name === name) : undefined;
-    return {
-      name,
-      startedAt: typeof found?.startedAt === "string" ? found.startedAt : null,
-      endedAt: typeof found?.endedAt === "string" ? found.endedAt : null,
-    };
-  });
-}
-
-export function rowToAnalysis(row: Row): Analysis {
-  return {
-    id: row.id,
-    owner: row.owner,
-    name: row.repo,
-    commit: row.commit_sha,
-    branch: row.branch,
-    requestedAt: iso(row.requested_at),
-    status: row.status,
-    steps: readSteps(row.steps),
-    failure:
-      row.status === "failed" && row.failure_step && row.failure_reason
-        ? { step: row.failure_step, reason: row.failure_reason }
-        : null,
-    versions: row.tool_version && row.pack_digest ? { tool: row.tool_version, pack: row.pack_digest } : null,
-  };
-}
-
-/** 새 분석의 단계: 대기 단계가 요청한 때 시작했다. */
-export function initialSteps(requestedAt: string): AnalysisStep[] {
-  return STEP_ORDER.map((name) => ({ name, startedAt: name === "queued" ? requestedAt : null, endedAt: null }));
-}
-
-/** 끝나지 않은 분석이 머문 단계: 시작했고 끝나지 않은 단계, 없으면 시작하지 않은 첫 단계(단계 사이), 그것도 없으면 정리. */
-export function stalledStep(steps: AnalysisStep[]): StepName {
-  const open = steps.find((step) => step.startedAt && !step.endedAt);
-  if (open) return open.name;
-  const next = steps.find((step) => !step.startedAt && !step.endedAt);
-  return next?.name ?? "finish";
-}
-
-export function timeoutReason(minutes: number, step: StepName): string {
-  return `시간 초과: 요청한 뒤 ${minutes}분 안에 끝나지 않아 멈춘 것으로 적었습니다. ‘${STEP_LABEL[step]}’ 단계에 머물러 있었습니다.`;
-}
-
 /** 한국 표준시로 오늘이 시작한 시각(UTC). 하루 상한을 셀 때 쓴다. */
 export function kstDayStart(now: Date): Date {
   const KST = 9 * 60 * 60 * 1000;
   const DAY = 24 * 60 * 60 * 1000;
   return new Date(Math.floor((now.getTime() + KST) / DAY) * DAY - KST);
-}
-
-/**
- * 시간을 넘긴 분석을 실패로 적는다. 다른 요청이 그새 바꿨으면(끝났으면) 건드리지 않는다. 쪽을 읽을 때, 요청을 받을 때, 실행기
- * 콜백을 받을 때 부른다.
- */
-export async function sweepStale(db: Queryable, now: Date, runTimeoutMinutes: number): Promise<void> {
-  const cutoff = new Date(now.getTime() - runTimeoutMinutes * 60_000);
-  const stale = await db.query<Pick<Row, "id" | "steps">>(
-    "SELECT id, steps FROM analyses WHERE status IN ('queued', 'running') AND requested_at < $1",
-    [cutoff],
-  );
-  for (const row of stale.rows) {
-    const step = stalledStep(readSteps(row.steps));
-    await db.query(
-      `UPDATE analyses SET status = 'failed', failure_step = $2, failure_reason = $3, finished_at = $4
-       WHERE id = $1 AND status IN ('queued', 'running')`,
-      [row.id, step, timeoutReason(runTimeoutMinutes, step), now],
-    );
-  }
 }
 
 /** 요청을 하나씩 차례로 받게 하는 권고 잠금의 번호(같은 커밋 확인 → 상한 확인 → 행 만들기 사이에 다른 요청이 끼지 않게). */
@@ -149,12 +58,17 @@ export function createDbStore(deps: DbStoreDeps): ServiceStore {
     }
   }
 
-  const sweep = (db: Queryable) => sweepStale(db, now(), limits.runTimeoutMinutes);
+  const sweep = (db: Queryable) => sweepStale(db, now(), limits);
+  const pump: PumpDeps = { now, limits, wake, callbackBase: deps.config.runner.callbackBase, runner: deps.config.runner.kind };
 
-  /** 읽기 전에: DB 를 열고 오래된 분석을 정리한다. */
+  /**
+   * 읽기 전에: DB 를 열고 `tidyQueue`(정리 → 빈 자리만큼 넘기기 → 대기 시간 초과)를 한다. 아무도 깨우지 않는 동안 자리가 비어
+   * 있었으면 대기열의 분석은 이때 넘어간다. 할 일이 없으면 잠금 없는 질의 몇 개로 끝난다. 깨우기를 쉬는 동안(앞서 깨우지 못함)은
+   * 깨우지 않는다.
+   */
   async function reading(): Promise<Database> {
     const db = await database();
-    await sweep(db);
+    await tidyQueue(db, pump, "읽기");
     return db;
   }
 
@@ -287,6 +201,10 @@ export function createDbStore(deps: DbStoreDeps): ServiceStore {
       return Object.fromEntries(rows.rows.map((row) => [row.id, row.finding_count]));
     },
 
+    async queue() {
+      return readQueue(await database(), limits.poolSize, now());
+    },
+
     async recentSucceeded(limit) {
       const db = await reading();
       const rows = await db.query<Row>(
@@ -324,7 +242,8 @@ export function createDbStore(deps: DbStoreDeps): ServiceStore {
       }
       if (!commit) return { ok: false, reason: "not-found", message: "기본 브랜치의 끝 커밋을 찾지 못했습니다." };
 
-      const db = await database();
+      // 받기 전에 정리한다(오래 기다린 대기열의 분석이 대기열 상한을 붙들지 않게, 비어 있던 자리를 먼저 채우게).
+      const db = await reading();
       const key = repoKey(repository.owner, repository.name);
       const requestedAt = now();
       const created = await db.transaction(async (tx): Promise<RequestOutcome> => {
@@ -350,12 +269,15 @@ export function createDbStore(deps: DbStoreDeps): ServiceStore {
             message: `오늘(한국 표준시) 받을 수 있는 분석 ${limits.daily}건을 모두 받았습니다. 내일 다시 요청해 주세요.`,
           };
         }
-        const moving = await tx.query<{ n: number }>("SELECT count(*)::int AS n FROM analyses WHERE status IN ('queued', 'running')");
-        if (moving.rows[0].n >= limits.concurrent) {
+        // 실행 자리(POOL_SIZE)가 차 있어도 받는다. 대기열이 QUEUE_LIMIT 이면 그때만 받지 않는다.
+        const waiting = await tx.query<{ n: number }>(
+          "SELECT count(*)::int AS n FROM analyses WHERE status = 'queued' AND dispatched_at IS NULL",
+        );
+        if (waiting.rows[0].n >= limits.queueLimit) {
           return {
             ok: false,
             reason: "limit",
-            message: `지금 분석 ${moving.rows[0].n}건이 대기·진행 중이라(동시에 ${limits.concurrent}건까지) 받지 않았습니다. 그 분석이 끝난 뒤 다시 요청해 주세요.`,
+            message: `대기열이 가득 차 받지 않았습니다(실행 자리를 기다리는 분석 ${waiting.rows[0].n}건, 대기열 상한 ${limits.queueLimit}건). 앞의 분석이 실행기로 넘어간 뒤 다시 요청해 주세요.`,
           };
         }
         const at = requestedAt.toISOString();
@@ -377,21 +299,11 @@ export function createDbStore(deps: DbStoreDeps): ServiceStore {
       });
       if (!created.ok || created.reused) return created;
 
-      const woke = await wake({
-        analysisId: created.analysis.id,
-        owner: created.analysis.owner,
-        repo: created.analysis.name,
-        commit: created.analysis.commit,
-        callbackBase: deps.config.runner.callbackBase,
-      });
-      if (woke.ok) return created;
-      // 깨우지 못했으면 대기에 남겨 두지 않는다(아무도 집어 가지 않는다). 실패로 적고 까닭을 남긴다.
-      const failed = await db.query<Row>(
-        `UPDATE analyses SET status = 'failed', failure_step = 'queued', failure_reason = $2, finished_at = $3
-         WHERE id = $1 AND status = 'queued' RETURNING ${COLUMNS}`,
-        [created.analysis.id, woke.reason, now()],
-      );
-      return { ok: true, analysis: failed.rows[0] ? rowToAnalysis(failed.rows[0]) : created.analysis, reused: false };
+      // 자리가 비어 있으면 이 분석(또는 그 앞의 분석)을 실행기에 보낸다. 깨우지 못하거나 넘기다 DB 오류가 나도 요청은 받은
+      // 것이다(대기열에 남고, 다음 깨우는 때 넘어간다).
+      await tidyQueue(db, pump, "요청").catch(() => null);
+      const after = await db.query<Row>(`SELECT ${COLUMNS} FROM analyses WHERE id = $1`, [created.analysis.id]).catch(() => null);
+      return { ok: true, analysis: after?.rows[0] ? rowToAnalysis(after.rows[0]) : created.analysis, reused: false };
     },
   };
 }

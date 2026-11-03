@@ -11,10 +11,11 @@ import type { Repository } from "@/lib/service/types";
  * (기본 30초) 둔다. 같은 저장소의 분석 요청이 잇따라 와도 GitHub 을 한 번만 부른다(그 사이에 올라온 커밋은 30초 뒤의 요청이 본다).
  *
  * 요청 수 예산(검토 1): 한 사람이 검색어를 바꿔 가며, 또는 분석 요청을 되풀이해 이 사이트의 GitHub 요청 수 상한을 다 쓰면 모든
- * 사람의 검색·저장소 쪽이 멈춘다. 그래서 GitHub 을 부르기 전에 서버 메모리의 토큰 통(token bucket)에서 하나를 꺼낸다. 통은
- * 서버 인스턴스마다 하나이고 요청한 사람을 가리지 않는다(IP 등 요청한 사람에 관한 것을 적지 않는다). 검색(1분에 GitHub 이 30번,
- * 토큰 없이 10번 받는다)과 그 밖의 부름(1시간에 5000번)을 따로 센다. 통이 비면 GitHub 을 부르지 않고 '요청 수 상한'으로 답한다.
- * 캐시에서 꺼낸 답은 세지 않는다.
+ * 사람의 검색·저장소 쪽이 멈춘다. 그래서 GitHub 을 부르기 전에 예산에서 하나를 꺼낸다. 요청한 사람을 가리지 않는다(IP 등 요청한
+ * 사람에 관한 것을 적지 않는다). 검색(1분에 GitHub 이 30번, 토큰 없이 10번 받는다)과 그 밖의 부름(1시간에 5000번)을 따로 센다.
+ * 예산이 비면 GitHub 을 부르지 않고 '요청 수 상한'으로 답한다. 캐시에서 꺼낸 답은 세지 않는다.
+ * 예산은 `budget` 으로 받는다. 운영은 서버 인스턴스가 함께 쓰는 DB 의 1분 창 카운터다(`budget.ts`, `store/index.ts`). 주지 않으면
+ * 이 서버 메모리의 토큰 통(token bucket)이다(서버 인스턴스마다 하나. 시험과 DB 를 쓰지 못할 때).
  *
  * 시험은 가짜 fetch 를 넘긴다(`createGitHub({ fetch })`). 실제 GitHub 을 부르지 않는다.
  */
@@ -64,9 +65,17 @@ export interface GitHubOptions {
   searchPerMinute?: number;
   /** 이 서버가 1분에 검색 밖의 GitHub API(저장소 정보·끝 커밋)를 부르는 수 상한. 기본 60. */
   callsPerMinute?: number;
+  /**
+   * 예산에서 하나를 꺼낸다. 꺼내지 못하면 false(부르지 않는다). 없으면 이 서버 메모리의 토큰 통(위 두 수)을 쓴다.
+   * 운영은 서버 인스턴스가 함께 쓰는 DB 의 카운터를 넘긴다(`budget.ts`).
+   */
+  budget?: (bucket: BudgetBucket) => Promise<boolean>;
   fetch?: typeof fetch;
   now?: () => number;
 }
+
+/** GitHub 을 부르는 수를 세는 통: 검색, 그 밖(저장소 정보·끝 커밋). */
+export type BudgetBucket = "search" | "core";
 
 export const GITHUB_BUDGET_DEFAULTS = { commitCacheSeconds: 30, searchPerMinute: 10, callsPerMinute: 60 } as const;
 
@@ -124,6 +133,18 @@ export class TokenBucket {
   }
 }
 
+/** 이 서버 메모리의 토큰 통 둘(검색, 그 밖). 서버 인스턴스마다 하나다. */
+export function localBudget(
+  options: Pick<GitHubOptions, "searchPerMinute" | "callsPerMinute">,
+  now: () => number = Date.now,
+): (bucket: BudgetBucket) => boolean {
+  const buckets = {
+    search: new TokenBucket(options.searchPerMinute ?? GITHUB_BUDGET_DEFAULTS.searchPerMinute, now),
+    core: new TokenBucket(options.callsPerMinute ?? GITHUB_BUDGET_DEFAULTS.callsPerMinute, now),
+  };
+  return (bucket) => buckets[bucket].take();
+}
+
 type Raw = Record<string, unknown>;
 const str = (value: unknown): string | null => (typeof value === "string" ? value : null);
 
@@ -156,13 +177,11 @@ export function createGitHub(options: GitHubOptions): GitHubClient {
   const searches = new TtlCache<SearchPage>(options.searchCacheSeconds, now);
   const repos = new TtlCache<GitHubRepository | null>(options.repoCacheSeconds, now);
   const commits = new TtlCache<string | null>(options.commitCacheSeconds ?? GITHUB_BUDGET_DEFAULTS.commitCacheSeconds, now);
-  const budgets = {
-    search: new TokenBucket(options.searchPerMinute ?? GITHUB_BUDGET_DEFAULTS.searchPerMinute, now),
-    core: new TokenBucket(options.callsPerMinute ?? GITHUB_BUDGET_DEFAULTS.callsPerMinute, now),
-  };
+  const local = localBudget(options, now);
+  const take = options.budget ?? (async (bucket: BudgetBucket) => local(bucket));
 
-  async function call(pathAndQuery: string, budget: keyof typeof budgets = "core"): Promise<{ status: number; body: unknown }> {
-    if (!budgets[budget].take()) {
+  async function call(pathAndQuery: string, budget: BudgetBucket = "core"): Promise<{ status: number; body: unknown }> {
+    if (!(await take(budget))) {
       throw new GitHubError("rate-limit", "이 사이트가 GitHub 에 보내는 요청이 잠시 많아 쉬고 있습니다. 1분쯤 뒤에 다시 해 보세요.");
     }
     const headers: Record<string, string> = {

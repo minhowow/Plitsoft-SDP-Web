@@ -3,10 +3,12 @@
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { ID_ALPHABET, ID_LENGTH } from "@/lib/service/id";
+import { readPlace, type QueuePlace } from "@/lib/service/queue";
 
 /**
  * 분석 요청 단추(브라우저 부품). 같은 사이트의 `POST /api/analyses/` 만 부른다. 받으면 그 분석 쪽으로 가고(새 분석이든, 같은
- * 커밋의 분석으로 보낸 것이든), 받지 않으면 서버가 돌려준 까닭(하루·동시 상한, 너무 큼, 없음 등)을 단추 옆에 그대로 적는다.
+ * 커밋의 분석으로 보낸 것이든. 새 분석은 대기열의 어디에 넣었는지 적는다), 받지 않으면 서버가 돌려준 까닭(하루·대기열 상한,
+ * 너무 큼, 없음 등)을 단추 옆에 그대로 적는다.
  *
  * 누르는 동안은 다시 누를 수 없다(`aria-disabled`, 그리고 손잡이가 진행 중인 요청을 보고 돌아간다). `disabled` 를 쓰지 않는
  * 것은 키보드 차례에서 빠지지 않게 하려는 것이다(까닭을 `aria-describedby` 로 듣는다).
@@ -18,12 +20,30 @@ interface RequestAnswer {
   reused?: unknown;
   href?: unknown;
   message?: unknown;
+  analysis?: unknown;
+  queue?: unknown;
 }
 
 /** 옮겨 갈 주소는 이 사이트의 분석 쪽 주소만 받는다(서버가 만든 값이지만, 다른 곳으로 가는 주소는 따르지 않는다). */
 const ANALYSIS_PATH = new RegExp(`^/r/[a-z0-9._-]+/[a-z0-9._-]+/a/[${ID_ALPHABET}]{${ID_LENGTH}}/$`);
 
-type State = { kind: "idle" } | { kind: "busy" } | { kind: "moving"; reused: boolean } | { kind: "refused"; message: string };
+type State =
+  | { kind: "idle" }
+  | { kind: "busy" }
+  | { kind: "moving"; reused: boolean; place: QueuePlace | null; failed: boolean }
+  | { kind: "refused"; message: string };
+
+/** 옮겨 가는 동안 적는 말. 새 분석이면 대기열의 어디에 넣었는지(서버가 DB 에서 센 것)를 적는다. */
+function movingText(state: Extract<State, { kind: "moving" }>): string {
+  if (state.reused) return "같은 커밋의 분석이 이미 있어 새로 만들지 않고 그 분석으로 갑니다.";
+  if (state.failed) return "분석을 만들었지만 실행기에 보내지 못했습니다. 분석 쪽에서 까닭을 봅니다.";
+  if (state.place?.kind === "waiting" && state.place.wakeFailure) {
+    return `대기열에 넣었습니다(앞에 ${state.place.ahead}개). 다만 실행기를 깨우지 못해 대기열이 잠시 멈춰 있습니다. 분석 쪽으로 갑니다.`;
+  }
+  if (state.place?.kind === "waiting") return `대기열에 넣었습니다(앞에 ${state.place.ahead}개). 분석 쪽으로 갑니다.`;
+  if (state.place?.kind === "dispatched") return "대기열에 넣었고, 실행 자리가 비어 있어 곧바로 실행기에 보냈습니다. 분석 쪽으로 갑니다.";
+  return "분석을 만들었습니다. 분석 쪽으로 갑니다.";
+}
 
 export function RequestButton({ owner, name, label }: { owner: string; name: string; label: string }) {
   const router = useRouter();
@@ -48,7 +68,8 @@ export function RequestButton({ owner, name, label }: { owner: string; name: str
     }
     if (answer?.ok === true && typeof answer.href === "string" && ANALYSIS_PATH.test(answer.href)) {
       // 옮겨 가는 동안에도 다시 누를 수 없게 둔다.
-      setState({ kind: "moving", reused: answer.reused === true });
+      const status = (answer.analysis as { status?: unknown } | null | undefined)?.status;
+      setState({ kind: "moving", reused: answer.reused === true, place: readPlace(answer.queue), failed: status === "failed" });
       router.push(answer.href);
       return;
     }
@@ -77,10 +98,7 @@ export function RequestButton({ owner, name, label }: { owner: string; name: str
       {/* 바뀌는 말을 화면 낭독기가 읽게 한다. 거절은 경고 색으로 적는다. */}
       <p id="request-note" className={state.kind === "refused" ? "hint request-refused" : "hint"} role="status">
         {state.kind === "busy" && "요청을 보냈습니다. 저장소와 끝 커밋을 확인하고 있습니다."}
-        {state.kind === "moving" &&
-          (state.reused
-            ? "같은 커밋의 분석이 이미 있어 새로 만들지 않고 그 분석으로 갑니다."
-            : "분석을 만들었습니다. 분석 쪽으로 갑니다.")}
+        {state.kind === "moving" && movingText(state)}
         {state.kind === "refused" && <>요청하지 못했습니다. {state.message}</>}
       </p>
     </>

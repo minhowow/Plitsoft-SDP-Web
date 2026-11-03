@@ -6,7 +6,8 @@ import { isRepoFullName } from "@/lib/service/names";
 import { STEP_ORDER } from "@/lib/service/steps";
 import type { AnalysisStep, StepName } from "@/lib/service/types";
 import type { Database, Queryable } from "./db";
-import { COLUMNS, readSteps, rowToAnalysis, sweepStale, type Row } from "./store/db";
+import { sweepStale, tidyQueue, type PumpDeps, type QueueLimits } from "./queue";
+import { COLUMNS, readSteps, rowToAnalysis, type Row } from "./store/rows";
 
 /**
  * 실행기 콜백이 분석 행을 바꾸는 규칙(설계 6). route handler(`src/app/api/runner/`)는 서명을 본 뒤 이것만 부른다.
@@ -21,6 +22,8 @@ import { COLUMNS, readSteps, rowToAnalysis, sweepStale, type Row } from "./store
  *
  * 상태 전이만 허용한다.
  * - 끝난(succeeded·failed) 분석은 다시 바꾸지 못한다(409). 시간을 넘긴 분석은 먼저 '시간 초과'로 끝낸 뒤 본다.
+ * - 아직 실행기에 보내지 않은(대기열에 있는) 분석의 알림은 받지 않는다(409). 실행기는 보낸 분석만 안다.
+ * - 한 분석에는 실행 하나만 붙인다. 이미 다른 실행(run id)을 적었으면 다른 실행의 단계 알림은 받지 않는다(409).
  * - 단계는 차례대로 하나씩 간다(대기 → 저장소 받기·도구 설치 → 검사 → 정리). 지금 단계를 다시 알리면 바꾸지 않고 받는다(같은
  *   콜백을 다시 보낸 것). 건너뛰거나 뒤로 가면 409.
  * - 결과는 정리 단계에서만 받는다. CLI 의 결과로 읽히면 끝남(도구·팩 판을 결과에서 적는다), 읽히지 않으면 받은 글을 그대로 두고
@@ -105,18 +108,24 @@ export async function applyRunnerEvent(
   db: Database,
   id: string,
   event: RunnerEvent,
-  options: { now: Date; runTimeoutMinutes: number },
+  options: { now: Date; limits: QueueLimits },
 ): Promise<EventOutcome> {
   if (!isAnalysisId(id)) return refuse(404, "그런 분석이 없습니다.");
   const at = options.now.toISOString();
   return db.transaction(async (tx: Queryable): Promise<EventOutcome> => {
-    await sweepStale(tx, options.now, options.runTimeoutMinutes);
-    const found = await tx.query<Row>(`SELECT ${COLUMNS} FROM analyses WHERE id = $1 FOR UPDATE`, [id]);
+    await sweepStale(tx, options.now, options.limits);
+    const found = await tx.query<Row & { dispatched: boolean; runner_run_id: string | null }>(
+      `SELECT ${COLUMNS}, dispatched_at IS NOT NULL AS dispatched, runner_run_id FROM analyses WHERE id = $1 FOR UPDATE`,
+      [id],
+    );
     const row = found.rows[0];
     if (!row) return refuse(404, "그런 분석이 없습니다.");
     const analysis = rowToAnalysis(row);
     if (analysis.status === "succeeded" || analysis.status === "failed") {
       return refuse(409, "이미 끝난 분석이라 바꾸지 않습니다.");
+    }
+    if (analysis.status === "queued" && !row.dispatched) {
+      return refuse(409, "아직 실행기에 보내지 않은(대기열에 있는) 분석이라 받지 않습니다.");
     }
     if (repoKey(event.target.owner, event.target.repo) !== repoKey(row.owner, row.repo) || event.target.commit !== row.commit_sha) {
       return refuse(409, "이 분석의 저장소·커밋이 아닌 실행의 알림이라 받지 않습니다.");
@@ -127,6 +136,11 @@ export async function applyRunnerEvent(
       tx.query(`UPDATE analyses SET steps = $2::jsonb${patch} WHERE id = $1`, [id, JSON.stringify(steps), ...params]);
 
     if (event.event === "step") {
+      // 한 분석에는 실행 하나만 붙인다. 깨우기의 응답이 늦어 대기열에 되돌린 뒤 다시 보낸 경우처럼 실행이 둘 생기면, 먼저 알린
+      // 실행만 받는다(실행 자리를 넘겨 둘이 돌지 않게).
+      if (event.run && row.runner_run_id && row.runner_run_id !== event.run.id) {
+        return refuse(409, "이 분석에는 다른 실행이 이미 붙어 있어 받지 않습니다.");
+      }
       const target = STEP_ORDER.indexOf(event.step);
       if (target === current && !steps[current].endedAt) {
         return { status: 200, body: { ok: true, message: "이미 알린 단계입니다.", status: analysis.status, unchanged: true } };
@@ -180,20 +194,22 @@ export async function applyRunnerEvent(
 }
 
 /**
- * 로컬 실행기(RUNNER=local)가 대기 중인 분석 하나를 집어 간다. 가장 먼저 요청한 것부터, 아직 아무도 집지 않은 것만
- * (`runner_run_id` 에 'local' 을 적는다). 둘이 동시에 집어도 한 분석은 한 실행기에만 간다.
+ * 로컬 실행기(RUNNER=local)가 분석 하나를 집어 간다. 먼저 대기열을 넘기고(`pumpQueue`. 로컬의 깨우기는 아무것도 하지 않으므로
+ * 실행 자리를 얻은 분석에 '보냄' 표시만 남는다), 그다음 보냈고 아직 아무도 집지 않은 분석을 보낸 차례로 하나 집는다
+ * (`runner_run_id` 에 'local' 을 적는다). 그래서 로컬 실행기도 실행 자리 수(POOL_SIZE)를 넘겨 돌리지 않는다. 둘이 동시에 집어도
+ * 한 분석은 한 실행기에만 간다.
  */
 export async function claimQueued(
   db: Database,
-  options: { now: Date; runTimeoutMinutes: number },
+  deps: PumpDeps,
 ): Promise<{ id: string; owner: string; repo: string; commit: string } | null> {
+  await tidyQueue(db, deps, "집어 가기");
   return db.transaction(async (tx) => {
-    await sweepStale(tx, options.now, options.runTimeoutMinutes);
     const rows = await tx.query<{ id: string; owner: string; repo: string; commit_sha: string }>(
       `UPDATE analyses SET runner_run_id = 'local'
        WHERE id = (
-         SELECT id FROM analyses WHERE status = 'queued' AND runner_run_id IS NULL
-         ORDER BY requested_at, id LIMIT 1 FOR UPDATE SKIP LOCKED
+         SELECT id FROM analyses WHERE status = 'queued' AND dispatched_at IS NOT NULL AND runner_run_id IS NULL
+         ORDER BY dispatched_at, requested_at, id LIMIT 1 FOR UPDATE SKIP LOCKED
        ) AND runner_run_id IS NULL
        RETURNING id, owner, repo, commit_sha`,
     );

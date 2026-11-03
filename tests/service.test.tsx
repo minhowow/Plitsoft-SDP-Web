@@ -11,6 +11,7 @@ import type { Report } from "@/lib/report/types";
 import { buildReportView, type ReportView } from "@/lib/report/view-model";
 import { analysisHref, commitLink, fileLink, repoHref, repoKey, searchHref, shortCommit } from "@/lib/service/href";
 import { ID_ALPHABET, ID_LENGTH, isAnalysisId, newAnalysisId } from "@/lib/service/id";
+import { placeOf, readPlace } from "@/lib/service/queue";
 import { matchRepositories } from "@/lib/service/search";
 import { activeStep, duration, finishedAt, formatKst, STEP_ORDER, stepState } from "@/lib/service/steps";
 import { SYNTHETIC_RESULT_SOURCES, syntheticRepositories, syntheticStore as store } from "@/lib/service/synthetic";
@@ -279,6 +280,57 @@ describe("부품", () => {
     expect(textOf(html)).toContain("검사(정적 검사와 AI 판정) 중");
     // 합성 저장소의 커밋은 링크가 아니다.
     expect(html).not.toContain("/commit/");
+  });
+
+  it("대기열: 대기 중인 분석에 대기열의 몇 번째인지와 실행 자리를 적는다(DB 에서 센 숫자). 모르면 적지 않는다", () => {
+    const queued = find("queued");
+    const repository = repoOf(queued);
+    const snapshot = { countedAt: "2026-11-03T03:04:00.000Z", poolSize: 2, inUse: 2, waiting: ["zzzzzzzzzz", queued.id], dispatched: ["yyyyyyyyyy"], wakeFailure: null };
+    const place = placeOf(snapshot, queued.id);
+    expect(place).toEqual({ kind: "waiting", ahead: 1, poolSize: 2, inUse: 2 });
+    const page = textOf(renderToStaticMarkup(<LiveAnalysis repository={repository} analysis={queued} place={place} />));
+    expect(page).toContain("대기열 2번째입니다(앞에 1개). 실행 자리 2개 중 2개 사용 중입니다.");
+    // 진행 쪽은 다시 읽으므로 대기열 줄도 화면 낭독기가 읽는다(role="status"). 센 때는 적지 않는다(늘 지금 숫자다).
+    const live = renderToStaticMarkup(<InProgress analysis={queued} live place={place} />);
+    expect(live).toMatch(/<p class="hint an-queue" role="status">대기열 2번째/);
+    expect(textOf(live)).not.toContain("이 쪽을 연 때");
+    // 저장소 쪽은 한 번 그리고 다시 읽지 않는다. 숫자가 그때의 것이라고 적는다(검토).
+    const compact = textOf(renderToStaticMarkup(<InProgress analysis={queued} compact place={place} countedAt={snapshot.countedAt} />));
+    expect(compact).toContain("이 쪽을 연 때(2026-11-03 12:04 한국 표준시) 대기열 2번째입니다(앞에 1개).");
+    expect(compact).toContain("분석 쪽에서는 계속 갱신됩니다.");
+    const list = textOf(renderToStaticMarkup(<AnalysisList repository={repository} analyses={[queued]} findings={{}} queue={snapshot} />));
+    expect(list).toContain("대기열 2번째(앞에 1개)");
+    expect(list).toContain("대기열 순서는 이 쪽을 연 때(2026-11-03 12:04 한국 표준시)의 것입니다. 분석 쪽에서는 계속 갱신됩니다.");
+    // 실행기에 보낸 분석.
+    const sent = placeOf({ ...snapshot, waiting: [], dispatched: [queued.id] }, queued.id)!;
+    expect(textOf(renderToStaticMarkup(<InProgress analysis={queued} place={sent} />))).toContain(
+      "실행 자리를 얻어 실행기에 보냈고, 실행기가 시작을 알리기를 기다리고 있습니다. 실행 자리 2개 중 2개 사용 중입니다.",
+    );
+    // 대기열을 모르면(합성, 읽지 못함) 숫자를 적지 않는다. 분석 중인 분석에는 대기열을 적지 않는다.
+    expect(textOf(renderToStaticMarkup(<InProgress analysis={queued} />))).not.toContain("대기열");
+    expect(textOf(renderToStaticMarkup(<InProgress analysis={find("running")} place={place} />))).not.toContain("대기열");
+    expect(textOf(renderToStaticMarkup(<AnalysisList repository={repository} analyses={[queued]} findings={{}} />))).not.toContain("대기열");
+  });
+
+  it("요청 칸: 요청을 받는 서버에서는 지금의 실행 자리와 대기열 길이를 적고, 받지 않으면 적지 않는다", () => {
+    const repository = repos[0].repository;
+    const snapshot = { countedAt: "2026-11-03T03:04:00.000Z", poolSize: 2, inUse: 1, waiting: [], dispatched: [], wakeFailure: null };
+    const open = textOf(renderToStaticMarkup(<RequestPanel repository={repository} latest={null} closed={null} queue={snapshot} />));
+    // 한 번 그리고 다시 읽지 않는 쪽이라 "지금"이라고 하지 않고 센 때를 적는다(검토).
+    expect(open).toContain("이 쪽을 연 때(2026-11-03 12:04 한국 표준시) 이 사이트 전체에서 실행 자리 2개 중 1개 사용 중, 대기열 0개.");
+    expect(open).not.toContain("지금 이 사이트");
+    const closed = textOf(renderToStaticMarkup(<RequestPanel repository={repository} latest={null} closed={SITE.service.noServer} queue={snapshot} />));
+    expect(closed).not.toContain("실행 자리");
+  });
+
+  it("대기열의 자리는 서버가 준 모양일 때만 읽는다", () => {
+    expect(readPlace({ kind: "waiting", ahead: 0, poolSize: 2, inUse: 2 })).toEqual({ kind: "waiting", ahead: 0, poolSize: 2, inUse: 2 });
+    expect(readPlace({ kind: "dispatched", poolSize: 1, inUse: 1, extra: "x" })).toEqual({ kind: "dispatched", poolSize: 1, inUse: 1 });
+    expect(readPlace({ kind: "waiting", ahead: 0, poolSize: 1, inUse: 0, wakeFailure: "까닭." })).toEqual({ kind: "waiting", ahead: 0, poolSize: 1, inUse: 0, wakeFailure: "까닭." });
+    expect(readPlace({ kind: "waiting", ahead: 0, poolSize: 1, inUse: 0, wakeFailure: 3 })).toEqual({ kind: "waiting", ahead: 0, poolSize: 1, inUse: 0 });
+    for (const bad of [null, "x", { kind: "waiting", poolSize: 2, inUse: 1 }, { kind: "waiting", ahead: -1, poolSize: 2, inUse: 1 }, { kind: "other", poolSize: 1, inUse: 1 }, { kind: "dispatched", poolSize: 1.5, inUse: 1 }]) {
+      expect(readPlace(bad), JSON.stringify(bad)).toBeNull();
+    }
   });
 
   it("분석 목록: 발견 0건인 끝난 분석이 있으면 0의 뜻을 함께 적고, 없으면 적지 않는다", () => {

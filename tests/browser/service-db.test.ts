@@ -29,8 +29,13 @@ const SUCCEEDED = "dbk7wq2zhm";
 /** 시험용 고정 서명 열쇠(비밀값이 아니다). 서버와 로컬 실행기에 같이 준다. */
 const RUNNER_SECRET = "browser-test-runner-secret";
 const FAILED = "dbk7wq2zhn";
-/** 띄울 때 대기 중으로 넣어 두는 분석(진행 다시 읽기와 탭이 숨었을 때 쉬는 것을 본다). 아무 실행기도 집어 가지 않는다. */
+/**
+ * 띄울 때 대기 중으로 넣어 두는 분석(진행 다시 읽기와 탭이 숨었을 때 쉬는 것을 본다). 실행기에 보낸 것으로 넣어 실행 자리
+ * 하나(POOL_SIZE=1)를 차지한다. 아무 실행기도 집어 가지 않는다(로컬 실행기는 마지막 시험에서만 돈다. 그때는 실패로 끝나 있다).
+ */
 const WAITING = "dbk7wq2zhp";
+/** 실행 자리가 차 있어 대기열에 있는 분석. WAITING 이 실패로 끝나면 서버가 실행기에 보낸다. 마지막 시험의 로컬 실행기가 돌린다. */
+const QUEUED = "dbk7wq2zhq";
 
 beforeAll(async () => {
   stub = await startGitHubStub();
@@ -54,13 +59,21 @@ beforeAll(async () => {
   );
   // 대기 중인 분석은 요청한 때가 지금이어야 한다(25분이 지나면 서버가 시간 초과로 적는다).
   const now = new Date().toISOString();
+  const queuedSteps = (at: string) => JSON.stringify(STEP_ORDER.map((name) => ({ name, startedAt: name === "queued" ? at : null, endedAt: null })));
+  await db.query(
+    `INSERT INTO analyses (id, owner, repo, repo_key, commit_sha, branch, status, requested_at, steps, dispatched_at)
+     VALUES ($1, 'example-labs', 'plain.utils', 'example-labs/plain.utils', $2, 'main', 'queued', $3, $4::jsonb, $3)`,
+    [WAITING, "c".repeat(40), now, queuedSteps(now)],
+  );
+  const later = new Date(Date.parse(now) + 1000).toISOString();
   await db.query(
     `INSERT INTO analyses (id, owner, repo, repo_key, commit_sha, branch, status, requested_at, steps)
-     VALUES ($1, 'example-labs', 'plain.utils', 'example-labs/plain.utils', $2, 'main', 'queued', $3, $4::jsonb)`,
-    [WAITING, "c".repeat(40), now, JSON.stringify(STEP_ORDER.map((name) => ({ name, startedAt: name === "queued" ? now : null, endedAt: null })))],
+     VALUES ($1, 'Example-Studio', 'GenAI-Chat', 'example-studio/genai-chat', $2, 'main', 'queued', $3, $4::jsonb)`,
+    [QUEUED, "d".repeat(40), later, queuedSteps(later)],
   );
   await db.close();
-  site = await serveSite({ SERVICE_STORE: "db", PGLITE_DIR: dataDir, GITHUB_API_BASE: stub.origin, RUNNER: "local", RUNNER_SECRET });
+  // 실행 자리는 하나다. 대기열에 분석이 머무는 것을 본다.
+  site = await serveSite({ SERVICE_STORE: "db", PGLITE_DIR: dataDir, GITHUB_API_BASE: stub.origin, RUNNER: "local", RUNNER_SECRET, POOL_SIZE: "1" });
   try {
     browser = await launchChrome();
   } catch (error) {
@@ -149,6 +162,27 @@ describe("DB + GitHub 으로 띄운 사이트", () => {
     expect(await page.locator(".step-failed .step-name").allTextContents()).toEqual(["저장소 받기·도구 설치"]);
   });
 
+  it("대기열: 실행 자리가 차 있으면 대기 중인 분석 쪽과 저장소 쪽에 대기열의 몇 번째인지와 실행 자리를 적는다(DB 에서 센 숫자)", async () => {
+    const { page, outside } = await open(analysisHref("example-studio", "genai-chat", QUEUED));
+    expect(await page.locator(".an-title .badge").textContent()).toBe("대기 중");
+    expect(await page.locator(".an-queue").textContent()).toBe(
+      "대기열 1번째입니다(앞에 0개). 실행 자리 1개 중 1개 사용 중입니다. 앞의 분석이 끝나 자리가 나면 차례대로 실행기에 보냅니다.",
+    );
+    // 진행 읽기도 같은 숫자를 준다.
+    const api = (await (await fetch(`${site.origin}/api/analyses/${QUEUED}/`)).json()) as { queue: unknown };
+    expect(api.queue).toEqual({ kind: "waiting", ahead: 0, poolSize: 1, inUse: 1 });
+
+    await page.goto(`${site.origin}${repoHref("example-studio", "genai-chat")}`);
+    expect(await page.locator(".an-list .an-row-out").allTextContents()).toEqual(["대기열 1번째(앞에 0개)"]);
+    expect(await page.locator(".repo-moving .an-queue").textContent()).toContain("대기열 1번째입니다(앞에 0개).");
+    expect(await page.locator(".request-queue").textContent()).toContain("실행 자리 1개 중 1개 사용 중, 대기열 1개.");
+
+    // 자리를 차지한 분석(실행기에 보냄, 아직 시작을 알리지 않음).
+    await page.goto(`${site.origin}${analysisHref("example-labs", "plain.utils", WAITING)}`);
+    expect(await page.locator(".an-queue").textContent()).toContain("실행 자리를 얻어 실행기에 보냈고");
+    expect(outside).toEqual([]);
+  });
+
   it("요청을 받지 않으면 서버가 돌려준 까닭을 단추 옆에 그대로 적고, 단추는 다시 듣는다", async () => {
     // 가짜 GitHub 의 huge-monorepo 는 크기 상한(MAX_REPO_KB)을 넘는다. 서버가 정말 받지 않는다(422).
     const { page, outside } = await open(repoHref("example-labs", "huge-monorepo"));
@@ -216,6 +250,12 @@ describe("DB + GitHub 으로 띄운 사이트", () => {
     await check("거절된 요청");
     expect(problems.splice(0)).toEqual(["콘솔: Failed to load resource: the server responded with a status of 422 (Unprocessable Entity)"]);
 
+    await page.goto(`${site.origin}${analysisHref("example-studio", "genai-chat", QUEUED)}`, { waitUntil: "networkidle" });
+    await page.locator(".an-queue").waitFor();
+    await check("대기열");
+    await page.goto(`${site.origin}${repoHref("example-studio", "genai-chat")}`, { waitUntil: "networkidle" });
+    await check("저장소 쪽의 대기열");
+
     await page.goto(`${site.origin}${analysisHref("example-labs", "plain.utils", WAITING)}`, { waitUntil: "networkidle" });
     await check("진행 중");
     // 서버가 진행을 돌려주지 못하면 그렇다고 적고(빨간 글), 다시 읽기를 이어 간다.
@@ -281,11 +321,14 @@ describe("DB + GitHub 으로 띄운 사이트", () => {
     const after = polls();
     await page.waitForTimeout(3_500);
     expect(polls()).toBe(after);
+    // 실행 자리가 나서 서버가 대기열의 다음 분석을 실행기에 보냈다(콜백을 받을 때 넘긴다).
+    const next = (await (await fetch(`${site.origin}/api/analyses/${QUEUED}/`)).json()) as { queue: unknown };
+    expect(next.queue).toEqual({ kind: "dispatched", poolSize: 1, inUse: 1 });
     expect(outside).toEqual([]);
     expect(await stored(page)).toEqual(NO_STORAGE);
   });
 
-  it("요청 단추 → 로컬 실행기(--fixture) → 단계 콜백 → 결과: 분석 쪽이 스스로 단계를 다시 그리고 대시보드가 된다", async () => {
+  it("요청 단추 → 대기열 → 로컬 실행기(--fixture) → 단계 콜백 → 결과: 분석 쪽이 스스로 단계를 다시 그리고 대시보드가 된다", async () => {
     const { page, outside } = await open(repoHref("example-org", "night-push"));
     await page.evaluate(() => ((window as unknown as { __sameDocument: boolean }).__sameDocument = true));
     expect(await page.locator(".request button").textContent()).toBe("분석 요청");
@@ -298,16 +341,23 @@ describe("DB + GitHub 으로 띄운 사이트", () => {
     await page.locator(".an-title .badge").waitFor();
     expect(await page.locator(".an-title .badge").textContent()).toBe("대기 중");
     expect(await page.locator(".step-active .step-name").allTextContents()).toEqual(["대기"]);
+    // 실행 자리(1)는 앞서 보낸 QUEUED 가 쓰고 있다. 이 분석은 대기열의 첫째다.
+    expect(await page.locator(".an-queue").textContent()).toContain("대기열 1번째입니다(앞에 0개). 실행 자리 1개 중 1개 사용 중입니다.");
 
-    // 실행기는 단계 사이를 4초씩 쉰다. 쪽이 3초마다 읽으므로 중간 단계 하나는 쪽에 그려진다.
+    // 로컬 실행기가 QUEUED 를 먼저 돌리고(단계 사이 4초), 그 결과를 받은 서버가 자리를 이 분석에 넘기면 곧바로 집어 이어서 돌린다
+    // ('실행기에 보냄'은 집어 가기까지의 한순간이라 쪽에 그려지지 않을 수 있다). 쪽이 3초마다 읽으므로 중간 단계 하나는 그려진다.
     const runner = runLocalRunner(["--fixture", "--once", "--step-delay", "4000", "--site", site.origin], { RUNNER_SECRET });
     try {
-      await page.locator(".step-active .step-name", { hasText: /저장소 받기|검사/ }).waitFor({ timeout: 12_000 });
+      await page.locator(".step-active .step-name", { hasText: /저장소 받기|검사/ }).waitFor({ timeout: 30_000 });
       expect(await page.locator(".an-title .badge").textContent()).toBe("분석 중");
+      expect(await page.locator(".an-queue").count()).toBe(0);
       await page.locator(".dash").waitFor({ timeout: 15_000 });
     } finally {
       await runner;
     }
+    // 앞의 분석도 끝까지 돌았다.
+    const queued = (await (await fetch(`${site.origin}/api/analyses/${QUEUED}/`)).json()) as { analysis: { status: string } };
+    expect(queued.analysis.status).toBe("succeeded");
     expect(await page.evaluate(() => (window as unknown as { __sameDocument?: boolean }).__sameDocument)).toBe(true);
     expect(await page.locator("main").textContent()).not.toContain("합성 예시입니다");
     expect(await page.locator(".steps .step-done .step-name").allTextContents()).toEqual([
@@ -334,5 +384,6 @@ describe("DB + GitHub 으로 띄운 사이트", () => {
       body: JSON.stringify({ event: "fail", step: "finish", reason: "위조" }),
     });
     expect(forged.status).toBe(401);
-  });
+    // 앞의 분석(QUEUED)을 다 돌린 뒤에 이 분석이 돈다. 둘을 단계마다 4초씩 쉬어 가며 돌리므로 시간을 더 준다.
+  }, 60_000);
 });

@@ -10,12 +10,14 @@
 // 사이트는 RUNNER=local 로 띄운다. 실행기는 서명한 요청으로 대기 중인 분석을 집어 가고(POST /api/runner/claim/), 단계마다
 // 서명한 콜백을 보낸다. 서명 열쇠는 사이트와 같은 RUNNER_SECRET 환경 변수다(로컬에서 아무 글이나 정해 둘에 같이 준다).
 //
-//   RUNNER_SECRET=… node scripts/local-runner.mjs --fixture [--site http://127.0.0.1:3000] [--once] [--step-delay 800]
+//   RUNNER_SECRET=… node scripts/local-runner.mjs --fixture [--site http://127.0.0.1:3000] [--once] [--step-delay 800] [--parallel 2]
 //
 //   --once          대기 중인 분석이 하나도 없을 때까지 돌리고 끝낸다(없으면 바로 끝낸다). 없으면 계속 기다린다.
 //   --interval ms   기다리는 동안 몇 ms 마다 다시 물을지(기본 2000)
 //   --step-delay ms 단계 사이에 쉬는 시간(화면에서 진행을 보려고. 기본 0)
 //   --source dir    가짜 GitHub 에 없는 저장소를 요청했을 때 검사할 폴더(기본 contract/fixtures/kids-signup/main)
+//   --parallel n    한 번에 돌리는 분석 수(기본 1). 사이트의 POOL_SIZE 와 같게 둔다. 사이트는 실행 자리 수만큼만 '보냄'으로
+//                   표시하므로, 이보다 작으면 보냄 표시를 받은 분석이 집히지 않은 채 기다리다 DISPATCH_TIMEOUT_MINUTES 에 실패한다.
 
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
@@ -47,6 +49,7 @@ export function parseArgs(argv) {
     interval: 2000,
     stepDelay: 0,
     source: path.join(root, "contract", "fixtures", "kids-signup", "main"),
+    parallel: 1,
   };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
@@ -61,6 +64,11 @@ export function parseArgs(argv) {
     else if (arg === "--interval") options.interval = Number(value());
     else if (arg === "--step-delay") options.stepDelay = Number(value());
     else if (arg === "--source") options.source = path.resolve(value());
+    else if (arg === "--parallel") {
+      const n = Number(value());
+      if (!Number.isInteger(n) || n < 1) throw new Error("--parallel 은 1 이상의 정수입니다.");
+      options.parallel = n;
+    }
     else throw new Error(`모르는 인자: ${arg}`);
   }
   return options;
@@ -151,24 +159,42 @@ export async function main(argv, env = process.env) {
   const options = parseArgs(argv);
   const secret = env.RUNNER_SECRET;
   if (!secret) throw new Error("RUNNER_SECRET 이 없습니다. 사이트(RUNNER=local)와 같은 값을 주세요.");
+  // 도는 분석. --parallel 만큼까지 집어 와 함께 돌린다.
+  const active = new Set();
+  let fatal = null;
+  const start = (claimed) => {
+    const job = runOne(claimed, options, secret)
+      .then((status) => console.log(`로컬 실행기: ${claimed.owner}/${claimed.repo} 분석 ${claimed.id} → ${status}`))
+      .catch((error) => {
+        fatal ??= error;
+      })
+      .finally(() => active.delete(job));
+    active.add(job);
+  };
   for (;;) {
-    let claimed;
-    try {
-      claimed = await claim(options, secret);
-    } catch (error) {
-      // 기다리는 동안 사이트가 아직 뜨지 않았거나 잠깐 닿지 않을 수 있다. 한 번만 돌릴 때는 그대로 알린다.
-      if (options.once) throw error;
-      console.error(`로컬 실행기: ${error.message} 잠시 뒤에 다시 묻습니다.`);
-      await sleep(options.interval);
-      continue;
+    if (fatal) throw fatal;
+    if (active.size < options.parallel) {
+      let claimed;
+      try {
+        claimed = await claim(options, secret);
+      } catch (error) {
+        // 기다리는 동안 사이트가 아직 뜨지 않았거나 잠깐 닿지 않을 수 있다. 한 번만 돌릴 때는 그대로 알린다.
+        if (options.once) {
+          await Promise.all(active);
+          throw error;
+        }
+        console.error(`로컬 실행기: ${error.message} 잠시 뒤에 다시 묻습니다.`);
+        await Promise.race([sleep(options.interval), ...active]);
+        continue;
+      }
+      if (claimed) {
+        start(claimed);
+        continue;
+      }
+      if (options.once && active.size === 0) return;
     }
-    if (claimed) {
-      const status = await runOne(claimed, options, secret);
-      console.log(`로컬 실행기: ${claimed.owner}/${claimed.repo} 분석 ${claimed.id} → ${status}`);
-      continue;
-    }
-    if (options.once) return;
-    await sleep(options.interval);
+    // 자리가 다 찼거나 집을 것이 없다. 하나가 끝나거나 잠시 지나면 다시 묻는다.
+    await Promise.race([sleep(options.interval), ...active]);
   }
 }
 

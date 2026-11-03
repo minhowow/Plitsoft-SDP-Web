@@ -2,6 +2,7 @@ import type { EventEmitter } from "node:events";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RequestOutcome } from "@/lib/service/types";
 import { claimQueued } from "@/server/callbacks";
+import { pumpQueue, type PumpDeps } from "@/server/queue";
 import { readConfig } from "@/server/config";
 import { openDatabase, type Database, type Queryable } from "@/server/db";
 import { createGitHub } from "@/server/github";
@@ -110,6 +111,7 @@ afterAll(async () => {
 beforeEach(async () => {
   await lite.query("DELETE FROM results");
   await lite.query("DELETE FROM analyses");
+  await lite.query("DELETE FROM runner_wake");
 });
 
 /** 트랜잭션 안의 질의를 적는 DB. `rewrite` 로 트랜잭션 안의 질의 결과를 바꿀 수 있다. */
@@ -140,13 +142,40 @@ function recording(
   } as Database & { transactions: string[][] };
 }
 
+/** 대기열을 넘길 때 드는 것. 깨운 분석 id 를 적는다(로컬 실행기처럼 아무것도 부르지 않는다). */
+function pumpOn(woken: string[] = [], poolSize = 2, fail = false): PumpDeps {
+  return {
+    now: () => T0,
+    limits: { ...readConfig({}).limits, poolSize },
+    callbackBase: null,
+    runner: "local",
+    wake: async (input) => {
+      woken.push(input.analysisId);
+      return fail ? { ok: false, reason: "실행기(GitHub Actions)가 분석을 받지 않았습니다(응답 500)." } : { ok: true };
+    },
+  };
+}
+
+/** 대기열에 분석을 바로 넣는다(요청하면 그 자리에서 넘기므로). */
+async function enqueue(db: Database, n: number) {
+  const ids = Array.from({ length: n }, (_, i) => `q${"abcdefghjk"[i]}${"m".repeat(8)}`);
+  for (const [i, id] of ids.entries()) {
+    await db.query(
+      `INSERT INTO analyses (id, owner, repo, repo_key, commit_sha, branch, status, requested_at, steps)
+       VALUES ($1, 'o', $2, $3, $4, 'main', 'queued', $5, '[]'::jsonb)`,
+      [id, `r${i}`, `o/r${i}`, String(i).repeat(40), new Date(T0.getTime() + i * 1000)],
+    );
+  }
+  return ids;
+}
+
 function storeOn(db: Database) {
   const stub = createGitHubStub({ origin: "http://stub.test" });
   const base = readConfig({});
   return createDbStore({
     db: async () => db,
     github: createGitHub({ apiBase: "http://stub.test", token: null, searchCacheSeconds: 60, repoCacheSeconds: 300, fetch: stub.fetch as typeof fetch }),
-    config: { github: base.github, limits: { ...base.limits, concurrent: 2 }, runner: { ...base.runner, kind: "local" } },
+    config: { github: base.github, limits: { ...base.limits, poolSize: 2 }, runner: { ...base.runner, kind: "local" } },
     now: () => T0,
     wake: async () => ({ ok: true }),
   });
@@ -156,18 +185,56 @@ describe("동시 요청을 막는 장치 (PGlite)", () => {
   it("분석 요청의 트랜잭션은 맨 먼저 권고 잠금을 잡고, 그 뒤에 같은 커밋·상한을 보고 행을 만든다", async () => {
     const db = recording(lite);
     await storeOn(db).requestAnalysis("example-org", "kids-signup");
-    const tx = db.transactions.at(-1)!;
+    // 요청의 트랜잭션(행을 만든 것). 그 뒤의 것은 대기열을 넘긴 트랜잭션이다.
+    const tx = db.transactions.find((seen) => seen.some((text) => text.startsWith("INSERT INTO analyses")))!;
     expect(tx[0]).toBe("SELECT pg_advisory_xact_lock($1)");
     const insert = tx.findIndex((text) => text.startsWith("INSERT INTO analyses"));
-    const limits = tx.findIndex((text) => text.includes("status IN ('queued', 'running')") && text.startsWith("SELECT count"));
+    const limits = tx.findIndex((text) => text.includes("status = 'queued' AND dispatched_at IS NULL") && text.startsWith("SELECT count"));
     expect(limits).toBeGreaterThan(0);
     expect(insert).toBeGreaterThan(limits);
   });
 
   it("로컬 실행기가 집어 갈 때는 FOR UPDATE SKIP LOCKED 로 한 행만 잠근다", async () => {
     const db = recording(lite);
-    await claimQueued(db, { now: T0, runTimeoutMinutes: 25 });
+    await claimQueued(db, pumpOn());
     expect(db.transactions.at(-1)!.some((text) => text.includes("FOR UPDATE SKIP LOCKED"))).toBe(true);
+  });
+
+  it("대기열을 넘길 때는 권고 잠금 안에서 자리를 다시 세고, 아직 보내지 않은 행만 표시한다(UPDATE … WHERE dispatched_at IS NULL … RETURNING)", async () => {
+    await enqueue(lite, 1);
+    const db = recording(lite);
+    await pumpQueue(db, pumpOn());
+    const tx = db.transactions[0];
+    expect(tx[0]).toBe("SELECT pg_advisory_xact_lock($1)");
+    expect(tx[1]).toMatch(/^SELECT count\(\*\) FILTER/);
+    // 깨우기를 쉬는 중인지도 잠금 안에서 다시 본다(DB 의 runner_wake. 서버 메모리가 아니다).
+    expect(tx[2]).toMatch(/^SELECT 1 FROM runner_wake/);
+    expect(tx[3]).toMatch(/^UPDATE analyses SET dispatched_at = \$1 WHERE id = \(.*FOR UPDATE SKIP LOCKED \) AND \(status = 'queued' AND dispatched_at IS NULL\) RETURNING/);
+  });
+
+  it("대기열을 여러 번 동시에 넘겨도(PGlite) 한 분석은 한 번만, 자리 수만큼만 보낸다", async () => {
+    const ids = await enqueue(lite, 4);
+    const woken: string[] = [];
+    await Promise.all(Array.from({ length: 5 }, () => pumpQueue(lite, pumpOn(woken))));
+    expect(woken).toEqual(ids.slice(0, 2));
+  });
+
+  it("깨우기가 실패하는 동안 여러 번 동시에 넘겨도(PGlite) 자리 수를 넘겨 깨우지 않고, 분석은 실패로 적히지 않고 대기열에 남는다. 쉬는 동안은 깨우지 않는다", async () => {
+    const ids = await enqueue(lite, 3);
+    const woken: string[] = [];
+    await Promise.all(Array.from({ length: 5 }, () => pumpQueue(lite, pumpOn(woken, 2, true))));
+    // 쉬는 표시가 커밋되기 전에 잠금 밖에서 깨운 것은 있을 수 있다(자리 수 안, 서로 다른 분석).
+    expect(woken.length).toBeGreaterThanOrEqual(1);
+    expect(woken.length).toBeLessThanOrEqual(2);
+    expect(woken).toEqual(ids.slice(0, woken.length));
+    const before = woken.length;
+    await Promise.all(Array.from({ length: 5 }, () => pumpQueue(lite, pumpOn(woken, 2, true))));
+    expect(woken.length).toBe(before);
+    const rows = await lite.query<{ status: string; dispatched: boolean }>(
+      "SELECT status, dispatched_at IS NOT NULL AS dispatched FROM analyses ORDER BY requested_at",
+    );
+    expect(rows.rows).toEqual(ids.map(() => ({ status: "queued", dispatched: false })));
+    expect((await lite.query("SELECT 1 FROM runner_wake")).rows).toHaveLength(1);
   });
 
   it("잠금 밖에서 같은 커밋의 분석이 그새 생겨 고유 제약에 걸리면, 그 분석을 되찾아 돌려준다(reused)", async () => {
@@ -212,25 +279,50 @@ describe.skipIf(!url)("동시 요청 (실제 Postgres, TEST_DATABASE_URL)", () =
   beforeEach(async () => {
     await dbs[0].query("DELETE FROM results");
     await dbs[0].query("DELETE FROM analyses");
+    await dbs[0].query("DELETE FROM runner_wake");
   });
 
-  it("같은 요청이 여러 연결로 동시에 와도 분석은 하나, 다른 저장소 셋이 동시에 와도 동시 상한(2)을 넘지 않는다", async () => {
+  it("같은 요청이 여러 연결로 동시에 와도 분석은 하나, 다른 저장소 셋이 동시에 와도 모두 받고 실행 자리(2)만큼만 실행기에 보낸다", async () => {
     const stores = dbs.map(storeOn);
     const same = await Promise.all(stores.flatMap((store) => [store.requestAnalysis("example-org", "night-push"), store.requestAnalysis("example-org", "night-push")]));
     expect(new Set(same.map((o) => (o.ok ? o.analysis.id : "refused"))).size).toBe(1);
     await dbs[0].query("DELETE FROM analyses");
     const repos: [string, string][] = [["example-org", "kids-signup"], ["example-org", "night-push"], ["example-studio", "genai-chat"]];
     const many = await Promise.all(repos.map(([owner, repo], i) => stores[i].requestAnalysis(owner, repo)));
-    expect(many.filter((o) => o.ok && !o.reused)).toHaveLength(2);
-    const count = await dbs[0].query<{ n: number }>("SELECT count(*)::int AS n FROM analyses WHERE status IN ('queued', 'running')");
+    expect(many.filter((o) => o.ok && !o.reused)).toHaveLength(3);
+    const count = await dbs[0].query<{ n: number }>("SELECT count(*)::int AS n FROM analyses WHERE status = 'queued' AND dispatched_at IS NOT NULL");
     expect(count.rows[0].n).toBe(2);
+  });
+
+  it("서버 넷이 동시에 대기열을 넘겨도 한 분석은 한 번만, 자리 수(2)만큼만 보낸다", async () => {
+    const ids = await enqueue(dbs[0], 5);
+    const woken: string[] = [];
+    await Promise.all(dbs.flatMap((db) => [pumpQueue(db, pumpOn(woken)), pumpQueue(db, pumpOn(woken))]));
+    expect([...woken].sort()).toEqual(ids.slice(0, 2).sort());
+  });
+
+  it("깨우기가 실패하는 동안 서버 넷이 동시에 넘겨도, 쉬는 표시(runner_wake)를 본 뒤로는 깨우지 않고 대기열의 분석을 실패로 적지 않는다", async () => {
+    const ids = await enqueue(dbs[0], 4);
+    const woken: string[] = [];
+    await Promise.all(dbs.flatMap((db) => [pumpQueue(db, pumpOn(woken, 2, true)), pumpQueue(db, pumpOn(woken, 2, true))]));
+    // 쉬는 표시가 커밋되기 전에 잠금 밖에서 깨운 것은 자리 수(2)를 넘지 않는다.
+    expect(woken.length).toBeGreaterThanOrEqual(1);
+    expect(woken.length).toBeLessThanOrEqual(2);
+    expect(new Set(woken).size).toBe(woken.length);
+    const failed = await dbs[0].query<{ n: number }>("SELECT count(*)::int AS n FROM analyses WHERE status <> 'queued' OR dispatched_at IS NOT NULL");
+    expect(failed.rows[0].n).toBe(0);
+    // 한 번 더 넘겨도(쉬는 중) 깨우지 않는다.
+    const before = woken.length;
+    await Promise.all(dbs.map((db) => pumpQueue(db, pumpOn(woken, 2, true))));
+    expect(woken.length).toBe(before);
+    expect(ids).toHaveLength(4);
   });
 
   it("실행기 넷이 동시에 집어 가도 한 분석은 한 번만 나간다", async () => {
     const stores = dbs.map(storeOn);
     await stores[0].requestAnalysis("example-org", "kids-signup");
     await stores[0].requestAnalysis("example-org", "night-push");
-    const claimed = await Promise.all(dbs.map((db) => claimQueued(db, { now: T0, runTimeoutMinutes: 25 })));
+    const claimed = await Promise.all(dbs.map((db) => claimQueued(db, pumpOn())));
     const ids = claimed.filter((c) => c !== null).map((c) => c!.id);
     expect(ids).toHaveLength(2);
     expect(new Set(ids).size).toBe(2);

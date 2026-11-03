@@ -7,6 +7,7 @@
 //   npm run local                 실제 CLI 수집본(--fixture)으로 돈다. uv·옆 폴더 CLI 가 없어도 된다
 //   npm run local -- --cli        옆 폴더(../Plitsoft-SDP)의 CLI 를 uv 로 실제로 돌린다(판정자 없음)
 //   npm run local -- --step-delay 3000   단계 사이 쉬는 시간(ms, 기본 1500)
+//   POOL_SIZE=3 npm run local     실행 자리 수(기본 2). 사이트와 로컬 실행기(--parallel)에 같은 값을 준다
 //
 // DB 는 .data/local 에 남는다(지우면 처음부터). 서명 열쇠 local-dev 는 이 컴퓨터에서만 쓰는 아무 글이다(비밀값이 아니다).
 
@@ -20,6 +21,8 @@ const useCli = args.includes("--cli");
 const at = args.indexOf("--step-delay");
 const stepDelay = at === -1 ? "1500" : args[at + 1];
 const site = "http://127.0.0.1:3000";
+// 사이트의 실행 자리 수와 로컬 실행기가 함께 돌리는 수를 같게 둔다(사이트가 '보냄'으로 표시한 분석을 모두 곧바로 집어 가게).
+const poolSize = /^[1-9]\d*$/.test(process.env.POOL_SIZE ?? "") ? process.env.POOL_SIZE : "2";
 
 const env = {
   ...process.env,
@@ -28,6 +31,7 @@ const env = {
   RUNNER_SECRET: "local-dev",
   SITE_URL: site,
   PGLITE_DIR: path.join(root, ".data", "local"),
+  POOL_SIZE: poolSize,
 };
 delete env.DATABASE_URL;
 delete env.SERVICE_STORE;
@@ -70,5 +74,7 @@ start("runner", process.execPath, [
   site,
   "--step-delay",
   stepDelay,
+  "--parallel",
+  poolSize,
 ]);
 console.log(`\n열기: ${site}  (검색 예: kids, genai, example-labs)  끄기: Ctrl-C\n`);

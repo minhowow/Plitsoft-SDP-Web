@@ -50,7 +50,10 @@ const request = (body: unknown, headers: Record<string, string> = { "content-typ
 
 async function requestAnalysis(deps: ApiDeps, owner = "example-org", repo = "kids-signup") {
   const response = await postAnalysis(request({ owner, repo }), deps);
-  return { status: response.status, body: (await response.json()) as { ok: boolean; reused?: boolean; analysis?: Analysis; href?: string; reason?: string; message?: string } };
+  return {
+    status: response.status,
+    body: (await response.json()) as { ok: boolean; reused?: boolean; analysis?: Analysis; queue?: unknown; href?: string; reason?: string; message?: string },
+  };
 }
 
 /** 실행기가 보내는 것처럼 서명한 콜백. */
@@ -116,23 +119,27 @@ describe("POST /api/analyses/ (설계 5)", () => {
   });
 
   it("같은 요청이 동시에 여러 번 와도 분석은 하나다", async () => {
-    const { deps } = setup({ CONCURRENT_LIMIT: "5" });
+    const { deps } = setup({ POOL_SIZE: "5" });
     const answers = await Promise.all(Array.from({ length: 6 }, () => requestAnalysis(deps)));
     expect(new Set(answers.map((a) => a.body.analysis!.id)).size).toBe(1);
     expect(answers.filter((a) => a.status === 201)).toHaveLength(1);
     expect((await db.query("SELECT id FROM analyses")).rows).toHaveLength(1);
   });
 
-  it("받지 않는 까닭마다 상태 코드와 화면에 적을 말: 없음 404, 너무 큼 422, 상한 429, 실행기 없음 503", async () => {
-    const { deps } = setup({ CONCURRENT_LIMIT: "1" });
+  it("받지 않는 까닭마다 상태 코드와 화면에 적을 말: 없음 404, 너무 큼 422, 대기열 상한 429, 실행기 없음 503", async () => {
+    const { deps } = setup({ POOL_SIZE: "1", QUEUE_LIMIT: "1" });
     expect(await requestAnalysis(deps, "example-labs", "secret-repo")).toMatchObject({ status: 404, body: { reason: "not-found" } });
     expect(await requestAnalysis(deps, "example-labs", "no-such")).toMatchObject({ status: 404, body: { reason: "not-found" } });
     expect(await requestAnalysis(deps, "../etc", "passwd")).toMatchObject({ status: 404, body: { reason: "not-found" } });
     expect(await requestAnalysis(deps, "example-labs", "huge-monorepo")).toMatchObject({ status: 422, body: { reason: "too-large" } });
-    expect((await requestAnalysis(deps)).status).toBe(201);
-    const limited = await requestAnalysis(deps, "example-org", "night-push");
+    // 실행 자리(1)가 차도 받는다. 대기열(1)이 차면 그때 받지 않는다.
+    const first = await requestAnalysis(deps);
+    expect(first).toMatchObject({ status: 201, body: { queue: { kind: "dispatched", poolSize: 1, inUse: 1 } } });
+    const second = await requestAnalysis(deps, "example-org", "night-push");
+    expect(second).toMatchObject({ status: 201, body: { analysis: { status: "queued" }, queue: { kind: "waiting", ahead: 0, poolSize: 1, inUse: 1 } } });
+    const limited = await requestAnalysis(deps, "example-studio", "genai-chat");
     expect(limited).toMatchObject({ status: 429, body: { reason: "limit" } });
-    expect(limited.body.message).toContain("동시에 1건까지");
+    expect(limited.body.message).toContain("대기열 상한 1건");
     const closed = setup({ RUNNER: "none" });
     expect(await requestAnalysis(closed.deps)).toMatchObject({ status: 503, body: { reason: "closed" } });
     expect((await postAnalysis(request({ owner: "example-org", repo: "kids-signup" }), { ...deps, store: () => syntheticStore })).status).toBe(503);
@@ -336,7 +343,7 @@ describe("실행기 콜백: 머리를 먼저 보고, 저장소·커밋을 묶는
 
 describe("발견 수를 결과를 받을 때 세어 둔다 (검토 1)", () => {
   it("끝난 분석의 발견 수는 결과 화면과 같은 파서로 센 값이고, 쪽은 결과 JSON 을 읽지 않고 그 값을 읽는다. 읽지 못한 결과·끝나지 않은 분석은 없음", async () => {
-    const { deps, stub, later } = setup({ CONCURRENT_LIMIT: "5" });
+    const { deps, stub, later } = setup({ POOL_SIZE: "5" });
     const good = (await requestAnalysis(deps)).body.analysis!.id;
     await runToFinish(deps, good);
     expect((await event(deps, good, { event: "result", output: capture })).status).toBe(200);
@@ -431,7 +438,7 @@ describe("실행기 콜백: 상태 전이 (설계 6)", () => {
   });
 
   it("읽히지 않는 결과는 받은 그대로 두고 실패('결과를 읽지 못함', 정리 단계)로 적는다. 화면에는 결과로 내지 않는다", async () => {
-    const { deps } = setup({ CONCURRENT_LIMIT: "5" });
+    const { deps } = setup({ POOL_SIZE: "5" });
     for (const [repo, output] of [
       ["kids-signup", "not json at all"],
       ["night-push", JSON.stringify({ tool: { name: "policypack" } })],
@@ -484,9 +491,73 @@ describe("실행기 콜백: 상태 전이 (설계 6)", () => {
   });
 });
 
+describe("대기열과 실행 자리 (2026-11-03)", () => {
+  it("진행 읽기(GET)는 대기 중인 분석의 대기열 자리를 준다. 대기 중이 아니면 null", async () => {
+    const { deps, later } = setup({ POOL_SIZE: "1" });
+    const a = (await requestAnalysis(deps)).body.analysis!.id;
+    later(1);
+    const b = (await requestAnalysis(deps, "example-org", "night-push")).body.analysis!.id;
+    const read = async (id: string) => (await (await getAnalysis(id, deps)).json()) as { queue: unknown };
+    expect((await read(a)).queue).toEqual({ kind: "dispatched", poolSize: 1, inUse: 1 });
+    expect((await read(b)).queue).toEqual({ kind: "waiting", ahead: 0, poolSize: 1, inUse: 1 });
+    await event(deps, a, { event: "step", step: "fetch" });
+    expect((await read(a)).queue).toBeNull();
+  });
+
+  it("아직 실행기에 보내지 않은(대기열의) 분석에 온 알림은 409 이고 바꾸지 않는다", async () => {
+    const { deps, later } = setup({ POOL_SIZE: "1" });
+    await requestAnalysis(deps);
+    later(1);
+    const waiting = (await requestAnalysis(deps, "example-org", "night-push")).body.analysis!.id;
+    const before = await row(waiting);
+    for (const payload of [{ event: "step", step: "fetch" }, { event: "fail", step: "fetch", reason: "x" }]) {
+      const answer = await event(deps, waiting, payload);
+      expect(answer.status).toBe(409);
+      expect(answer.body.message).toContain("대기열");
+    }
+    expect(await row(waiting)).toEqual(before);
+  });
+
+  it("한 분석에는 실행 하나만 붙는다: 다른 실행(run id)의 단계 알림은 409 다(깨우기를 대기열에 되돌린 뒤 실행이 둘 생긴 경우)", async () => {
+    const { deps } = setup();
+    const id = (await requestAnalysis(deps)).body.analysis!.id;
+    const run = (n: string) => ({ id: n, url: `https://github.com/example-runner/runner/actions/runs/${n}` });
+    expect((await event(deps, id, { event: "step", step: "fetch", run: run("111") })).status).toBe(200);
+    const late = await event(deps, id, { event: "step", step: "fetch", run: run("222") });
+    expect(late.status).toBe(409);
+    expect(late.body.message).toContain("다른 실행");
+    expect((await row(id)).runner_run_id).toBe("111");
+    // 같은 실행이 다시 알리면 받는다.
+    expect((await event(deps, id, { event: "step", step: "fetch", run: run("111") })).body.unchanged).toBe(true);
+  });
+
+  it("실행기가 결과나 실패를 알리면 자리가 나서 대기열의 다음 분석을 실행기에 보낸다", async () => {
+    const woken: string[] = [];
+    const { deps, later } = setup({ POOL_SIZE: "1" });
+    const wake = async (input: { analysisId: string }) => {
+      woken.push(input.analysisId);
+      return { ok: true as const };
+    };
+    const withWake: ApiDeps = { ...deps, wake };
+    const a = (await requestAnalysis(deps)).body.analysis!.id;
+    later(1);
+    const b = (await requestAnalysis(deps, "example-org", "night-push")).body.analysis!.id;
+    later(1);
+    const c = (await requestAnalysis(deps, "example-studio", "genai-chat")).body.analysis!.id;
+    await runToFinish(withWake, a);
+    expect(woken).toEqual([]);
+    expect((await event(withWake, a, { event: "result", output: capture })).body.status).toBe("succeeded");
+    expect(woken).toEqual([b]);
+    expect((await row(b)).status).toBe("queued");
+    expect((await deps.store().queue())).toMatchObject({ inUse: 1, waiting: [c], dispatched: [b] });
+    await event(withWake, b, { event: "fail", step: "fetch", reason: "받지 못함" });
+    expect(woken).toEqual([b, c]);
+  });
+});
+
 describe("로컬 실행기가 집어 가기 (RUNNER=local)", () => {
   it("가장 먼저 요청한 대기 중인 분석을 한 번만 내준다. 없으면 null", async () => {
-    const { deps, later } = setup({ CONCURRENT_LIMIT: "5" });
+    const { deps, later } = setup({ POOL_SIZE: "5" });
     const first = (await requestAnalysis(deps)).body.analysis!;
     later(1);
     const second = (await requestAnalysis(deps, "example-org", "night-push")).body.analysis!;
@@ -495,6 +566,20 @@ describe("로컬 실행기가 집어 가기 (RUNNER=local)", () => {
     expect(both.map((b) => b.analysis?.id).sort()).toEqual([first.id, second.id].sort());
     expect((await claim()).analysis).toBeNull();
     expect(both.find((b) => b.analysis?.id === first.id)!.analysis).toEqual({ id: first.id, owner: "example-org", repo: "kids-signup", commit: first.commit });
+  });
+
+  it("집어 가기도 실행 자리 수를 지킨다: 자리가 차 있으면 대기열의 분석을 내주지 않고, 앞의 것이 끝나면 내준다", async () => {
+    const { deps, later } = setup({ POOL_SIZE: "1" });
+    const first = (await requestAnalysis(deps)).body.analysis!.id;
+    later(1);
+    const second = (await requestAnalysis(deps, "example-org", "night-push")).body.analysis!.id;
+    const claim = async () => ((await (await postRunnerClaim(signed("claim", {}, { at: deps.now() }), deps)).json()) as { analysis: { id: string } | null }).analysis;
+    expect((await claim())?.id).toBe(first);
+    expect(await claim()).toBeNull();
+    await runToFinish(deps, first);
+    await event(deps, first, { event: "result", output: capture });
+    expect((await claim())?.id).toBe(second);
+    expect(await claim()).toBeNull();
   });
 
   it("RUNNER=local 이 아니면 404, 서명이 틀리면 401", async () => {

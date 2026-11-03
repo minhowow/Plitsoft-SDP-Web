@@ -203,6 +203,9 @@ export const syntheticStore: ServiceStore = {
     }
     return counts;
   },
+  async queue() {
+    return null;
+  },
   async recentSucceeded(limit) {
     return ANALYSES.filter((analysis) => analysis.status === "succeeded")
       .sort(newestFirst)

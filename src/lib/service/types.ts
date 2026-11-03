@@ -6,6 +6,8 @@
  * 그 안을 해석하지 않는다(읽는 것은 `lib/report/` 의 파서와 화면 구조).
  */
 
+import type { QueueSnapshot } from "./queue";
+
 /**
  * 저장소. GitHub 의 저장소 정보(search/repositories 의 항목, repos/{owner}/{repo})에서 오는 것만 둔다. 거기에 없는 것을 꾸며
  * 채우지 않는다.
@@ -92,7 +94,7 @@ export type SearchOutcome =
  * - `closed`: 실행기가 설정되지 않아 요청을 받지 않는다(RUNNER=none).
  * - `not-found`: 그런 공개 저장소가 없다(없음·비공개·이름이 규칙에 맞지 않음·기본 브랜치 커밋 없음).
  * - `too-large`: 저장소가 크기 상한을 넘는다.
- * - `limit`: 하루 상한이나 동시 상한에 닿았다.
+ * - `limit`: 하루 상한이나 대기열 상한(QUEUE_LIMIT)에 닿았다. 실행 자리(POOL_SIZE)가 찬 것으로는 거절하지 않는다(대기열에 받는다).
  * - `unavailable`: GitHub 이나 DB 에 닿지 못했다.
  */
 export type RequestRefusal = "no-server" | "closed" | "not-found" | "too-large" | "limit" | "unavailable";
@@ -131,6 +133,11 @@ export interface ServiceStore {
    * 분석 행에서 읽는다(쪽을 열 때마다 결과 JSON 전체를 읽고 해석하지 않는다).
    */
   findingCounts(ids: string[]): Promise<Record<string, number | null>>;
+  /**
+   * 지금의 대기열과 실행 자리(DB 에서 센 것, `queue.ts`). 대기 중인 분석이 대기열의 몇 번째인지 적는 데 쓴다. 합성 미리보기는
+   * 대기열이 없으므로 null 이다(숫자를 꾸며 적지 않는다).
+   */
+  queue(): Promise<QueueSnapshot | null>;
   /** 최근에 끝난 분석(나중 것이 앞). */
   recentSucceeded(limit: number): Promise<{ repository: Repository; analysis: Analysis }[]>;
   /** 분석을 요청한다. 같은 커밋에 진행 중이거나 최근에 끝난 분석이 있으면 새로 만들지 않고 그것을 돌려준다. */

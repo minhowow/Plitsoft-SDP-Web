@@ -45,7 +45,7 @@ concurrency:
 jobs:
   analyze:
     runs-on: ubuntu-24.04
-    # 실행 시간 상한. 사이트는 요청한 뒤 25분(RUN_TIMEOUT_MINUTES)이 지나도 끝나지 않은 분석을 '시간 초과'로 적는다.
+    # 실행 시간 상한. 사이트는 실행기에 보낸 뒤 25분(RUN_TIMEOUT_MINUTES)이 지나도 끝나지 않은 분석을 '시간 초과'로 적는다.
     timeout-minutes: 20
     env:
       # 도구는 워크플로 입력이 아니라 이 파일에서 고정한다(요청하는 쪽이 바꾸지 못한다).

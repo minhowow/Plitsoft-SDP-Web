@@ -28,9 +28,9 @@ export interface ServerConfig {
     repoCacheSeconds: number;
     /** 기본 브랜치 끝 커밋을 서버 메모리에 두는 시간(초). */
     commitCacheSeconds: number;
-    /** 서버 인스턴스 하나가 1분에 GitHub 검색을 부르는 수 상한(요청한 사람을 가리지 않는 하나의 통). */
+    /** 이 사이트 전체(서버 인스턴스 모두가 DB 의 카운터를 함께 쓴다)가 1분에 GitHub 검색을 부르는 수 상한(요청한 사람을 가리지 않는다). */
     searchPerMinute: number;
-    /** 서버 인스턴스 하나가 1분에 검색 밖의 GitHub API 를 부르는 수 상한. */
+    /** 이 사이트 전체가 1분에 검색 밖의 GitHub API 를 부르는 수 상한. */
     callsPerMinute: number;
   };
   limits: {
@@ -40,10 +40,19 @@ export interface ServerConfig {
     dedupeMinutes: number;
     /** 하루(한국 표준시) 새로 만드는 분석 수 상한. */
     daily: number;
-    /** 대기·진행 중인 분석 수 상한. */
-    concurrent: number;
-    /** 이 시간(분)을 넘게 끝나지 않은 분석은 시간 초과로 실패 처리한다. */
+    /**
+     * 실행 자리 수(POOL_SIZE. 옛 이름 CONCURRENT_LIMIT 도 읽는다). 실행기에 보냈거나 분석 중인 분석이 이보다 적을 때만 대기열의
+     * 다음 분석을 실행기에 보낸다(`src/server/queue.ts`). 요청은 이 수 때문에 거절하지 않는다.
+     */
+    poolSize: number;
+    /** 대기열(실행기에 보내기 전)에 둘 수 있는 분석 수. 넘으면 그때만 요청을 받지 않는다(429). */
+    queueLimit: number;
+    /** 실행기에 보낸 뒤 이 시간(분)을 넘게 끝나지 않은 분석은 '시간 초과'로 실패 처리한다(요청한 때가 아니라 보낸 때부터 센다). */
     runTimeoutMinutes: number;
+    /** 실행기에 보낸 뒤 이 시간(분) 안에 실행기가 시작을 알리지 않으면 실패로 적고 다음을 보낸다. */
+    dispatchTimeoutMinutes: number;
+    /** 대기열에서 이 시간(분)을 넘게 실행 자리를 기다린 분석은 까닭과 함께 실패로 적는다. */
+    queueTimeoutMinutes: number;
     /** 실행기가 보내는 결과 JSON 의 크기 상한(KB). 넘는 콜백은 받지 않는다(413). */
     maxResultKb: number;
   };
@@ -76,8 +85,11 @@ export const DEFAULTS = {
   maxRepoKb: 100_000,
   dedupeMinutes: 60,
   daily: 30,
-  concurrent: 2,
+  poolSize: 2,
+  queueLimit: 20,
   runTimeoutMinutes: 25,
+  dispatchTimeoutMinutes: 10,
+  queueTimeoutMinutes: 120,
   // Vercel 의 함수가 받는 요청 본문은 4.5MB 까지다. 그보다 조금 작게 둔다.
   maxResultKb: 4_000,
   // 설정하지 않은 배포가 요청을 받아 놓고 아무도 집어 가지 않는 일이 없게, 기본은 받지 않음이다.
@@ -125,8 +137,12 @@ export function readConfig(env: Env = process.env): ServerConfig {
       maxRepoKb: positive(env, "MAX_REPO_KB", DEFAULTS.maxRepoKb),
       dedupeMinutes: positive(env, "DEDUPE_MINUTES", DEFAULTS.dedupeMinutes),
       daily: positive(env, "DAILY_LIMIT", DEFAULTS.daily),
-      concurrent: positive(env, "CONCURRENT_LIMIT", DEFAULTS.concurrent),
+      // POOL_SIZE 가 없으면 옛 이름 CONCURRENT_LIMIT 을 읽는다(이미 그 이름으로 넣어 둔 배포가 같은 값으로 돌게).
+      poolSize: positive(env, "POOL_SIZE", positive(env, "CONCURRENT_LIMIT", DEFAULTS.poolSize)),
+      queueLimit: positive(env, "QUEUE_LIMIT", DEFAULTS.queueLimit),
       runTimeoutMinutes: positive(env, "RUN_TIMEOUT_MINUTES", DEFAULTS.runTimeoutMinutes),
+      dispatchTimeoutMinutes: positive(env, "DISPATCH_TIMEOUT_MINUTES", DEFAULTS.dispatchTimeoutMinutes),
+      queueTimeoutMinutes: positive(env, "QUEUE_TIMEOUT_MINUTES", DEFAULTS.queueTimeoutMinutes),
       maxResultKb: positive(env, "RESULT_MAX_KB", DEFAULTS.maxResultKb),
     },
     runner: {

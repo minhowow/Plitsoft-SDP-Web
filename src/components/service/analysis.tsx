@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { keepParticles } from "@/components/text";
 import { analysisHref, commitLink, repoHref, shortCommit } from "@/lib/service/href";
+import { countedText, placeOf, placeShort, placeText, poolText, type QueuePlace, type QueueSnapshot } from "@/lib/service/queue";
 import { activeStep, duration, finishedAt, formatKst, STEP_LABEL, stepState, stepStateLabel } from "@/lib/service/steps";
 import type { Analysis, Repository } from "@/lib/service/types";
 import { STATUS_LABEL } from "@/lib/report/status";
@@ -129,11 +130,20 @@ export function InProgress({
   compact = false,
   note = null,
   live = false,
+  place = null,
+  countedAt = null,
 }: {
   analysis: Analysis;
   compact?: boolean;
   note?: ReactNode;
   live?: boolean;
+  /** 대기 중인 분석이 대기열의 어디에 있는지(DB 에서 센 것). 모르면(합성, 읽지 못함) 적지 않는다. */
+  place?: QueuePlace | null;
+  /**
+   * 대기열을 센 때. 다시 읽지 않는 쪽(저장소 쪽)이 넘긴다. 있으면 숫자가 그때의 것이고 분석 쪽에서 계속 갱신된다고 적는다(지난
+   * 숫자를 지금 숫자처럼 보이지 않게).
+   */
+  countedAt?: string | null;
 }) {
   const step = activeStep(analysis);
   // 다시 읽는 쪽(`LiveAnalysis`)은 끝난 분석을 서버가 새로 그리기 전 잠깐 이 부품으로 그린다.
@@ -145,10 +155,19 @@ export function InProgress({
         : step
           ? keepParticles(`지금 ‘${STEP_LABEL[step.name]}’ 단계입니다.`)
           : "다음 단계를 기다리고 있습니다.";
+  // 대기열 줄도 바뀌는 대로 화면 낭독기가 읽게 한다(live 일 때).
+  const queue = analysis.status === "queued" && place && (
+    <p className="hint an-queue" role={live ? "status" : undefined}>
+      {countedAt && `${countedText(countedAt)} `}
+      {keepParticles(placeText(place))}
+      {countedAt && " 분석 쪽에서는 계속 갱신됩니다."}
+    </p>
+  );
   if (compact) {
     return (
       <>
         <p className="hint">{now}</p>
+        {queue}
         <StepList analysis={analysis} />
       </>
     );
@@ -159,6 +178,7 @@ export function InProgress({
       <p className="notice" role={live ? "status" : undefined}>
         {now} 진행 중인 분석은 누구나 볼 수 있고, 끝나면 이 주소에 결과가 그려집니다.
       </p>
+      {queue}
       <StepList analysis={analysis} />
       {note && <div className="hint an-progress-note">{note}</div>}
     </section>
@@ -185,7 +205,18 @@ export function Failed({ analysis }: { analysis: Analysis }) {
  * 둔다. 받지 않을 때(합성 미리보기, 실행기 없음)는 단추가 듣지 않는다. 누를 수 없게 두고 그 까닭(`closed`)을 바로 옆에 적는다
  * (눌러도 아무 일이 없는 단추를 두지 않는다).
  */
-export function RequestPanel({ repository, latest, closed }: { repository: Repository; latest: Analysis | null; closed: string | null }) {
+export function RequestPanel({
+  repository,
+  latest,
+  closed,
+  queue = null,
+}: {
+  repository: Repository;
+  latest: Analysis | null;
+  closed: string | null;
+  /** 지금의 대기열과 실행 자리(DB 에서 센 것). 요청을 받을 때만 적는다. */
+  queue?: QueueSnapshot | null;
+}) {
   const label = latest ? "다시 분석 요청" : "분석 요청";
   return (
     <section className="request" aria-labelledby="request-title">
@@ -196,6 +227,12 @@ export function RequestPanel({ repository, latest, closed }: { repository: Repos
           봅니다.
           {latest && " 이미 분석이 있어도 다시 요청할 수 있습니다. 분석마다 따로 남습니다. 같은 커밋을 최근에 분석했으면 그 분석으로 갑니다."}
         </p>
+        {closed === null && queue && (
+          <p className="hint request-queue">
+            {countedText(queue.countedAt)} 이 사이트 전체에서 {poolText(queue.poolSize, queue.inUse)}, 대기열 {queue.waiting.length}개. 요청은
+            대기열에 들어가 차례대로 실행기에 보냅니다.
+          </p>
+        )}
       </div>
       <div className="request-action">
         {closed === null ? (
@@ -222,10 +259,13 @@ export function AnalysisList({
   repository,
   analyses,
   findings,
+  queue = null,
 }: {
   repository: Repository;
   analyses: Analysis[];
   findings: Record<string, number | null>;
+  /** 대기열과 실행 자리. 대기 중인 분석에 대기열의 몇 번째인지 적는다. 없으면(합성) 적지 않는다. */
+  queue?: QueueSnapshot | null;
 }) {
   // 발견 0건인 끝난 분석이 목록에 있으면 0의 뜻을 목록 바로 아래에 적는다(docs/commitments.md 의 1).
   const zero = analyses.some((analysis) => analysis.status === "succeeded" && findings[analysis.id] === 0);
@@ -249,12 +289,15 @@ export function AnalysisList({
               ? findingCount(findings[analysis.id])
               : analysis.status === "failed"
                 ? `${STEP_LABEL[analysis.failure!.step]}에서 멈춤`
-                : stepNow(analysis)}
+                : stepNow(analysis, placeOf(queue, analysis.id))}
           </span>
         </li>
       ))}
     </ul>
     {zero && <p className="hint an-list-zero">{SITE.zeroIsNotClearance}</p>}
+    {queue && analyses.some((analysis) => placeOf(queue, analysis.id)) && (
+      <p className="hint an-list-queue">대기열 순서는 {countedText(queue.countedAt)}의 것입니다. 분석 쪽에서는 계속 갱신됩니다.</p>
+    )}
     </>
   );
 }
@@ -264,8 +307,9 @@ export function findingCount(count: number | null | undefined): string {
   return typeof count === "number" ? `발견 ${count}건` : `발견 수 ${STATUS_LABEL["pack-unknown"]}`;
 }
 
-/** 대기·분석 중인 분석의 지금 단계. 단계 사이에 있으면(앞 단계가 끝나고 다음이 시작하기 전) 대기라고 적지 않는다. */
-function stepNow(analysis: Analysis): string {
+/** 대기·분석 중인 분석의 지금 단계. 대기 중이면 대기열의 몇 번째인지(알 때). 단계 사이에 있으면(앞 단계가 끝나고 다음이 시작하기 전) 대기라고 적지 않는다. */
+function stepNow(analysis: Analysis, place: QueuePlace | null): string {
+  if (analysis.status === "queued" && place) return placeShort(place);
   const step = activeStep(analysis);
   if (step) return `${STEP_LABEL[step.name]} 중`;
   return analysis.status === "queued" ? `${STEP_LABEL.queued} 중` : "다음 단계 기다림";

@@ -2797,6 +2797,11 @@ h1 .repo-name {
   color: var(--st-review);
 }
 
+/* 대기 중인 분석이 대기열의 몇 번째인지와 실행 자리(DB 에서 센 숫자). 진행 칸에서 놓치지 않게 본문 색으로 적는다. */
+.an-queue {
+  color: var(--ink);
+}
+
 .repo-moving {
   padding: var(--space-4);
   background: var(--surface);

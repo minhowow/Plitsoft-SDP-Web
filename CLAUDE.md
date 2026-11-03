@@ -49,12 +49,15 @@ CLI 는 옆 폴더 `../Plitsoft-SDP` 에 따로 있고, 다른 사람(에이전�
 ## 명령
 
 ```bash
+npm run local       # 계정 없이 서비스 전체를 한 번에: 가짜 GitHub(4010) + 사이트(3000, RUNNER=local, PGlite .data/local) + 로컬 실행기
+                    #   (scripts/dev-local.mjs, docs/deploy.md 의 3. -- --cli 는 옆 폴더 CLI 로, -- --step-delay ms 로 단계 사이를 늦춘다.
+                    #   POOL_SIZE=n 을 앞에 붙이면 사이트의 실행 자리와 로컬 실행기의 동시 수가 함께 바뀐다)
 npm run dev         # 개발 서버. 환경 변수 없이 띄우면 실제 GitHub API 를 부르므로 개발 중에는 아래 둘 가운데 하나로 띄운다
 SERVICE_STORE=synthetic npm run dev                 # 합성 예시 미리보기(DB·GitHub 없음)
 npm run github-stub                                 # 가짜 GitHub API(127.0.0.1:4010). 그 뒤
 GITHUB_API_BASE=http://127.0.0.1:4010 npm run dev   # PGlite(.data/) + 가짜 GitHub
 #   요청부터 결과까지 이 컴퓨터에서: 위 dev 에 RUNNER=local RUNNER_SECRET=<아무 글> 을 더하고, 다른 창에서
-RUNNER_SECRET=<같은 글> npm run local-runner -- --fixture   # 로컬 실행기(합성 데모 코드의 수집본을 결과로. 판정자 없음)
+RUNNER_SECRET=<같은 글> npm run local-runner -- --fixture   # 로컬 실행기(합성 데모 코드의 수집본을 결과로. 판정자 없음. --parallel n 은 POOL_SIZE 와 같게)
 npm run check       # lint + typecheck + test + build + 브라우저 시험. 일을 마쳤다고 하기 전에 반드시 통과시킨다
 npm run test        # vitest (계약·화면 구조·약속)
 npm run capture     # 합성 데모 코드를 설치된 CLI 로 다시 검사 → contract/cli-current/

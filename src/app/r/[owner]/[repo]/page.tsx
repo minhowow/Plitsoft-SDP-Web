@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { AnalysisList, InProgress, RequestPanel } from "@/components/service/analysis";
 import { RepoName } from "@/components/service/parts";
 import { orUnavailable } from "@/lib/service/errors";
+import { placeOf } from "@/lib/service/queue";
 import { analysisHref, repoHref } from "@/lib/service/href";
 import { isRepoFullName } from "@/lib/service/names";
 import { SITE } from "@/lib/site";
@@ -32,12 +33,14 @@ export default async function RepositoryPage({ params }: PageProps<"/r/[owner]/[
       // 끝난 분석마다 결과에 실린 발견 수(결과를 받을 때 결과 화면과 같은 파서로 센 값). 결과가 없거나 읽지 못하면 null 이다
       // (0 으로 적지 않는다). 결과 JSON 전체를 분석마다 읽지 않는다.
       const findings = await store.findingCounts(analyses.filter((analysis) => analysis.status === "succeeded").map((analysis) => analysis.id));
-      return { repository, analyses, findings };
+      // 대기열과 실행 자리(DB 에서 센 것). 대기 중인 분석이 몇 번째인지, 지금 자리가 몇 개 차 있는지 적는다. 합성은 null.
+      const queue = await store.queue();
+      return { repository, analyses, findings, queue };
     })(),
   );
   if (!found.ok) return <Unavailable owner={owner} repo={repo} message={found.message} />;
   if (!found.value) notFound();
-  const { repository, analyses, findings } = found.value;
+  const { repository, analyses, findings, queue } = found.value;
   const moving = analyses.filter((analysis) => analysis.status === "queued" || analysis.status === "running");
 
   return (
@@ -72,6 +75,7 @@ export default async function RepositoryPage({ params }: PageProps<"/r/[owner]/[
         repository={repository}
         latest={analyses[0] ?? null}
         closed={store.requestsClosed()}
+        queue={queue}
       />
 
       {moving.map((analysis) => (
@@ -82,7 +86,7 @@ export default async function RepositoryPage({ params }: PageProps<"/r/[owner]/[
               <code>{analysis.id}</code>
             </Link>
           </p>
-          <InProgress analysis={analysis} compact />
+          <InProgress analysis={analysis} compact place={placeOf(queue, analysis.id)} countedAt={queue?.countedAt ?? null} />
         </section>
       ))}
 
@@ -91,7 +95,7 @@ export default async function RepositoryPage({ params }: PageProps<"/r/[owner]/[
         {analyses.length > 0 ? (
           <>
             <p className="hint">나중에 요청한 분석이 위입니다. 같은 저장소를 여러 번 분석해도 분석마다 따로 남습니다.</p>
-            <AnalysisList repository={repository} analyses={analyses} findings={findings} />
+            <AnalysisList repository={repository} analyses={analyses} findings={findings} queue={queue} />
           </>
         ) : (
           <p className="notice">아직 분석된 적이 없습니다. 위에서 분석을 요청하면 이곳에 기록이 생깁니다.</p>

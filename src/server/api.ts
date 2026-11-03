@@ -3,10 +3,13 @@ import { analysisHref } from "@/lib/service/href";
 import { isAnalysisId } from "@/lib/service/id";
 import type { Analysis, RequestRefusal, ServiceStore } from "@/lib/service/types";
 import { ServiceUnavailableError } from "@/lib/service/errors";
+import { placeOf, type QueuePlace } from "@/lib/service/queue";
 import { applyRunnerEvent, claimQueued, readEvent } from "./callbacks";
 import { readConfig, type ServerConfig } from "./config";
 import { getDatabase, type Database } from "./db";
 import { internalError, isJsonRequest, json, readBody } from "./http";
+import { tidyQueue, type PumpDeps } from "./queue";
+import { wakeRunner, type WakeInput, type WakeOutcome } from "./runner";
 import { precheck, SIGNATURE_HEADER, TIMESTAMP_HEADER, verify } from "./signature";
 import { getStore } from "./store";
 
@@ -20,6 +23,29 @@ export interface ApiDeps {
   db: () => Promise<Database>;
   config: () => ServerConfig;
   now: () => Date;
+  /** 실행기 깨우기(콜백·집어 가기 뒤에 대기열을 넘길 때). 없으면 설정대로(`wakeRunner`). 시험이 바꿔 끼운다. */
+  wake?: (input: WakeInput) => Promise<WakeOutcome>;
+}
+
+/** 대기열을 넘기는 데 드는 것. 콜백과 집어 가기가 쓴다(요청은 저장소 구현이 같은 것을 쓴다). */
+function pumpDeps(deps: ApiDeps, config: ServerConfig): PumpDeps {
+  return {
+    now: deps.now,
+    limits: config.limits,
+    wake: deps.wake ?? ((input) => wakeRunner(config, input)),
+    callbackBase: config.runner.callbackBase,
+    runner: config.runner.kind,
+  };
+}
+
+/** 대기 중인 분석이 대기열의 어디에 있는지(DB 에서 센 것). 대기 중이 아니거나 합성이면 null. 읽지 못해도 null(진행 읽기를 막지 않는다). */
+async function placeFor(store: ServiceStore, analysis: Analysis): Promise<QueuePlace | null> {
+  if (analysis.status !== "queued") return null;
+  try {
+    return placeOf(await store.queue(), analysis.id);
+  } catch {
+    return null;
+  }
 }
 
 export const defaultDeps: ApiDeps = { store: getStore, db: getDatabase, config: () => readConfig(), now: () => new Date() };
@@ -73,8 +99,9 @@ export async function postAnalysis(request: Request, deps: ApiDeps = defaultDeps
       return json({ ok: false, reason: outcome.reason, message: outcome.message }, REFUSAL_STATUS[outcome.reason]);
     }
     const { analysis, reused } = outcome;
+    const queue = await placeFor(deps.store(), analysis);
     return json(
-      { ok: true, reused, analysis: publicAnalysis(analysis), href: analysisHref(analysis.owner, analysis.name, analysis.id) },
+      { ok: true, reused, analysis: publicAnalysis(analysis), queue, href: analysisHref(analysis.owner, analysis.name, analysis.id) },
       reused ? 200 : 201,
     );
   } catch (error) {
@@ -89,7 +116,7 @@ export async function getAnalysis(id: string, deps: ApiDeps = defaultDeps): Prom
   try {
     const analysis = await deps.store().findAnalysis(id);
     if (!analysis) return json({ ok: false, message: "그런 분석이 없습니다." }, 404);
-    return json({ ok: true, analysis: publicAnalysis(analysis) });
+    return json({ ok: true, analysis: publicAnalysis(analysis), queue: await placeFor(deps.store(), analysis) });
   } catch (error) {
     if (error instanceof ServiceUnavailableError) return json({ ok: false, message: error.message }, 503);
     return internalError("GET /api/analyses/[id]", error);
@@ -156,26 +183,27 @@ export async function postRunnerEvent(request: Request, id: string, deps: ApiDep
   const event = readEvent(data);
   if (!event) return json({ ok: false, message: "모르는 콜백입니다." }, 400);
   try {
-    const outcome = await applyRunnerEvent(await deps.db(), id, event, {
-      now: deps.now(),
-      runTimeoutMinutes: checked.config.limits.runTimeoutMinutes,
-    });
+    const db = await deps.db();
+    const outcome = await applyRunnerEvent(db, id, event, { now: deps.now(), limits: checked.config.limits });
+    // 분석이 끝나거나 멈췄으면(또는 정리하며 다른 분석을 멈췄으면) 실행 자리가 났다. 대기열의 다음을 보낸다. 넘기지 못해도
+    // 콜백의 답은 그대로다(실행기가 같은 콜백을 다시 보내지 않게).
+    await tidyQueue(db, pumpDeps(deps, checked.config), "콜백").catch(() => null);
     return json(outcome.body, outcome.status);
   } catch (error) {
     return internalError("POST /api/runner/[id]", error);
   }
 }
 
-/** POST /api/runner/claim/  로컬 실행기(RUNNER=local)가 대기 중인 분석 하나를 집어 간다. 다른 실행기에서는 404. */
+/**
+ * POST /api/runner/claim/  로컬 실행기(RUNNER=local)가 실행 자리를 얻은 분석 하나를 집어 간다(먼저 대기열을 넘긴다). 다른
+ * 실행기에서는 404.
+ */
 export async function postRunnerClaim(request: Request, deps: ApiDeps = defaultDeps): Promise<Response> {
   const checked = await signed(request, "claim", deps);
   if (!checked.ok) return checked.response;
   if (checked.config.runner.kind !== "local") return json({ ok: false, message: "로컬 실행기를 쓰지 않는 서버입니다." }, 404);
   try {
-    const claimed = await claimQueued(await deps.db(), {
-      now: deps.now(),
-      runTimeoutMinutes: checked.config.limits.runTimeoutMinutes,
-    });
+    const claimed = await claimQueued(await deps.db(), pumpDeps(deps, checked.config));
     return json({ ok: true, analysis: claimed });
   } catch (error) {
     return internalError("POST /api/runner/claim", error);

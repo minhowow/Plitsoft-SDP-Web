@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { ServiceUnavailableError } from "@/lib/service/errors";
 import { isAnalysisId } from "@/lib/service/id";
 import { STEP_ORDER } from "@/lib/service/steps";
@@ -6,8 +6,12 @@ import type { RequestOutcome, ServiceStore } from "@/lib/service/types";
 import { SITE } from "@/lib/site";
 import { DEFAULTS, readConfig, type ServerConfig } from "@/server/config";
 import { migrate, openDatabase, readMigrations, type Database } from "@/server/db";
-import { createGitHub } from "@/server/github";
+import { createSharedBudget } from "@/server/budget";
+import { createGitHub, GitHubError } from "@/server/github";
 import type { WakeOutcome } from "@/server/runner";
+import { placeOf, placeShort, placeText } from "@/lib/service/queue";
+import { dispatchTimeoutReason, pumpQueue, queueTimeoutReason } from "@/server/queue";
+import { WAKE_RETRY_MINUTES } from "@/lib/service/queue";
 import { createDbStore, kstDayStart, stalledStep } from "@/server/store/db";
 import { createGitHubStub } from "../scripts/github-stub.mjs";
 
@@ -27,6 +31,7 @@ afterAll(async () => {
 beforeEach(async () => {
   await db.query("DELETE FROM results");
   await db.query("DELETE FROM analyses");
+  await db.query("DELETE FROM runner_wake");
 });
 
 const T0 = new Date("2026-11-03T03:00:00Z"); // 한국 표준시 12:00
@@ -73,16 +78,16 @@ async function finish(id: string, at: Date, result: string | null = JSON.stringi
 
 describe("DB: 마이그레이션", () => {
   it("이름 차례로 한 번만 적용한다", async () => {
-    expect(readMigrations().map((m) => m.name)).toEqual(["001_init.sql", "002_finding_count.sql"]);
+    expect(readMigrations().map((m) => m.name)).toEqual(["001_init.sql", "002_finding_count.sql", "003_queue.sql", "004_runner_wake.sql"]);
     // 이미 열 때 적용했다. 다시 돌려도 아무것도 하지 않는다.
     expect(await migrate(db)).toEqual([]);
     const applied = await db.query<{ name: string }>("SELECT name FROM schema_migrations ORDER BY name");
-    expect(applied.rows.map((row) => row.name)).toEqual(["001_init.sql", "002_finding_count.sql"]);
+    expect(applied.rows.map((row) => row.name)).toEqual(["001_init.sql", "002_finding_count.sql", "003_queue.sql", "004_runner_wake.sql"]);
   });
 
   it("표에 저장하지 않기로 한 것(IP·사용자·코드)을 담을 열이 없다", async () => {
     const columns = await db.query<{ table_name: string; column_name: string }>(
-      "SELECT table_name, column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name IN ('analyses', 'results') ORDER BY table_name, ordinal_position",
+      "SELECT table_name, column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name IN ('analyses', 'results', 'github_budget', 'runner_wake') ORDER BY table_name, ordinal_position",
     );
     const names = columns.rows.map((row) => `${row.table_name}.${row.column_name}`);
     expect(names).toEqual([
@@ -103,8 +108,15 @@ describe("DB: 마이그레이션", () => {
       "analyses.runner_run_id",
       "analyses.runner_run_url",
       "analyses.finding_count",
+      "analyses.dispatched_at",
+      "github_budget.bucket",
+      "github_budget.window_start",
+      "github_budget.used",
       "results.analysis_id",
       "results.json",
+      "runner_wake.id",
+      "runner_wake.failed_at",
+      "runner_wake.reason",
     ]);
   });
 
@@ -167,7 +179,7 @@ describe("분석 요청", () => {
   });
 
   it("같은 커밋의 분석이 DEDUPE_MINUTES(기본 60) 안에 끝났으면 그것을, 지나면 새로 만든다", async () => {
-    const { store, clock, later } = setup({ limits: { concurrent: 5 } });
+    const { store, clock, later } = setup({ limits: { poolSize: 5 } });
     const first = created(await store.requestAnalysis("example-org", "kids-signup"));
     later(3);
     await finish(first.analysis.id, clock.now);
@@ -180,7 +192,7 @@ describe("분석 요청", () => {
   });
 
   it("새 커밋이면 진행 중인 분석이 있어도 새 분석이다. 실패한 분석은 다시 요청하면 새로 만든다", async () => {
-    const { store, stub, later } = setup({ limits: { concurrent: 5 } });
+    const { store, stub, later } = setup({ limits: { poolSize: 5 } });
     const first = created(await store.requestAnalysis("example-org", "kids-signup"));
     stub.setHead("example-org", "kids-signup", "2");
     // 끝 커밋은 30초 동안 서버 메모리에 둔다. 그 안의 요청은 앞의 커밋을 보므로 진행 중인 분석으로 간다.
@@ -205,21 +217,21 @@ describe("분석 요청", () => {
     expect(count.rows[0].n).toBe(1);
   });
 
-  it("동시 상한(CONCURRENT_LIMIT, 기본 2)에 닿으면 받지 않고 까닭을 말한다", async () => {
-    expect(DEFAULTS.concurrent).toBe(2);
-    const { store } = setup();
-    created(await store.requestAnalysis("example-org", "kids-signup"));
-    created(await store.requestAnalysis("example-org", "night-push"));
-    const refused = await store.requestAnalysis("example-studio", "genai-chat");
-    expect(refused).toEqual({
-      ok: false,
-      reason: "limit",
-      message: "지금 분석 2건이 대기·진행 중이라(동시에 2건까지) 받지 않았습니다. 그 분석이 끝난 뒤 다시 요청해 주세요.",
-    });
+  it("실행 자리(POOL_SIZE, 기본 2)가 차도 거절하지 않고 대기열에 받는다. 실행기는 자리 수만큼만 깨운다", async () => {
+    expect(DEFAULTS.poolSize).toBe(2);
+    const { store, wakes, later } = setup();
+    const a = created(await store.requestAnalysis("example-org", "kids-signup"));
+    later(1);
+    const b = created(await store.requestAnalysis("example-org", "night-push"));
+    later(1);
+    const c = created(await store.requestAnalysis("example-studio", "genai-chat"));
+    expect([a, b, c].map((o) => [o.reused, o.analysis.status])).toEqual([[false, "queued"], [false, "queued"], [false, "queued"]]);
+    expect(wakes.map((w) => (w as { analysisId: string }).analysisId)).toEqual([a.analysis.id, b.analysis.id]);
+    expect(await store.queue()).toMatchObject({ poolSize: 2, inUse: 2, waiting: [c.analysis.id], dispatched: [a.analysis.id, b.analysis.id] });
   });
 
   it("하루 상한(DAILY_LIMIT)은 한국 표준시 하루로 센다", async () => {
-    const { store, clock, stub } = setup({ limits: { daily: 2, concurrent: 10 } });
+    const { store, clock, stub } = setup({ limits: { daily: 2, poolSize: 10 } });
     // 한국 표준시 23:50 에 둘.
     clock.now = new Date("2026-11-03T14:50:00Z");
     created(await store.requestAnalysis("example-org", "kids-signup"));
@@ -254,14 +266,22 @@ describe("분석 요청", () => {
     expect(setup().store.requestsClosed()).toBeNull();
   });
 
-  it("실행기를 깨우지 못하면 분석을 실패로 적고 까닭을 남긴다", async () => {
+  it("실행기를 깨우지 못하면 분석을 실패로 적지 않고 대기열에 둔다. 깨우지 못한 때와 까닭은 대기열 정보로 보인다", async () => {
     const reason = "실행기(GitHub Actions)가 분석을 받지 않았습니다(응답 404).";
     const { store } = setup({ wake: async () => ({ ok: false, reason }) });
     const outcome = created(await store.requestAnalysis("example-org", "kids-signup"));
-    expect(outcome.analysis.status).toBe("failed");
-    expect(outcome.analysis.failure).toEqual({ step: "queued", reason });
-    // 대기에 남지 않으므로 같은 커밋을 다시 요청할 수 있다.
-    expect(created(await store.requestAnalysis("example-org", "kids-signup")).reused).toBe(false);
+    expect(outcome.analysis.status).toBe("queued");
+    expect(outcome.analysis.failure).toBeNull();
+    const queue = (await store.queue())!;
+    expect(queue.waiting).toEqual([outcome.analysis.id]);
+    expect(queue.wakeFailure).toEqual({ at: T0.toISOString(), reason });
+    const place = placeOf(queue, outcome.analysis.id)!;
+    expect(place).toEqual({ kind: "waiting", ahead: 0, poolSize: 2, inUse: 0, wakeFailure: reason });
+    expect(placeText(place)).toBe(
+      `대기열 1번째입니다(앞에 0개). 실행 자리 2개 중 0개 사용 중입니다. 실행기를 깨우지 못해 대기열이 잠시 멈춰 있습니다. 까닭: ${reason} ${WAKE_RETRY_MINUTES}분이 지난 뒤 대기열을 넘길 때 다시 깨워 봅니다.`,
+    );
+    // 대기열에 있으므로 같은 커밋을 다시 요청하면 그 분석으로 보낸다(새로 만들지 않는다).
+    expect(created(await store.requestAnalysis("example-org", "kids-signup"))).toMatchObject({ reused: true, analysis: { id: outcome.analysis.id } });
   });
 
   it("GitHub 의 요청 수 상한이면 limit, 닿지 못하면 unavailable 이고 분석을 만들지 않는다", async () => {
@@ -288,6 +308,285 @@ describe("분석 요청", () => {
   });
 });
 
+describe("대기열과 실행 자리 (2026-11-03)", () => {
+  const ids = (wakes: unknown[]) => wakes.map((w) => (w as { analysisId: string }).analysisId);
+  const running = (id: string) => db.query("UPDATE analyses SET status = 'running' WHERE id = $1", [id]);
+
+  it("대기열은 먼저 요청한 차례이고, 분석마다 앞에 몇 개가 있는지 DB 에서 센다", async () => {
+    const { store, later } = setup({ limits: { poolSize: 1 } });
+    const a = created(await store.requestAnalysis("example-org", "kids-signup"));
+    later(1);
+    const b = created(await store.requestAnalysis("example-org", "night-push"));
+    later(1);
+    const c = created(await store.requestAnalysis("example-studio", "genai-chat"));
+    const queue = await store.queue();
+    expect(queue).toEqual({
+      countedAt: new Date(T0.getTime() + 2 * 60_000).toISOString(),
+      poolSize: 1,
+      inUse: 1,
+      waiting: [b.analysis.id, c.analysis.id],
+      dispatched: [a.analysis.id],
+      wakeFailure: null,
+    });
+    expect(placeOf(queue, a.analysis.id)).toEqual({ kind: "dispatched", poolSize: 1, inUse: 1 });
+    expect(placeOf(queue, b.analysis.id)).toEqual({ kind: "waiting", ahead: 0, poolSize: 1, inUse: 1 });
+    expect(placeOf(queue, c.analysis.id)).toEqual({ kind: "waiting", ahead: 1, poolSize: 1, inUse: 1 });
+    expect(placeText(placeOf(queue, c.analysis.id)!)).toBe(
+      "대기열 2번째입니다(앞에 1개). 실행 자리 1개 중 1개 사용 중입니다. 앞의 분석이 끝나 자리가 나면 차례대로 실행기에 보냅니다.",
+    );
+    expect(placeShort(placeOf(queue, c.analysis.id)!)).toBe("대기열 2번째(앞에 1개)");
+    // 대기 중이 아닌 분석은 대기열에 없다.
+    await running(a.analysis.id);
+    expect(placeOf(await store.queue(), a.analysis.id)).toBeNull();
+  });
+
+  it("앞의 분석이 끝나면 다음 것을 깨운다(쪽을 읽을 때 넘긴다). 분석 중인 것도 자리를 쓴다", async () => {
+    const { store, clock, later, wakes } = setup({ limits: { poolSize: 1 } });
+    const a = created(await store.requestAnalysis("example-org", "kids-signup"));
+    const b = created(await store.requestAnalysis("example-org", "night-push"));
+    expect(ids(wakes)).toEqual([a.analysis.id]);
+    await running(a.analysis.id);
+    await store.listAnalyses("example-org", "kids-signup");
+    expect(ids(wakes)).toEqual([a.analysis.id]);
+    later(3);
+    await finish(a.analysis.id, clock.now);
+    await store.listAnalyses("example-org", "kids-signup");
+    expect(ids(wakes)).toEqual([a.analysis.id, b.analysis.id]);
+    // 한 번 보낸 분석은 다시 보내지 않는다.
+    await store.listAnalyses("example-org", "night-push");
+    expect(ids(wakes)).toEqual([a.analysis.id, b.analysis.id]);
+  });
+
+  it("깨우기에 실패하면 그 분석을 대기열의 제자리에 되돌리고, WAKE_RETRY_MINUTES 동안은 깨우지 않으며, 그 뒤 같은 차례로 다시 깨운다", async () => {
+    expect(WAKE_RETRY_MINUTES).toBe(2);
+    let fail = false;
+    const reason = "실행기(GitHub Actions)가 분석을 받지 않았습니다(응답 500).";
+    const { store, clock, later, wakes } = setup({ limits: { poolSize: 1 }, wake: async () => (fail ? { ok: false, reason } : { ok: true }) });
+    const a = created(await store.requestAnalysis("example-org", "kids-signup"));
+    const b = created(await store.requestAnalysis("example-org", "night-push"));
+    later(1);
+    const c = created(await store.requestAnalysis("example-studio", "genai-chat"));
+    await finish(a.analysis.id, clock.now);
+    fail = true;
+    await store.findAnalysis(a.analysis.id);
+    // 읽기가 넘기다 b 를 깨우지 못했다. b 는 실패가 아니고 대기열의 맨 앞에 그대로 있다(DB 를 바로 본다).
+    const row = (await db.query<{ status: string; dispatched: boolean; failure_reason: string | null }>(
+      "SELECT status, dispatched_at IS NOT NULL AS dispatched, failure_reason FROM analyses WHERE id = $1",
+      [b.analysis.id],
+    )).rows[0];
+    expect(row).toEqual({ status: "queued", dispatched: false, failure_reason: null });
+    expect(ids(wakes)).toEqual([a.analysis.id, b.analysis.id]);
+    expect((await store.queue())?.waiting).toEqual([b.analysis.id, c.analysis.id]);
+    // 쉬는 동안은 몇 번을 읽어도 깨우지 않는다(실행기가 나아졌어도).
+    fail = false;
+    later(1);
+    for (let i = 0; i < 5; i += 1) await store.findAnalysis(c.analysis.id);
+    expect(ids(wakes)).toEqual([a.analysis.id, b.analysis.id]);
+    // 쉬는 시간이 지나면 같은 차례(b 가 먼저)로 깨운다. 깨우기에 성공하면 깨우지 못한 기록을 지운다.
+    later(WAKE_RETRY_MINUTES);
+    expect((await store.findAnalysis(c.analysis.id))?.status).toBe("queued");
+    expect(ids(wakes)).toEqual([a.analysis.id, b.analysis.id, b.analysis.id]);
+    const queue = (await store.queue())!;
+    expect(queue.dispatched).toEqual([b.analysis.id]);
+    expect(queue.waiting).toEqual([c.analysis.id]);
+    expect(queue.wakeFailure).toBeNull();
+  });
+
+  it("실행기 장애가 이어져도 진행을 몇 번 읽든 대기열의 분석을 하나씩 실패로 적지 않는다. 오래가면 대기 시간 초과가 깨우지 못한 까닭과 함께 끝낸다(검토)", async () => {
+    let fail = false;
+    const reason = "실행기(GitHub Actions)에 닿지 못해 분석을 시작하지 못했습니다.";
+    const { store, clock, later } = setup({ limits: { poolSize: 1 }, runner: { kind: "github" }, wake: async () => (fail ? { ok: false, reason } : { ok: true }) });
+    const a = created(await store.requestAnalysis("example-org", "kids-signup"));
+    const rest: string[] = [];
+    for (const [owner, repo] of [["example-org", "night-push"], ["example-studio", "genai-chat"], ["example-labs", "plain.utils"]] as const) {
+      rest.push(created(await store.requestAnalysis(owner, repo)).analysis.id);
+    }
+    await finish(a.analysis.id, clock.now);
+    fail = true;
+    const statuses = async () =>
+      (await db.query<{ status: string }>("SELECT status FROM analyses WHERE id = ANY($1::text[]) ORDER BY requested_at", [rest])).rows.map((r) => r.status);
+    // 진행 쪽이 3초마다 읽는 것처럼, 그리고 몇 분씩 지나며 읽는다.
+    for (let i = 0; i < 40; i += 1) {
+      await store.findAnalysis(rest[0]);
+      later(1);
+    }
+    expect(await statuses()).toEqual(["queued", "queued", "queued"]);
+    // 요청한 지 120분을 넘기면, 깨우지 못한 까닭(센 사실)과 함께 끝낸다.
+    later(81);
+    await store.findAnalysis(rest[0]);
+    expect(await statuses()).toEqual(["failed", "failed", "failed"]);
+    const stale = (await store.findAnalysis(rest[2]))!;
+    expect(stale.failure).toEqual({
+      step: "queued",
+      reason: queueTimeoutReason(120, { poolSize: 1, inUse: 0, wakeFailure: reason, runner: "github" }),
+    });
+    expect(stale.failure!.reason).toBe(
+      `대기열에서 120분 넘게 기다려 멈춘 것으로 적었습니다. 실행기를 깨우지 못해 보내지 못했습니다. 마지막으로 깨우지 못한 까닭: ${reason} 다시 요청할 수 있습니다.`,
+    );
+  });
+
+  it("깨우기 실패 뒤 아무도 읽지 않아 자리가 빈 채 오래 지나도, 나중의 첫 읽기는 맨 앞의 분석을 먼저 보내고, 그래도 자리가 없는 분석만 그때 센 사실을 까닭으로 끝낸다(검토 R1)", async () => {
+    let fail = false;
+    const { store, clock, later, wakes } = setup({ limits: { poolSize: 1 }, runner: { kind: "github" }, wake: async () => (fail ? { ok: false, reason: "x." } : { ok: true }) });
+    const a = created(await store.requestAnalysis("example-org", "kids-signup"));
+    later(1);
+    const b = created(await store.requestAnalysis("example-org", "night-push"));
+    later(1);
+    const c = created(await store.requestAnalysis("example-studio", "genai-chat"));
+    later(1);
+    await finish(a.analysis.id, clock.now);
+    fail = true;
+    // 결과 콜백 뒤의 넘기기: b 를 깨우지 못하고 멈춘다.
+    await store.findAnalysis(a.analysis.id);
+    expect((await store.queue())?.waiting).toEqual([b.analysis.id, c.analysis.id]);
+    fail = false;
+    later(121); // 그동안 아무 요청·콜백·읽기 없음(진행 쪽은 탭이 숨으면 다시 읽지 않는다)
+    const cc = (await store.findAnalysis(c.analysis.id))!;
+    // 넘기기가 대기 시간 초과보다 먼저다: b(요청한 지 122분)는 실패하지 않고 실행기에 갔다.
+    expect((await store.findAnalysis(b.analysis.id))?.status).toBe("queued");
+    expect((await store.queue())?.dispatched).toEqual([b.analysis.id]);
+    expect(ids(wakes)).toEqual([a.analysis.id, b.analysis.id, b.analysis.id]);
+    // c 는 b 가 자리를 얻은 뒤에도 자리가 없어 끝났다. 까닭은 그때 센 사실이다("그동안 앞의 분석들이 자리를 쓰고 있었다"고
+    // 말하지 않는다. 실제로는 자리가 오래 비어 있었다).
+    expect(cc.status).toBe("failed");
+    expect(cc.failure?.reason).toBe(queueTimeoutReason(120, { poolSize: 1, inUse: 1, wakeFailure: null, runner: "github" }));
+    expect(cc.failure?.reason).not.toContain("그동안");
+  });
+
+  it("실행기가 콜백 없이 죽은 뒤 오래 지나 첫 읽기가 오면, 죽은 분석은 시간 초과로 적고 기다리던 분석은 실패시키지 않고 보낸다(검토 R2)", async () => {
+    const { store, later, wakes } = setup({ limits: { poolSize: 1 }, runner: { kind: "github" } });
+    const a = created(await store.requestAnalysis("example-org", "kids-signup"));
+    await running(a.analysis.id);
+    later(1);
+    const b = created(await store.requestAnalysis("example-org", "night-push"));
+    later(130);
+    const bb = (await store.findAnalysis(b.analysis.id))!;
+    expect(bb.status).toBe("queued");
+    expect(bb.failure).toBeNull();
+    expect((await store.findAnalysis(a.analysis.id))?.failure?.reason).toMatch(/^시간 초과: 실행기에 보낸 뒤 25분 안에/);
+    expect(ids(wakes)).toEqual([a.analysis.id, b.analysis.id]);
+  });
+
+  it("실행기에 보낸 뒤 DISPATCH_TIMEOUT_MINUTES(기본 10) 안에 시작을 알리지 않으면 실패로 적고 다음을 보낸다", async () => {
+    expect(DEFAULTS.dispatchTimeoutMinutes).toBe(10);
+    const { store, later, wakes } = setup({ limits: { poolSize: 1 } });
+    const a = created(await store.requestAnalysis("example-org", "kids-signup"));
+    const b = created(await store.requestAnalysis("example-org", "night-push"));
+    later(10);
+    expect((await store.findAnalysis(a.analysis.id))?.status).toBe("queued");
+    later(1);
+    const stale = (await store.findAnalysis(a.analysis.id))!;
+    expect(stale.status).toBe("failed");
+    expect(stale.failure).toEqual({ step: "queued", reason: dispatchTimeoutReason(10) });
+    expect(stale.failure!.reason).toBe(
+      "실행기에 보낸 뒤 10분 안에 실행기가 시작을 알리지 않아 멈춘 것으로 적었습니다. 실행기가 이 분석을 받지 못했을 수 있습니다. 다시 요청할 수 있습니다.",
+    );
+    expect(ids(wakes)).toEqual([a.analysis.id, b.analysis.id]);
+    // b 는 대기열에서 11분 기다렸지만 실패가 아니다. 보낸 때부터 다시 센다.
+    expect((await store.findAnalysis(b.analysis.id))?.status).toBe("queued");
+  });
+
+  it("실행 시간 초과(RUN_TIMEOUT_MINUTES)는 요청한 때가 아니라 실행기에 보낸 때부터 센다", async () => {
+    const { store, clock, later, wakes } = setup({ limits: { poolSize: 1 } });
+    const a = created(await store.requestAnalysis("example-org", "kids-signup"));
+    later(1);
+    const b = created(await store.requestAnalysis("example-org", "night-push"));
+    await running(a.analysis.id);
+    later(19);
+    await finish(a.analysis.id, clock.now);
+    await store.findAnalysis(b.analysis.id);
+    expect(ids(wakes)).toEqual([a.analysis.id, b.analysis.id]);
+    await running(b.analysis.id);
+    // b 는 요청한 지 44분, 보낸 지 25분: 아직 돈다.
+    later(25);
+    expect((await store.findAnalysis(b.analysis.id))?.status).toBe("running");
+    later(1);
+    const stale = (await store.findAnalysis(b.analysis.id))!;
+    expect(stale.status).toBe("failed");
+    expect(stale.failure?.reason).toMatch(/^시간 초과: 실행기에 보낸 뒤 25분 안에/);
+  });
+
+  it("대기열에서 QUEUE_TIMEOUT_MINUTES(기본 120)를 넘게 기다리면 까닭과 함께 실패로 적는다", async () => {
+    expect(DEFAULTS.queueTimeoutMinutes).toBe(120);
+    const { store, later } = setup({ limits: { poolSize: 1, runTimeoutMinutes: 1_000 } });
+    const a = created(await store.requestAnalysis("example-org", "kids-signup"));
+    const b = created(await store.requestAnalysis("example-org", "night-push"));
+    await running(a.analysis.id);
+    later(120);
+    expect((await store.findAnalysis(b.analysis.id))?.status).toBe("queued");
+    later(1);
+    const stale = (await store.findAnalysis(b.analysis.id))!;
+    expect(stale.status).toBe("failed");
+    expect(stale.failure).toEqual({ step: "queued", reason: queueTimeoutReason(120, { poolSize: 1, inUse: 1, wakeFailure: null, runner: "local" }) });
+    // 까닭에는 적을 때 센 사실만 적는다(그동안 줄곧 자리가 찼었다고 말하지 않는다).
+    expect(stale.failure!.reason).toBe(
+      "대기열에서 120분 넘게 기다려 멈춘 것으로 적었습니다. 멈춘 것으로 적을 때 실행 자리 1개 중 1개가 쓰이고 있었습니다. 다시 요청할 수 있습니다.",
+    );
+    expect((await store.findAnalysis(a.analysis.id))?.status).toBe("running");
+  });
+
+  it("RUNNER=none 이면 대기열을 넘기지 않고, 오래 기다린 분석은 그 사실을 까닭으로 끝낸다", async () => {
+    const { store, later } = setup({ runner: { kind: "none" } });
+    await db.query(
+      `INSERT INTO analyses (id, owner, repo, repo_key, commit_sha, branch, status, requested_at, steps)
+       VALUES ('nnnnnnnnnn', 'example-org', 'kids-signup', 'example-org/kids-signup', $1, 'main', 'queued', $2, '[]'::jsonb)`,
+      ["a".repeat(40), T0],
+    );
+    later(60);
+    expect((await store.findAnalysis("nnnnnnnnnn"))?.status).toBe("queued");
+    later(61);
+    expect((await store.findAnalysis("nnnnnnnnnn"))?.failure?.reason).toBe(
+      "대기열에서 120분 넘게 기다려 멈춘 것으로 적었습니다. 이 사이트는 지금 실행기를 깨우지 않는 설정이라 대기열을 넘기지 않았습니다. 다시 요청할 수 있습니다.",
+    );
+  });
+
+  it("대기열이 QUEUE_LIMIT(기본 20)이면 그때만 받지 않는다(같은 커밋으로 보내기가 먼저다)", async () => {
+    expect(DEFAULTS.queueLimit).toBe(20);
+    const { store, wakes } = setup({ limits: { poolSize: 1, queueLimit: 2 } });
+    const a = created(await store.requestAnalysis("example-org", "kids-signup"));
+    const b = created(await store.requestAnalysis("example-org", "night-push"));
+    created(await store.requestAnalysis("example-studio", "genai-chat"));
+    const refused = await store.requestAnalysis("example-labs", "plain.utils");
+    expect(refused).toEqual({
+      ok: false,
+      reason: "limit",
+      message: "대기열이 가득 차 받지 않았습니다(실행 자리를 기다리는 분석 2건, 대기열 상한 2건). 앞의 분석이 실행기로 넘어간 뒤 다시 요청해 주세요.",
+    });
+    // 실행기에 간 것(a)은 대기열에 세지 않는다. 대기열의 분석과 같은 커밋이면 그 분석으로 보낸다.
+    expect(created(await store.requestAnalysis("example-org", "night-push"))).toMatchObject({ reused: true, analysis: { id: b.analysis.id } });
+    expect(ids(wakes)).toEqual([a.analysis.id]);
+  });
+
+  it("여러 서버가 동시에 넘겨도 한 분석은 한 번만 보내고, 자리 수를 넘겨 보내지 않는다", async () => {
+    const { store } = setup({ limits: { poolSize: 2 } });
+    // 대기열만 채운다(요청하면 그 자리에서 넘기므로 행을 바로 넣는다).
+    const made = ["aaaaaaaaaa", "bbbbbbbbbb", "cccccccccc"];
+    for (const [i, id] of made.entries()) {
+      const at = new Date(T0.getTime() + i * 1000);
+      await db.query(
+        `INSERT INTO analyses (id, owner, repo, repo_key, commit_sha, branch, status, requested_at, steps)
+         VALUES ($1, 'o', $2, $3, $4, 'main', 'queued', $5, '[]'::jsonb)`,
+        [id, `r${i}`, `o/r${i}`, String(i).repeat(40), at],
+      );
+    }
+    const woken: string[] = [];
+    const deps = {
+      now: () => T0,
+      limits: readConfig({ POOL_SIZE: "2" }).limits,
+      callbackBase: null,
+      runner: "local" as const,
+      wake: async (input: { analysisId: string }) => {
+        woken.push(input.analysisId);
+        return { ok: true as const };
+      },
+    };
+    const outcomes = await Promise.all(Array.from({ length: 6 }, () => pumpQueue(db, deps)));
+    expect(woken).toEqual(made.slice(0, 2));
+    expect(outcomes.flatMap((o) => o.dispatched).sort()).toEqual(made.slice(0, 2).sort());
+    expect(await store.queue()).toMatchObject({ poolSize: 2, inUse: 2, waiting: [made[2]], dispatched: made.slice(0, 2), wakeFailure: null });
+  });
+});
+
 describe("오래된 분석", () => {
   it("RUN_TIMEOUT_MINUTES(기본 25)를 넘게 끝나지 않은 분석은 읽을 때 '시간 초과'로 실패한다. 멈춘 단계는 그때의 단계다", async () => {
     expect(DEFAULTS.runTimeoutMinutes).toBe(25);
@@ -309,13 +608,13 @@ describe("오래된 분석", () => {
     expect(stale.status).toBe("failed");
     expect(stale.failure).toEqual({
       step: "scan",
-      reason: "시간 초과: 요청한 뒤 25분 안에 끝나지 않아 멈춘 것으로 적었습니다. ‘검사(정적 검사와 AI 판정)’ 단계에 머물러 있었습니다.",
+      reason: "시간 초과: 실행기에 보낸 뒤 25분 안에 끝나지 않아 멈춘 것으로 적었습니다. ‘검사(정적 검사와 AI 판정)’ 단계에 머물러 있었습니다.",
     });
     // 언제 멈췄는지는 모르므로 그 단계의 끝난 시각을 꾸며 적지 않는다.
     expect(stale.steps.find((s) => s.name === "scan")?.endedAt).toBeNull();
   });
 
-  it("요청할 때도 정리한다: 시간을 넘긴 분석은 동시 상한에 세지 않고, 같은 커밋이면 새 분석을 만든다", async () => {
+  it("요청할 때도 정리한다: 시간을 넘긴 분석은 실행 자리에 세지 않고, 같은 커밋이면 새 분석을 만든다", async () => {
     const { store, later } = setup();
     const first = created(await store.requestAnalysis("example-org", "kids-signup"));
     created(await store.requestAnalysis("example-org", "night-push"));
@@ -323,6 +622,8 @@ describe("오래된 분석", () => {
     const again = created(await store.requestAnalysis("example-org", "kids-signup"));
     expect(again.reused).toBe(false);
     expect((await store.getAnalysis("example-org", "kids-signup", first.analysis.id))?.failure?.step).toBe("queued");
+    // 새 분석은 빈 자리로 곧바로 실행기에 갔다.
+    expect((await store.queue())?.dispatched).toEqual([again.analysis.id]);
   });
 
   it("머문 단계: 시작했고 끝나지 않은 단계, 없으면 시작하지 않은 첫 단계", () => {
@@ -335,7 +636,7 @@ describe("오래된 분석", () => {
 
 describe("읽기", () => {
   it("저장소의 분석은 나중 것이 앞이다. 다른 저장소의 id 로는 찾지 못한다", async () => {
-    const { store, later, stub } = setup({ limits: { concurrent: 5 } });
+    const { store, later, stub } = setup({ limits: { poolSize: 5 } });
     const a = created(await store.requestAnalysis("example-org", "kids-signup"));
     later(1);
     stub.setHead("example-org", "kids-signup", "2");
@@ -345,7 +646,7 @@ describe("읽기", () => {
   });
 
   it("결과는 끝난 분석만, 받은 그대로 돌려준다. JSON 이 아니면 글 그대로다", async () => {
-    const { store, clock, stub } = setup({ limits: { concurrent: 5 } });
+    const { store, clock, stub } = setup({ limits: { poolSize: 5 } });
     const a = created(await store.requestAnalysis("example-org", "kids-signup"));
     expect(await store.getResult(a.analysis.id)).toBeNull();
     await finish(a.analysis.id, clock.now, '{"tool":{"version":"x"}}');
@@ -358,7 +659,7 @@ describe("읽기", () => {
   });
 
   it("최근에 끝난 분석: 끝난 차례, 기록에 있는 이름(GitHub 을 부르지 않는다)", async () => {
-    const { store, clock, later, stub } = setup({ limits: { concurrent: 5 } });
+    const { store, clock, later, stub } = setup({ limits: { poolSize: 5 } });
     const a = created(await store.requestAnalysis("example-org", "kids-signup"));
     const b = created(await store.requestAnalysis("example-studio", "genai-chat"));
     later(2);
@@ -422,5 +723,60 @@ describe("읽기", () => {
     const error = (await store.listAnalyses("a", "b").catch((e: unknown) => e)) as Error;
     expect(error).toBeInstanceOf(ServiceUnavailableError);
     expect(error.message).toBe("분석 기록을 읽지 못했습니다. 잠시 뒤에 다시 해 보세요.");
+  });
+});
+
+describe("GitHub 을 부르는 수의 예산을 서버 인스턴스가 함께 쓴다 (DB 의 1분 창)", () => {
+  beforeEach(async () => {
+    await db.query("DELETE FROM github_budget");
+  });
+
+  it("두 서버(클라이언트 둘)가 한 예산을 나눠 쓰고, 다음 1분 창에서 다시 찬다. 캐시는 서버마다다", async () => {
+    const stub = createGitHubStub({ origin: "http://stub.test" });
+    const clock = { now: T0.getTime() };
+    const server = () =>
+      createGitHub({
+        apiBase: "http://stub.test",
+        token: null,
+        searchCacheSeconds: 60,
+        repoCacheSeconds: 300,
+        fetch: stub.fetch as typeof fetch,
+        now: () => clock.now,
+        budget: createSharedBudget({ db: async () => db, searchPerMinute: 2, callsPerMinute: 60, now: () => clock.now }),
+      });
+    const one = server();
+    const two = server();
+    await one.search("kids");
+    await two.search("night");
+    // 서버마다 따로 셌다면 둘 다 한 번씩 더 부를 수 있었다.
+    await expect(one.search("genai")).rejects.toBeInstanceOf(GitHubError);
+    await expect(two.search("plain")).rejects.toMatchObject({ kind: "rate-limit" });
+    // 캐시에서 꺼낸 답은 세지 않는다.
+    expect((await one.search("kids")).repositories.length).toBeGreaterThan(0);
+    const rows = await db.query<{ bucket: string; used: number }>("SELECT bucket, used FROM github_budget");
+    expect(rows.rows).toEqual([{ bucket: "search", used: 2 }]);
+    clock.now += 60_000;
+    await one.search("genai");
+    // 한 시간보다 오래된 창은 새 창을 열 때 지운다.
+    clock.now += 61 * 60_000;
+    await two.search("plain");
+    expect((await db.query("SELECT * FROM github_budget")).rows).toHaveLength(1);
+  });
+
+  it("DB 에 닿지 못하면 이 서버 메모리의 예산으로 센다(주소를 적지 않는다)", async () => {
+    const quiet = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const take = createSharedBudget({
+      db: async () => {
+        throw new Error("connect ECONNREFUSED postgres://user:pw@10.0.0.1/db");
+      },
+      searchPerMinute: 1,
+      callsPerMinute: 1,
+      now: () => T0.getTime(),
+    });
+    expect(await take("search")).toBe(true);
+    expect(await take("search")).toBe(false);
+    expect(await take("core")).toBe(true);
+    expect(quiet.mock.calls.flat().join(" ")).not.toContain("postgres://");
+    quiet.mockRestore();
   });
 });

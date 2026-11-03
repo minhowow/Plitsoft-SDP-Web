@@ -25,7 +25,7 @@ import {
 } from "../runner/run.mjs";
 import { extractTar, extractTarGz } from "../runner/tar.mjs";
 import { createGitHubStub } from "../scripts/github-stub.mjs";
-import { main as localRunner, sourceFor } from "../scripts/local-runner.mjs";
+import { main as localRunner, parseArgs as localArgs, sourceFor } from "../scripts/local-runner.mjs";
 import { root } from "./helpers";
 
 // 실행기(runner/run.mjs, runner/tar.mjs)와 로컬 실행기(scripts/local-runner.mjs). 실제 GitHub·Anthropic·CLI 를 부르지 않는다.
@@ -367,7 +367,7 @@ describe("로컬 실행기 (scripts/local-runner.mjs --fixture)", () => {
   beforeAll(async () => {
     db = await openDatabase({ databaseUrl: null, pgliteDir: "memory://" });
     const stub = createGitHubStub({ origin: "http://stub.test" });
-    const config = readConfig({ RUNNER: "local", RUNNER_SECRET: SECRET, CONCURRENT_LIMIT: "5" });
+    const config = readConfig({ RUNNER: "local", RUNNER_SECRET: SECRET, POOL_SIZE: "5" });
     const store = createDbStore({
       db: async () => db,
       github: createGitHub({ apiBase: "http://stub.test", token: null, searchCacheSeconds: 60, repoCacheSeconds: 300, fetch: stub.fetch as typeof fetch }),
@@ -421,6 +421,22 @@ describe("로컬 실행기 (scripts/local-runner.mjs --fixture)", () => {
     const analysis = await deps.store().findAnalysis(id);
     expect(analysis?.status).toBe("failed");
     expect(analysis?.failure?.step).toBe("fetch");
+  });
+
+  it("--parallel n 이면 실행 자리를 얻은 분석을 n 개까지 함께 돌린다(사이트의 POOL_SIZE 와 같게 둔다. 검토)", async () => {
+    expect(localArgs([]).parallel).toBe(1);
+    expect(() => localArgs(["--parallel", "0"])).toThrow("--parallel");
+    // 앞 시험에서 끝난 같은 커밋이면 그 분석으로 보낸다. 새로 만들게 지운다.
+    await db.query("DELETE FROM results");
+    await db.query("DELETE FROM analyses");
+    const ids = [await request("example-org", "kids-signup"), await request("example-org", "night-push"), await request("example-labs", "plain.utils")];
+    await localRunner(["--fixture", "--once", "--site", site, "--parallel", "3", "--step-delay", "150"], { RUNNER_SECRET: SECRET });
+    const done = await Promise.all(ids.map((id) => deps.store().findAnalysis(id)));
+    expect(done.map((a) => a?.status)).toEqual(["succeeded", "succeeded", "succeeded"]);
+    // 함께 돌았다: 모든 분석이 저장소 받기를 시작한 뒤에야 처음으로 끝난 분석이 있다(하나씩 돌면 앞의 것이 끝난 뒤 다음이 시작한다).
+    const fetchStarts = done.map((a) => Date.parse(a!.steps.find((s) => s.name === "fetch")!.startedAt!));
+    const finishEnds = done.map((a) => Date.parse(a!.steps.find((s) => s.name === "finish")!.endedAt!));
+    expect(Math.max(...fetchStarts)).toBeLessThan(Math.min(...finishEnds));
   });
 
   it("서명 열쇠가 다르면 집어 가지 못한다", async () => {

@@ -8,6 +8,7 @@ import { packIndex, packMeta } from "@/lib/pack";
 import { parseReport } from "@/lib/report/parse";
 import { buildReportView } from "@/lib/report/view-model";
 import { orUnavailable } from "@/lib/service/errors";
+import { placeOf } from "@/lib/service/queue";
 import { analysisHref } from "@/lib/service/href";
 import { isAnalysisId } from "@/lib/service/id";
 import { isRepoFullName } from "@/lib/service/names";
@@ -32,7 +33,11 @@ export default async function AnalysisPage({ params }: PageProps<"/r/[owner]/[re
     (async () => {
       const repository = await store.getRepository(owner, repo);
       const analysis = repository && (await store.getAnalysis(repository.owner, repository.name, id));
-      return repository && analysis ? { repository, analysis, result: analysis.status === "succeeded" ? await store.getResult(analysis.id) : null } : null;
+      if (!repository || !analysis) return null;
+      const result = analysis.status === "succeeded" ? await store.getResult(analysis.id) : null;
+      // 대기 중이면 대기열의 몇 번째인지(DB 에서 센 것). 합성은 대기열이 없다(null).
+      const place = analysis.status === "queued" ? placeOf(await store.queue(), analysis.id) : null;
+      return { repository, analysis, result, place };
     })(),
   );
   if (!found.ok) {
@@ -44,7 +49,7 @@ export default async function AnalysisPage({ params }: PageProps<"/r/[owner]/[re
     );
   }
   if (!found.value) notFound();
-  const { repository, analysis, result } = found.value;
+  const { repository, analysis, result, place } = found.value;
 
   const synthetic = store.synthetic && <p className="notice">{SITE.service.synthetic}</p>;
 
@@ -68,7 +73,7 @@ export default async function AnalysisPage({ params }: PageProps<"/r/[owner]/[re
             <InProgress analysis={analysis} note={PROGRESS_NOTE.synthetic} />
           </>
         ) : (
-          <LiveAnalysis repository={repository} analysis={analysis} />
+          <LiveAnalysis repository={repository} analysis={analysis} place={place} />
         )}
       </div>
     );

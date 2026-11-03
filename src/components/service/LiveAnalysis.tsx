@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { readPlace, type QueuePlace } from "@/lib/service/queue";
 import { STEP_ORDER } from "@/lib/service/steps";
 import type { Analysis, Repository } from "@/lib/service/types";
 import { AnalysisHeader, InProgress, PROGRESS_NOTE } from "./analysis";
@@ -29,9 +30,19 @@ function readAnalysis(value: unknown, id: string): Analysis | null {
   return analysis as Analysis;
 }
 
-export function LiveAnalysis({ repository, analysis: initial }: { repository: Repository; analysis: Analysis }) {
+export function LiveAnalysis({
+  repository,
+  analysis: initial,
+  place: initialPlace = null,
+}: {
+  repository: Repository;
+  analysis: Analysis;
+  /** 대기 중이면 대기열의 어디에 있는지(서버가 DB 에서 센 것). 다시 읽을 때마다 서버가 준 값으로 바꾼다. */
+  place?: QueuePlace | null;
+}) {
   const router = useRouter();
   const [analysis, setAnalysis] = useState(initial);
+  const [place, setPlace] = useState(initialPlace);
   /** 다시 읽지 못한 까닭. 다음에 읽으면 걷는다. */
   const [trouble, setTrouble] = useState<string | null>(null);
   /** 더 읽지 않는 까닭(끝남, 없어짐). */
@@ -53,12 +64,14 @@ export function LiveAnalysis({ repository, analysis: initial }: { repository: Re
       inFlight = true;
       try {
         const response = await fetch(`/api/analyses/${id}/`, { cache: "no-store" });
-        const body = (await response.json().catch(() => null)) as { ok?: unknown; analysis?: unknown; message?: unknown } | null;
+        const body = (await response.json().catch(() => null)) as { ok?: unknown; analysis?: unknown; queue?: unknown; message?: unknown } | null;
         if (done) return;
         const next = response.ok && body?.ok === true ? readAnalysis(body.analysis, id) : null;
         if (next) {
           setTrouble(null);
           setAnalysis(next);
+          // 서버가 준 대기열의 자리. 없으면(대기 중이 아님, 읽지 못함) 적지 않는다(지난 숫자를 남겨 두지 않는다).
+          setPlace(readPlace(body?.queue));
           if (next.status === "succeeded" || next.status === "failed") {
             done = true;
             setStopped(next.status === "succeeded" ? "분석이 끝났습니다. 결과를 불러옵니다." : "분석이 멈췄습니다. 까닭을 불러옵니다.");
@@ -99,6 +112,7 @@ export function LiveAnalysis({ repository, analysis: initial }: { repository: Re
       <InProgress
         analysis={analysis}
         live
+        place={place}
         note={
           <>
             <p>{stopped ?? PROGRESS_NOTE.live}</p>

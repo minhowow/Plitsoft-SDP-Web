@@ -22,7 +22,17 @@ describe("설정", () => {
       searchPerMinute: 10,
       callsPerMinute: 60,
     });
-    expect(config.limits).toEqual({ maxRepoKb: 100_000, dedupeMinutes: 60, daily: 30, concurrent: 2, runTimeoutMinutes: 25, maxResultKb: 4_000 });
+    expect(config.limits).toEqual({
+      maxRepoKb: 100_000,
+      dedupeMinutes: 60,
+      daily: 30,
+      poolSize: 2,
+      queueLimit: 20,
+      runTimeoutMinutes: 25,
+      dispatchTimeoutMinutes: 10,
+      queueTimeoutMinutes: 120,
+      maxResultKb: 4_000,
+    });
     // 설정하지 않은 배포는 요청을 받지 않는다.
     expect(config.runner).toEqual({ kind: "none", repo: null, workflow: "analyze.yml", ref: "main", token: null, callbackBase: null, secret: null });
   });
@@ -34,7 +44,10 @@ describe("설정", () => {
       GITHUB_API_BASE: "http://127.0.0.1:4010/",
       GITHUB_TOKEN: "test-token",
       DAILY_LIMIT: "5",
-      CONCURRENT_LIMIT: "0",
+      POOL_SIZE: "0",
+      QUEUE_LIMIT: "7",
+      DISPATCH_TIMEOUT_MINUTES: "x",
+      QUEUE_TIMEOUT_MINUTES: "90",
       DEDUPE_MINUTES: "-3",
       MAX_REPO_KB: "lots",
       RUN_TIMEOUT_MINUTES: " 40 ",
@@ -46,10 +59,27 @@ describe("설정", () => {
     expect(config.databaseUrl).toBe("postgres://example.invalid/db");
     expect(config.github.apiBase).toBe("http://127.0.0.1:4010");
     expect(config.github.token).toBe("test-token");
-    expect(config.limits).toEqual({ maxRepoKb: DEFAULTS.maxRepoKb, dedupeMinutes: 60, daily: 5, concurrent: 2, runTimeoutMinutes: 40, maxResultKb: DEFAULTS.maxResultKb });
+    expect(config.limits).toEqual({
+      maxRepoKb: DEFAULTS.maxRepoKb,
+      dedupeMinutes: 60,
+      daily: 5,
+      poolSize: 2,
+      queueLimit: 7,
+      runTimeoutMinutes: 40,
+      dispatchTimeoutMinutes: 10,
+      queueTimeoutMinutes: 90,
+      maxResultKb: DEFAULTS.maxResultKb,
+    });
     expect(config.runner).toMatchObject({ kind: "github", repo: "owner/runner", callbackBase: "https://site.example" });
     expect(readConfig({ RUNNER: "anything" }).runner.kind).toBe("none");
     expect(readConfig({ SERVICE_STORE: "other" }).store).toBe("db");
+  });
+
+  it("실행 자리 수는 POOL_SIZE, 없으면 옛 이름 CONCURRENT_LIMIT 을 읽는다(둘 다 있으면 POOL_SIZE)", () => {
+    expect(readConfig({ POOL_SIZE: "3" }).limits.poolSize).toBe(3);
+    expect(readConfig({ CONCURRENT_LIMIT: "4" }).limits.poolSize).toBe(4);
+    expect(readConfig({ POOL_SIZE: "3", CONCURRENT_LIMIT: "4" }).limits.poolSize).toBe(3);
+    expect(readConfig({ POOL_SIZE: "nope", CONCURRENT_LIMIT: "4" }).limits.poolSize).toBe(4);
   });
 
   it("기본값이 docs/direction.md 의 표에 적혀 있다", () => {
@@ -58,8 +88,11 @@ describe("설정", () => {
       ["MAX_REPO_KB", DEFAULTS.maxRepoKb],
       ["DEDUPE_MINUTES", DEFAULTS.dedupeMinutes],
       ["DAILY_LIMIT", DEFAULTS.daily],
-      ["CONCURRENT_LIMIT", DEFAULTS.concurrent],
+      ["POOL_SIZE", DEFAULTS.poolSize],
+      ["QUEUE_LIMIT", DEFAULTS.queueLimit],
       ["RUN_TIMEOUT_MINUTES", DEFAULTS.runTimeoutMinutes],
+      ["DISPATCH_TIMEOUT_MINUTES", DEFAULTS.dispatchTimeoutMinutes],
+      ["QUEUE_TIMEOUT_MINUTES", DEFAULTS.queueTimeoutMinutes],
       ["SEARCH_CACHE_SECONDS", DEFAULTS.searchCacheSeconds],
       ["REPO_CACHE_SECONDS", DEFAULTS.repoCacheSeconds],
       ["COMMIT_CACHE_SECONDS", DEFAULTS.commitCacheSeconds],
