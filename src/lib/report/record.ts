@@ -413,7 +413,7 @@ export function buildRecord(view: ReportView, pack: PackIndex, source?: RecordSo
       policies.slice(i + 1).some((b) => b.textSha256 === a.textSha256 && b.hashNote === null && b.law !== a.law),
   );
 
-  // 발견이 없고 AI 가 푼 경고만 있는 정책에는 "발견 없음"의 뜻(충족인지 미적용인지 구분할 수 없다)을 붙이지 않는다.
+  // 발견이 없고 AI 가 푼 경고만 있는 정책에는 "발견 없음"의 뜻(충족인지 미적용인지 나누어 적지 않는다)을 붙이지 않는다.
   // 그 정책 카드도 그 말 대신 AI 가 푼 경고가 있다고 적는다(`components/result/PolicyCard.tsx`).
   // - 발견이 없는 정책이 모두 그런 정책이면 그 뜻을 적지 않는다.
   // - 그런 정책과 조용한 정책이 섞여 있으면 뜻의 주어를 좁혀 적는다. 두 줄에 같은 이름("발견 없음")이 적혀 있어서,

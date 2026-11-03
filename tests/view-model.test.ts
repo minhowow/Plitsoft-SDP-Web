@@ -7,7 +7,7 @@ import { judgedScope } from "@/lib/report/scope";
 import type { Status } from "@/lib/report/status";
 import type { Finding, Report } from "@/lib/report/types";
 import { buildReportView, SHOWN_PER_RULE, type PolicyView, type ReportView } from "@/lib/report/view-model";
-import { jsonFiles, readJson } from "./helpers";
+import { jsonFiles, readJson, withoutKeys } from "./helpers";
 
 function viewOf(data: unknown): ReportView {
   const parsed = parseReport(data);
@@ -32,10 +32,44 @@ describe("현재 CLI 출력으로 만든 화면 구조", () => {
     expect(v.policies[0].id).toBe("kr.pipa.22-2");
   });
 
-  it("아동 가입 고친 뒤: 발견이 없고, 충족인지 미적용인지는 지금 출력으로 알 수 없다", () => {
+  it("아동 가입 고친 뒤: 발견이 없고, 강한 정적 대안으로 풀린 단위(run.static_cleared)가 충족 근거 위치로 보인다", () => {
     const v = view("cli-current", "kids-signup.fixed.json");
     expect(v.findingCount).toBe(0);
+    expect(statusOf(v, "kr.pipa.22-2")).toBe("evidence-found");
+    const pipa = v.policies.find((p) => p.id === "kr.pipa.22-2")!;
+    // 결과에 실린 정책·규칙·파일과 대안 id, 그 대안이 맞은 줄 그대로다.
+    expect(pipa.evidence).toEqual([
+      { file: "src/auth/signup.ts", line: 7, rule: "signup-without-guard", alternative: "under14-branch" },
+    ]);
+    // 정책별 판정 단위 수는 여전히 결과에 없다. 단위 수의 합 관계로 셈해 채우지 않는다.
+    expect(pipa.units).toBeNull();
+    // 정적 대안으로 풀린 단위가 없는 정책은 그대로 "발견 없음"이다(적용 신호 없음으로 셈해 내지 않는다).
+    expect(v.policies.filter((p) => p.id !== "kr.pipa.22-2").every((p) => p.status === "not-reported")).toBe(true);
+  });
+
+  it("정적 대안으로 풀린 단위가 결과에 없는 판 번호 없는 출력에서는 충족 근거 위치가 비고 '발견 없음'이다", () => {
+    const data = readJson("contract", "cli-current", "kids-signup.fixed.json") as Report;
+    const v = viewOf(withoutKeys(data, ["schema_version"], ["static_cleared"]));
+    expect(v.staticCleared).toBeNull();
     expect(statusOf(v, "kr.pipa.22-2")).toBe("not-reported");
+    expect(v.policies.every((p) => p.evidence.length === 0)).toBe(true);
+  });
+
+  it("v1 초안에서는 정적 대안으로 풀린 단위를 쓰지 않는다. 정책별 요약의 충족 근거 위치만 보인다", () => {
+    const draft = readJson("contract", "samples-v1-draft", "kids-signup.fixed.json") as Report;
+    const v = buildReportView(draft, "v1-draft", packMeta);
+    expect(v.staticCleared).toBeNull();
+    expect(v.policies.find((p) => p.id === "kr.pipa.22-2")!.evidence).toEqual(draft.run.policies![0].evidence);
+  });
+
+  it("발견이 있는 정책에 정적 대안으로 풀린 단위도 있으면 상태는 발견의 것이고, 충족 근거 위치가 함께 실린다", () => {
+    const data = readJson("contract", "cli-current", "kids-signup.main.json") as Report;
+    const cleared = { policy: "kr.pipa.22-2", rule: "signup-without-guard", file: "src/auth/other.ts", line: 3, alternatives: [{ id: "under14-branch", lines: [] }] };
+    const v = viewOf({ ...data, run: { ...data.run, static_cleared: [cleared] } });
+    const pipa = v.policies.find((p) => p.id === "kr.pipa.22-2")!;
+    expect(pipa.status).toBe("needs-review-ai-pending");
+    // 맞은 줄이 실려 있지 않으면 줄 없이 적는다. 단위의 줄(line)을 근거의 줄로 옮기지 않는다.
+    expect(pipa.evidence).toEqual([{ file: "src/auth/other.ts", line: null, rule: "signup-without-guard", alternative: "under14-branch" }]);
   });
 
   it("약한 근거만 있는 대안은 판단 보류로 남는다", () => {
@@ -255,12 +289,19 @@ describe("판정이 본 범위", () => {
     expect(scope({ scope: "anchor", region: null, top_level: undefined })).toEqual({ kind: "unknown" });
   });
 
-  it("수집본의 발견은 모두 파일 전체 판정이다 (kr-core 의 규칙은 지금 모두 파일 단위)", () => {
+  it("수집본의 발견은 함수 단위 규칙(야간 광고, CLI 7300205 부터) 하나만 함수 구역이고 나머지는 파일 전체 판정이다", () => {
+    const anchored: string[] = [];
     for (const file of jsonFiles("contract", "cli-current")) {
       const v = view("cli-current", file);
-      const scopes = v.policies.flatMap((p) => p.locations.map((l) => l.scope.kind));
-      expect(scopes.every((kind) => kind === "file"), file).toBe(true);
+      for (const p of v.policies) {
+        for (const l of p.locations) {
+          if (l.scope.kind !== "file") anchored.push(`${file} ${p.id} ${l.file}:${l.line} ${JSON.stringify(l.scope)}`);
+        }
+      }
     }
+    expect(anchored).toEqual([
+      `night-push.fixed.json kr.network-act.50-3 src/marketing/campaign.ts:12 ${JSON.stringify({ kind: "function", startLine: 9, endLine: 19 })}`,
+    ]);
   });
 
   it("화면 구조의 발견마다 범위가 실린다", () => {
@@ -466,7 +507,8 @@ describe("빈 결과에서 아는 것과 모르는 것", () => {
     expect([plain.coverage.units, fixed.coverage.units]).toEqual([0, 1]);
     for (const v of [plain, fixed]) {
       expect(Object.values(unitsOf(v))).toEqual([null, null, null, null, null]);
-      expect(v.policies.every((p) => p.status === "not-reported")).toBe(true);
+      // 정적 대안으로 풀린 단위가 실린 정책(고친 뒤의 아동 가입)만 충족 근거 발견이다. 단위 수는 그래도 모른다.
+      expect(v.policies.every((p) => p.status === (p.evidence.length > 0 ? "evidence-found" : "not-reported"))).toBe(true);
       // 결과에는 정책 목록이 없다. 팩 판이 같은 이 사이트의 팩에서 센다.
       expect(v.packMatches).toBe(true);
       expect(v.policyCount).toBe(packMeta.policies.length);
@@ -480,7 +522,10 @@ describe("빈 결과에서 아는 것과 모르는 것", () => {
     const v = viewOf({ ...data, run: { ...data.run, policies } });
     expect(v.contract).toBe("cli-0.3");
     expect(Object.values(unitsOf(v))).toEqual([null, null, null, null, null]);
-    expect(v.policies.every((p) => p.evidence.length === 0)).toBe(true);
+    // 충족 근거 위치는 결과 판 1 의 run.static_cleared 에서만 온다. 요약(run.policies)의 것을 쓰지 않는다.
+    expect(v.policies.flatMap((p) => p.evidence)).toEqual([
+      { file: "src/auth/signup.ts", line: 7, rule: "signup-without-guard", alternative: "under14-branch" },
+    ]);
     expect(v.policyCount).toBe(packMeta.policies.length);
   });
 

@@ -1,17 +1,36 @@
 {
+  "schema_version": 1,
   "tool": {
     "name": "policypack",
     "version": "0.3.0.dev0"
   },
   "run": {
     "judge": null,
-    "pack_digest": "fa6fc2b3e62d8d0d",
+    "pack_digest": "366a3dd4fdae08d8",
+    "fingerprint_version": "policypack/v1",
     "questions_asked": 0,
     "ai_answered": 0,
     "questions_sent": 0,
+    "questions_skipped": 0,
     "ai_pending": 0,
     "ai_cleared": [],
     "ai_dismissed": [],
+    "static_cleared": [
+      {
+        "policy": "kr.pipa.22-2",
+        "rule": "signup-without-guard",
+        "file": "src/auth/signup.ts",
+        "line": 5,
+        "alternatives": [
+          {
+            "id": "under14-branch",
+            "lines": [
+              7
+            ]
+          }
+        ]
+      }
+    ],
     "engine": {
       "name": "semgrep",
       "version": "1.176.1"

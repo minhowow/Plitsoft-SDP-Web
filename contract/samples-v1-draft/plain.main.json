@@ -1,5 +1,5 @@
 {
-  "$comment": "손으로 덧붙인 v1 초안 예시다. 현재 CLI 는 schema_version 과 run.policies 를 내지 않는다. 나머지는 contract/cli-current/ 의 실제 출력 그대로다.",
+  "$comment": "손으로 덧붙인 v1 초안 예시다. 현재 CLI 는 schema_version 1 을 내지만 run.policies 는 내지 않는다. schema_version 을 report/1-draft(웹의 초안 판)로 바꾸고 run.policies, run.commit, run.remote 를 덧붙였다. 나머지는 contract/cli-current/ 의 실제 출력 그대로다.",
   "schema_version": "report/1-draft",
   "tool": {
     "name": "policypack",
@@ -7,13 +7,16 @@
   },
   "run": {
     "judge": null,
-    "pack_digest": "fa6fc2b3e62d8d0d",
+    "pack_digest": "366a3dd4fdae08d8",
+    "fingerprint_version": "policypack/v1",
     "questions_asked": 0,
     "ai_answered": 0,
     "questions_sent": 0,
+    "questions_skipped": 0,
     "ai_pending": 0,
     "ai_cleared": [],
     "ai_dismissed": [],
+    "static_cleared": [],
     "engine": {
       "name": "semgrep",
       "version": "1.176.1"

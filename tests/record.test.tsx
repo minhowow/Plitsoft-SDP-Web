@@ -28,7 +28,7 @@ import {
   type RecordView,
 } from "@/lib/report/record";
 import { LINE_IS_FIRST, scopeLabel, scopeNote } from "@/lib/report/scope";
-import { findingStatus, NOT_REPORTED_NOR_CLEARED, STATUS_LABEL, STATUS_LEGEND, STATUS_ORDER } from "@/lib/report/status";
+import { findingStatus, NOT_REPORTED_NOR_CLEARED, STATUS_HINT, STATUS_LABEL, STATUS_LEGEND, STATUS_ORDER } from "@/lib/report/status";
 import type { AiCleared, AiDismissed, Finding, Report } from "@/lib/report/types";
 import { buildReportView, CONTRACT_LABEL, type ReportView } from "@/lib/report/view-model";
 import { SITE } from "@/lib/site";
@@ -347,10 +347,12 @@ describe("기록에 싣는 것", () => {
     it("결과에 정책이 하나도 실려 있지 않아도(발견이 0인 CLI 0.3 의 결과) 표에는 팩의 정책이 모두 있다. 그 줄이 팩에서 왔다고 밝힌다", () => {
       // 머리는 "연 파일에 적힌 것을 옮긴 기록"이라고 적는다. 그 파일에 없는 줄은 어디서 왔는지 밝혀야 한다. 결과 화면도
       // 같은 것을 밝힌다("결과에는 정책 목록이 없어, 팩 판이 같은 이 사이트의 팩에서 가져와 …").
-      const data = capture("kids-signup.fixed");
+      // 고친 뒤의 아동 가입은 CLI 결과 판 1 부터 정적 대안으로 풀린 단위(run.static_cleared)에 정책 id 가 실린다. 정책 id 가
+      // 하나도 없는 결과는 아무 정책도 닿지 않은 plain.main 이다.
+      const data = capture("plain.main");
       expect(data.findings).toEqual([]);
       // 그 파일에는 정책 id 가 하나도 없다.
-      const raw = readFileSync(path.join(root, "contract", "cli-current", "kids-signup.fixed.json"), "utf8");
+      const raw = readFileSync(path.join(root, "contract", "cli-current", "plain.main.json"), "utf8");
       for (const policy of packFile.policies) expect(raw, policy.id).not.toContain(policy.id);
       const page = readSheet(sheet(data));
       expect(page.source).toContain("에 적힌 것을 옮긴 기록입니다.");
@@ -530,12 +532,30 @@ describe("기록에 싣는 것", () => {
       }
     });
 
+    it("'발견 없음'의 뜻은 CLI 출력이 가를 수 없다고 적지 않는다. 결과 판 1 은 가를 수 있고, 웹이 셈하지 않는 것이다", () => {
+      // CLI 7300205 의 report/json_out.py: units = findings + ai_cleared + static_cleared. 판정자를 끈 결과 판 1 에서는
+      // 셋 모두 없는 정책이 판정 단위 0, 곧 적용 신호 없음이다. 고친 뒤 아동 가입이 그 경우다(단위 1 = 정적 대안 1건).
+      const fixed = capture("kids-signup.fixed") as Report;
+      expect(fixed.schema_version).toBe(1);
+      expect(fixed.run.judge).toBeNull();
+      expect(fixed.run.units).toBe(fixed.findings.length + fixed.run.ai_cleared!.length + fixed.run.static_cleared!.length);
+      for (const text of [STATUS_HINT["not-reported"], STATUS_LEGEND["not-reported"], NOT_REPORTED_NOR_CLEARED]) {
+        expect(text).not.toMatch(/CLI 출력|구분할 수 없/);
+        expect(text).toContain("이 사이트");
+      }
+    });
+
     it("발견이 없는 정책에 적은 상태의 뜻을 표 아래에 적는다 (발견 없음은 충족이라는 뜻이 아니다)", () => {
       const NONE = `${STATUS_LABEL["not-reported"]}: ${STATUS_LEGEND["not-reported"]}`;
-      expect(STATUS_LEGEND["not-reported"]).toContain("구분할 수 없습니다");
-      for (const name of ["kids-signup.main", "kids-signup.fixed", "plain.main", "night-push.fixed"]) {
+      expect(STATUS_LEGEND["not-reported"]).toContain("나누어 적지 않습니다");
+      for (const name of ["kids-signup.main", "plain.main", "night-push.fixed"]) {
         expect(readSheet(sheet(capture(name))).statusNotes, name).toEqual([NONE]);
       }
+      // CLI 결과 판 1: 정적 대안으로 풀린 단위가 실린 정책은 충족 근거 발견이다. 나온 상태만, 먼저 봐야 할 것부터 적는다.
+      expect(readSheet(sheet(capture("kids-signup.fixed"))).statusNotes).toEqual([
+        `${STATUS_LABEL["evidence-found"]}: ${STATUS_LEGEND["evidence-found"]}`,
+        NONE,
+      ]);
       // v1 초안: 정책별 요약이 있어서 발견이 없는 정책의 상태가 갈린다. 나온 상태만, 먼저 봐야 할 것부터 적는다.
       const draft = readSheet(sheet(read("contract", "samples-v1-draft", "kids-signup.fixed.json")));
       expect(draft.statusNotes).toEqual([
@@ -549,7 +569,7 @@ describe("기록에 싣는 것", () => {
       }
     });
 
-    it("AI 가 푼 경고만 있는 정책의 줄에는 '구분할 수 없다'는 뜻이 붙지 않는다. 조용한 정책과 섞여 있으면 뜻의 주어를 좁힌다", () => {
+    it("AI 가 푼 경고만 있는 정책의 줄에는 '나누어 적지 않는다'는 뜻이 붙지 않는다. 조용한 정책과 섞여 있으면 뜻의 주어를 좁힌다", () => {
       // 발견이 없고 AI 가 푼 경고만 있는 정책의 줄에도 "발견 없음"이 적힌다. 그 정책에는 조문이 닿는다고 본 단위가 있었고 AI
       // 의 답으로 풀린 것이다(CLI 소스 evaluate/engine.py 의 _cleared_by_ai). 정책 카드도 그 정책에는 그 말을 적지 않는다.
       const data = fixture("judge-on.cleared");
@@ -562,15 +582,15 @@ describe("기록에 싣는 것", () => {
         packFile.policies.slice(1).map(() => [STATUS_LABEL["not-reported"]]),
       );
       expect(record.quiet).toEqual([{ label: STATUS_LABEL["not-reported"], meaning: NOT_REPORTED_NOR_CLEARED }]);
-      expect(NOT_REPORTED_NOR_CLEARED).toBe("발견도 AI 가 푼 경고도 없는 정책은 지금 CLI 출력으로는 '충족 근거 발견'과 '적용 신호 없음'을 구분할 수 없습니다.");
+      expect(NOT_REPORTED_NOR_CLEARED).toBe("발견도 AI 가 푼 경고도 없는 정책은 이 사이트가 아직 '충족 근거 발견'과 '적용 신호 없음'으로 나누어 적지 않습니다.");
       // 주어만 좁힌 것이다. 나머지는 상태의 뜻 그대로다.
       expect(NOT_REPORTED_NOR_CLEARED.replace("발견도 AI 가 푼 경고도 없는", "발견이 없는")).toBe(STATUS_LEGEND["not-reported"]);
       expect(readSheet(sheet(data)).statusNotes).toEqual([`${STATUS_LABEL["not-reported"]}: ${NOT_REPORTED_NOR_CLEARED}`]);
-      // 결과 화면의 그 정책 카드에도 "구분할 수 없습니다"가 없다(tests/demo.test.tsx 가 본다). 여기서는 같은 결과로 견준다.
+      // 결과 화면의 그 정책 카드에도 "나누어 적지 않습니다"가 없다(tests/demo.test.tsx 가 본다). 여기서는 같은 결과로 견준다.
       const summary = renderToStaticMarkup(<ReportSummary view={viewOf(data)} />);
       const card = elementsOf(summary, '<article class="policy ').find((html) => textOf(html).includes(metaOf(cleared.policy).title))!;
       expect(textOf(card)).toContain("AI 판정자의 답으로 풀린 경고가 1건 있습니다");
-      expect(textOf(card)).not.toContain("구분할 수 없습니다");
+      expect(textOf(card)).not.toContain("나누어 적지 않습니다");
 
       // AI 가 푼 경고가 없는 결과에서는 뜻을 그대로 적는다(빠진 판정만 있는 결과도 그렇다. 빠진 판정은 판정 단위에 들지 않는다).
       for (const name of ["judge-on.dismissed", "judge-on.citation-rejected"]) {

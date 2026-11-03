@@ -62,11 +62,14 @@ function unsummarized(view: ReportView): number {
 
 /**
  * CLI 0.3 의 `run.units` 는 모든 정책을 합친 수다. 정책별 수는 없다. 발견 없이 끝난 단위가 어느 정책의 것인지는
- * AI 가 푼 경고(`run.ai_cleared`)에 실린 것만 알 수 있다. 정적 조건으로 풀린 단위는 어디에도 나오지 않는다
- * (`docs/cli-requests.md` 의 R1). 그래서 정책 카드는 모두 "발견 없음"으로 같고, 결과마다 다른 것은 이 수뿐이다.
+ * AI 가 푼 경고(`run.ai_cleared`)와, 결과 판 1 부터는 강한 정적 대안으로 풀린 단위(`run.static_cleared`. 정책 카드의 충족
+ * 근거 위치)에 실린 것만 알 수 있다. 판 번호 없는 출력에서는 정적 조건으로 풀린 단위가 어디에도 나오지 않는다
+ * (`docs/cli-requests.md` 의 R1). 그래서 그 출력의 정책 카드는 모두 "발견 없음"으로 같고, 결과마다 다른 것은 이 수뿐이다.
+ * 결과 판 1 에서 CLI 는 "단위 수 = 발견 + AI 가 푼 것 + 정적 대안으로 풀린 것"이라고 적지만(CLI 소스 `report/json_out.py`),
+ * 웹은 그 관계로 정책별 수나 "적용 신호 없음"을 셈해 내지 않는다(`docs/cli-followup.md`).
  *
  * - 수가 0이면 정책별 수도 모두 0이다. "정책별 수가 없다"는 한계가 아니므로 그렇게 적지 않고, 어느 정책에서도
- *   판정한 곳이 없다고 적는다. 그래도 카드는 "발견 없음"(충족인지 미적용인지 구분할 수 없다)으로 보이므로, 카드의
+ *   판정한 곳이 없다고 적는다. 그래도 카드는 "발견 없음"(충족인지 미적용인지 나누어 적지 않는다)으로 보이므로, 카드의
  *   설명이 판정 단위가 있는 결과와 같다는 것을 함께 적는다. 카드의 상태를 바꾸지는 않는다(관문 G1 의 일이다).
  * - AI 가 적용되지 않는다고 답해 빠진 판정(`run.ai_dismissed`)은 이 수에 들어 있지 않다. CLI 는 적용 조건이
  *   '모름'일 때만 AI 에게 적용 여부를 묻고, '아니오'를 받은 단위를 뺀 뒤에 센다(CLI 소스 `evaluate/engine.py` 의
@@ -91,8 +94,13 @@ function unitsFact(view: ReportView): ExaminedFact {
   } else {
     // 결과 머리의 "출력 형식"에 적힌 이름과 같게 부른다.
     const format = `이 출력 형식(${CONTRACT_LABEL[view.contract]})`;
-    if (view.aiCleared.length > 0) {
-      notes.push(`${format}에는 정책별 수가 없어서, 어느 정책의 것인지는 아래 'AI 가 푼 경고'에 실린 것만 알 수 있습니다.`);
+    const staticCleared = view.staticCleared?.length ?? 0;
+    if (view.aiCleared.length > 0 || staticCleared > 0) {
+      const places = [
+        ...(view.aiCleared.length > 0 ? ["'AI 가 푼 경고'"] : []),
+        ...(staticCleared > 0 ? ["정책 카드의 충족 근거 위치"] : []),
+      ].join("와 ");
+      notes.push(`${format}에는 정책별 수가 없어서, 어느 정책의 것인지는 아래 ${places}에 실린 것만 알 수 있습니다.`);
     } else if (units !== 0) {
       notes.push(`${format}에는 정책별 수가 없어서, 어느 정책에서 적용 신호를 봤는지 알 수 없습니다.`);
     } else if (dismissed === 0 && view.aiDismissedKnown) {

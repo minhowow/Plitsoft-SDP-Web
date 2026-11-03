@@ -6,7 +6,7 @@
   },
   "run": {
     "judge": "claude-cli:haiku",
-    "pack_digest": "fa6fc2b3e62d8d0d",
+    "pack_digest": "366a3dd4fdae08d8",
     "questions_asked": 1,
     "ai_answered": 1,
     "questions_sent": 1,

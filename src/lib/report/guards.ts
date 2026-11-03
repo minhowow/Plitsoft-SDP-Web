@@ -1,4 +1,4 @@
-import type { Outcome, UnsatisfiedAlternative } from "./types";
+import type { Outcome, StaticCleared, UnsatisfiedAlternative } from "./types";
 
 /**
  * 값의 모양을 보는 작은 함수들. 결과 JSON 의 파서(`parse.ts`)와 SARIF 의 파서(`sarif.ts`)가 함께 쓴다.
@@ -41,4 +41,18 @@ export const isAiRecords = (v: unknown): v is Obj[] =>
 export const haveAlternativeIds = (records: unknown[]): boolean =>
   records.every(
     (x) => isObj(x) && Array.isArray(x.alternatives) && x.alternatives.every((a) => isObj(a) && isStr(a.id)),
+  );
+
+/** 강한 정적 대안으로 풀린 단위의 기록 목록(`run.static_cleared`). 대안마다 id 와 맞은 줄 번호가 있다. */
+export const isStaticCleared = (v: unknown): v is StaticCleared[] =>
+  Array.isArray(v) &&
+  v.every(
+    (x) =>
+      isObj(x) &&
+      isStr(x.policy) &&
+      isStr(x.rule) &&
+      isStr(x.file) &&
+      isNullOr(x.line, isInt) &&
+      Array.isArray(x.alternatives) &&
+      x.alternatives.every((a) => isObj(a) && isStr(a.id) && Array.isArray(a.lines) && a.lines.every(isInt)),
   );

@@ -101,6 +101,8 @@ const row = async (id: string) =>
   };
 
 const capture = readFileSync(path.join(root, "contract", "cli-current", "kids-signup.main.json"), "utf8");
+// 수집본의 팩 판. 다시 수집하면 따라 바뀐다.
+const capturedPack = (JSON.parse(capture) as { run: { pack_digest: string } }).run.pack_digest;
 
 async function runToFinish(deps: ApiDeps, id: string) {
   for (const step of ["fetch", "scan", "finish"]) expect((await event(deps, id, { event: "step", step })).status).toBe(200);
@@ -376,7 +378,7 @@ describe("실행기 콜백: 상태 전이 (설계 6)", () => {
     await event(deps, id, { event: "step", step: "finish" });
     expect((await event(deps, id, { event: "result", output: capture })).body).toMatchObject({ ok: true, status: "succeeded" });
     const stored = await row(id);
-    expect(stored).toMatchObject({ status: "succeeded", tool_version: "0.3.0.dev0", pack_digest: "fa6fc2b3e62d8d0d", runner_run_id: "987654", runner_run_url: run.url });
+    expect(stored).toMatchObject({ status: "succeeded", tool_version: "0.3.0.dev0", pack_digest: capturedPack, runner_run_id: "987654", runner_run_url: run.url });
     // 시각은 콜백을 받은 때다. 단계마다 시작과 끝이 있고, 앞 단계의 끝이 다음 단계의 시작이다.
     expect(stored.steps.map((s) => [s.name, s.startedAt, s.endedAt])).toEqual([
       ["queued", T0.toISOString(), T0.toISOString()],
@@ -387,7 +389,7 @@ describe("실행기 콜백: 상태 전이 (설계 6)", () => {
     expect((await db.query<{ json: string }>("SELECT json FROM results WHERE analysis_id = $1", [id])).rows[0].json).toBe(capture);
     const { store } = { store: deps.store() };
     expect(await store.getResult(id)).toEqual(JSON.parse(capture));
-    expect((await store.findAnalysis(id))?.versions).toEqual({ tool: "0.3.0.dev0", pack: "fa6fc2b3e62d8d0d" });
+    expect((await store.findAnalysis(id))?.versions).toEqual({ tool: "0.3.0.dev0", pack: capturedPack });
   });
 
   it("같은 단계를 다시 알리면 바꾸지 않고 받는다(실행기가 다시 보낸 것)", async () => {

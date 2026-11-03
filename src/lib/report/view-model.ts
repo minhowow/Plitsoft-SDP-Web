@@ -1,7 +1,7 @@
 import type { PackIndex } from "@/lib/pack/types";
 import { judgedScope, type JudgedScope } from "./scope";
 import { findingStatus, STATUS_ORDER, worst, type Status } from "./status";
-import type { AiCleared, AiDismissed, Contract, Finding, PolicySummary, Report } from "./types";
+import type { AiCleared, AiDismissed, Contract, Finding, PolicySummary, Report, StaticCleared } from "./types";
 
 /**
  * 발견 하나. 단위는 정책 × 규칙 × 파일이다(함수 단위 규칙이면 함수).
@@ -58,14 +58,18 @@ export interface PolicyView {
   locations: LocationView[];
   /** 같은 발견을 규칙별로 묶은 것. 화면은 이 묶음으로 그린다. */
   rules: RuleGroupView[];
-  /** 충족 근거 위치. v1 초안에서만 채워진다. */
+  /**
+   * 충족 근거 위치. v1 초안에서는 정책별 요약의 것이다. CLI 결과 판 1 에서는 강한 정적 대안으로 풀린 단위
+   * (`run.static_cleared`)를 옮긴 것이다: 대안이 맞은 줄마다 한 줄(줄이 실려 있지 않으면 줄 없이 한 줄), 규칙과 대안 id 는
+   * 실린 그대로다. 판 번호 없는 출력과 SARIF 에는 그 자리가 없어 비어 있다.
+   */
   evidence: PolicySummary["evidence"];
   /**
    * 이 정책의 판정 단위 수. 결과에 정책별 요약이 있을 때(v1 초안)만 안다. 없으면 null 이다.
    * CLI 0.3 의 전체 수(`run.units`)에서 짐작해 채우지 않는다.
    */
   units: number | null;
-  /** AI 의 '예'로 풀린 경고 수. 0 보다 크면 "구분할 수 없다"는 설명 대신 이 사실을 보인다. */
+  /** AI 의 '예'로 풀린 경고 수. 0 보다 크면 "나누어 적지 않는다"는 설명 대신 이 사실을 보인다. */
   aiCleared: number;
   /** 팩 메타데이터에 이 정책이 있는지. 없으면 조문 도감으로 이어 줄 수 없다. */
   inPack: boolean;
@@ -126,6 +130,11 @@ export interface ReportView {
   findingCount: number;
   /** AI 가 푼 경고와 적용 질문으로 빠진 판정. 숨기지 않는다. 사람이 인용한 줄을 확인해야 한다. */
   aiCleared: AiCleared[];
+  /**
+   * 강한 정적 대안으로 풀린 단위(CLI 결과 판 1 의 `run.static_cleared`). 정책 카드에서는 충족 근거 위치로 보인다.
+   * v1 초안에서는 쓰지 않는다(정책별 요약이 그 자리다). 결과에 그 목록이 없으면 null 이다. 빈 목록과 다르다.
+   */
+  staticCleared: StaticCleared[] | null;
   aiDismissed: AiDismissed[];
   /**
    * 적용 질문으로 빠진 판정이 `aiDismissed` 에 실린 것뿐이라는 것을 아는지. 판정자가 꺼져 있었으면 AI 에게 묻지
@@ -207,6 +216,17 @@ export function buildReportView(report: Report, contract: Contract, pack?: PackI
 
   const aiCleared = report.run.ai_cleared ?? [];
   const aiDismissed = report.run.ai_dismissed ?? [];
+  // 강한 정적 대안으로 풀린 단위. 정책별 요약이 있는 v1 초안에서는 요약을 믿고 이것을 쓰지 않는다(같은 것을 두 번 적지 않게).
+  const staticCleared = contract === "v1-draft" ? null : (report.run.static_cleared ?? null);
+  const staticEvidence = new Map<string, PolicySummary["evidence"]>();
+  for (const cleared of staticCleared ?? []) {
+    const list = staticEvidence.get(cleared.policy) ?? [];
+    for (const alternative of cleared.alternatives) {
+      const lines = alternative.lines.length > 0 ? alternative.lines : [null];
+      for (const line of lines) list.push({ file: cleared.file, line, rule: cleared.rule, alternative: alternative.id });
+    }
+    if (list.length > 0) staticEvidence.set(cleared.policy, list);
+  }
   const clearedCount = new Map<string, number>();
   for (const cleared of aiCleared) {
     clearedCount.set(cleared.policy, (clearedCount.get(cleared.policy) ?? 0) + 1);
@@ -216,7 +236,7 @@ export function buildReportView(report: Report, contract: Contract, pack?: PackI
   // CLI 0.3 결과에는 정책 목록이 없어서 이 사이트의 팩에 실린 정책을 모두 그린다. v1 초안은 요약이 그 결과를 만든 팩의
   // 모든 정책이므로(스키마의 run.policies) 결과에 나온 정책만 그린다. 이 사이트의 팩에서 채워 넣으면 요약에 없는
   // 정책이 "발견 없음"이나 "알 수 없음" 카드로 끼어들어, 화면에 적는 정책 수(policyCount)와 카드가 어긋난다.
-  const reported = new Set([...summaries.keys(), ...byPolicy.keys(), ...clearedCount.keys()]);
+  const reported = new Set([...summaries.keys(), ...byPolicy.keys(), ...clearedCount.keys(), ...staticEvidence.keys()]);
   const ids = [...packPolicies.keys()].filter((id) => contract !== "v1-draft" || reported.has(id));
   for (const id of reported) {
     if (!ids.includes(id)) ids.push(id);
@@ -237,12 +257,16 @@ export function buildReportView(report: Report, contract: Contract, pack?: PackI
       finding,
     }));
     const locations = [...found].sort(byPlace);
+    const evidence = summary?.evidence ?? staticEvidence.get(id) ?? [];
 
     let status: Status;
     if (locations.length > 0) {
       status = worst(locations.map((l) => l.status));
     } else if (summary) {
       status = summary.compliant > 0 ? "evidence-found" : "no-signal";
+    } else if (staticEvidence.has(id)) {
+      // 강한 정적 대안이 참이라 풀린 단위가 결과에 실려 있다. 팩 판과 상관없이 결과가 이 정책을 두고 적은 사실이다.
+      status = "evidence-found";
     } else if (packMatches === false) {
       // 다른 판의 팩으로 만든 결과다. 그 팩에 이 정책이 있었는지 모르므로 "발견 없음"이라고 하지 않는다.
       status = "pack-unknown";
@@ -257,7 +281,7 @@ export function buildReportView(report: Report, contract: Contract, pack?: PackI
       status,
       locations,
       rules: groupByRule(found),
-      evidence: summary?.evidence ?? [],
+      evidence,
       units: summary ? summary.units : null,
       aiCleared: clearedCount.get(id) ?? 0,
       inPack: meta !== undefined,
@@ -292,6 +316,7 @@ export function buildReportView(report: Report, contract: Contract, pack?: PackI
     policyCount: contract === "v1-draft" ? summaries.size : packMatches ? packPolicies.size : null,
     findingCount: report.findings.length,
     aiCleared,
+    staticCleared,
     aiDismissed,
     aiDismissedKnown: report.run.judge === null || report.run.ai_dismissed !== undefined,
   };

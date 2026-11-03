@@ -124,7 +124,7 @@ describe("잘못된 파일을 넣었을 때의 안내", () => {
       "findings[1].fingerprint 가 없습니다.",
     ]);
     expect(await errorsOf(JSON.stringify({ ...data, schema_version: "report/99" }))).toEqual([
-      "모르는 schema_version 입니다: report/99. 이 뷰어가 아는 판은 report/1-draft 입니다.",
+      "모르는 schema_version 입니다: report/99. 이 뷰어가 아는 판은 1(CLI 결과)과 report/1-draft(v1 초안 예시)입니다.",
     ]);
   });
 

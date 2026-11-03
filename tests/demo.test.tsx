@@ -439,16 +439,17 @@ describe("코드 상자에서 칠하는 줄", () => {
     expect(marks(name)[0].reduce((sum, mark) => sum + mark.findings, 0)).toBe(captured(name).findings.length);
   });
 
-  it("수집본의 발견은 모두 파일 단위 판정이다. 줄마다 발견 수와 판정이 본 범위를 적는다", () => {
+  it("줄마다 발견 수와 판정이 본 범위를 적는다. 수집본에서 함수 단위 판정은 고친 뒤 광고 푸시의 야간 광고 하나다", () => {
     expect(marks("kids-signup.main")).toEqual([[{ line: 5, findings: 1, notes: [FILE_SCOPE] }]]);
     expect(marks("kids-signup.fixed")).toEqual([[]]);
     // 같은 줄에 규칙이 다른 발견이 둘 있다.
     expect(marks("night-push.main")).toEqual([[{ line: 2, findings: 2, notes: [FILE_SCOPE] }]]);
-    // 고친 뒤에는 발견이 두 줄에 실린다. 12행은 import 줄이 아니다. 그래도 파일 전체를 보고 내린 판정이다.
+    // 고친 뒤에는 발견이 두 줄에 실린다. 12행(발송 호출)은 야간 광고 규칙의 발견이고, 그 규칙은 CLI 7300205 부터 함수
+    // 단위라 발송 호출을 감싼 함수(9~19행)를 보고 내린 판정이다.
     expect(marks("night-push.fixed")).toEqual([
       [
         { line: 2, findings: 2, notes: [FILE_SCOPE] },
-        { line: 12, findings: 1, notes: [FILE_SCOPE] },
+        { line: 12, findings: 1, notes: ["함수 단위로 내린 판정입니다. 판정 구역은 9~19행입니다."] },
       ],
     ]);
     // 같은 줄에 정책이 다른 발견이 둘 있다.
@@ -463,8 +464,8 @@ describe("코드 상자에서 칠하는 줄", () => {
       { line: null },
       // 다른 파일의 발견.
       { file: "src/other.ts" },
-      // 함수 단위 판정으로 바꾼 발견. 같은 12행이다.
-      { line: 12, scope: "anchor", region: { start_line: 9, end_line: 19 } },
+      // 수집본에서 함수 단위 판정인 발견(12행, 구역 9~19행). 파일 단위 판정으로 바꿔 같은 12행에 범위가 둘이 되게 한다.
+      { line: 12, scope: "file", region: null },
     ];
     const findings = [...data.findings.map((finding, i) => ({ ...finding, ...patch[i] })), data.findings[0]];
     const view = viewOf({ ...data, findings });
@@ -473,7 +474,7 @@ describe("코드 상자에서 칠하는 줄", () => {
       {
         line: 12,
         findings: 2,
-        notes: ["함수 단위로 내린 판정입니다. 판정 구역은 9~19행입니다.", FILE_SCOPE],
+        notes: [FILE_SCOPE, "함수 단위로 내린 판정입니다. 판정 구역은 9~19행입니다."],
       },
     ]);
     expect(lineMarks(view, "src/other.ts").map((mark) => mark.line)).toEqual([2]);
@@ -492,7 +493,8 @@ describe("고치기 전과 고친 뒤의 결과를 정책별로 견준다", () =
         title: "만 14세 미만 아동의 개인정보 처리",
         cells: [
           { status: PENDING, findings: 1, aiCleared: 0 },
-          { status: "not-reported", findings: 0, aiCleared: 0 },
+          // 강한 정적 대안(under14-branch)으로 풀린 단위가 결과에 실려 있다(CLI 결과 판 1 의 run.static_cleared).
+          { status: "evidence-found", findings: 0, aiCleared: 0 },
         ],
       },
     ]);
@@ -601,7 +603,7 @@ describe("그려 낸 데모 화면", () => {
     });
   });
 
-  it.each(named)("%s: 칠한 줄은 발견에 실린 줄 번호뿐이고, 바로 아래에 파일 전체를 보고 내린 판정이라고 적는다", (name, entry) => {
+  it.each(named)("%s: 칠한 줄은 발견에 실린 줄 번호뿐이고, 바로 아래에 판정이 본 범위를 적는다", (name, entry) => {
     const { findings } = captured(name);
     const [box] = codeBoxes(panel(entry));
     const lines = [...new Set(findings.map((finding) => finding.line))].sort((a, b) => a! - b!);
@@ -615,9 +617,11 @@ describe("그려 낸 데모 화면", () => {
     for (const line of lines) {
       const count = findings.filter((finding) => finding.line === line).length;
       const note = box.items[box.items.findIndex((item) => item.kind === "line" && item.line === line) + 1];
-      expect(note.text, `${line}행`).toBe(
-        `발견 ${count}건에 실린 줄 번호입니다. 파일 전체를 보고 내린 판정입니다. 줄 번호는 조문이 닿는다고 본 첫 줄입니다.`,
-      );
+      const here = findings.filter((finding) => finding.line === line);
+      const scope = here.every((finding) => finding.scope === "file")
+        ? "파일 전체를 보고 내린 판정입니다. 줄 번호는 조문이 닿는다고 본 첫 줄입니다."
+        : `함수 단위로 내린 판정입니다. 판정 구역은 ${here[0].region!.start_line}~${here[0].region!.end_line}행입니다.`;
+      expect(note.text, `${line}행`).toBe(`발견 ${count}건에 실린 줄 번호입니다. ${scope}`);
     }
   });
 
@@ -707,7 +711,7 @@ describe("그려 낸 데모 화면", () => {
     });
 
     it("고친 뒤에도 남은 발견을 그대로 보인다", () => {
-      expect(cells("kids-signup.fixed")).toEqual([["만 14세 미만 아동의 개인정보 처리", [PENDING, ["발견 1건"]], [NONE, []]]]);
+      expect(cells("kids-signup.fixed")).toEqual([["만 14세 미만 아동의 개인정보 처리", [PENDING, ["발견 1건"]], [STATUS_LABEL["evidence-found"], []]]]);
       expect(cells("night-push.fixed")).toEqual([
         ["광고성 정보에 밝혀야 할 사항 — (광고) 표기, 전송자 명칭·연락처, 무료 수신거부 방법", [PENDING, ["발견 2건"]], [PENDING, ["발견 2건"]]],
         ["야간(21시~08시) 광고성 정보 전송의 별도 동의", [NONE, []], [UNCERTAIN, ["발견 1건"]]],
@@ -743,13 +747,13 @@ describe("그려 낸 데모 화면", () => {
       const uncertain = `${UNCERTAIN} ${STATUS_LEGEND.uncertain}`;
       const none = `${NONE} ${STATUS_LEGEND["not-reported"]}`;
       // 표에 나온 상태만, 먼저 봐야 할 것부터 적는다.
-      expect(notes("kids-signup.fixed")).toEqual([pending, none]);
+      expect(notes("kids-signup.fixed")).toEqual([pending, `${STATUS_LABEL["evidence-found"]} ${STATUS_LEGEND["evidence-found"]}`]);
       expect(notes("night-push.fixed")).toEqual([pending, uncertain, none]);
       expect(notes("genai-chat.fixed")).toEqual([pending, uncertain]);
       expect(STATUS_LEGEND["needs-review-ai-pending"]).toContain("AI 에게 물어야 할 조건은 판정에 넣을 답이 없습니다");
       expect(STATUS_LEGEND.uncertain).toContain("약한 근거만 있거나");
       // 발견이 없다는 것을 충족이라고 적지 않는다.
-      expect(STATUS_LEGEND["not-reported"]).toContain("구분할 수 없습니다");
+      expect(STATUS_LEGEND["not-reported"]).toContain("나누어 적지 않습니다");
     });
 
     it("상태의 뜻은 정책 카드 밖에서 적는 말이다: 곁에 없는 정책·조문을 '이'로 가리키지 않는다", () => {
@@ -771,7 +775,7 @@ describe("그려 낸 데모 화면", () => {
       for (const [status, kept] of [
         ["needs-review", "조문이 닿는 코드인데, 적법한 대안이 하나도 확인되지 않았습니다. 사람이 봐야 합니다."],
         ["no-signal", "조문이 닿는 코드 신호를 찾지 못했습니다. 법적 문제가 없다는 뜻은 아닙니다."],
-        ["not-reported", "지금 CLI 출력으로는 '충족 근거 발견'과 '적용 신호 없음'을 구분할 수 없습니다."],
+        ["not-reported", "아직 '충족 근거 발견'과 '적용 신호 없음'으로 나누어 적지 않습니다."],
         ["pack-unknown", "알 수 없습니다."],
       ] as const) {
         expect(STATUS_HINT[status], status).toContain(kept);
@@ -927,7 +931,7 @@ describe("그려 낸 데모 화면", () => {
               ["고친 뒤", NONE, ["AI 가 푼 경고 1건"]],
             ],
           ]);
-          // 발견이 없고 AI 가 푼 경고가 있는 칸에는 "발견 없음"의 풀이(충족인지 미적용인지 구분할 수 없다)를 적지 않는다.
+          // 발견이 없고 AI 가 푼 경고가 있는 칸에는 "발견 없음"의 풀이(충족인지 미적용인지 나누어 적지 않는다)를 적지 않는다.
           // 그 정책 카드도 그 말 대신 AI 가 푼 경고가 있다고 적는다.
           expect(block.notes).toEqual([`${PENDING} ${STATUS_LEGEND["needs-review-ai-pending"]}`, AI_NOTE]);
           for (const [pattern, why] of BANNED_WORDING) expect(pattern.test(html), `${pattern} — ${why}`).toBe(false);
@@ -940,7 +944,7 @@ describe("그려 낸 데모 화면", () => {
         const html = renderToStaticMarkup(<DemoPanel app={judged} variant={judged.variants[1]} pack={packIndex} />);
         const card = elementsOf(html, '<article class="policy ').find((el) => el.includes(`id="${policyCardId("kr.pipa.22-2")}"`))!;
         expect(textOf(card)).toContain("AI 판정자의 답으로 풀린 경고가 1건 있습니다.");
-        expect(textOf(card)).not.toContain("구분할 수 없습니다");
+        expect(textOf(card)).not.toContain("나누어 적지 않습니다");
         expect(html).toContain("<summary>AI 가 푼 경고 1건</summary>");
         // 발견이 0인 판이다. 0의 뜻은 아래 결과가 적는다.
         expect(html.split(SITE.zeroIsNotClearance).length - 1).toBe(1);

@@ -1,12 +1,12 @@
 {
-  "$comment": "손으로 만든 시험용 자료다. 실제 CLI 출력이 아니다. 수집본에 없는 드문 모양의 화면을 보기 위한 것이다. (1) 함수 단위 판정(scope: anchor)의 세 구역: 함수(region), 함수 밖(top_level: true), 파일 전체(region: null, top_level: false). kr-core 의 규칙은 지금 모두 파일 단위라서, 이 필드들은 CLI 소스(evaluate/engine.py 의 _where, report/outcome.py 의 Finding)를 보고 손으로 바꿨다. (2) 줄이 없는 발견과 질문이 실리지 않은 대안: CLI 가 낼 수 있다. (3) 판정 경로가 빈 발견, 함수 단위인데 top_level 이 없는 발견: CLI 0.3 은 내지 않지만 뷰어는 어떤 파일이든 열 수 있어야 한다. 발견의 글은 contract/cli-current/night-push.main.json 과 data/pack-meta.json 에서 그대로 옮겼다. 지문은 모양만 맞춘 값이다.",
+  "$comment": "손으로 만든 시험용 자료다. 실제 CLI 출력이 아니다. 수집본에 없는 드문 모양의 화면을 보기 위한 것이다. (1) 함수 단위 판정(scope: anchor)의 세 구역: 함수(region), 함수 밖(top_level: true), 파일 전체(region: null, top_level: false). 이 자료를 만든 CLI 8ae72d8 의 kr-core 규칙은 모두 파일 단위였다(7300205 에서는 야간 광고 규칙이 함수 단위다). 그래서 이 필드들은 CLI 소스(evaluate/engine.py 의 _where, report/outcome.py 의 Finding)를 보고 손으로 바꿨다. (2) 줄이 없는 발견과 질문이 실리지 않은 대안: CLI 가 낼 수 있다. (3) 판정 경로가 빈 발견, 함수 단위인데 top_level 이 없는 발견: CLI 0.3 은 내지 않지만 뷰어는 어떤 파일이든 열 수 있어야 한다. 발견의 글은 contract/cli-current/night-push.main.json 과 data/pack-meta.json 에서 그대로 옮겼다. 지문은 모양만 맞춘 값이다.",
   "tool": {
     "name": "policypack",
     "version": "0.3.0.dev0"
   },
   "run": {
     "judge": null,
-    "pack_digest": "fa6fc2b3e62d8d0d",
+    "pack_digest": "366a3dd4fdae08d8",
     "questions_asked": 0,
     "ai_answered": 0,
     "questions_sent": 0,

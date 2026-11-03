@@ -1,12 +1,12 @@
 {
-  "$comment": "시험용 자료다. 수집본(contract/cli-current)이 아니다. 다 보지 못한 결과의 화면(커버리지 보기)을 보기 위한 것이다. CLI 0.3.0.dev0(8ae72d8)을 합성 폴더(src/auth/signup.ts, src/marketing/campaign.ts, src/math.ts, src/lib/chart.min.js)에 판정자 없이 돌린 출력에서 실행 시간만 0으로 맞췄다. 검사하지 않은 파일(축소 파일)과 일부를 읽지 못한 파일(쓰다 만 함수가 든 가입 코드)은 CLI 가 실제로 그렇게 낸 것이다. 엔진이 끝내지 못한 파일은 실제 시간 초과를 일으키지 못해 흉내 냈다: 엔진(semgrep) 출력에서 조건 하나(kr.network-act.50-3 의 send-call)가 광고 푸시 코드에서 낸 매치를 지우고 그 자리에 Timeout 오류를 넣었다. 그 뒤의 판정과 출력은 CLI 가 한 그대로다(docs/architecture.md 의 '커버리지 보기').",
+  "$comment": "시험용 자료다. 수집본(contract/cli-current)이 아니다. 다 보지 못한 결과의 화면(커버리지 보기)을 보기 위한 것이다. CLI 0.3.0.dev0(8ae72d8)을 합성 폴더(src/auth/signup.ts, src/marketing/campaign.ts, src/math.ts, src/lib/chart.min.js)에 판정자 없이 돌린 출력에서 실행 시간만 0으로 맞췄다. 검사하지 않은 파일(축소 파일)과 일부를 읽지 못한 파일(쓰다 만 함수가 든 가입 코드)은 CLI 가 실제로 그렇게 낸 것이다. 엔진이 끝내지 못한 파일은 실제 시간 초과를 일으키지 못해 흉내 냈다: 엔진(semgrep) 출력에서 조건 하나(kr.network-act.50-3 의 send-call)가 광고 푸시 코드에서 낸 매치를 지우고 그 자리에 Timeout 오류를 넣었다. 그 뒤의 판정과 출력은 CLI 가 한 그대로다(docs/architecture.md 의 '커버리지 보기'). 2026-11-03: 사이트의 팩이 CLI 7300205 의 판(366a3dd4fdae08d8)으로 바뀌어 run.pack_digest 만 그 값으로 손으로 바꿨다. 판정·지문·나머지 필드는 8ae72d8 의 출력 그대로다. 7300205 로 다시 검사하면 kr.network-act.50-3 이 함수 단위 판정이 되는 등 달라질 수 있다(합성 폴더와 엔진을 감싼 것이 저장소에 없어 다시 만들지 못했다. docs/ROADMAP.md 의 '사람 결정이 필요한 것').",
   "tool": {
     "name": "policypack",
     "version": "0.3.0.dev0"
   },
   "run": {
     "judge": null,
-    "pack_digest": "fa6fc2b3e62d8d0d",
+    "pack_digest": "366a3dd4fdae08d8",
     "questions_asked": 0,
     "ai_answered": 0,
     "questions_sent": 0,

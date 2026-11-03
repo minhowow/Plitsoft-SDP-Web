@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import Ajv2020 from "ajv/dist/2020";
 import { describe, expect, it } from "vitest";
@@ -6,7 +6,7 @@ import { packMeta } from "@/lib/pack";
 import { parseReport } from "@/lib/report/parse";
 import type { Report } from "@/lib/report/types";
 import { buildReportView } from "@/lib/report/view-model";
-import { jsonFiles, readJson, readPackFile, root, sarifFiles } from "./helpers";
+import { jsonFiles, readJson, readPackFile, root, sarifFiles, withoutKeys } from "./helpers";
 
 // CLI 와 웹 사이의 이음매를 지킨다.
 // 실패하면: CLI 출력이 바뀌었거나(npm run capture 뒤라면), 스키마·타입·파서 가운데 하나만 고친 것이다.
@@ -292,12 +292,114 @@ describe("결과와 팩 메타데이터가 같은 팩 판에서 나왔다", () =
   });
 });
 
+describe("수집본, 팩 메타데이터, 실행기가 같은 CLI 커밋이다", () => {
+  // 실행기(.github/workflows/analyze.yml)가 설치하는 CLI 와, 이 저장소가 계약으로 받은 수집본·팩 메타데이터가 같은 커밋에서
+  // 나와야 한다. 어긋나면 서비스의 결과가 수집본과 다른 모양으로 오거나(파서가 거부), 팩 판이 달라 조문별 기록을 만들지
+  // 못한다. 고정 판을 옮길 때는 셋을 함께 바꾼다(docs/cli-followup.md 의 "따라가는 절차").
+  const manifest = readJson("contract", "cli-current", "MANIFEST.json") as {
+    cli: { commit: string | null; committed_on: string | null; dirty: boolean | null };
+    pack_digest: string;
+  };
+  const workflow = readFileSync(path.join(root, ".github", "workflows", "analyze.yml"), "utf8");
+  const pinned = /\n {6}CLI_COMMIT: ([0-9a-f]{40})\n/.exec(workflow)?.[1];
+  const excludeNewer = /\n {6}CLI_EXCLUDE_NEWER: "(\d{4}-\d{2}-\d{2})T00:00:00Z"\n/.exec(workflow)?.[1];
+
+  it("수집본은 커밋되지 않은 변경이 없는 CLI 커밋에서 나왔다", () => {
+    expect(manifest.cli.dirty).toBe(false);
+    expect(manifest.cli.commit).toMatch(/^[0-9a-f]{7,40}$/);
+  });
+
+  it("실행기가 설치하는 커밋(CLI_COMMIT)이 수집본의 커밋이다", () => {
+    expect(pinned).toBeDefined();
+    expect(pinned!.startsWith(manifest.cli.commit!)).toBe(true);
+  });
+
+  it("딸린 꾸러미를 묶는 날짜(CLI_EXCLUDE_NEWER)가 그 커밋의 날짜다", () => {
+    expect(manifest.cli.committed_on).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(excludeNewer).toBe(manifest.cli.committed_on);
+  });
+
+  it("팩 메타데이터의 팩 판이 수집본의 팩 판이다 (같은 커밋의 팩)", () => {
+    expect(packMeta.pack.digest).toBe(manifest.pack_digest);
+    for (const file of captures) {
+      expect((readJson("contract", "cli-current", file) as Report).run.pack_digest, file).toBe(manifest.pack_digest);
+    }
+  });
+});
+
+describe("계약을 설명하는 글이 고정 CLI 의 실제 동작과 맞는다", () => {
+  const text = (...parts: string[]) => readFileSync(path.join(root, ...parts), "utf8");
+
+  it("판 1 에서 '있던 키의 뜻은 같다'고 적지 않는다: CLI bb76618 부터 run.incomplete 의 뜻이 넓어졌다", () => {
+    // CLI bb76618(7300205 의 조상)부터 함수 단위 규칙에 쓸 함수 경계를 얻지 못한 파일도 run.incomplete 와 engine-incomplete 에 든다.
+    for (const file of [["src", "lib", "report", "types.ts"], ["contract", "schema", "report.cli-0.3.schema.json"], ["contract", "README.md"]]) {
+      expect(text(...file), file.join("/")).not.toMatch(/있던 키의 뜻은 같/);
+    }
+    expect(text("contract", "README.md")).toContain("함수 경계를 얻지 못한 파일");
+  });
+
+  it("팩에 함수 단위 규칙이 있으면 'kr-core 의 규칙은 모두 파일 단위'라고 적지 않는다", () => {
+    const scopes = packMeta.policies.flatMap((policy) => policy.rules.map((rule) => rule.scope));
+    expect(scopes).toContain("anchor");
+    expect(text("docs", "architecture.md")).not.toMatch(/kr-core 의 규칙은 지금\s*모두 파일 단위/);
+    expect(text("tests", "fixtures", "uncommon-shapes.json")).not.toMatch(/kr-core 의 규칙은 지금 모두 파일 단위/);
+  });
+});
+
+describe("CLI 결과 판 1 (schema_version: 1)", () => {
+  const base = () => readJson("contract", "cli-current", "kids-signup.fixed.json") as Report;
+
+  it("수집본은 모두 결과 판 1 이고, 판 1 에서 더해진 키가 실려 있다", () => {
+    for (const file of captures) {
+      const report = readJson("contract", "cli-current", file) as Report;
+      expect(report.schema_version, file).toBe(1);
+      expect(typeof report.run.fingerprint_version, file).toBe("string");
+      expect(Number.isInteger(report.run.questions_skipped), file).toBe(true);
+      expect(Array.isArray(report.run.static_cleared), file).toBe(true);
+    }
+  });
+
+  it("판 번호 없는 출력(CLI 8ae72d8 까지)도 같은 계약(cli-0.3)으로 읽는다. 판 1 의 키는 선택 키다", () => {
+    const old = withoutKeys(base(), ["schema_version"], ["static_cleared", "fingerprint_version", "questions_skipped"]);
+    validateCurrent(old);
+    expect(validateCurrent.errors ?? []).toEqual([]);
+    expect(parseReport(old)).toMatchObject({ ok: true, contract: "cli-0.3" });
+  });
+
+  it("판정자를 켠 결과에 실리는 키 judge_usage 는 이 판(CLI 7300205)의 출력에 없다. 계약에 넣지 않는다", () => {
+    // CLI 7300205 의 report/json_out.py 는 judge_usage 를 내지 않는다(그 뒤의 8824f27 에서 생겼다). 지어낸 키를 계약에 두지 않는다.
+    const schema = readJson("contract", "schema", "report.cli-0.3.schema.json") as { $defs: { run: { properties: object } } };
+    expect(Object.keys(schema.$defs.run.properties)).not.toContain("judge_usage");
+  });
+
+  const broken: [string, (r: Record<string, any>) => void][] = [ // eslint-disable-line @typescript-eslint/no-explicit-any
+    ["모르는 판 번호 2", (r) => void (r.schema_version = 2)],
+    ["판 번호가 글자 \"1\"", (r) => void (r.schema_version = "1")],
+    ["static_cleared 가 배열이 아님", (r) => void (r.run.static_cleared = {})],
+    ["static_cleared 에 정책이 없음", (r) => void delete r.run.static_cleared[0].policy],
+    ["static_cleared 의 줄이 글자", (r) => void (r.run.static_cleared[0].line = "5")],
+    ["static_cleared 의 대안에 맞은 줄 목록이 없음", (r) => void delete r.run.static_cleared[0].alternatives[0].lines],
+    ["static_cleared 의 맞은 줄이 정수가 아님", (r) => void (r.run.static_cleared[0].alternatives[0].lines = ["7"])],
+    ["fingerprint_version 이 글자가 아님", (r) => void (r.run.fingerprint_version = 1)],
+    ["questions_skipped 가 정수가 아님", (r) => void (r.run.questions_skipped = "0")],
+  ];
+
+  it.each(broken)("파서와 스키마가 함께 거부한다: %s", (_name, mutate) => {
+    const data = base() as unknown as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+    mutate(data);
+    expect(validateCurrent(data), "스키마").toBe(false);
+    expect(parseReport(data).ok, "파서").toBe(false);
+  });
+});
+
 describe("파서가 거부하는 것", () => {
   const base = () => readJson("contract", "cli-current", "kids-signup.main.json") as Report;
 
   it("모르는 schema_version", () => {
-    const result = parseReport({ ...base(), schema_version: "report/99" });
+    const result = parseReport({ ...base(), schema_version: "report/99" as never });
     expect(result.ok).toBe(false);
+    // 정수라도 모르는 판이면 거부한다. 결과 판 1 과 v1 초안(report/1-draft)은 다른 것이다.
+    expect(parseReport({ ...base(), schema_version: 2 as never })).toMatchObject({ ok: false });
   });
 
   it("다른 도구의 SARIF", () => {

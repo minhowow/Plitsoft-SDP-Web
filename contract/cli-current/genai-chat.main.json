@@ -1,17 +1,21 @@
 {
+  "schema_version": 1,
   "tool": {
     "name": "policypack",
     "version": "0.3.0.dev0"
   },
   "run": {
     "judge": null,
-    "pack_digest": "fa6fc2b3e62d8d0d",
+    "pack_digest": "366a3dd4fdae08d8",
+    "fingerprint_version": "policypack/v1",
     "questions_asked": 0,
     "ai_answered": 0,
     "questions_sent": 0,
+    "questions_skipped": 0,
     "ai_pending": 2,
     "ai_cleared": [],
     "ai_dismissed": [],
+    "static_cleared": [],
     "engine": {
       "name": "semgrep",
       "version": "1.176.1"
@@ -45,7 +49,7 @@
         "ai-label",
         "ai-machine-mark"
       ],
-      "fingerprint": "e10273bc4b082b696663ae1bdcd10e9b",
+      "fingerprint": "97faa8a0e9100f57f0a3f3c00e32db37",
       "scope": "file",
       "region": null,
       "top_level": false,
@@ -84,7 +88,7 @@
       "ai_pending": [
         "ai-prior-notice"
       ],
-      "fingerprint": "18107cdbbb0d91b364ee8ae079bbf641",
+      "fingerprint": "4646fb97ae8dc9d1e43a9b52aebfa9e4",
       "scope": "file",
       "region": null,
       "top_level": false,
