@@ -25,7 +25,7 @@
 | `RUNNER_SECRET` | 예 | 실행기 콜백의 서명 열쇠(실행기 저장소의 secret 과 같은 값). 없으면 콜백을 모두 거절한다. 길고 무작위인 값(예: 32바이트) |
 | `SITE_URL` | 아니오 | 이 사이트의 주소(`https://…`, 실행기가 콜백할 곳. 실행기는 https 주소만 받는다) |
 | `MAX_REPO_KB`, `DEDUPE_MINUTES`, `DAILY_LIMIT`, `POOL_SIZE`, `QUEUE_LIMIT`, `RUN_TIMEOUT_MINUTES`, `DISPATCH_TIMEOUT_MINUTES`, `QUEUE_TIMEOUT_MINUTES`, `RESULT_MAX_KB` | 아니오 | 상한. 비우면 기본값. `POOL_SIZE`(실행 자리 수)를 비우면 옛 이름 `CONCURRENT_LIMIT` 을 읽는다. 이미 `CONCURRENT_LIMIT` 을 넣어 두었으면 `POOL_SIZE` 로 옮긴다 |
-| `SEARCH_CACHE_SECONDS`, `REPO_CACHE_SECONDS`, `COMMIT_CACHE_SECONDS`, `GITHUB_SEARCH_PER_MINUTE`, `GITHUB_CALLS_PER_MINUTE` | 아니오 | GitHub 을 부르는 캐시(서버 인스턴스마다)와 1분 예산(DB 의 카운터라 인스턴스가 함께 쓴다). 비우면 기본값 |
+| `SEARCH_CACHE_SECONDS`, `SUGGEST_CACHE_SECONDS`, `REPO_CACHE_SECONDS`, `COMMIT_CACHE_SECONDS`, `GITHUB_SEARCH_PER_MINUTE`, `GITHUB_SEARCH_RESERVE`, `GITHUB_CALLS_PER_MINUTE` | 아니오 | GitHub 을 부르는 캐시(서버 인스턴스마다)와 1분 예산(DB 의 카운터라 인스턴스가 함께 쓴다). 비우면 기본값. 검색 예산(`GITHUB_SEARCH_PER_MINUTE`)은 토큰이 있으면 25, 없으면 10 이 기본이고 검색 쪽과 자동 완성이 함께 쓴다. 그 가운데 `GITHUB_SEARCH_RESERVE`(기본 3)는 검색 쪽 몫이라 자동 완성이 쓰지 않는다(상한보다 작게). 실제 값은 오너가 정한다(docs/redesign.md 7장 3: 운영 토큰이 있을 때 25, 몫 3 추천) |
 
 `SERVICE_STORE`·`PGLITE_DIR`·`GITHUB_API_BASE` 는 운영에서 비워 둔다(개발·시험용).
 
@@ -87,6 +87,22 @@ RUNNER_SECRET=local-dev npm run local-runner -- --fixture --parallel 2   # 다�
 돌린다). `local-dev` 는 이 컴퓨터에서만 쓰는 아무 글이다(비밀값이 아니다). 로컬 실행기가 집어 가기를 물을 때도 서버가 대기열을
 넘기므로 실행 자리 수를 넘겨 돌리지 않는다. `--parallel` 이 `POOL_SIZE` 보다 작으면 자리를 얻었는데 집히지 않은 분석이 생기고,
 `DISPATCH_TIMEOUT_MINUTES`(10) 뒤에 "시작을 알리지 않아"로 실패한다.
+
+**로컬을 정직하게(재디자인 D4).** 로컬 실행기는 가짜 GitHub 의 합성 저장소 가운데 합성 데모 코드가 있는 것만 검사한다. 그 밖의
+저장소는 저장소 받기 단계의 실패로 적는다(실제 저장소 이름에 합성 결과를 붙이지 않는다). `--source <폴더>` 를 직접 준 때만 그
+폴더를 검사한다(`--fixture` 와 함께면 수집본이 없어 실패다). 사이트도 `RUNNER=local` 인데 `GITHUB_API_BASE` 가 실제 GitHub(기본값)
+이면 분석 요청을 받지 않는다(저장소 쪽 단추 옆과 `POST /api/analyses/` 의 503 `closed` 에 까닭).
+
+오너가 확인하는 두 길:
+
+- `npm run local`: 검색과 자동 완성이 가짜 GitHub 의 합성 저장소만 찾는다(펼침 목록에 `로컬 가짜 GitHub: 합성 저장소만 찾습니다.`).
+  예: `example-org/`, `night`, `genai`. 가짜 GitHub 의 `in:name` 은 실제처럼 저장소 이름만 보므로 `exa` 는 이 사이트에서 분석된
+  줄만 나오고 GitHub 쪽은 `GitHub 에 없음` 이다.
+- `npm run dev`(환경 변수 없이): `RUNNER` 가 없어(`none`) 분석 요청은 받지 않고, 실제 GitHub 검색과 자동 완성만 돈다. 토큰이 없으면
+  1분 10번(자동 완성 몫 7번)에서 `GitHub 에 묻지 못함(요청 수 상한)` 이 보일 수 있다. 토큰(`GITHUB_TOKEN`, `.env.local`)을 만드는
+  것은 오너의 일이다(docs/redesign.md 7장 4).
+
+가짜 GitHub 의 검색 상한을 흉내 내려면 `node scripts/github-stub.mjs --search-per-minute 0`(검색이 늘 403), 늦은 답은 `--delay 4000`.
 
 DB 는 `.data/pglite`(`npm run local` 은 `.data/local`)에 생긴다(저장소에 올리지 않는다). 한 폴더를 두 서버가 함께 열지 않는다
 (PGlite 는 한 프로세스만 연다).

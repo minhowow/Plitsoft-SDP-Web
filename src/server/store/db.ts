@@ -3,11 +3,12 @@ import { ServiceUnavailableError } from "@/lib/service/errors";
 import { repoKey } from "@/lib/service/href";
 import { isAnalysisId, newAnalysisId } from "@/lib/service/id";
 import { isRepoFullName } from "@/lib/service/names";
+import { githubSuggestQuery, SUGGEST_ROWS, type GitHubSuggestPart, type SiteSuggestion } from "@/lib/service/suggest";
 import type { Analysis, AnalysisStatus, Repository, RepositoryHit, RequestOutcome, ServiceStore } from "@/lib/service/types";
 import { SITE } from "@/lib/site";
-import type { ServerConfig } from "../config";
+import { localRunnerOnRealGitHub, type ServerConfig } from "../config";
 import { isUniqueViolation, type Database, type Queryable } from "../db";
-import { GitHubError, type GitHubClient } from "../github";
+import { isGitHubError, type GitHubClient, type GitHubError } from "../github";
 import { readQueue, sweepStale, tidyQueue, type PumpDeps } from "../queue";
 import { wakeRunner, type WakeOutcome } from "../runner";
 import { COLUMNS, initialSteps, iso, rowToAnalysis, type Row } from "./rows";
@@ -92,7 +93,59 @@ export function createDbStore(deps: DbStoreDeps): ServiceStore {
     };
   }
 
-  const requestsClosed = () => (deps.config.runner.kind === "none" ? SITE.service.runnerOff : null);
+  const requestsClosed = () => {
+    if (deps.config.runner.kind === "none") return SITE.service.runnerOff;
+    // 로컬 실행기는 합성 데모 코드만 검사한다. 실제 GitHub 의 저장소 이름에 가짜 결과를 붙이지 않게 요청을 받지 않는다.
+    if (localRunnerOnRealGitHub(deps.config)) return SITE.service.localRealGitHub;
+    return null;
+  };
+
+  /** GitHub 을 부르지 못한 까닭을 자동 완성·검색 쪽이 함께 쓰는 갈래로. */
+  const failureKind = (error: GitHubError) => (error.kind === "rate-limit" ? "limited" : error.kind) as "limited" | "timeout" | "unavailable";
+
+  /** ① 이 사이트에서 분석된 저장소 가운데 owner/name(소문자)에 글자가 그대로 든 것. 읽기만 한다(정리하지 않는다). 읽지 못하면 null. */
+  async function siteSuggestions(text: string): Promise<SiteSuggestion[] | null> {
+    const pattern = `%${text.toLowerCase().replace(/[\\%_]/g, (char) => `\\${char}`)}%`;
+    try {
+      const db = await database();
+      const rows = await db.query<{ owner: string; repo: string; n: number; latest_at: Date | string }>(
+        `SELECT l.owner, l.repo, s.n, s.latest_at
+         FROM (
+           SELECT repo_key, count(*)::int AS n, max(requested_at) AS latest_at
+           FROM analyses WHERE repo_key LIKE $1 ESCAPE '\\' GROUP BY repo_key
+         ) s
+         CROSS JOIN LATERAL (
+           SELECT owner, repo FROM analyses a WHERE a.repo_key = s.repo_key ORDER BY requested_at DESC, id LIMIT 1
+         ) l
+         ORDER BY s.latest_at DESC, s.repo_key
+         LIMIT $2`,
+        [pattern, SUGGEST_ROWS],
+      );
+      return rows.rows.map((row) => ({ owner: row.owner, name: row.repo, analyses: row.n, latestAt: iso(row.latest_at) }));
+    } catch (error) {
+      // DB 를 열지 못했거나 읽다 틀렸다: 이 출처만 '읽지 못함'(null)이다. GitHub 쪽의 답은 그대로 둔다(그 상태를 덮지 않는다).
+      // 질의를 싣지 않고 오류 이름만 적는다.
+      if (!(error instanceof ServiceUnavailableError)) console.error(`[GET /api/repos/suggest] 이 사이트의 줄: ${error instanceof Error ? error.name : "오류"}`);
+      return null;
+    }
+  }
+
+  /** ② GitHub 검색 한 번. 묻지 못하면 그 까닭(상태)이다. */
+  async function githubSuggestions(text: string): Promise<GitHubSuggestPart> {
+    const eligible = githubSuggestQuery(text);
+    if (!eligible.ok) return { status: "skipped", items: [], total: null, skipped: eligible.reason };
+    try {
+      const page = await deps.github.suggest(eligible.query);
+      return {
+        status: "ok",
+        items: page.repositories.map((r) => ({ owner: r.owner, name: r.name, description: r.description, language: r.language })),
+        total: page.total,
+      };
+    } catch (error) {
+      if (isGitHubError(error)) return { status: failureKind(error), items: [], total: null };
+      throw error;
+    }
+  }
 
   /** 화면에 쓰는 것만 남긴다(요청 검사용 크기를 쪽으로 넘기지 않는다). */
   const strip = (r: Repository): Repository => ({
@@ -115,7 +168,7 @@ export function createDbStore(deps: DbStoreDeps): ServiceStore {
       try {
         page = await deps.github.search(query);
       } catch (error) {
-        if (error instanceof GitHubError) return { ok: false, message: error.message };
+        if (isGitHubError(error)) return { ok: false, message: error.message, github: failureKind(error) };
         throw error;
       }
       const db = await reading();
@@ -149,7 +202,7 @@ export function createDbStore(deps: DbStoreDeps): ServiceStore {
         const found = await deps.github.getRepository(owner, name);
         return found && strip(found);
       } catch (error) {
-        if (!(error instanceof GitHubError)) throw error;
+        if (!isGitHubError(error)) throw error;
         // GitHub 에 닿지 못해도 이 사이트에 남은 분석은 보인다. 이름은 기록에 있는 그대로다.
         const [latest] = await analysesOf(await reading(), owner, name);
         if (latest) return recorded(latest);
@@ -226,6 +279,11 @@ export function createDbStore(deps: DbStoreDeps): ServiceStore {
       });
     },
 
+    async suggest(text, options) {
+      const [site, github] = await Promise.all([siteSuggestions(text), options.github ? githubSuggestions(text) : Promise.resolve(null)]);
+      return { site, github };
+    },
+
     async requestAnalysis(owner, name): Promise<RequestOutcome> {
       const closed = requestsClosed();
       if (closed) return { ok: false, reason: "closed", message: closed };
@@ -247,7 +305,7 @@ export function createDbStore(deps: DbStoreDeps): ServiceStore {
         commit = await deps.github.headCommit(repository.owner, repository.name, repository.defaultBranch);
       } catch (error) {
         // 요청 수 상한(GitHub 의 것이든 이 사이트의 예산이든)은 상한으로(429), 닿지 못함은 쓸 수 없음으로(503) 답한다.
-        if (error instanceof GitHubError) {
+        if (isGitHubError(error)) {
           return { ok: false, reason: error.kind === "rate-limit" ? "limit" : "unavailable", message: error.message };
         }
         throw error;

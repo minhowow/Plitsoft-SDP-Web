@@ -22,7 +22,12 @@ function github(config: ReturnType<typeof readConfig>["github"]): GitHubClient {
   const holder = globalThis as Holder;
   const key = JSON.stringify(config);
   if (holder[CLIENT]?.key !== key) {
-    const budget = createSharedBudget({ db: getDatabase, searchPerMinute: config.searchPerMinute, callsPerMinute: config.callsPerMinute });
+    const budget = createSharedBudget({
+      db: getDatabase,
+      searchPerMinute: config.searchPerMinute,
+      searchReserve: config.searchReserve,
+      callsPerMinute: config.callsPerMinute,
+    });
     holder[CLIENT] = { key, client: createGitHub({ ...config, budget }) };
   }
   return holder[CLIENT].client;

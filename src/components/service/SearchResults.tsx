@@ -4,6 +4,7 @@ import { keepArticle } from "@/components/text";
 import { packMeta, policyHref, primaryLaw } from "@/lib/pack";
 import { hangulToQwerty } from "@/lib/service/keyboard";
 import { searchHref } from "@/lib/service/href";
+import { FAKE_GITHUB_NOTE, githubStatusLine } from "@/lib/service/suggest";
 import type { RepositoryActivity, SearchOutcome } from "@/lib/service/types";
 import { SITE } from "@/lib/site";
 import { ActivityList } from "./activity";
@@ -35,7 +36,7 @@ function Tag({ on }: { on: boolean }) {
 }
 
 /** 로컬 가짜 GitHub 에 묻는 사이트에서만: 찾는 것이 합성 저장소뿐이라는 한 줄. 저장소 수는 적지 않는다(가짜 GitHub 이 정한다). */
-const FAKE_GITHUB = "로컬 가짜 GitHub: 합성 저장소만 찾습니다.";
+const FAKE_GITHUB = FAKE_GITHUB_NOTE;
 
 /** 읽은 최근 분석. DB 에 닿지 못하면 그 까닭이다. */
 export type LoadedActivity = { ok: true; rows: RepositoryActivity[]; findings: Record<string, number | null> } | { ok: false; message: string };
@@ -47,7 +48,7 @@ export type LoadedActivity = { ok: true; rows: RepositoryActivity[]; findings: R
 export function SearchHome({ recent, tagged }: { recent: LoadedActivity; tagged: boolean }) {
   const policies = packMeta.policies;
   return (
-    <div className="search-home">
+    <div className="search-home" data-page="search-home">
       <div className="search-home-q">
         <SearchForm id="search-page-q" label="저장소 검색(이 쪽)" />
       </div>
@@ -93,14 +94,17 @@ export function SearchHome({ recent, tagged }: { recent: LoadedActivity; tagged:
  * 검색 쪽의 본문(`?q=` 가 있을 때). 서버가 질의로 저장소를 찾아 그린다(운영: GitHub 검색, 합성 미리보기: 합성 목록). 검색창은
  * 보통의 GET 양식이라 엔터나 단추로 `/search/?q=…` 로 간다. 치는 동안 찾지 않는다(GitHub 을 글자마다 부르지 않는다).
  *
- * 0건이면 까닭이 될 수 있는 사실만 적는다(docs/redesign.md 3장 "검색"): 한글만 친 질의에는 같은 글쇠의 영문으로 찾는 링크,
- * 로컬 가짜 GitHub 이면 그 사실, 그 아래 이 사이트에서 분석된 저장소.
+ * 0건이면 까닭이 될 수 있는 사실만 적는다(docs/redesign.md 3장 "검색"): GitHub 에 물었으면 `GitHub 에 없음`, 한글만 친 질의에는
+ * 같은 글쇠의 영문으로 찾는 링크, 로컬 가짜 GitHub 이면 그 사실, 그 아래 이 사이트에서 분석된 저장소. GitHub 에 묻지 못했으면
+ * 자동 완성과 같은 말(`GitHub 에 묻지 못함(요청 수 상한)` 등)과 서버가 준 까닭을 적고, 그 아래에도 이 사이트에서 분석된 저장소를
+ * 둔다(docs/redesign.md 5장: "GitHub 에 없음"과 "묻지 못함"을 가른다).
  */
 export function SearchResults({
   query,
   outcome,
   tagged,
   fakeGitHub,
+  github = false,
   analyzed = null,
 }: {
   query: string;
@@ -108,15 +112,25 @@ export function SearchResults({
   tagged: boolean;
   /** 로컬 가짜 GitHub 에 묻는 사이트인지(`usesFakeGitHub`). */
   fakeGitHub: boolean;
+  /** 이 사이트의 검색이 GitHub 에 묻는지(운영 저장소 구현). 합성 미리보기는 합성 목록을 거른다. */
+  github?: boolean;
   /** 0건일 때 보일 이 사이트의 분석된 저장소. */
   analyzed?: LoadedActivity | null;
 }) {
   let body: ReactNode;
   if (!outcome.ok) {
+    const line = outcome.github ? githubStatusLine({ status: outcome.github, total: null }) : null;
     body = (
-      <p className="notice notice-warn" role="status">
-        검색하지 못했습니다. {outcome.message}
-      </p>
+      <>
+        <div className="empty-block" role="status">
+          <h2 className="empty-head search-count">
+            <Echoed text={query} particle="" /> 검색하지 못함
+          </h2>
+          {line && <p>{line}</p>}
+          <p className="muted">{outcome.message}</p>
+        </div>
+        {analyzed && <Analyzed analyzed={analyzed} tagged={tagged} />}
+      </>
     );
   } else if (outcome.hits.length === 0) {
     const english = hangulToQwerty(query);
@@ -126,6 +140,7 @@ export function SearchResults({
           <h2 className="empty-head search-count">
             <Echoed text={query} particle="에" /> 맞는 저장소 없음
           </h2>
+          {github && <p>{githubStatusLine({ status: "ok", total: 0 })}</p>}
           {english && (
             <p>
               <Link href={searchHref(english)}>
@@ -164,7 +179,8 @@ export function SearchResults({
     <div className="search-page">
       {/* 쪽 제목은 검색창과 16px(이 단의 간격)로 붙인다(목업 search) */}
       <h1>저장소 검색</h1>
-      <SearchForm id="search-page-q" label="저장소 검색(이 쪽)" defaultValue={query} />
+      {/* 질의가 바뀌면(같은 쪽 안의 이동) 검색창을 새로 그려 그 질의를 채운다 */}
+      <SearchForm key={query} id="search-page-q" label="저장소 검색(이 쪽)" defaultValue={query} />
       {body}
     </div>
   );

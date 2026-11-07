@@ -9,10 +9,22 @@ function closeMenus() {
   for (const menu of document.querySelectorAll<HTMLDetailsElement>(OPEN_MENU)) menu.open = false;
 }
 
-/** 머리글 메뉴의 링크 가운데 지금 쪽의 것. 조문 도감은 정책 하나의 쪽(/policy/<id>/)에서도 지금 쪽이다. */
+/**
+ * 머리글 메뉴의 링크 가운데 지금 쪽의 것. 조문 도감은 정책 하나의 쪽(/policy/<id>/)에서도 지금 쪽이다. 최근 분석(/search/)은
+ * 질의 없는 검색 쪽에서만이다. 주소의 질의는 이 부품이 읽지 않고, 그 쪽이 본문에 남긴 표시(`data-page="search-home"`)로 가린다.
+ */
 function isCurrent(href: string, pathname: string) {
   const path = pathname.endsWith("/") ? pathname : `${pathname}/`;
-  return href === "/policy/" ? path.startsWith("/policy/") : path === href;
+  if (href === "/policy/") return path.startsWith("/policy/");
+  if (href === "/search/") return path === href && document.querySelector('main [data-page="search-home"]') !== null;
+  return path === href;
+}
+
+function markCurrent(pathname: string) {
+  for (const link of document.querySelectorAll<HTMLAnchorElement>(".site-header nav a")) {
+    if (isCurrent(link.getAttribute("href") ?? "", pathname)) link.setAttribute("aria-current", "page");
+    else link.removeAttribute("aria-current");
+  }
 }
 
 /**
@@ -23,6 +35,7 @@ function isCurrent(href: string, pathname: string) {
  * - 초점이 메뉴 밖으로 나가거나 메뉴 밖을 누르면 닫는다. 펼친 메뉴는 본문 위에 떠서, 열린 채 두면 초점이 간 검색창·단추를 덮는다.
  *   Esc 로도 닫고, 초점이 메뉴 안에 있었을 때만 메뉴의 이름으로 돌려보낸다.
  * - 메뉴의 링크 가운데 지금 쪽의 것에 `aria-current="page"` 를 단다(보이는 표시는 CSS 의 :has 가 스크립트 없이도 한다).
+ *   검색 쪽은 질의만 바뀌어도(주소의 경로는 그대로) 본문이 바뀌므로, 본문이 바뀔 때도 다시 본다.
  *
  * 스크립트가 없어도 메뉴는 열고 닫히고(details), 검색은 보통의 GET 양식으로 된다.
  */
@@ -31,10 +44,19 @@ export function HeaderBehavior() {
 
   useEffect(() => {
     closeMenus();
-    for (const link of document.querySelectorAll<HTMLAnchorElement>(".site-header nav a")) {
-      if (isCurrent(link.getAttribute("href") ?? "", pathname)) link.setAttribute("aria-current", "page");
-      else link.removeAttribute("aria-current");
-    }
+    markCurrent(pathname);
+    const main = document.querySelector("main");
+    if (!main) return;
+    let frame = 0;
+    const observer = new MutationObserver(() => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => markCurrent(pathname));
+    });
+    observer.observe(main, { childList: true, subtree: true });
+    return () => {
+      observer.disconnect();
+      cancelAnimationFrame(frame);
+    };
   }, [pathname]);
 
   useEffect(() => {

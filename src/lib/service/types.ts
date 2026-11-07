@@ -7,6 +7,7 @@
  */
 
 import type { QueueSnapshot } from "./queue";
+import type { GitHubSuggestPart, SiteSuggestion } from "./suggest";
 
 /**
  * 저장소. GitHub 의 저장소 정보(search/repositories 의 항목, repos/{owner}/{repo})에서 오는 것만 둔다. 거기에 없는 것을 꾸며
@@ -94,10 +95,22 @@ export interface RepositoryActivity {
   latestAt: string;
 }
 
-/** 검색의 결과. GitHub 을 부르지 못하면 그 까닭을 그대로 보인다(빈 목록으로 꾸미지 않는다). */
+/**
+ * 검색의 결과. GitHub 을 부르지 못하면 그 까닭을 그대로 보인다(빈 목록으로 꾸미지 않는다). `github` 는 묻지 못한 까닭의 갈래다
+ * (요청 수 상한, 시간 초과, 연결 실패. 화면이 자동 완성과 같은 말로 적는다). DB 에 닿지 못한 것이면 없다.
+ */
 export type SearchOutcome =
   | { ok: true; hits: RepositoryHit[]; /** 맞는 저장소 수(GitHub 이 센 것. 보이는 것보다 많을 수 있다). */ total: number }
-  | { ok: false; message: string };
+  | { ok: false; message: string; github?: "limited" | "timeout" | "unavailable" };
+
+/**
+ * 자동 완성의 두 출처(docs/redesign.md 5장). 합치고 줄 수를 줄이는 것은 `/api/` 의 일(`mergeSuggestions`)이다.
+ * `site` 는 DB 를 읽지 못했으면 null, `github` 는 묻지 않은 요청(이 사이트만 먼저 묻는 요청)이면 null 이다.
+ */
+export interface StoreSuggestions {
+  site: SiteSuggestion[] | null;
+  github: GitHubSuggestPart | null;
+}
 
 /**
  * 분석 요청이 되지 않은 까닭.
@@ -155,6 +168,12 @@ export interface ServiceStore {
    * 정리(`tidyQueue`)를 한 뒤에 읽어 시간을 넘긴 분석이 이미 실패로 보인다. GitHub 은 부르지 않는다(저장소는 기록의 이름이다).
    */
   recentActivity(limit: number): Promise<RepositoryActivity[]>;
+  /**
+   * 자동 완성(`GET /api/repos/suggest/`). `text` 는 다듬은 질의(`cleanSuggestText`). 이 사이트에서 분석된 저장소(owner/name 에
+   * 친 글자가 든 것, 가장 나중에 요청한 차례로 `SUGGEST_ROWS` 개까지)와, `github` 가 참이면 GitHub 검색 한 번의 결과(겹침을 빼기
+   * 전, 받은 차례). 운영 구현은 읽기만 한다(대기열 정리 `tidyQueue` 를 하지 않는다). 합성은 GitHub 을 부르지 않는다(`off`).
+   */
+  suggest(text: string, options: { github: boolean }): Promise<StoreSuggestions>;
   /** 분석을 요청한다. 같은 커밋에 진행 중이거나 최근에 끝난 분석이 있으면 새로 만들지 않고 그것을 돌려준다. */
   requestAnalysis(owner: string, name: string): Promise<RequestOutcome>;
   /** 지금 요청을 받지 않으면 그 까닭(화면의 요청 단추 옆에 적는다). 받으면 null. */

@@ -2,7 +2,9 @@
 // 로컬 실행기. 이 컴퓨터에서 분석 요청부터 결과까지 돌려 보려고 둔다(계정·비밀값 없이). GitHub Actions 의 실행기
 // (.github/workflows/analyze.yml)와 같은 runner/run.mjs 를 쓰되, 다음이 다르다.
 //   - 저장소를 GitHub 에서 받지 않는다. 가짜 GitHub(scripts/github-stub.mjs)의 합성 저장소마다 정한 합성 데모 코드
-//     (contract/fixtures/<이름>/main)를 옮긴다. 그 밖의 저장소는 --source 폴더를 쓴다.
+//     (contract/fixtures/<이름>/main)를 옮긴다. 그 목록에 없는 저장소는 실패로 적는다(실제 저장소 이름에 합성 결과를 붙이지
+//     않는다. docs/redesign.md 5장 "로컬을 정직하게"). --source 를 직접 준 때만 그 폴더를 검사한다(--fixture 면 CLI 를 돌리지
+//     않으므로 그때도 실패다. 그 폴더의 수집본이 없다).
 //   - AI 판정자를 켜지 않는다(--judge none. 로컬에는 키가 없다). 결과의 run.judge 가 그렇게 말한다.
 //   - --fixture: CLI 를 돌리지 않고 contract/cli-current/<이름>.main.json(실제 CLI 출력의 수집본)을 결과로 보낸다. uv 나
 //     옆 폴더의 CLI 저장소(../Plitsoft-SDP)가 없어도 돈다. npm run check 의 시험은 이 모드로만 돈다.
@@ -15,7 +17,7 @@
 //   --once          대기 중인 분석이 하나도 없을 때까지 돌리고 끝낸다(없으면 바로 끝낸다). 없으면 계속 기다린다.
 //   --interval ms   기다리는 동안 몇 ms 마다 다시 물을지(기본 2000)
 //   --step-delay ms 단계 사이에 쉬는 시간(화면에서 진행을 보려고. 기본 0)
-//   --source dir    가짜 GitHub 에 없는 저장소를 요청했을 때 검사할 폴더(기본 contract/fixtures/kids-signup/main)
+//   --source dir    가짜 GitHub 에 없는 저장소를 요청했을 때 검사할 폴더(기본 없음: 그런 저장소는 실패로 적는다)
 //   --parallel n    한 번에 돌리는 분석 수(기본 1). 사이트의 POOL_SIZE 와 같게 둔다. 사이트는 실행 자리 수만큼만 '보냄'으로
 //                   표시하므로, 이보다 작으면 보냄 표시를 받은 분석이 집히지 않은 채 기다리다 DISPATCH_TIMEOUT_MINUTES 에 실패한다.
 
@@ -48,7 +50,7 @@ export function parseArgs(argv) {
     site: "http://127.0.0.1:3000",
     interval: 2000,
     stepDelay: 0,
-    source: path.join(root, "contract", "fixtures", "kids-signup", "main"),
+    source: null,
     parallel: 1,
   };
   for (let i = 0; i < argv.length; i += 1) {
@@ -74,14 +76,25 @@ export function parseArgs(argv) {
   return options;
 }
 
-/** 저장소마다 검사할 합성 데모 코드와 그 수집본. 가짜 GitHub 의 목록에 없으면 --source 와 kids-signup 수집본. */
+/** 가짜 GitHub 의 목록에 없는(또는 합성 데모 코드가 없는) 저장소를 받았을 때의 까닭. 저장소 받기 단계의 실패로 적는다. */
+export const UNKNOWN_REPOSITORY = "로컬 실행기는 가짜 GitHub 의 합성 저장소만 검사합니다. 이 저장소에는 합성 데모 코드가 없습니다.";
+/** --fixture 인데 --source 의 저장소를 받았을 때. 수집본이 없으므로 결과를 꾸미지 않고 실패로 적는다. */
+export const NO_CAPTURE = "--fixture 는 합성 저장소의 수집본만 보냅니다. --source 의 폴더를 검사하려면 --fixture 없이 돌리세요.";
+
+/**
+ * 저장소마다 검사할 합성 데모 코드와 그 수집본. 가짜 GitHub 의 목록에 있고 합성 데모 코드가 있는 저장소만이다. 그 밖의
+ * 저장소는 --source 를 직접 준 때만 그 폴더(수집본 없음)이고, 아니면 null(실패로 적는다).
+ */
 export function sourceFor(owner, repo, options) {
   const known = STUB_REPOSITORIES.find((entry) => `${entry.owner}/${entry.name}`.toLowerCase() === `${owner}/${repo}`.toLowerCase());
   const fixture = known?.fixture ?? null;
-  return {
-    dir: fixture ? path.join(root, "contract", "fixtures", fixture, "main") : options.source,
-    capture: path.join(root, "contract", "cli-current", `${fixture ?? "kids-signup"}.main.json`),
-  };
+  if (fixture) {
+    return {
+      dir: path.join(root, "contract", "fixtures", fixture, "main"),
+      capture: path.join(root, "contract", "cli-current", `${fixture}.main.json`),
+    };
+  }
+  return options.source ? { dir: options.source, capture: null } : null;
 }
 
 /** 옆 폴더의 CLI 저장소로 휠을 만들어 그 휠로 돌릴 명령(scripts/capture-cli-output.mjs 와 같은 까닭: uvx 는 폴더를 다시 빌드하지 않는다). */
@@ -110,7 +123,10 @@ export async function runOne(claimed, options, secret) {
   let step = "fetch";
   try {
     await notifyStep(ctx, "fetch");
-    const { dir, capture } = sourceFor(claimed.owner, claimed.repo, options);
+    const source = sourceFor(claimed.owner, claimed.repo, options);
+    if (!source) throw new StepError("fetch", UNKNOWN_REPOSITORY);
+    if (options.fixture && !source.capture) throw new StepError("fetch", NO_CAPTURE);
+    const { dir, capture } = source;
     const src = path.join(work, "src");
     copyRepository(dir, src);
     checkFileCount(src, DEFAULTS.maxJsTsFiles);

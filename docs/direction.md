@@ -84,6 +84,12 @@ GitHub Actions(실행기 저장소) ── 공개 저장소를 그 커밋으로 
 
 **B2 차례 B (2026-11-03, 요청·실행기·콜백):** `POST /api/analyses/`(요청), `GET /api/analyses/{id}/`(진행), `POST /api/runner/{id}/`(실행기 콜백: 단계 시작·결과·실패), `POST /api/runner/claim/`(로컬 실행기가 대기 중인 분석을 집어 감)를 두었고, 콜백은 `RUNNER_SECRET` 으로 HMAC-SHA256 서명한 요청만(시각 어긋남 5분까지) 받으며 단계는 차례대로만, 끝난 분석은 바뀌지 않는다. 실행기는 `.github/workflows/analyze.yml` + `runner/run.mjs`(Node 내장 모듈만: tarball 받기·안전하게 풀기, JS/TS 파일 수 상한, CLI 고정 커밋 설치, 검사, 결과 크기 상한)이고, `scripts/local-runner.mjs --fixture` 가 같은 코드로 이 컴퓨터에서 요청부터 결과까지 돌린다. 정적 검사와 AI 판정은 CLI 가 경계를 알려 주지 않아 한 단계 "검사(정적 검사와 AI 판정)"로 합쳤다(위 "진행 단계").
 
+**재디자인 D4 (2026-11-07, 자동 완성):** `GET /api/repos/suggest/?q=`(늘 200, `no-store`)를 더했다. 이 사이트 DB 의 분석된
+저장소(owner/name 에 친 글자가 든 것)와 GitHub 검색 API 한 번(3글자 이상, 이름 글자만. core 는 부르지 않는다)을 합쳐 8줄까지
+돌려주고, GitHub 상태(`ok | limited | timeout | unavailable | off | skipped`)를 싣는다. 검색 예산은 검색 쪽과 함께 쓰고 검색 쪽 몫
+(`GITHUB_SEARCH_RESERVE`)을 남긴다. 브라우저 부품은 요청 단추·진행 다시 읽기·검색창(자동 완성)이고 모두 같은 사이트의 `/api/` 만
+부른다(머리글의 메뉴 닫기 부품은 어디에도 요청하지 않는다). 자세한 것은 `docs/redesign.md` 5장과 `docs/architecture.md`.
+
 **B2 차례 C (2026-11-03, 쪽 연결·진행 표시):** 저장소 쪽의 요청 단추가 `POST /api/analyses/` 를 불러 새 분석이나 같은 커밋의 분석 쪽으로 가고, 받지 않으면 서버가 돌려준 까닭(하루·동시 상한, 크기, 없음, 실행기 없음)을 단추 옆에 그대로 적으며, 누르는 동안은 다시 누를 수 없다. 진행 중인 분석 쪽은 `GET /api/analyses/{id}/` 를 3초마다 읽어 머리와 단계를 다시 그리고(탭이 숨으면 쉬고), 끝나거나 실패하면 읽기를 멈추고 같은 문서에서 서버가 새로 그린 대시보드나 멈춘 단계와 까닭을 받는다. 브라우저 시험이 `next start` + PGlite + 가짜 GitHub 에서 단추 → 로컬 실행기(`--fixture`) → 단계가 바뀌는 진행 표시 → 대시보드를 한 바퀴 돌고, 거절·연결 실패·두 번 누름·탭 숨김·실패 콜백과 375px 두 테마의 넘침·대비를 본다.
 
 **B2 검토 1 반영 (2026-11-03):** 한 사람이 사이트의 GitHub 요청 수 상한을 다 쓰지 못하게 끝 커밋을 30초 두고 GitHub 을 부르는 수에 서버 인스턴스마다 1분 예산을 두었다(요청한 사람은 세지 않는다). 실행기 콜백은 본문에 실은 저장소·커밋이 분석 행과 같아야 받고, 워크플로는 콜백 주소의 출처를 Actions 변수 `SITE_URL` 과 견주며, CLI 의 딸린 꾸러미는 고정한 날짜까지의 판에서만 고른다. 그 밖에 서명 머리를 본문보다 먼저 보고, `pg` Pool 의 오류를 듣고, 발견 수를 결과를 받을 때 적어 두고, 긴 검색어가 좁은 화면에서 넘치지 않게 했다(`architecture.md` 의 "검토 1 반영"). 실제 Postgres 의 동시 경합 시험은 Postgres 가 없어 아직이다(`ROADMAP.md`).
@@ -113,9 +119,11 @@ GitHub Actions(실행기 저장소) ── 공개 저장소를 그 커밋으로 
 | `DISPATCH_TIMEOUT_MINUTES` | 10 | 실행기에 보낸 뒤 이 시간 안에 실행기가 시작을 알리지 않으면 실패로 적고 다음을 보낸다 |
 | `QUEUE_TIMEOUT_MINUTES` | 120 | 대기열에서 이 시간을 넘게 실행 자리를 기다린 분석은 까닭과 함께 실패로 적는다 |
 | `SEARCH_CACHE_SECONDS` | 60 | 같은 검색어의 GitHub 검색 결과를 서버 메모리에 두는 시간 |
+| `SUGGEST_CACHE_SECONDS` | 600 | 자동 완성(`GET /api/repos/suggest/`)의 GitHub 검색 결과를 서버 메모리에 두는 시간 |
 | `REPO_CACHE_SECONDS` | 300 | 저장소 정보를 서버 메모리에 두는 시간 |
 | `COMMIT_CACHE_SECONDS` | 30 | 기본 브랜치 끝 커밋을 서버 메모리에 두는 시간(같은 저장소의 요청이 잇따라도 GitHub 을 한 번만 부른다) |
-| `GITHUB_SEARCH_PER_MINUTE` | 10 | 이 사이트가 1분에 GitHub 검색을 부르는 수. 서버 인스턴스가 DB 의 1분 창 카운터를 함께 쓰고(DB 에 닿지 못하면 인스턴스마다 센다), 요청한 사람을 가리지 않는다. 넘으면 "요청 수 상한"으로 답한다(GitHub 은 토큰 없이 1분 10번, 토큰으로 30번) |
+| `GITHUB_SEARCH_PER_MINUTE` | 10 | 이 사이트가 1분에 GitHub 검색을 부르는 수(검색 쪽과 자동 완성이 함께 쓴다). **`GITHUB_TOKEN` 이 있으면 기본 25.** 서버 인스턴스가 DB 의 1분 창 카운터를 함께 쓰고(DB 에 닿지 못하면 인스턴스마다 센다), 요청한 사람을 가리지 않는다. 넘으면 "요청 수 상한"으로 답한다(GitHub 은 토큰 없이 1분 10번, 토큰으로 30번) |
+| `GITHUB_SEARCH_RESERVE` | 3 | 그 가운데 검색 쪽(`/search`) 몫. 자동 완성은 1분 창에 쓴 수가 `GITHUB_SEARCH_PER_MINUTE - 이 값` 보다 적을 때만 GitHub 을 부르고, 검색 쪽은 상한까지 부른다. 늘 상한보다 작게 읽는다(같거나 크면 상한-1) |
 | `GITHUB_CALLS_PER_MINUTE` | 60 | 이 사이트가 1분에 검색 밖의 GitHub API(저장소 정보·끝 커밋)를 부르는 수(GitHub 은 토큰으로 1시간 5000번) |
 | `RESULT_MAX_KB` | 4000 | 실행기가 보내는 결과 JSON 의 크기 상한(KB). 넘는 콜백은 받지 않는다(Vercel 함수의 본문 상한 4.5MB 보다 작게) |
 | `RUNNER` | none | `github`(workflow_dispatch), `local`(이 컴퓨터의 로컬 실행기가 집어 감), `none`(요청을 받지 않음) |

@@ -34,7 +34,8 @@ beforeEach(async () => {
 function setup(env: Record<string, string> = {}) {
   const stub = createGitHubStub({ origin: "http://stub.test" });
   const clock = { now: T0 };
-  const config: ServerConfig = readConfig({ RUNNER: "local", RUNNER_SECRET: SECRET, ...env });
+  // 설정의 GitHub 주소도 가짜 GitHub 이다(로컬 실행기 + 실제 GitHub 은 요청을 받지 않는다. 재디자인 D4).
+  const config: ServerConfig = readConfig({ RUNNER: "local", RUNNER_SECRET: SECRET, GITHUB_API_BASE: "http://stub.test", ...env });
   const store = createDbStore({
     db: async () => db,
     github: createGitHub({ apiBase: "http://stub.test", token: null, searchCacheSeconds: 60, repoCacheSeconds: 300, fetch: stub.fetch as typeof fetch, now: () => clock.now.getTime() }),

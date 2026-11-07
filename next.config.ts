@@ -10,7 +10,13 @@ const nextConfig: NextConfig = {
   // 개발 서버가 화면 귀퉁이에 그리는 Next 표시를 끈다. 개발 중 캡처가 실제 화면과 같게 한다.
   devIndicators: false,
   // 개발 중에 로컬 실행기가 몇 초마다 묻는 요청과 진행 중인 쪽의 다시 읽기는 기록에 남기지 않는다(npm run local).
-  logging: { incomingRequests: { ignore: [/\/api\/runner\/claim\//, /\/api\/analyses\/[^/]+\/$/] } },
+  // 친 질의도 남기지 않는다: 자동 완성(/api/repos/suggest/?q=…)과 질의가 있는 검색 쪽(/search/?q=…). 운영(next start)은 원래
+  // 요청을 기록하지 않는다. 시험: tests/suggest.test.ts.
+  logging: {
+    incomingRequests: {
+      ignore: [/\/api\/runner\/claim\//, /\/api\/analyses\/[^/]+\/$/, /\/api\/repos\/suggest\/?(\?|$)/, /\/search\/?\?/],
+    },
+  },
   // PGlite(로컬 개발·시험의 DB)는 WebAssembly 와 데이터 파일을 지닌 패키지라 묶지 않고 node_modules 에서 그대로 불러온다.
   // `pg` 는 Next 가 이미 묶지 않는 목록에 있다.
   serverExternalPackages: ["@electric-sql/pglite"],

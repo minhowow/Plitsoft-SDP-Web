@@ -4,8 +4,9 @@ import { isAnalysisId } from "@/lib/service/id";
 import type { Analysis, RequestRefusal, ServiceStore } from "@/lib/service/types";
 import { ServiceUnavailableError } from "@/lib/service/errors";
 import { placeOf, type QueuePlace } from "@/lib/service/queue";
+import { cleanSuggestText, mergeSuggestions, type SuggestResponse } from "@/lib/service/suggest";
 import { applyRunnerEvent, claimQueued, readEvent } from "./callbacks";
-import { readConfig, type ServerConfig } from "./config";
+import { readConfig, showsSyntheticTag, usesFakeGitHub, type ServerConfig } from "./config";
 import { getDatabase, type Database } from "./db";
 import { internalError, isJsonRequest, json, readBody } from "./http";
 import { tidyQueue, type PumpDeps } from "./queue";
@@ -120,6 +121,42 @@ export async function getAnalysis(id: string, deps: ApiDeps = defaultDeps): Prom
   } catch (error) {
     if (error instanceof ServiceUnavailableError) return json({ ok: false, message: error.message }, 503);
     return internalError("GET /api/analyses/[id]", error);
+  }
+}
+
+/**
+ * GET /api/repos/suggest/?q=…[&scope=site]  검색창의 자동 완성(docs/redesign.md 5장). 늘 200 이고 캐시하지 않는다.
+ *
+ * - `q` 는 다듬는다(`cleanSuggestText`: 제어 문자를 빼고 100자까지). 비면 빈 답이다.
+ * - `scope=site` 면 이 사이트의 DB 만 읽는다(브라우저가 150ms 뒤에 먼저 묻는다). 아니면 GitHub 검색 한 번도 함께(500ms 뒤).
+ * - 두 출처를 합쳐 8줄까지(`mergeSuggestions`). GitHub 상태(`ok | limited | timeout | unavailable | off | skipped`)를 싣는다.
+ * - 질의와 요청한 사람(IP)을 어디에도 적지 않는다. 모르는 오류도 이름만 적는다(질의를 싣지 않는다). 개발 서버의 요청 기록에서도
+ *   이 경로를 뺀다(next.config.ts 의 `logging.incomingRequests.ignore`).
+ */
+export async function getSuggestions(request: Request, deps: ApiDeps = defaultDeps): Promise<Response> {
+  const params = new URL(request.url).searchParams;
+  const q = cleanSuggestText(params.get("q"));
+  const withGitHub = params.get("scope") !== "site";
+  const config = deps.config();
+  const base: SuggestResponse = {
+    q,
+    site: [],
+    github: null,
+    tagged: showsSyntheticTag(config),
+    fakeGitHub: config.store === "db" && usesFakeGitHub(config),
+  };
+  if (q === "") return json(base);
+  try {
+    const found = await deps.store().suggest(q, { github: withGitHub });
+    const merged = mergeSuggestions(found.site ?? [], found.github?.items ?? []);
+    return json({
+      ...base,
+      site: found.site === null ? null : merged.site,
+      github: found.github === null ? null : { ...found.github, items: merged.github },
+    } satisfies SuggestResponse);
+  } catch (error) {
+    console.error(`[GET /api/repos/suggest] ${error instanceof Error ? error.name : "오류"}`);
+    return json({ ...base, site: null, github: withGitHub ? { status: "unavailable", items: [], total: null } : null } satisfies SuggestResponse);
   }
 }
 

@@ -28,8 +28,18 @@ export interface ServerConfig {
     repoCacheSeconds: number;
     /** 기본 브랜치 끝 커밋을 서버 메모리에 두는 시간(초). */
     commitCacheSeconds: number;
-    /** 이 사이트 전체(서버 인스턴스 모두가 DB 의 카운터를 함께 쓴다)가 1분에 GitHub 검색을 부르는 수 상한(요청한 사람을 가리지 않는다). */
+    /** 자동 완성의 GitHub 검색 결과를 서버 메모리에 두는 시간(초). */
+    suggestCacheSeconds: number;
+    /**
+     * 이 사이트 전체(서버 인스턴스 모두가 DB 의 카운터를 함께 쓴다)가 1분에 GitHub 검색을 부르는 수 상한(요청한 사람을 가리지 않는다).
+     * 검색 쪽(`/search`)과 자동 완성이 함께 쓴다. 기본은 토큰이 있으면 25, 없으면 10 이다(GitHub 의 한도는 30, 10).
+     */
     searchPerMinute: number;
+    /**
+     * 그 가운데 검색 쪽(`/search`) 몫으로 남겨 두는 수. 자동 완성은 1분 창에 쓴 수가 `searchPerMinute - searchReserve` 보다 적을
+     * 때만 꺼낸다. 늘 `searchPerMinute` 보다 작다(같거나 크게 적으면 `searchPerMinute - 1` 로 읽는다).
+     */
+    searchReserve: number;
     /** 이 사이트 전체가 1분에 검색 밖의 GitHub API 를 부르는 수 상한. */
     callsPerMinute: number;
   };
@@ -78,9 +88,14 @@ export const DEFAULTS = {
   pgliteDir: ".data/pglite",
   githubApiBase: "https://api.github.com",
   searchCacheSeconds: 60,
+  suggestCacheSeconds: 600,
   repoCacheSeconds: 300,
   commitCacheSeconds: 30,
+  /** 토큰이 없을 때(GitHub 의 한도가 1분에 10번). */
   githubSearchPerMinute: 10,
+  /** 토큰이 있을 때(GitHub 의 한도는 1분에 30번. 5번은 남겨 둔다). */
+  githubSearchPerMinuteWithToken: 25,
+  githubSearchReserve: 3,
   githubCallsPerMinute: 60,
   maxRepoKb: 100_000,
   dedupeMinutes: 60,
@@ -113,6 +128,13 @@ function positive(env: Env, name: string, fallback: number): number {
   return n > 0 ? n : fallback;
 }
 
+/** 0 이상의 정수. 없거나 읽을 수 없으면 기본값이다. */
+function count(env: Env, name: string, fallback: number): number {
+  const value = text(env, name);
+  if (value === null || !/^\d+$/.test(value)) return fallback;
+  return Number.parseInt(value, 10);
+}
+
 function apiBase(env: Env): string {
   const value = text(env, "GITHUB_API_BASE") ?? DEFAULTS.githubApiBase;
   return value.replace(/\/+$/, "");
@@ -120,17 +142,22 @@ function apiBase(env: Env): string {
 
 export function readConfig(env: Env = process.env): ServerConfig {
   const runner = text(env, "RUNNER");
+  const token = text(env, "GITHUB_TOKEN");
+  const searchPerMinute = positive(env, "GITHUB_SEARCH_PER_MINUTE", token ? DEFAULTS.githubSearchPerMinuteWithToken : DEFAULTS.githubSearchPerMinute);
   return {
     store: text(env, "SERVICE_STORE") === "synthetic" ? "synthetic" : "db",
     databaseUrl: text(env, "DATABASE_URL"),
     pgliteDir: text(env, "PGLITE_DIR") ?? DEFAULTS.pgliteDir,
     github: {
       apiBase: apiBase(env),
-      token: text(env, "GITHUB_TOKEN"),
+      token,
       searchCacheSeconds: positive(env, "SEARCH_CACHE_SECONDS", DEFAULTS.searchCacheSeconds),
+      suggestCacheSeconds: positive(env, "SUGGEST_CACHE_SECONDS", DEFAULTS.suggestCacheSeconds),
       repoCacheSeconds: positive(env, "REPO_CACHE_SECONDS", DEFAULTS.repoCacheSeconds),
       commitCacheSeconds: positive(env, "COMMIT_CACHE_SECONDS", DEFAULTS.commitCacheSeconds),
-      searchPerMinute: positive(env, "GITHUB_SEARCH_PER_MINUTE", DEFAULTS.githubSearchPerMinute),
+      searchPerMinute,
+      // 검색 쪽 몫은 늘 상한보다 작다. 자동 완성이 1분에 하나는 꺼낼 수 있게(상한이 1 이면 몫이 없다).
+      searchReserve: Math.min(count(env, "GITHUB_SEARCH_RESERVE", DEFAULTS.githubSearchReserve), searchPerMinute - 1),
       callsPerMinute: positive(env, "GITHUB_CALLS_PER_MINUTE", DEFAULTS.githubCallsPerMinute),
     },
     limits: {
@@ -163,6 +190,15 @@ export function readConfig(env: Env = process.env): ServerConfig {
  */
 export function usesFakeGitHub(config: Pick<ServerConfig, "github">): boolean {
   return config.github.apiBase !== DEFAULTS.githubApiBase;
+}
+
+/**
+ * 로컬 실행기(RUNNER=local)인데 GitHub 이 실제 주소인지. 로컬 실행기는 GitHub 에서 저장소를 받지 않고 합성 데모 코드를 검사하므로
+ * (scripts/local-runner.mjs), 실제 저장소 이름에 가짜 결과가 붙는다. 그래서 이때는 분석 요청을 받지 않는다(docs/redesign.md 5장
+ * "로컬을 정직하게"). 저장소 구현의 `requestsClosed` 가 이것을 본다.
+ */
+export function localRunnerOnRealGitHub(config: Pick<ServerConfig, "runner" | "github">): boolean {
+  return config.runner.kind === "local" && !usesFakeGitHub(config);
 }
 
 /**

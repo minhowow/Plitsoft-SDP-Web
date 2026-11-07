@@ -2165,6 +2165,7 @@ anthropic:<모델> --output-format json`, `../Plitsoft-SDP` 의 `cli.py` 의 `cm
 | `POST /api/analyses/` | 본문 `{"owner","repo"}`(JSON 만, 2KB 까지). `requestAnalysis` 를 부른다. 새 분석 201, 같은 커밋의 분석으로 보냄 200(`reused`), 받지 않음은 까닭마다 404(없음)·422(너무 큼)·429(하루·동시 상한)·503(실행기 없음·합성·장애). 응답에 `href`(분석 쪽 주소)와 화면에 적을 말만 싣는다 |
 | `GET /api/analyses/{id}/` | 진행 중인 분석 쪽이 3초마다 읽는다(차례 C, `LiveAnalysis`). 실행기 run 같은 내부 값은 싣지 않는다. `cache-control: no-store` |
 | `POST /api/runner/{id}/` | 실행기 콜백. 아래 "콜백" |
+| `GET /api/repos/suggest/?q=` | 검색창의 자동 완성(재디자인 D4, 아래 "재디자인 D4"). 늘 200, `no-store`. 질의와 IP 를 적지 않는다 |
 | `POST /api/runner/claim/` | `RUNNER=local` 일 때만. 먼저 대기열을 넘기고, 실행기에 보낸(실행 자리를 얻은) 분석 가운데 아직 아무도 집지 않은 것을 보낸 차례로 하나 집어 간다(`runner_run_id = 'local'`, `FOR UPDATE SKIP LOCKED`). 같은 분석이 두 실행기에 가지 않고, 실행 자리 수를 넘겨 돌리지 않는다 |
 
 쪽 주소처럼 끝에 빗금이 있다(`trailingSlash`. 빗금 없는 주소는 308 로 보낸다). 모르는 오류는 500 과 정해진 말만 돌려주고, 서버
@@ -2443,7 +2444,8 @@ anthropic:<모델> --output-format json`, `../Plitsoft-SDP` 의 `cli.py` 의 `cm
   곁칸 `검사하는 정책 N`(`data/pack-meta.json` 의 정책 모두와 대표 조문, 조문 도감 링크). 결과는 쪽 폭의 줄 목록(이름, 설명 한 줄,
   언어, 분석 N회 또는 분석된 적 없음, 최근 날짜). 0건이면 `‘q’에 맞는 저장소 없음`, 한글만 친 질의에 `영문 자판으로 친 ‘…’로 찾기`
   (`lib/service/keyboard.ts` 의 두벌식 → QWERTY), 가짜 GitHub 이면 `로컬 가짜 GitHub: 합성 저장소만 찾습니다.`(수는 적지 않는다),
-  그 아래 이 사이트에서 분석된 저장소. GitHub 에 묻지 못하면 "검색하지 못했습니다. …"는 그대로다.
+  그 아래 이 사이트에서 분석된 저장소. GitHub 에 묻지 못하면 "검색하지 못했습니다. …"는 그대로다(D4 에서 머리와 상태 줄을 더했다.
+  아래 "재디자인 D4").
 - **저장소 `/r/…`**: 머리(이름, 이름표, 설명, 기본 브랜치·언어·분석 N회, 오른쪽에 주 단추 `<기본 브랜치> 최신 커밋 분석`). 요청
   풀이 문장과 진행 중인 분석 칸은 지웠다. 받지 않을 때의 까닭(`#request-off`)과 거절 까닭(`#request-note`)은 그대로다. `최신 분석`
   상자(가장 나중에 끝난 분석의 저장된 결과를 `parseReport`·`buildReportView` 로 읽음): 배지, id, 커밋, 시각 KST, 걸린 시간(단계의
@@ -2458,3 +2460,71 @@ anthropic:<모델> --output-format json`, `../Plitsoft-SDP` 의 `cli.py` 의 `cm
 - **머리글의 이름**은 `/search/` 로 간다(모든 쪽의 머리글 HTML 이 같다).
 - 목업의 쪽 사이 이어짐(`@view-transition`)은 넣었다가 뺐다. 검색창에서 엔터로 옮겨 갈 때 Chrome 이 "Transition was aborted because
   of invalid state. ViewTransition opt-in disabled" 예외를 쪽에 남겨 브라우저 시험(쪽 예외 0)이 깨졌다.
+
+## 재디자인 D4: 자동 완성 (2026-11-07)
+
+`docs/redesign.md` 5장. 모든 검색창(첫 화면 `#home-q`, 머리글 `#site-q`, 검색 쪽 `#search-page-q`)이 한 브라우저 부품
+(`components/service/SearchCombobox.tsx`)이다. 스크립트가 없으면 전처럼 보통의 GET 양식이다.
+
+- **`GET /api/repos/suggest/?q=[&scope=site]`**(`src/server/api.ts` 의 `getSuggestions`, route 는 부르기만 한다). 늘 200 과
+  `cache-control: no-store`. 질의는 `cleanSuggestText`(제어·보이지 않는 서식 문자를 빼고 빈칸을 하나로, 빗금 둘레 빈칸을 떼고
+  100자까지)로 다듬는다. 응답: `{ q, site, github: { status, items, total, skipped? } | null, tagged, fakeGitHub }`.
+  - ① `site`: 이 사이트에서 분석된 저장소 가운데 `repo_key`(소문자 owner/name)에 친 글자가 **부분 문자열로** 든 것(LIKE, `%` `_` `\`
+    는 글자 그대로), 가장 나중에 요청한 차례, 분석 수와 그때. 1글자부터. 읽기만 한다(`tidyQueue` 를 돌리지 않는다). DB 를 읽지 못하면
+    null(화면에 "이 사이트의 분석 기록을 읽지 못함").
+  - ② `github`: `lib/service/suggest.ts` 의 `githubSuggestQuery`(순수 함수)가 3글자 이상이고 영문·숫자가 들고 GitHub 이름 글자
+    (`A-Z a-z 0-9 . _ -`)와 빗금 하나뿐인 질의만 GitHub 검색 질의로 바꾼다: `접두 in:name is:public`, `owner/접두` →
+    `user:owner 접두 in:name is:public`(`owner/` → `user:owner is:public`), 이름이 `.` `_` `-` 로 시작하면 `repo:owner/name is:public`.
+    그 밖은 `skipped`(`short`·`chars`). 검색 API 한 번(`per_page=10`, 3초 넘으면 `AbortSignal.timeout` 으로 끊고 `timeout`). core(저장소
+    정보·owner 목록)는 부르지 않는다.
+  - 상태: `ok`(`total` 은 GitHub 이 센 수), `limited`(이 사이트의 예산 또는 GitHub 의 403(remaining 0)·429), `timeout`, `unavailable`
+    (닿지 못함·5xx·모르는 답), `off`(합성 저장소. GitHub 을 부르지 않는다), `skipped`. 화면 글은 `githubStatusLine`: `GitHub 에 없음`,
+    `GitHub 에 묻지 못함(요청 수 상한|시간 초과|연결 실패)`, `GitHub 에 묻지 않음(합성 미리보기|3글자 미만|이름에 쓰지 않는 글자)`.
+  - 합치기(`mergeSuggestions`): 같은 저장소(대소문자 없이)는 이 사이트의 줄만, 모두 8줄까지, 이 사이트의 줄이 많아도 GitHub 은 3줄까지
+    남긴다. 차례는 받은 그대로다. 별 수는 싣지 않는다.
+  - 캐시: GitHub 클라이언트(`github.ts` 의 `suggest`)가 결과를 `SUGGEST_CACHE_SECONDS`(600) 둔다(질의 소문자 열쇠). 같은 질의가 동시에
+    오면 한 번만 부른다(인스턴스마다의 `inflight`). 앞 질의의 결과가 모두였고(`total_count ≤` 받은 수) 꼴·owner 가 같고 새 질의가
+    그 글자를 늘인 것이면 이름에 새 글자가 든 것만 걸러 다시 쓴다(`canReuse`, `reuseFilter`. 앞 결과에 없던 것을 만들지 않는다).
+    다만 새 글자가 영문·숫자뿐이고(`- . _` 가 들면 GitHub 이 낱말을 나눠 찾는다), 앞 결과의 이름이 모두 앞 글자를 품었을 때만이다
+    (아니면 GitHub 이 이름 밖의 것으로 맞췄으니 이름으로 거르면 GitHub 이 돌려줄 저장소를 숨긴다). 걸러 낸 것은 앞 결과를 받은 때를
+    물려받아 600초를 넘기지 않는다(D4 검토). 질의는 소문자로 만든다(대문자 `NOT`·`AND`·`OR` 는 GitHub 의 연산자다).
+  - 이 사이트의 DB 를 읽다 틀리면(열지 못한 것만이 아니라 읽기 오류도) ① 만 `null` 이고 ② 의 상태는 그대로다(D4 검토).
+  - `limited` 는 429, 또는 403 가운데 `x-ratelimit-remaining: 0`(1차 한도)이거나 `retry-after` 머리·본문의 'rate limit'(2차 한도)인
+    것이다(`isRateLimited`).
+- **예산**: 검색 쪽과 자동 완성이 GitHub 검색 예산(`GITHUB_SEARCH_PER_MINUTE`, 토큰이 있으면 25, 없으면 10)을 함께 쓴다. 자동 완성
+  (`BudgetBucket` 의 `suggest`)은 같은 `github_budget` 행(`search`)을 세되 `상한 - GITHUB_SEARCH_RESERVE(3)` 까지만 꺼내고(같은 한 문의
+  `WHERE used < $3` 에 낮은 수), 검색 쪽은 상한까지 꺼낸다. 몫은 늘 상한보다 작다. DB 에 닿지 못할 때의 메모리 통도 같다(`take(keep)`).
+  IP 를 세지 않으므로 스크립트 하나가 자동 완성 몫을 다 쓸 수 있고, 그때는 `limited` 로 보인다(검색 쪽은 남긴 몫으로 돈다).
+- **GitHub 오류 가리기**: GitHub 클라이언트는 `globalThis` 에 하나만 두는데, 그것을 만든 묶음(쪽)과 오류를 받는 묶음(route handler)이
+  다르면 `GitHubError` 클래스가 둘이라 `instanceof` 가 거짓이었다(첫 화면을 연 뒤 자동 완성의 상한이 '연결 실패'로 보였다). 이름과
+  갈래로 가리는 `isGitHubError` 로 바꿨다(저장소 구현의 모든 자리).
+- **기록**: 질의와 IP 를 서버 기록·DB 에 적지 않는다. 모르는 오류도 이름만 적는다. 개발 서버의 요청 기록에서 `/api/repos/suggest/` 와
+  질의가 있는 `/search/?q=` 를 뺀다(`next.config.ts` 의 `logging.incomingRequests.ignore`. 운영 `next start` 는 요청을 기록하지 않는다).
+- **브라우저 부품**: WAI-ARIA APG 콤보 상자(입력창 role=combobox, `aria-controls`·`aria-expanded`·`aria-activedescendant`, listbox 안에
+  role=group + aria-labelledby 의 두 무리, 끝 줄 `‘q’ 전체 검색`). 줄은 진짜 링크(`/r/owner/repo/`). 친 부분은 `matchRange` 로 찾아
+  `<b>` 로 굵게(글은 데이터 그대로). 안내 줄(`로컬 가짜 GitHub: 합성 저장소만 찾습니다`)과 상태 줄은 listbox 밖, 수는
+  `aria-live=polite`(`제안 N개`, 상태 줄이 있으면 `제안 N개. GitHub 에 묻지 못함(…)`. 닫혀 있으면 비운다). 150ms 쉬면 `scope=site`,
+  500ms 쉬면 GitHub 까지 묻고 앞 요청을 끊는다. 쪽 안의 메모리(Map, 100개, 1분)만 쓰고, GitHub 에 묻지 못한 답(`limited`·`timeout`·
+  `unavailable`)과 이 사이트의 기록을 읽지 못한 답은 두지 않는다(다시 치면 다시 묻는다). GitHub 까지 묻는 요청이 닿지 못하거나 모르는
+  답이면(플랫폼의 5xx 쪽 등) `unavailable` 로 그린다. 고른 줄은 줄의 열쇠(`s:`·`g:`·`all`)로 기억하고 줄 id 도 열쇠에서 만든다(늦게 온
+  GitHub 결과가 줄을 밀어도 고른 줄과 aria-activedescendant 가 같은 줄이다). 한글 조합 중(isComposing, keyCode 229)에는 묻지 않고
+  Enter·↑↓ 를 받지 않는다. ↑↓(끝에서 돈다), Enter(고른 줄로, 없으면 양식, 비면 `/search/`), Esc(닫기, 닫혀 있으면 지우기), Tab·초점
+  떠남(닫기), 목록을 누르는 동안 초점 유지(모든 단추. 가운데 단추의 새 탭 열기와 오른쪽 단추의 메뉴는 그대로 링크에 닿는다),
+  `pageshow`(bfcache)에 닫힘, 바닥글·`visualViewport` 위로 높이 묶기(fit), 자리표시 글이 넘치면 `SITE.service.searchPlaceholderShort`.
+  빈 검색창에 초점이 와도 펼치지 않는다(최근 분석은 첫 화면·검색 쪽의 본문에 있다. 정적 쪽의 머리글은 그것을 알 수 없다). 첫 화면은
+  빈 검색창의 ↓ 로 최근 분석의 첫 줄로, 그 안에서 ↑↓, 첫 줄의 ↑ 로 검색창으로 돌아오고, 좁은 화면(599px 이하·높이 479px 이하)에서
+  초점이 있는 동안 `.home[data-mode="search"]` 로 표지를 20px 로 줄여 위로 올린다(CSS 만, view transition 없음).
+- **머리글 메뉴**: `최근 분석`(→ `/search/`)을 조문 도감 앞에 더했다. 질의 없는 검색 쪽(`data-page="search-home"`)에서만 지금 쪽이다
+  (CSS `:has` 와 `HeaderBehavior` 의 `aria-current`. 경로가 같은 이동도 본문이 바뀌면 다시 본다).
+- **로컬을 정직하게**: 가짜 GitHub 은 이름 낱말(`-` `.` `_`)과 이름의 머리로 찾고(`in:name` 이 없을 때만 owner·설명으로도)
+  `in:name`·`user:`·`repo:`·`is:public` 을 읽으며
+  요청 수 상한 머리를 싣는다(`--search-per-minute`, `--delay`). 설명의 "합성 예시 저장소입니다"는 뺐다(합성 저장소의 설명도). 로컬
+  실행기는 합성 데모 코드가 없는 저장소를 저장소 받기의 실패로 적는다(`--source` 를 직접 준 때만 예외). 사이트는 `RUNNER=local` 인데
+  GitHub 이 실제 주소면 요청을 받지 않는다(`localRunnerOnRealGitHub`, `SITE.service.localRealGitHub`).
+- **검색 쪽**: 0건이면 `GitHub 에 없음`(운영 저장소 구현), 묻지 못하면 `‘q’ 검색하지 못함` + `GitHub 에 묻지 못함(…)` + 서버의 까닭,
+  그 아래 이 사이트에서 분석된 저장소.
+- 시험: `tests/suggest.test.ts`(질의 다듬기·질의 꼴·끼워 넣기·다시 쓰기·합치기·상태 줄·가짜 GitHub 규칙·기록 제외),
+  `tests/server-suggest.test.ts`(suggest 의 per_page·캐시·동시·다시 쓰기·시간 초과·상한, 예산 몫, 기본값, `/api/repos/suggest/` 의
+  상태들과 합성, 로컬+실제 GitHub 거절), `tests/runner.test.ts`(목록에 없는 저장소의 실패), `tests/browser/combobox.test.ts`(치기·무리·
+  ↑↓·Enter·Esc·한글 조합·빈 초점·좁은 화면·상한·머리글·검색 쪽·스크립트 없음·넘침), `tests/browser/header.test.ts`(최근 분석).
+

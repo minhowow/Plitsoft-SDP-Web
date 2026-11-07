@@ -40,7 +40,8 @@ const T0 = new Date("2026-11-03T03:00:00Z"); // 한국 표준시 12:00
 function setup(options: { limits?: Partial<ServerConfig["limits"]>; runner?: Partial<ServerConfig["runner"]>; wake?: () => Promise<WakeOutcome> } = {}) {
   const stub = createGitHubStub({ origin: "http://stub.test" });
   const clock = { now: T0 };
-  const base = readConfig({});
+  // 설정의 GitHub 주소도 가짜 GitHub 이다(로컬 실행기 + 실제 GitHub 은 요청을 받지 않는다. 재디자인 D4).
+  const base = readConfig({ GITHUB_API_BASE: "http://stub.test" });
   const config = {
     github: base.github,
     limits: { ...base.limits, ...options.limits },
@@ -292,7 +293,7 @@ describe("분석 요청", () => {
     const down = createDbStore({
       db: async () => db,
       github: createGitHub({ apiBase: "http://stub.test", token: null, searchCacheSeconds: 60, repoCacheSeconds: 300, fetch: (async () => { throw new TypeError("down"); }) as typeof fetch }),
-      config: { github: readConfig({}).github, limits: readConfig({}).limits, runner: { ...readConfig({}).runner, kind: "local" } },
+      config: { github: readConfig({ GITHUB_API_BASE: "http://stub.test" }).github, limits: readConfig({}).limits, runner: { ...readConfig({}).runner, kind: "local" } },
     });
     expect(await down.requestAnalysis("example-org", "kids-signup")).toMatchObject({ ok: false, reason: "unavailable" });
     const count = await db.query<{ n: number }>("SELECT count(*)::int AS n FROM analyses");
@@ -786,7 +787,8 @@ describe("읽기", () => {
     fresh.stub.setRateLimited(true);
     stub.setRateLimited(true);
     const search = await fresh.store.search("kids");
-    expect(search).toEqual({ ok: false, message: "GitHub 의 요청 수 상한에 닿았습니다. 잠시 뒤에 다시 해 보세요." });
+    // 묻지 못한 갈래(github)도 싣는다. 검색 쪽이 자동 완성과 같은 말로 적는다(재디자인 D4).
+    expect(search).toEqual({ ok: false, message: "GitHub 의 요청 수 상한에 닿았습니다. 잠시 뒤에 다시 해 보세요.", github: "limited" });
     expect(await fresh.store.getRepository("example-org", "kids-signup")).toMatchObject({ owner: "example-org", name: "kids-signup", htmlUrl: null });
     await expect(fresh.store.getRepository("example-org", "night-push")).rejects.toBeInstanceOf(ServiceUnavailableError);
   });

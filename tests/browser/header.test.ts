@@ -8,6 +8,7 @@ import { closeChrome, launchChrome, NO_STORAGE, openPage, serveSite, stored, typ
 //   그동안 사이트 밖으로 나가는 요청과 브라우저 저장소가 없다.
 // - 1280px: 56px 한 줄이고 본문과 왼쪽 끝이 같다. 머리글의 검색창은 본문에 검색창이 없는 쪽에만 보인다. 지금 쪽을 굵게 적고
 //   aria-current 로 알린다. 첫 화면에는 머리글이 없다(재디자인 D3). 이름은 검색 쪽(/search/)으로 간다.
+// - 메뉴는 최근 분석(질의 없는 /search/), 조문 도감, 데모다(재디자인 D4). 최근 분석은 질의 없는 검색 쪽에서만 지금 쪽이다.
 // - "/" 키는 검색창으로 가지 않는다(글자 하나짜리 단축키는 뺐다. docs/ROADMAP.md 의 "사람 결정이 필요한 것").
 // 머리글의 HTML 이 모든 쪽에서 같은지는 tests/browser/served-files.test.ts 가 본다.
 
@@ -113,10 +114,11 @@ describe("390px: 펼치는 메뉴", () => {
         return hidden;
       });
 
-    // 키보드로 메뉴를 열고 메뉴의 링크 둘을 지나 본문으로 간다.
+    // 키보드로 메뉴를 열고 메뉴의 링크 셋(최근 분석, 조문 도감, 데모. 재디자인 D4 에서 하나 늘었다)을 지나 본문으로 간다.
     await page.locator(".site-header .menu > summary").focus();
     await page.keyboard.press("Enter");
     expect(await menuOpen(page)).toBe(true);
+    await page.keyboard.press("Tab");
     await page.keyboard.press("Tab");
     await page.keyboard.press("Tab");
     expect(await menuOpen(page)).toBe(true);
@@ -168,6 +170,7 @@ describe("1280px: 한 줄 머리글", () => {
           mainLeft: Math.round(mainLeft),
           search: document.querySelector(".site-header .hdr-search")!.getClientRects().length > 0,
           menu: document.querySelector(".site-header .hdr-m")!.getClientRects().length > 0,
+          recent: weight("/search/"),
           policy: weight("/policy/"),
           demo: weight("/demo/"),
           current: [...document.querySelectorAll(".site-header .hdr-nav a[aria-current=page]")].map((a) => a.getAttribute("href")),
@@ -180,6 +183,7 @@ describe("1280px: 한 줄 머리글", () => {
       mainLeft: policy.mainLeft,
       search: true,
       menu: false,
+      recent: "400",
       policy: "600",
       demo: "400",
       current: ["/policy/"],
@@ -190,11 +194,15 @@ describe("1280px: 한 줄 머리글", () => {
     await page.goto(`${site.origin}/demo/`, { waitUntil: "networkidle" });
     expect(await read()).toMatchObject({ height: 56, search: true, policy: "400", demo: "600", current: ["/demo/"] });
 
-    // 본문에 검색창이 있는 쪽(검색)에서는 머리글의 검색창을 감춘다.
-    for (const pathname of ["/search/", "/search/?q=kids"]) {
-      await page.goto(`${site.origin}${pathname}`, { waitUntil: "networkidle" });
-      expect(await read(), pathname).toMatchObject({ height: 56, search: false, policy: "400", demo: "400", current: [] });
-    }
+    // 본문에 검색창이 있는 쪽(검색)에서는 머리글의 검색창을 감춘다. 최근 분석은 질의 없는 검색 쪽에서만 지금 쪽이다.
+    await page.goto(`${site.origin}/search/`, { waitUntil: "networkidle" });
+    expect(await read(), "/search/").toMatchObject({ height: 56, search: false, recent: "600", policy: "400", demo: "400", current: ["/search/"] });
+    await page.goto(`${site.origin}/search/?q=kids`, { waitUntil: "networkidle" });
+    expect(await read(), "/search/?q=kids").toMatchObject({ height: 56, search: false, recent: "400", policy: "400", demo: "400", current: [] });
+    // 경로가 같은 이동(질의 있는 검색 → 최근 분석)에서도 지금 쪽 표시가 따라온다(클라이언트 이동).
+    await page.locator(".site-header .hdr-nav a", { hasText: "최근 분석" }).click();
+    await page.waitForURL(`${site.origin}/search/`);
+    await expect.poll(() => read()).toMatchObject({ recent: "600", current: ["/search/"] });
     // 첫 화면에는 머리글이 없다(재디자인 D3: 표지와 큰 검색창이 그 자리다). HTML 은 그대로이고 CSS 가 감춘다.
     await page.goto(`${site.origin}/`, { waitUntil: "networkidle" });
     expect(await page.locator(".site-header").isVisible()).toBe(false);

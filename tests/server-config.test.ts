@@ -17,9 +17,11 @@ describe("설정", () => {
       apiBase: "https://api.github.com",
       token: null,
       searchCacheSeconds: 60,
+      suggestCacheSeconds: 600,
       repoCacheSeconds: 300,
       commitCacheSeconds: 30,
       searchPerMinute: 10,
+      searchReserve: 3,
       callsPerMinute: 60,
     });
     expect(config.limits).toEqual({
@@ -94,9 +96,11 @@ describe("설정", () => {
       ["DISPATCH_TIMEOUT_MINUTES", DEFAULTS.dispatchTimeoutMinutes],
       ["QUEUE_TIMEOUT_MINUTES", DEFAULTS.queueTimeoutMinutes],
       ["SEARCH_CACHE_SECONDS", DEFAULTS.searchCacheSeconds],
+      ["SUGGEST_CACHE_SECONDS", DEFAULTS.suggestCacheSeconds],
       ["REPO_CACHE_SECONDS", DEFAULTS.repoCacheSeconds],
       ["COMMIT_CACHE_SECONDS", DEFAULTS.commitCacheSeconds],
       ["GITHUB_SEARCH_PER_MINUTE", DEFAULTS.githubSearchPerMinute],
+      ["GITHUB_SEARCH_RESERVE", DEFAULTS.githubSearchReserve],
       ["GITHUB_CALLS_PER_MINUTE", DEFAULTS.githubCallsPerMinute],
       ["RESULT_MAX_KB", DEFAULTS.maxResultKb],
     ] as const) {

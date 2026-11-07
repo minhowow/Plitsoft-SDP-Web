@@ -8,6 +8,7 @@ import { parseReport } from "@/lib/report/parse";
 import { pickActivity } from "./activity";
 import { repoKey } from "./href";
 import { matchRepositories } from "./search";
+import { SUGGEST_ROWS } from "./suggest";
 import { STEP_ORDER } from "./steps";
 import { SITE } from "@/lib/site";
 import type { Analysis, AnalysisStep, Repository, RepositoryHit, ServiceStore, StepName } from "./types";
@@ -36,12 +37,13 @@ const repo = (owner: string, name: string, description: string, language: string
 });
 
 const REPOSITORIES: Repository[] = [
-  repo("example-org", "kids-signup", "아동도 쓰는 회원 가입 화면. 합성 예시 저장소입니다.", "TypeScript"),
-  repo("example-org", "night-push", "마케팅 앱 푸시를 보내는 코드. 합성 예시 저장소입니다.", "TypeScript"),
-  repo("example-studio", "genai-chat", "생성형 AI 채팅 화면. 합성 예시 저장소입니다.", "TypeScript"),
-  repo("example-labs", "plain-utils", "숫자 계산 유틸리티. 정책 신호가 없는 합성 예시 저장소입니다.", "TypeScript"),
-  repo("example-labs", "shop-front", "쇼핑몰 화면. 첫 분석을 기다리는 합성 예시 저장소입니다.", "JavaScript"),
-  repo("example-labs", "todo-web", "할 일 목록 웹. 아직 분석된 적이 없는 합성 예시 저장소입니다.", "JavaScript"),
+  // 설명에 "합성 예시 저장소입니다"를 적지 않는다(재디자인 D4). 합성인 것은 쪽마다 다는 이름표(`합성 예시`)가 밝힌다.
+  repo("example-org", "kids-signup", "아동도 쓰는 회원 가입 화면", "TypeScript"),
+  repo("example-org", "night-push", "마케팅 앱 푸시를 보내는 코드", "TypeScript"),
+  repo("example-studio", "genai-chat", "생성형 AI 채팅 화면", "TypeScript"),
+  repo("example-labs", "plain-utils", "숫자 계산 유틸리티", "TypeScript"),
+  repo("example-labs", "shop-front", "쇼핑몰 화면", "JavaScript"),
+  repo("example-labs", "todo-web", "할 일 목록 웹", "JavaScript"),
 ];
 
 /** 분석 id → CLI 결과. 끝난 분석에만 있다. */
@@ -212,6 +214,17 @@ export const syntheticStore: ServiceStore = {
       ...picked,
       repository: findRepository(picked.analysis.owner, picked.analysis.name)!,
     }));
+  },
+  async suggest(text, options) {
+    // 이 사이트에서 분석된 합성 저장소 가운데 owner/name 에 글자가 그대로 든 것(DB 구현과 같은 규칙과 차례). GitHub 은 부르지
+    // 않는다(off). 바깥에 요청하지 않는다.
+    const needle = text.toLowerCase();
+    const site = REPOSITORIES.map(hit)
+      .filter((entry) => entry.latest && needle !== "" && repoKey(entry.repository.owner, entry.repository.name).includes(needle))
+      .sort((a, b) => b.latest!.requestedAt.localeCompare(a.latest!.requestedAt))
+      .slice(0, SUGGEST_ROWS)
+      .map(({ repository, analyses, latest }) => ({ owner: repository.owner, name: repository.name, analyses, latestAt: latest!.requestedAt }));
+    return { site, github: options.github ? { status: "off", items: [], total: null } : null };
   },
   async requestAnalysis(owner, name) {
     if (!findRepository(owner, name)) return { ok: false, reason: "not-found", message: "그런 저장소를 찾지 못했습니다." };

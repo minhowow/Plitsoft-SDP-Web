@@ -50,13 +50,14 @@ export default async function SearchPage({ searchParams }: PageProps<"/search">)
 
   const searched = await orUnavailable(store.search(query));
   const outcome: SearchOutcome = searched.ok ? searched.value : searched;
-  const analyzed = outcome.ok && outcome.hits.length === 0 ? await activity(store, ANALYZED_ROWS) : null;
+  const analyzed = !outcome.ok || outcome.hits.length === 0 ? await activity(store, ANALYZED_ROWS) : null;
   return (
     <SearchResults
       query={query}
       outcome={outcome}
       tagged={tagged}
       fakeGitHub={config.store === "db" && usesFakeGitHub(config)}
+      github={config.store === "db"}
       analyzed={analyzed}
     />
   );

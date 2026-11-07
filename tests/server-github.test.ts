@@ -60,7 +60,8 @@ describe("검색", () => {
       {
         owner: "example-org",
         name: "kids-signup",
-        description: "아동도 쓰는 회원 가입 화면. 합성 예시 저장소입니다.",
+        // 가짜 GitHub 의 설명은 "합성 예시 저장소입니다"를 적지 않는다(재디자인 D4: 이름표와 안내 줄이 말한다).
+        description: "아동도 쓰는 회원 가입 화면",
         defaultBranch: "main",
         language: "TypeScript",
         // 가짜 서버의 주소는 github.com 이 아니라 링크를 걸지 않는다.

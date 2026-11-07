@@ -171,7 +171,8 @@ async function enqueue(db: Database, n: number) {
 
 function storeOn(db: Database) {
   const stub = createGitHubStub({ origin: "http://stub.test" });
-  const base = readConfig({});
+  // 설정의 GitHub 주소도 가짜 GitHub 이다(로컬 실행기 + 실제 GitHub 은 요청을 받지 않는다. 재디자인 D4).
+  const base = readConfig({ GITHUB_API_BASE: "http://stub.test" });
   return createDbStore({
     db: async () => db,
     github: createGitHub({ apiBase: "http://stub.test", token: null, searchCacheSeconds: 60, repoCacheSeconds: 300, fetch: stub.fetch as typeof fetch }),

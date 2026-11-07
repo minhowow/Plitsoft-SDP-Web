@@ -25,7 +25,7 @@ import {
 } from "../runner/run.mjs";
 import { extractTar, extractTarGz } from "../runner/tar.mjs";
 import { createGitHubStub } from "../scripts/github-stub.mjs";
-import { main as localRunner, parseArgs as localArgs, sourceFor } from "../scripts/local-runner.mjs";
+import { main as localRunner, NO_CAPTURE, parseArgs as localArgs, sourceFor, UNKNOWN_REPOSITORY } from "../scripts/local-runner.mjs";
 import { root } from "./helpers";
 
 // 실행기(runner/run.mjs, runner/tar.mjs)와 로컬 실행기(scripts/local-runner.mjs). 실제 GitHub·Anthropic·CLI 를 부르지 않는다.
@@ -367,7 +367,8 @@ describe("로컬 실행기 (scripts/local-runner.mjs --fixture)", () => {
   beforeAll(async () => {
     db = await openDatabase({ databaseUrl: null, pgliteDir: "memory://" });
     const stub = createGitHubStub({ origin: "http://stub.test" });
-    const config = readConfig({ RUNNER: "local", RUNNER_SECRET: SECRET, POOL_SIZE: "5" });
+    // 설정의 GitHub 주소도 가짜 GitHub 이다(로컬 실행기 + 실제 GitHub 은 요청을 받지 않는다. 재디자인 D4).
+    const config = readConfig({ RUNNER: "local", RUNNER_SECRET: SECRET, POOL_SIZE: "5", GITHUB_API_BASE: "http://stub.test" });
     const store = createDbStore({
       db: async () => db,
       github: createGitHub({ apiBase: "http://stub.test", token: null, searchCacheSeconds: 60, repoCacheSeconds: 300, fetch: stub.fetch as typeof fetch }),
@@ -408,16 +409,43 @@ describe("로컬 실행기 (scripts/local-runner.mjs --fixture)", () => {
       expect(analysis?.steps.every((step) => step.startedAt && step.endedAt)).toBe(true);
       expect(await deps.store().getResult(id)).toEqual(JSON.parse(readFileSync(path.join(root, "contract", "cli-current", `${fixture}.main.json`), "utf8")));
     }
-    expect(sourceFor("example-labs", "plain.utils", { source: "/x" }).dir).toBe(path.join(root, "contract", "fixtures", "plain", "main"));
-    expect(sourceFor("someone", "else", { source: "/x" }).dir).toBe("/x");
+    expect(sourceFor("example-labs", "plain.utils", { source: null })?.dir).toBe(path.join(root, "contract", "fixtures", "plain", "main"));
+    // --source 를 줘도 합성 저장소는 제 합성 데모 코드다(다른 폴더의 코드가 그 이름에 붙지 않는다).
+    expect(sourceFor("example-labs", "plain.utils", { source: "/x" })?.dir).toBe(path.join(root, "contract", "fixtures", "plain", "main"));
+    // 가짜 GitHub 의 목록에 없는 저장소는 --source 를 직접 준 때만 그 폴더(수집본 없음)이고, 아니면 검사하지 않는다(재디자인 D4).
+    expect(sourceFor("someone", "else", { source: "/x" })).toEqual({ dir: "/x", capture: null });
+    expect(sourceFor("someone", "else", { source: null })).toBeNull();
+    // 합성 데모 코드가 없는 합성 저장소(크기 상한을 넘는 것)도 같다.
+    expect(sourceFor("example-labs", "huge-monorepo", { source: null })).toBeNull();
+    expect(localArgs([]).source).toBeNull();
   });
 
-  it("검사할 폴더에 문제가 있으면 그 단계와 까닭을 실패로 알린다", async () => {
+  /** 가짜 GitHub 에 없는 저장소의 분석이 대기열에 있는 것처럼 만든다(사이트는 가짜 GitHub 에 있는 저장소만 받으므로). */
+  const unknownRepository = async () => {
     const id = await request("example-org", "night-push");
-    // 가짜 GitHub 에 있는 저장소라 합성 데모 코드를 쓴다. 상한을 넘게 하려고 다른 저장소의 폴더를 비워 둔 것처럼 시험하는 대신,
-    // 없는 폴더를 가리키는 저장소를 흉내 낸다.
     await db.query("UPDATE analyses SET owner = 'someone', repo = 'else', repo_key = 'someone/else' WHERE id = $1", [id]);
+    return id;
+  };
+
+  it("가짜 GitHub 의 합성 저장소가 아니면 kids-signup 수집본이나 다른 폴더의 결과를 붙이지 않고 저장소 받기에서 실패로 적는다", async () => {
+    for (const args of [["--fixture"], []]) {
+      const id = await unknownRepository();
+      await localRunner([...args, "--once", "--site", site], { RUNNER_SECRET: SECRET });
+      const analysis = await deps.store().findAnalysis(id);
+      expect(analysis?.status, args.join(" ")).toBe("failed");
+      expect(analysis?.failure).toEqual({ step: "fetch", reason: UNKNOWN_REPOSITORY });
+      expect(await deps.store().getResult(id)).toBeNull();
+    }
+    // --source 를 주어도 --fixture 면 그 폴더의 수집본이 없으므로 결과를 꾸미지 않는다.
+    const id = await unknownRepository();
     await localRunner(["--fixture", "--once", "--site", site, "--source", path.join(scratch, "missing")], { RUNNER_SECRET: SECRET });
+    expect((await deps.store().findAnalysis(id))?.failure).toEqual({ step: "fetch", reason: NO_CAPTURE });
+  });
+
+  it("검사할 폴더에 문제가 있으면 그 단계와 까닭을 실패로 알린다(--source 를 직접 준 저장소)", async () => {
+    // 없는 폴더를 가리키는 --source. CLI 를 돌리기 전, 저장소 받기에서 멈춘다.
+    const id = await unknownRepository();
+    await localRunner(["--once", "--site", site, "--source", path.join(scratch, "missing")], { RUNNER_SECRET: SECRET });
     const analysis = await deps.store().findAnalysis(id);
     expect(analysis?.status).toBe("failed");
     expect(analysis?.failure?.step).toBe("fetch");

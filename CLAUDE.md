@@ -82,11 +82,11 @@ npm run pack-meta   # 팩에서 data/pack-meta.json 다시 만들기
 | 경로 | 내용 |
 |---|---|
 | `src/app/` | 페이지: `/`(첫 화면: 표지·검색창·최근 분석), `/search`(빈 상태: 최근 분석·검사하는 정책, 질의: 결과·0건), `/r/[owner]/[repo]`(저장소), `/r/[owner]/[repo]/a/[id]`(분석) — 이 넷은 요청 때 그린다, `/view`(결과 파일), `/demo`(고치기 전·후), `/policy`(조문 도감) — 빌드할 때 그린다 |
-| `src/lib/service/` | 분석 서비스의 데이터 모델과 `ServiceStore` 인터페이스, 합성 구현(`synthetic.ts`, SERVICE_STORE=synthetic 미리보기·시험용), 이름 검사, 최근 분석 고르기(`activity.ts`), 두벌식 → QWERTY(`keyboard.ts`) |
+| `src/lib/service/` | 분석 서비스의 데이터 모델과 `ServiceStore` 인터페이스, 합성 구현(`synthetic.ts`, SERVICE_STORE=synthetic 미리보기·시험용), 이름 검사, 최근 분석 고르기(`activity.ts`), 두벌식 → QWERTY(`keyboard.ts`), 자동 완성의 질의 꼴·합치기·상태 줄(`suggest.ts`) |
 | `src/server/` | 서버 코드(모두 `import "server-only"`): 설정(`config.ts`, 환경 변수와 기본값), DB(`db/`, pg·PGlite, `migrations/*.sql`), GitHub 클라이언트(`github.ts`), 실행기 깨우기(`runner.ts`), 저장소 구현(`store/`, `getStore()` 가 고른다), `/api/` 의 일(`api.ts`), 실행기 콜백의 상태 전이(`callbacks.ts`)와 서명(`signature.ts`) |
-| `src/app/api/` | route handler: `analyses/`(요청), `analyses/[id]/`(진행), `runner/[id]/`(실행기 콜백), `runner/claim/`(로컬 실행기). `src/server/api.ts` 를 부르기만 한다. 서버 코드는 `src/server/` 와 여기에만 둔다 |
+| `src/app/api/` | route handler: `analyses/`(요청), `analyses/[id]/`(진행), `repos/suggest/`(검색창 자동 완성), `runner/[id]/`(실행기 콜백), `runner/claim/`(로컬 실행기). `src/server/api.ts` 를 부르기만 한다. 서버 코드는 `src/server/` 와 여기에만 둔다 |
 | `runner/`, `.github/workflows/analyze.yml` | 분석 실행기(GitHub Actions). `run.mjs`·`tar.mjs` 는 Node 내장 모듈만 쓴다. 대상 코드를 실행하지 않는다 |
-| `src/components/service/` | 검색창, 최근 분석 줄(`activity.tsx`), 저장소 쪽의 최신 분석(`repository.tsx`), 분석 쪽 부품, 분석 대시보드. 브라우저 부품은 요청 단추(`RequestButton.tsx`)와 진행 다시 읽기(`LiveAnalysis.tsx`) 둘이고 같은 사이트의 `/api/` 만 부른다. 머리글의 브라우저 부품(`src/components/HeaderBehavior.tsx`, 메뉴 닫기·지금 쪽 표시)은 어디에도 요청하지 않는다 |
+| `src/components/service/` | 검색창(`SearchForm.tsx` 가 셋 모두 `SearchCombobox.tsx` 로 그린다), 최근 분석 줄(`activity.tsx`), 저장소 쪽의 최신 분석(`repository.tsx`), 분석 쪽 부품, 분석 대시보드. 브라우저 부품은 요청 단추(`RequestButton.tsx`), 진행 다시 읽기(`LiveAnalysis.tsx`), 검색창 자동 완성(`SearchCombobox.tsx`) 셋이고 같은 사이트의 `/api/` 만 부른다. 머리글의 브라우저 부품(`src/components/HeaderBehavior.tsx`, 메뉴 닫기·지금 쪽 표시)은 어디에도 요청하지 않는다 |
 | `src/components/result/` | 결과 화면 부품. 모든 페이지가 함께 쓴다 |
 | `src/lib/report/` | 결과 JSON 타입, 파서, 상태 문구, 화면용 구조 |
 | `src/lib/pack/` | 팩 메타데이터 타입과 읽기 |

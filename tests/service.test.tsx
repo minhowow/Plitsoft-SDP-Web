@@ -69,7 +69,8 @@ describe("합성 데이터", () => {
     for (const { repository } of repos) {
       expect(repository.synthetic).toBe(true);
       expect(repository.htmlUrl).toBeNull();
-      expect(repository.description).toContain("합성 예시");
+      // 설명에는 "합성 예시"를 적지 않는다(재디자인 D4). 합성인 것은 쪽의 이름표가 밝힌다(showsSyntheticTag, tests/server-config.test.ts).
+      expect(repository.description).toBeTruthy();
       // 정적 내보내기에서 점이 든 마지막 조각은 끝 슬래시를 잃는다(src/lib/service/href.ts).
       expect(`${repository.owner}/${repository.name}`).toMatch(/^[a-z0-9-]+\/[a-z0-9-]+$/);
       expect(repository.owner).toMatch(/^example-/);
@@ -573,7 +574,10 @@ describe("검색 0건 (docs/redesign.md 3장 '검색')", () => {
 
   it("GitHub 에 묻지 못하면 그 까닭을 그대로 적는다", () => {
     const html = renderToStaticMarkup(<SearchResults query="kids" outcome={{ ok: false, message: "상한(시험)." }} tagged={false} fakeGitHub={false} />);
-    expect(textOf(html)).toContain("검색하지 못했습니다. 상한(시험).");
+    // 제목(‘kids’ 검색하지 못함)이 이미 말하므로 '검색하지 못했습니다.'를 되풀이하지 않는다(D4 검토).
+    expect(textOf(html)).toContain("검색하지 못함");
+    expect(textOf(html)).toContain("상한(시험).");
+    expect(textOf(html)).not.toContain("검색하지 못했습니다");
   });
 });
 
