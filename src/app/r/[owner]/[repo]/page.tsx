@@ -1,13 +1,15 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
-import { AnalysisList, InProgress, RequestPanel } from "@/components/service/analysis";
+import { HistoryTable, RequestAction } from "@/components/service/analysis";
 import { RepoName } from "@/components/service/parts";
+import { LatestAnalysis } from "@/components/service/repository";
+import { packMeta } from "@/lib/pack";
+import { parseReport } from "@/lib/report/parse";
+import { buildReportView } from "@/lib/report/view-model";
 import { orUnavailable } from "@/lib/service/errors";
-import { placeOf } from "@/lib/service/queue";
-import { analysisHref, repoHref } from "@/lib/service/href";
+import { repoHref } from "@/lib/service/href";
 import { isRepoFullName } from "@/lib/service/names";
-import { SITE } from "@/lib/site";
-import Link from "next/link";
+import { showsSyntheticTag } from "@/server/config";
 import { getStore } from "@/server/store";
 
 // 저장소 정보(GitHub)와 분석 기록(DB)을 요청 때 읽는다.
@@ -19,6 +21,10 @@ export async function generateMetadata({ params }: PageProps<"/r/[owner]/[repo]"
   return { title: `${owner}/${repo}` };
 }
 
+/**
+ * 저장소 쪽(docs/redesign.md 3장 "저장소", 목업 repo): 머리(이름, 설명, 기본 브랜치·언어·분석 수, 오른쪽에 요청 단추), 최신 분석
+ * 상자(가장 나중에 끝난 분석), 분석 기록 표.
+ */
 export default async function RepositoryPage({ params }: PageProps<"/r/[owner]/[repo]">) {
   const { owner, repo } = await params;
   if (!isRepoFullName(owner, repo)) notFound();
@@ -31,74 +37,58 @@ export default async function RepositoryPage({ params }: PageProps<"/r/[owner]/[
       if (!repository) return null;
       const analyses = await store.listAnalyses(repository.owner, repository.name);
       // 끝난 분석마다 결과에 실린 발견 수(결과를 받을 때 결과 화면과 같은 파서로 센 값). 결과가 없거나 읽지 못하면 null 이다
-      // (0 으로 적지 않는다). 결과 JSON 전체를 분석마다 읽지 않는다.
+      // (0 으로 적지 않는다). 결과 JSON 전체는 최신 분석 하나만 읽는다.
       const findings = await store.findingCounts(analyses.filter((analysis) => analysis.status === "succeeded").map((analysis) => analysis.id));
-      // 대기열과 실행 자리(DB 에서 센 것). 대기 중인 분석이 몇 번째인지, 지금 자리가 몇 개 차 있는지 적는다. 합성은 null.
+      const latest = analyses.find((analysis) => analysis.status === "succeeded") ?? null;
+      const result = latest ? await store.getResult(latest.id) : null;
+      // 대기열(DB 에서 센 것). 대기 중인 분석이 몇 번째인지 적는다. 합성은 null.
       const queue = await store.queue();
-      return { repository, analyses, findings, queue };
+      return { repository, analyses, findings, latest, result, queue };
     })(),
   );
   if (!found.ok) return <Unavailable owner={owner} repo={repo} message={found.message} />;
   if (!found.value) notFound();
-  const { repository, analyses, findings, queue } = found.value;
-  const moving = analyses.filter((analysis) => analysis.status === "queued" || analysis.status === "running");
+  const { repository, analyses, findings, latest, result, queue } = found.value;
+  const parsed = latest ? parseReport(result) : null;
+  const view = parsed?.ok ? buildReportView(parsed.report, parsed.contract, packMeta) : null;
 
   return (
     <div className="page-wide repo-page">
       <header className="repo-head">
-        <h1>
-          <RepoName owner={repository.owner} name={repository.name} />
-        </h1>
-        {repository.description && <p className="lede">{repository.description}</p>}
-        <dl className="an-facts">
-          <div>
-            <dt>기본 브랜치</dt>
-            <dd>
-              <code>{repository.defaultBranch}</code>
-            </dd>
-          </div>
-          {repository.language && (
-            <div>
-              <dt>언어</dt>
-              <dd>{repository.language}</dd>
-            </div>
-          )}
-          <div>
-            <dt>분석</dt>
-            <dd>{analyses.length}회</dd>
-          </div>
-        </dl>
+        <div className="repo-ttl">
+          <h1 translate="no">
+            <RepoName owner={repository.owner} name={repository.name} />
+          </h1>
+          {showsSyntheticTag() && <span className="tag">합성 예시</span>}
+        </div>
+        {repository.description && <p className="repo-desc">{repository.description}</p>}
+        <p className="repo-meta">
+          <span>
+            기본 브랜치{" "}
+            <span className="v" translate="no">
+              {repository.defaultBranch}
+            </span>
+          </span>
+          {repository.language && <span className="v">{repository.language}</span>}
+          <span>
+            분석 <span className="v">{analyses.length}회</span>
+          </span>
+        </p>
+        <RequestAction repository={repository} closed={store.requestsClosed()} />
       </header>
-      {store.synthetic && <p className="notice">{SITE.service.synthetic}</p>}
 
-      <RequestPanel
-        repository={repository}
-        latest={analyses[0] ?? null}
-        closed={store.requestsClosed()}
-        queue={queue}
-      />
-
-      {moving.map((analysis) => (
-        <section key={analysis.id} className="repo-moving" aria-label={`진행 중인 분석 ${analysis.id}`}>
-          <p className="repo-moving-head">
-            진행 중인 분석{" "}
-            <Link href={analysisHref(repository.owner, repository.name, analysis.id)}>
-              <code>{analysis.id}</code>
-            </Link>
-          </p>
-          <InProgress analysis={analysis} compact place={placeOf(queue, analysis.id)} countedAt={queue?.countedAt ?? null} />
-        </section>
-      ))}
+      {latest && <LatestAnalysis repository={repository} analysis={latest} view={view} />}
 
       <section aria-labelledby="history-title" className="repo-history">
-        <h2 id="history-title">분석 기록</h2>
+        <div className="sec-h">
+          <h2 id="history-title">
+            분석 기록 <span className="count">{analyses.length}</span>
+          </h2>
+        </div>
         {analyses.length > 0 ? (
-          <>
-            <p className="hint">나중에 요청한 분석이 위입니다. 같은 저장소를 여러 번 분석해도 분석마다 따로 남습니다.</p>
-            <AnalysisList repository={repository} analyses={analyses} findings={findings} queue={queue} />
-          </>
+          <HistoryTable repository={repository} analyses={analyses} findings={findings} queue={queue} />
         ) : (
-          <p className="notice">아직 분석된 적이 없습니다. 위에서 분석을 요청하면 이곳에 기록이 생깁니다.</p>
+          <p className="box-empty box">아직 분석 없음</p>
         )}
       </section>
     </div>

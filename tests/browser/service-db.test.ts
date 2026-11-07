@@ -30,7 +30,10 @@ const SUCCEEDED = "dbk7wq2zhm";
 /** 시험용 고정 서명 열쇠(비밀값이 아니다). 서버와 로컬 실행기에 같이 준다. */
 const RUNNER_SECRET = "browser-test-runner-secret";
 const FAILED = "dbk7wq2zhn";
-/** 발견 0건으로 끝난 분석. 첫 화면의 최근 분석에 0건 줄이 있으면 0의 뜻이 함께 보이는지 본다. */
+/**
+ * 발견 0건으로 끝난 분석. 저장소 쪽(최신 분석 상자와 기록 표)에 0건이 보이면 0의 뜻이 함께 보이는지 본다. 첫 화면은 저장소마다
+ * 한 줄이고 이 저장소에는 대기 중인 분석(WAITING)이 있어 그 줄이 보인다(재디자인 D3).
+ */
 const ZERO = "dbk7wq2zhr";
 /**
  * 띄울 때 대기 중으로 넣어 두는 분석(진행 다시 읽기와 탭이 숨었을 때 쉬는 것을 본다). 실행기에 보낸 것으로 넣어 실행 자리
@@ -107,12 +110,35 @@ afterAll(async () => {
 const open = (pathname: string) => openPage(browser, site, pathname, { viewport: { width: 375, height: 800 }, colorScheme: "light", contexts, problems });
 
 describe("DB + GitHub 으로 띄운 사이트", () => {
-  it("첫 화면의 최근 분석은 DB 에서 온다. 합성 예시라고 적지 않고, 0건 줄이 있으면 0의 뜻을 함께 보인다", async () => {
+  it("첫 화면의 최근 분석은 DB 에서 온다: 저장소마다 한 줄, 대기 중인 분석이 먼저, 그다음 가장 나중의 분석. 요청 시각 차례", async () => {
     const { page, outside } = await open("/");
-    expect(await page.locator(".recent-card").allTextContents()).toEqual([expect.stringContaining(SUCCEEDED), expect.stringContaining(ZERO)]);
-    expect(await page.locator(".recent-card").nth(1).textContent()).toContain("발견 0건");
-    expect(await page.locator("main").textContent()).not.toContain("합성 예시");
-    expect(await page.getByText(SITE.zeroIsNotClearance, { exact: true }).isVisible()).toBe(true);
+    const hrefs = await page.locator(".act-row").evaluateAll((rows) => rows.map((row) => row.getAttribute("href")));
+    expect(hrefs).toEqual([
+      analysisHref("example-studio", "genai-chat", QUEUED),
+      // plain.utils 는 대기 중인 분석(WAITING)을 보인다. WAITING 은 끝난 분석(ZERO)보다 나중에 요청한 것이기도 해서 여기서는
+      // "진행 중이 먼저"를 가르지 못한다. 그 규칙은 tests/server-store.test.ts 의 "최근 분석" 두 시험이 본다.
+      analysisHref("example-labs", "plain.utils", WAITING),
+      // kids-signup 은 가장 나중의 분석(실패)을 보인다.
+      analysisHref("example-org", "kids-signup", FAILED),
+    ]);
+    expect(await page.locator(".act-row .act-state").allTextContents()).toEqual(["대기 중", "대기 중", "실패"]);
+    // 0건 줄이 보이지 않으므로 0의 뜻도 없다.
+    expect(await page.getByText(SITE.zeroIsNotClearance, { exact: true }).count()).toBe(0);
+    // GitHub 이 가짜(GITHUB_API_BASE 가 기본값이 아님)라 합성 예시 이름표를 단다. 운영 설정에서 꺼지는 것은 tests/server-config.test.ts.
+    expect(await page.locator(".home-feed .tag").textContent()).toBe("합성 예시");
+    expect(await page.locator("main").textContent()).not.toContain(SITE.service.synthetic);
+    expect(outside).toEqual([]);
+  });
+
+  it("검색 빈 상태와 검색 0건: 이 사이트의 분석, 가짜 GitHub 이면 그 사실 한 줄(저장소 수는 적지 않는다)", async () => {
+    const { page, outside } = await open("/search/");
+    expect(await page.locator(".search-home-recent .act-row").count()).toBe(3);
+    await page.goto(`${site.origin}/search/?q=zzzz`);
+    expect(await page.locator(".empty-head").textContent()).toBe("‘zzzz’에 맞는 저장소 없음");
+    expect(await page.locator(".empty-block").innerText()).toContain("로컬 가짜 GitHub: 합성 저장소만 찾습니다.");
+    expect(await page.locator(".sr-list .repo-link").allTextContents()).toEqual(["Example-Studio / GenAI-Chat", "example-labs / plain.utils", "example-org / kids-signup"]);
+    // 기록에 있는 저장소의 설명은 DB 에 없다(꾸며 채우지 않는다).
+    expect(await page.locator(".sr-list .sr-desc").count()).toBe(0);
     expect(outside).toEqual([]);
   });
 
@@ -129,6 +155,8 @@ describe("DB + GitHub 으로 띄운 사이트", () => {
     ]);
     expect(rows[0]).toContain("분석 2회");
     expect(rows[1]).toContain("분석된 적 없음");
+    // 가짜 GitHub 이라 결과 머리에 합성 예시 이름표를 단다.
+    expect(await page.locator(".sec-h .tag").textContent()).toBe("합성 예시");
     // 브라우저는 GitHub 을 부르지 않는다. 서버만 불렀다.
     expect(outside).toEqual([]);
     expect(stub.calls.some((call) => call.path.startsWith("/search/repositories"))).toBe(true);
@@ -137,15 +165,46 @@ describe("DB + GitHub 으로 띄운 사이트", () => {
   it("저장소 쪽: GitHub 이 돌려준 이름, DB 의 분석 기록, 그리고 누를 수 있는 요청 단추", async () => {
     const { page, outside } = await open(repoHref("example-org", "kids-signup"));
     expect(await page.locator("h1").textContent()).toBe("example-org / kids-signup");
-    expect(await page.locator(".an-list .an-row").count()).toBe(2);
+    // 가짜 GitHub 이라 쪽 머리에 합성 예시 이름표를 단다.
+    expect(await page.locator(".repo-ttl .tag").textContent()).toBe("합성 예시");
+    expect(await page.locator(".an-table tbody tr").count()).toBe(2);
     const button = page.locator(".request button");
-    expect(await button.textContent()).toBe("다시 분석 요청");
+    expect(await button.textContent()).toBe("main 최신 커밋 분석");
     expect(await button.getAttribute("aria-disabled")).toBeNull();
     expect(await page.locator("#request-off").count()).toBe(0);
     // 가짜 GitHub 의 저장소 주소는 github.com 이 아니라 링크를 걸지 않는다.
     expect(await page.locator("a[href^='http']").count()).toBe(0);
+    // 최신 분석 상자는 가장 나중에 끝난 분석(실패한 분석이 더 나중이어도)이다.
+    expect(await page.locator(".latest-hd").innerText()).toContain(SUCCEEDED);
+    expect(await page.locator(".latest-fd").count()).toBeGreaterThan(0);
     expect(outside).toEqual([]);
     expect(await stored(page)).toEqual(NO_STORAGE);
+  });
+
+  it("저장소 쪽: 발견 0건인 최신 분석과 기록 표의 0건 아래에 0의 뜻", async () => {
+    const { page } = await open(repoHref("example-labs", "plain.utils"));
+    expect(await page.locator(".latest-hd").innerText()).toContain(ZERO);
+    expect(await page.locator(".latest .zero-note").textContent()).toBe(SITE.zeroIsNotClearance);
+    expect(await page.locator(".repo-history .zero-note").textContent()).toBe(SITE.zeroIsNotClearance);
+  });
+
+  it.each([
+    [375, "light"],
+    [375, "dark"],
+    [1280, "light"],
+    [1280, "dark"],
+  ] as const)("%ipx %s: 첫 화면·검색(빈 상태, 0건)·저장소 쪽이 가로로 넘치지 않고, 실행 자리의 수를 적지 않는다(재디자인 D3)", async (width, scheme) => {
+    const pages = ["/", "/search/", "/search/?q=zzzz", "/search/?q=ㅁㅁ", repoHref("example-org", "kids-signup"), repoHref("example-labs", "plain.utils"), repoHref("example-studio", "genai-chat")];
+    const { page, outside } = await openPage(browser, site, pages[0], { viewport: { width, height: 800 }, colorScheme: scheme, contexts, problems });
+    const bad: string[] = [];
+    for (const pathname of pages) {
+      if (pathname !== pages[0]) await page.goto(`${site.origin}${pathname}`, { waitUntil: "networkidle" });
+      const measured = await overflow(page);
+      if (measured.page !== 0 || measured.over.length > 0) bad.push(`${pathname}: ${JSON.stringify(measured)}`);
+      if (/실행 자리/.test(await page.locator("main").innerText())) bad.push(`${pathname}: 실행 자리 문구`);
+    }
+    expect(bad).toEqual([]);
+    expect(outside).toEqual([]);
   });
 
   it("이름에 점이 든 저장소와 대소문자가 섞인 저장소도 열린다(주소는 소문자)", async () => {
@@ -173,24 +232,24 @@ describe("DB + GitHub 으로 띄운 사이트", () => {
     expect(await page.locator(".step-failed .step-name").allTextContents()).toEqual(["저장소 받기·도구 설치"]);
   });
 
-  it("대기열: 실행 자리가 차 있으면 대기 중인 분석 쪽과 저장소 쪽에 대기열의 몇 번째인지와 실행 자리를 적는다(DB 에서 센 숫자)", async () => {
+  it("대기열: 실행 자리가 차 있으면 대기 중인 분석 쪽과 저장소 쪽에 대기열의 몇 번째인지만 적는다(DB 에서 센 숫자. 실행 자리의 수는 적지 않는다)", async () => {
     const { page, outside } = await open(analysisHref("example-studio", "genai-chat", QUEUED));
     expect(await page.locator(".an-title .badge").textContent()).toBe("대기 중");
-    expect(await page.locator(".an-queue").textContent()).toBe(
-      "대기열 1번째입니다(앞에 0개). 실행 자리 1개 중 1개 사용 중입니다. 앞의 분석이 끝나 자리가 나면 차례대로 실행기에 보냅니다.",
-    );
+    expect(await page.locator(".an-queue").textContent()).toBe("대기열 1번째");
     // 진행 읽기도 같은 숫자를 준다.
     const api = (await (await fetch(`${site.origin}/api/analyses/${QUEUED}/`)).json()) as { queue: unknown };
     expect(api.queue).toEqual({ kind: "waiting", ahead: 0, poolSize: 1, inUse: 1 });
 
     await page.goto(`${site.origin}${repoHref("example-studio", "genai-chat")}`);
-    expect(await page.locator(".an-list .an-row-out").allTextContents()).toEqual(["대기열 1번째(앞에 0개)"]);
-    expect(await page.locator(".repo-moving .an-queue").textContent()).toContain("대기열 1번째입니다(앞에 0개).");
-    expect(await page.locator(".request-queue").textContent()).toContain("실행 자리 1개 중 1개 사용 중, 대기열 1개.");
+    // 저장소 쪽은 다시 읽지 않으므로 센 때(한국 표준시 시:분)를 붙인다.
+    const notes = await page.locator(".an-table .an-row-note").allTextContents();
+    expect(notes).toHaveLength(1);
+    expect(notes[0]).toMatch(/^대기열 1번째 \(\d\d:\d\d KST 기준\)$/);
+    expect(await page.locator("main").innerText()).not.toContain("실행 자리");
 
     // 자리를 차지한 분석(실행기에 보냄, 아직 시작을 알리지 않음).
     await page.goto(`${site.origin}${analysisHref("example-labs", "plain.utils", WAITING)}`);
-    expect(await page.locator(".an-queue").textContent()).toContain("실행 자리를 얻어 실행기에 보냈고");
+    expect(await page.locator(".an-queue").textContent()).toBe("실행기에 보냄, 시작 기다림");
     expect(outside).toEqual([]);
   });
 
@@ -202,7 +261,7 @@ describe("DB + GitHub 으로 띄운 사이트", () => {
     await note.waitFor();
     expect(await note.textContent()).toMatch(/^요청하지 못했습니다\. 저장소가 너무 커서 분석하지 않습니다\(GitHub 이 센 크기 [\d,]+KB, 상한 100,000KB\)\.$/);
     expect(await page.locator(".request button").getAttribute("aria-disabled")).toBeNull();
-    expect(await page.locator(".request button").textContent()).toBe("분석 요청");
+    expect(await page.locator(".request button").textContent()).toBe("main 최신 커밋 분석");
     expect(page.url()).toBe(`${site.origin}${repoHref("example-labs", "huge-monorepo")}`);
     expect(site.requests.filter((r) => r.method === "POST" && r.url === "/api/analyses/").at(-1)?.status).toBe(422);
     // 브라우저는 4xx 응답마다 콘솔에 한 줄을 남긴다. 이 시험은 그 응답을 일부러 받았다. 그 한 줄만 봐준다.
@@ -342,7 +401,7 @@ describe("DB + GitHub 으로 띄운 사이트", () => {
   it("요청 단추 → 대기열 → 로컬 실행기(--fixture) → 단계 콜백 → 결과: 분석 쪽이 스스로 단계를 다시 그리고 대시보드가 된다", async () => {
     const { page, outside } = await open(repoHref("example-org", "night-push"));
     await page.evaluate(() => ((window as unknown as { __sameDocument: boolean }).__sameDocument = true));
-    expect(await page.locator(".request button").textContent()).toBe("분석 요청");
+    expect(await page.locator(".request button").textContent()).toBe("main 최신 커밋 분석");
     await page.locator(".request button").click();
     await page.waitForURL(/\/r\/example-org\/night-push\/a\/[a-z0-9]{10}\/$/);
     const id = page.url().match(/\/a\/([a-z0-9]{10})\/$/)![1];
@@ -353,7 +412,7 @@ describe("DB + GitHub 으로 띄운 사이트", () => {
     expect(await page.locator(".an-title .badge").textContent()).toBe("대기 중");
     expect(await page.locator(".step-active .step-name").allTextContents()).toEqual(["대기"]);
     // 실행 자리(1)는 앞서 보낸 QUEUED 가 쓰고 있다. 이 분석은 대기열의 첫째다.
-    expect(await page.locator(".an-queue").textContent()).toContain("대기열 1번째입니다(앞에 0개). 실행 자리 1개 중 1개 사용 중입니다.");
+    expect(await page.locator(".an-queue").textContent()).toBe("대기열 1번째");
 
     // 로컬 실행기가 QUEUED 를 먼저 돌리고(단계 사이 4초), 그 결과를 받은 서버가 자리를 이 분석에 넘기면 곧바로 집어 이어서 돌린다
     // ('실행기에 보냄'은 집어 가기까지의 한순간이라 쪽에 그려지지 않을 수 있다). 쪽이 3초마다 읽으므로 중간 단계 하나는 그려진다.

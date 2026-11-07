@@ -55,32 +55,34 @@ export function placeOf(snapshot: QueueSnapshot | null, id: string): QueuePlace 
   return null;
 }
 
-/** "실행 자리 2개 중 1개 사용 중" */
-export function poolText(poolSize: number, inUse: number): string {
-  return `실행 자리 ${poolSize}개 중 ${inUse}개 사용 중`;
-}
+/*
+ * 화면에 적는 말. 실행 자리의 수(POOL_SIZE, 쓰는 수)는 운영 내부 수치라 적지 않는다(docs/redesign.md 2.3 의 낱말 표). 대기 중일
+ * 때 대기열의 몇 번째인지만 적는다. 숫자는 여전히 DB 에서 센 것이다.
+ */
 
-/** 목록 한 줄에 적는 짧은 말. "대기열 2번째(앞에 1개)" / "실행기에 보냄, 시작 기다림" */
+/** 대기열에서의 자리. "대기열 2번째" / "실행기에 보냄, 시작 기다림" */
 export function placeShort(place: QueuePlace): string {
-  return place.kind === "waiting" ? `대기열 ${place.ahead + 1}번째(앞에 ${place.ahead}개)` : "실행기에 보냄, 시작 기다림";
+  return place.kind === "waiting" ? `대기열 ${place.ahead + 1}번째` : "실행기에 보냄, 시작 기다림";
 }
 
-/** 분석 쪽과 저장소 쪽의 진행 칸에 적는 말. */
+/**
+ * 분석 쪽의 진행 칸에 적는 말. 그 쪽은 몇 초마다 다시 읽으므로 센 때를 붙이지 않는다. 실행기를 깨우지 못해 대기열이 멈춰 있으면
+ * 그 사실과 까닭을 함께 적는다(조건이 맞을 때만 나오는 문장이다. 숨기면 멈춘 대기열이 그냥 기다리는 것으로 읽힌다).
+ */
 export function placeText(place: QueuePlace): string {
-  const pool = `${poolText(place.poolSize, place.inUse)}입니다.`;
-  if (place.kind === "dispatched") {
-    return `실행 자리를 얻어 실행기에 보냈고, 실행기가 시작을 알리기를 기다리고 있습니다. ${pool}`;
+  const short = placeShort(place);
+  if (place.kind === "waiting" && place.wakeFailure) {
+    return `${short}. 실행기를 깨우지 못해 대기열이 잠시 멈춰 있습니다. 까닭: ${place.wakeFailure} ${WAKE_RETRY_MINUTES}분이 지난 뒤 다시 깨워 봅니다.`;
   }
-  const order = `대기열 ${place.ahead + 1}번째입니다(앞에 ${place.ahead}개). ${pool}`;
-  if (place.wakeFailure) {
-    return `${order} 실행기를 깨우지 못해 대기열이 잠시 멈춰 있습니다. 까닭: ${place.wakeFailure} ${WAKE_RETRY_MINUTES}분이 지난 뒤 대기열을 넘길 때 다시 깨워 봅니다.`;
-  }
-  return `${order} 앞의 분석이 끝나 자리가 나면 차례대로 실행기에 보냅니다.`;
+  return short;
 }
 
-/** 숫자를 센 때(서버가 한 번 그리고 다시 읽지 않는 쪽에 적는다). "이 쪽을 연 때(2026-11-03 12:00 한국 표준시)" */
-export function countedText(countedAt: string): string {
-  return `이 쪽을 연 때(${formatKst(countedAt)} 한국 표준시)`;
+/**
+ * 다시 읽지 않는 쪽(저장소 쪽)에 적는 말. 숫자가 그때의 것이라고 센 때(한국 표준시 시:분)를 붙인다. "대기열 2번째 (12:04 KST 기준)".
+ * 좁은 화면에서는 기록 표의 요청 시각 칸(머리의 KST)이 숨으므로 시각 뒤에 KST 를 적는다.
+ */
+export function placeAt(place: QueuePlace, countedAt: string): string {
+  return `${placeShort(place)} (${formatKst(countedAt).slice(11)} KST 기준)`;
 }
 
 /** 서버가 돌려준 값이 대기열의 자리인지 본다(브라우저 부품이 읽을 때). 아니면 null. */

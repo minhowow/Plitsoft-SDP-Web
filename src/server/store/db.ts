@@ -205,13 +205,25 @@ export function createDbStore(deps: DbStoreDeps): ServiceStore {
       return readQueue(await database(), limits.poolSize, now());
     },
 
-    async recentSucceeded(limit) {
+    async recentActivity(limit) {
+      // 정리(tidyQueue) 뒤에 읽는다: 시간을 넘긴 분석은 이미 실패로 적혀 있다. 저장소마다(소문자 열쇠 repo_key) 한 줄을 고르는
+      // 차례는 src/lib/service/activity.ts 의 pickActivity 와 같다(대기·분석 중 먼저, 그다음 나중에 요청한 것, 같으면 id).
       const db = await reading();
-      const rows = await db.query<Row>(
-        `SELECT ${COLUMNS} FROM analyses WHERE status = 'succeeded' ORDER BY finished_at DESC NULLS LAST, requested_at DESC LIMIT $1`,
-        [limit],
+      const rows = await db.query<Row & { n: number; latest_at: Date | string }>(
+        `SELECT * FROM (
+           SELECT DISTINCT ON (repo_key) ${COLUMNS}, (count(*) OVER per_repo)::int AS n, max(requested_at) OVER per_repo AS latest_at
+           FROM analyses
+           WINDOW per_repo AS (PARTITION BY repo_key)
+           ORDER BY repo_key, (status IN ('queued', 'running')) DESC, requested_at DESC, id
+         ) picked
+         ORDER BY requested_at DESC, id
+         LIMIT $1`,
+        [Math.max(0, Math.floor(limit))],
       );
-      return rows.rows.map(rowToAnalysis).map((analysis) => ({ repository: recorded(analysis), analysis }));
+      return rows.rows.map((row) => {
+        const analysis = rowToAnalysis(row);
+        return { repository: recorded(analysis), analysis, analyses: row.n, latestAt: iso(row.latest_at) };
+      });
     },
 
     async requestAnalysis(owner, name): Promise<RequestOutcome> {

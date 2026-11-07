@@ -9,10 +9,11 @@ import { migrate, openDatabase, readMigrations, type Database } from "@/server/d
 import { createSharedBudget } from "@/server/budget";
 import { createGitHub, GitHubError } from "@/server/github";
 import type { WakeOutcome } from "@/server/runner";
-import { placeOf, placeShort, placeText } from "@/lib/service/queue";
+import { placeAt, placeOf, placeShort, placeText } from "@/lib/service/queue";
 import { dispatchTimeoutReason, pumpQueue, queueTimeoutReason } from "@/server/queue";
 import { WAKE_RETRY_MINUTES } from "@/lib/service/queue";
 import { createDbStore, kstDayStart, stalledStep } from "@/server/store/db";
+import { pickActivity } from "@/lib/service/activity";
 import { createGitHubStub } from "../scripts/github-stub.mjs";
 
 // 운영 저장소 구현(DB + GitHub, src/server/store/db.ts)을 메모리의 PGlite 와 가짜 GitHub 으로 돌린다. 실제 GitHub 과 DB 서버를
@@ -278,7 +279,7 @@ describe("분석 요청", () => {
     const place = placeOf(queue, outcome.analysis.id)!;
     expect(place).toEqual({ kind: "waiting", ahead: 0, poolSize: 2, inUse: 0, wakeFailure: reason });
     expect(placeText(place)).toBe(
-      `대기열 1번째입니다(앞에 0개). 실행 자리 2개 중 0개 사용 중입니다. 실행기를 깨우지 못해 대기열이 잠시 멈춰 있습니다. 까닭: ${reason} ${WAKE_RETRY_MINUTES}분이 지난 뒤 대기열을 넘길 때 다시 깨워 봅니다.`,
+      `대기열 1번째. 실행기를 깨우지 못해 대기열이 잠시 멈춰 있습니다. 까닭: ${reason} ${WAKE_RETRY_MINUTES}분이 지난 뒤 다시 깨워 봅니다.`,
     );
     // 대기열에 있으므로 같은 커밋을 다시 요청하면 그 분석으로 보낸다(새로 만들지 않는다).
     expect(created(await store.requestAnalysis("example-org", "kids-signup"))).toMatchObject({ reused: true, analysis: { id: outcome.analysis.id } });
@@ -331,10 +332,11 @@ describe("대기열과 실행 자리 (2026-11-03)", () => {
     expect(placeOf(queue, a.analysis.id)).toEqual({ kind: "dispatched", poolSize: 1, inUse: 1 });
     expect(placeOf(queue, b.analysis.id)).toEqual({ kind: "waiting", ahead: 0, poolSize: 1, inUse: 1 });
     expect(placeOf(queue, c.analysis.id)).toEqual({ kind: "waiting", ahead: 1, poolSize: 1, inUse: 1 });
-    expect(placeText(placeOf(queue, c.analysis.id)!)).toBe(
-      "대기열 2번째입니다(앞에 1개). 실행 자리 1개 중 1개 사용 중입니다. 앞의 분석이 끝나 자리가 나면 차례대로 실행기에 보냅니다.",
-    );
-    expect(placeShort(placeOf(queue, c.analysis.id)!)).toBe("대기열 2번째(앞에 1개)");
+    // 화면에는 대기열의 몇 번째인지만 적는다. 실행 자리의 수는 적지 않는다(docs/redesign.md 2.3, D3).
+    expect(placeText(placeOf(queue, c.analysis.id)!)).toBe("대기열 2번째");
+    expect(placeShort(placeOf(queue, a.analysis.id)!)).toBe("실행기에 보냄, 시작 기다림");
+    // 다시 읽지 않는 저장소 쪽은 센 때(한국 표준시 12:02)를 붙인다.
+    expect(placeAt(placeOf(queue, c.analysis.id)!, queue!.countedAt)).toBe("대기열 2번째 (12:02 KST 기준)");
     // 대기 중이 아닌 분석은 대기열에 없다.
     await running(a.analysis.id);
     expect(placeOf(await store.queue(), a.analysis.id)).toBeNull();
@@ -658,19 +660,39 @@ describe("읽기", () => {
     expect(await store.getResult(b.analysis.id)).toBe("not json");
   });
 
-  it("최근에 끝난 분석: 끝난 차례, 기록에 있는 이름(GitHub 을 부르지 않는다)", async () => {
+  it("최근 분석: 저장소마다 한 줄(진행 중이 먼저, 없으면 가장 나중의 분석), 요청 시각 차례, 기록에 있는 이름(GitHub 을 부르지 않는다)", async () => {
     const { store, clock, later, stub } = setup({ limits: { poolSize: 5 } });
     const a = created(await store.requestAnalysis("example-org", "kids-signup"));
+    later(1);
     const b = created(await store.requestAnalysis("example-studio", "genai-chat"));
-    later(2);
-    await finish(b.analysis.id, clock.now);
-    later(2);
+    later(1);
     await finish(a.analysis.id, clock.now);
+    await finish(b.analysis.id, clock.now);
+    // kids-signup 의 새 커밋: 진행 중인 분석이 생긴다. 그 뒤에 genai-chat 을 다시 분석해 끝낸다.
+    later(1);
+    stub.setHead("example-org", "kids-signup", "2");
+    const c = created(await store.requestAnalysis("example-org", "kids-signup"));
+    await db.query("UPDATE analyses SET status = 'running' WHERE id = $1", [c.analysis.id]);
+    later(1);
+    stub.setHead("example-studio", "genai-chat", "2");
+    const d = created(await store.requestAnalysis("example-studio", "genai-chat"));
+    later(1);
+    await finish(d.analysis.id, clock.now);
+    // 이름만 대소문자가 다른 기록은 같은 저장소다(repo_key).
+    await db.query(
+      `INSERT INTO analyses (id, owner, repo, repo_key, commit_sha, branch, status, requested_at, steps, failure_step, failure_reason)
+       VALUES ('zzzzzzzzzz', 'EXAMPLE-ORG', 'Kids-Signup', 'example-org/kids-signup', $1, 'main', 'failed', $2, '[]'::jsonb, 'fetch', '시험')`,
+      ["f".repeat(40), new Date(T0.getTime() - 60_000)],
+    );
     const before = stub.calls.length;
-    const recent = await store.recentSucceeded(3);
+    const recent = await store.recentActivity(10);
     expect(stub.calls.length).toBe(before);
-    expect(recent.map(({ analysis }) => analysis.id)).toEqual([a.analysis.id, b.analysis.id]);
-    expect(recent[1].repository).toEqual({
+    // genai-chat(d, 3분)이 kids-signup 의 진행 중인 분석(c, 2분)보다 나중에 요청됐다.
+    expect(recent.map(({ analysis }) => analysis.id)).toEqual([d.analysis.id, c.analysis.id]);
+    expect(recent.map(({ analyses }) => analyses)).toEqual([2, 3]);
+    expect(recent[1].analysis.status).toBe("running");
+    expect(recent[1].latestAt).toBe(c.analysis.requestedAt);
+    expect(recent[0].repository).toEqual({
       owner: "Example-Studio",
       name: "GenAI-Chat",
       description: null,
@@ -679,6 +701,64 @@ describe("읽기", () => {
       htmlUrl: null,
       synthetic: false,
     });
+    expect((await store.recentActivity(1)).map(({ analysis }) => analysis.id)).toEqual([d.analysis.id]);
+
+    // 진행 중인 분석(c)보다 나중에 요청한 분석(e)이 끝나도(여기서는 실패) kids-signup 의 줄은 여전히 진행 중인 c 다. 저장소의
+    // 가장 나중 요청 때(latestAt)는 e 의 것이고, 줄의 차례는 보이는 분석(c)의 요청 시각이다.
+    later(1);
+    stub.setHead("example-org", "kids-signup", "3");
+    const e = created(await store.requestAnalysis("example-org", "kids-signup"));
+    await db.query("UPDATE analyses SET status = 'failed', failure_step = 'fetch', failure_reason = '시험' WHERE id = $1", [e.analysis.id]);
+    const after = await store.recentActivity(10);
+    expect(after.map(({ analysis }) => analysis.id)).toEqual([d.analysis.id, c.analysis.id]);
+    expect(after[1].analysis.status).toBe("running");
+    expect(after[1].analyses).toBe(4);
+    expect(after[1].latestAt).toBe(e.analysis.requestedAt);
+    expect(after[1].latestAt).not.toBe(after[1].analysis.requestedAt);
+  });
+
+  it("최근 분석은 읽기 전에 정리한다: 시간을 넘긴 진행 중인 분석은 실패로 보이고, 그 저장소의 줄은 그 실패한 분석이다", async () => {
+    const { store, later } = setup({ limits: { poolSize: 5 } });
+    const a = created(await store.requestAnalysis("example-org", "kids-signup"));
+    await db.query("UPDATE analyses SET status = 'running' WHERE id = $1", [a.analysis.id]);
+    expect((await store.recentActivity(5))[0].analysis.status).toBe("running");
+    later(DEFAULTS.runTimeoutMinutes + 1);
+    const [row] = await store.recentActivity(5);
+    expect(row.analysis).toMatchObject({ id: a.analysis.id, status: "failed" });
+  });
+
+  it("합성 저장소와 같은 규칙으로 고른다(src/lib/service/activity.ts 의 pickActivity)", async () => {
+    const { store, clock, later, stub } = setup({ limits: { poolSize: 5 } });
+    // 끝남·실패·진행 중이 섞이고, 진행 중인 분석보다 나중에 요청한 끝난(또는 실패한) 분석이 있는 저장소가 둘이다. 그래서 "진행
+    // 중이 먼저"를 빼면 고르는 분석과 줄의 차례가 모두 달라진다.
+    const k1 = created(await store.requestAnalysis("example-org", "kids-signup")); // T0, 분석 중
+    await db.query("UPDATE analyses SET status = 'running' WHERE id = $1", [k1.analysis.id]);
+    later(1);
+    const n1 = created(await store.requestAnalysis("example-org", "night-push")); // T1, 끝남
+    await finish(n1.analysis.id, clock.now);
+    later(1);
+    created(await store.requestAnalysis("example-studio", "genai-chat")); // T2, 대기 중
+    later(1);
+    stub.setHead("example-org", "kids-signup", "3");
+    const k2 = created(await store.requestAnalysis("example-org", "kids-signup")); // T3, 실패
+    await db.query("UPDATE analyses SET status = 'failed', failure_step = 'fetch', failure_reason = '시험' WHERE id = $1", [k2.analysis.id]);
+    later(1);
+    stub.setHead("example-studio", "genai-chat", "3");
+    const g2 = created(await store.requestAnalysis("example-studio", "genai-chat")); // T4, 끝남
+    await finish(g2.analysis.id, clock.now);
+    const all = (
+      await Promise.all(
+        [["example-org", "kids-signup"], ["example-org", "night-push"], ["example-studio", "genai-chat"]].map(([o, n]) => store.listAnalyses(o, n)),
+      )
+    ).flat();
+    const fromDb = (await store.recentActivity(10)).map(({ analysis, analyses, latestAt }) => ({ id: analysis.id, analyses, latestAt }));
+    const fromPick = pickActivity(all, 10).map(({ analysis, analyses, latestAt }) => ({ id: analysis.id, analyses, latestAt }));
+    expect(fromDb).toEqual(fromPick);
+    expect(fromDb).toHaveLength(3);
+    // 진행 중인 분석이 먼저: genai-chat(T2 대기) · night-push(T1 끝남) · kids-signup(T0 분석 중). 가장 나중 것만 보면 g2 · k2 · n1 이다.
+    expect(fromDb.map(({ id }) => id)).not.toContain(g2.analysis.id);
+    expect(fromDb.map(({ id }) => id)).not.toContain(k2.analysis.id);
+    expect(fromDb[2]).toEqual({ id: k1.analysis.id, analyses: 2, latestAt: k2.analysis.requestedAt });
   });
 
   it("검색은 GitHub 검색에 이 사이트의 분석 수와 가장 나중의 분석을 붙인다", async () => {

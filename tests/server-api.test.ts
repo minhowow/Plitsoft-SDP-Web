@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { Analysis } from "@/lib/service/types";
-import { syntheticStore } from "@/lib/service/synthetic";
+import { syntheticRepositories, syntheticStore } from "@/lib/service/synthetic";
 import { getAnalysis, postAnalysis, postRunnerClaim, postRunnerEvent, type ApiDeps } from "@/server/api";
 import { MAX_REASON_LENGTH } from "@/server/callbacks";
 import { readConfig, type ServerConfig } from "@/server/config";
@@ -360,7 +360,14 @@ describe("발견 수를 결과를 받을 때 세어 둔다 (검토 1)", () => {
     expect(await deps.store().findingCounts([good, bad, waiting, "not-an-id"])).toEqual({ [good]: expected });
     expect((await db.query<{ finding_count: number | null }>("SELECT finding_count FROM analyses WHERE id = $1", [bad])).rows[0].finding_count).toBeNull();
     // 합성 저장소도 같은 뜻이다.
-    const synthetic = (await syntheticStore.recentSucceeded(10)).map(({ analysis }) => analysis.id);
+    // 저장소마다 한 줄인 최근 분석이 아니라 모든 합성 분석의 끝난 것(6개)을 본다.
+    const synthetic = (
+      await Promise.all(syntheticRepositories().map(({ repository: r }) => syntheticStore.listAnalyses(r.owner, r.name)))
+    )
+      .flat()
+      .filter((analysis) => analysis.status === "succeeded")
+      .map((analysis) => analysis.id);
+    expect(synthetic).toHaveLength(6);
     const counts = await syntheticStore.findingCounts(synthetic);
     expect(Object.keys(counts).sort()).toEqual([...synthetic].sort());
   });

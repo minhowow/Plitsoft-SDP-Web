@@ -408,7 +408,8 @@ describe("인쇄: 기록이 열려 있지 않은 쪽", () => {
       expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor), pathname).toBe("rgb(255, 255, 255)");
       expect(await drawn(page, controls), `${pathname} 인쇄`).toEqual(controls.map(() => false));
       // 결과 화면과 사이트의 머리·바닥글은 그대로 찍힌다(기록이 없으면 기록만 찍는 규칙이 듣지 않는다).
-      expect(await drawn(page, [".site-header", ".site-footer", "main"]), pathname).toEqual([true, true, true]);
+      // 첫 화면에는 화면에서도 머리글이 없다(재디자인 D3: 표지와 큰 검색창이 그 자리다). 그 쪽만 머리글을 찍지 않는다.
+      expect(await drawn(page, [".site-header", ".site-footer", "main"]), pathname).toEqual([pathname !== "/", true, true]);
       if (pathname === "/view/" || pathname === "/demo/") expect(await drawn(page, [".report"]), pathname).toEqual([true]);
       scans.add(`${scheme} 인쇄 ${pathname} (접힌 채)`, await textContrast(page, { paper: "rgb(255, 255, 255)" }));
       await page.evaluate(() => {

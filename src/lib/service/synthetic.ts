@@ -5,6 +5,7 @@ import kidsSignupMain from "@contract/cli-current/kids-signup.main.json";
 import nightPushMain from "@contract/cli-current/night-push.main.json";
 import plainMain from "@contract/cli-current/plain.main.json";
 import { parseReport } from "@/lib/report/parse";
+import { pickActivity } from "./activity";
 import { repoKey } from "./href";
 import { matchRepositories } from "./search";
 import { STEP_ORDER } from "./steps";
@@ -206,11 +207,11 @@ export const syntheticStore: ServiceStore = {
   async queue() {
     return null;
   },
-  async recentSucceeded(limit) {
-    return ANALYSES.filter((analysis) => analysis.status === "succeeded")
-      .sort(newestFirst)
-      .slice(0, limit)
-      .map((analysis) => ({ repository: findRepository(analysis.owner, analysis.name)!, analysis }));
+  async recentActivity(limit) {
+    return pickActivity(ANALYSES, limit).map((picked) => ({
+      ...picked,
+      repository: findRepository(picked.analysis.owner, picked.analysis.name)!,
+    }));
   },
   async requestAnalysis(owner, name) {
     if (!findRepository(owner, name)) return { ok: false, reason: "not-found", message: "그런 저장소를 찾지 못했습니다." };

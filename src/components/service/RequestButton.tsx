@@ -33,15 +33,20 @@ type State =
   | { kind: "moving"; reused: boolean; place: QueuePlace | null; failed: boolean }
   | { kind: "refused"; message: string };
 
-/** 옮겨 가는 동안 적는 말. 새 분석이면 대기열의 어디에 넣었는지(서버가 DB 에서 센 것)를 적는다. */
-function movingText(state: Extract<State, { kind: "moving" }>): string {
-  if (state.reused) return "같은 커밋의 분석이 이미 있어 새로 만들지 않고 그 분석으로 갑니다.";
+/**
+ * 옮겨 가는 동안 적는 말. 새 분석이면 대기열의 몇 번째인지(서버가 DB 에서 센 것)만 적는다. 실행 자리의 수는 적지 않는다
+ * (docs/redesign.md 2.3 의 낱말 표).
+ */
+export function movingText(state: Extract<State, { kind: "moving" }>): string {
+  if (state.reused) return "같은 커밋의 분석이 이미 있어 그 분석으로 갑니다.";
   if (state.failed) return "분석을 만들었지만 실행기에 보내지 못했습니다. 분석 쪽에서 까닭을 봅니다.";
-  if (state.place?.kind === "waiting" && state.place.wakeFailure) {
-    return `대기열에 넣었습니다(앞에 ${state.place.ahead}개). 다만 실행기를 깨우지 못해 대기열이 잠시 멈춰 있습니다. 분석 쪽으로 갑니다.`;
+  if (state.place?.kind === "waiting") {
+    const order = `대기열 ${state.place.ahead + 1}번째.`;
+    return state.place.wakeFailure
+      ? `${order} 실행기를 깨우지 못해 대기열이 잠시 멈춰 있습니다. 분석 쪽으로 갑니다.`
+      : `${order} 분석 쪽으로 갑니다.`;
   }
-  if (state.place?.kind === "waiting") return `대기열에 넣었습니다(앞에 ${state.place.ahead}개). 분석 쪽으로 갑니다.`;
-  if (state.place?.kind === "dispatched") return "대기열에 넣었고, 실행 자리가 비어 있어 곧바로 실행기에 보냈습니다. 분석 쪽으로 갑니다.";
+  if (state.place?.kind === "dispatched") return "실행기에 보냈습니다. 분석 쪽으로 갑니다.";
   return "분석을 만들었습니다. 분석 쪽으로 갑니다.";
 }
 

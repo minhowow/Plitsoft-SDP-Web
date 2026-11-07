@@ -156,3 +156,20 @@ export function readConfig(env: Env = process.env): ServerConfig {
     },
   };
 }
+
+/**
+ * GitHub API 의 바탕 주소가 기본값(실제 GitHub)이 아닌지. 로컬 가짜 GitHub(scripts/github-stub.mjs)이나 시험의 가짜 서버다. 그때
+ * 찾는 저장소는 합성 저장소뿐이라, 검색 0건 화면이 그 사실을 한 줄로 적는다(docs/redesign.md 3장 "검색").
+ */
+export function usesFakeGitHub(config: Pick<ServerConfig, "github">): boolean {
+  return config.github.apiBase !== DEFAULTS.githubApiBase;
+}
+
+/**
+ * "합성 예시" 이름표를 다는지(docs/redesign.md 4장, docs/commitments.md 의 1). 합성 저장소(SERVICE_STORE=synthetic)이거나 GitHub 이
+ * 가짜(GITHUB_API_BASE 가 기본값이 아님)일 때다. 운영 설정(DB, 실제 GitHub)에서는 거짓이다(tests/server-config.test.ts).
+ * 첫 화면·검색·저장소 쪽이 이것 하나로 정한다.
+ */
+export function showsSyntheticTag(config: Pick<ServerConfig, "store" | "github"> = readConfig()): boolean {
+  return config.store === "synthetic" || usesFakeGitHub(config);
+}

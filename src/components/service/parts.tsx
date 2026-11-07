@@ -1,7 +1,9 @@
 import Link from "next/link";
-import { analysisHref, repoHref } from "@/lib/service/href";
+import { Icon } from "@/components/Icon";
+import { STATUS_LABEL } from "@/lib/report/status";
+import { repoHref } from "@/lib/service/href";
 import { ANALYSIS_STATUS_LABEL, formatKst } from "@/lib/service/steps";
-import type { AnalysisStatus, RepositoryHit } from "@/lib/service/types";
+import type { AnalysisStatus, RepositoryActivity, RepositoryHit } from "@/lib/service/types";
 
 /**
  * 분석 서비스의 작은 부품. 데이터를 불러오지 않으므로 브라우저에서 도는 검색 쪽도 쓴다.
@@ -23,35 +25,70 @@ export function RepoName({ owner, name }: { owner: string; name: string }) {
   );
 }
 
-/** 저장소 목록의 한 줄(검색 결과). 분석된 적이 있는지와 가장 나중의 분석을 함께 적는다. */
+/** 날짜만(한국 표준시). "2026-11-03" */
+function kstDate(iso: string): string {
+  return formatKst(iso).slice(0, 10);
+}
+
+/**
+ * 검색 결과의 한 줄(목업 search). 줄 전체가 저장소 쪽으로 가는 링크다. 이름(굵게), 설명 한 줄, 그리고 오른쪽에 언어, 이 사이트의
+ * 분석 수, 가장 나중의 분석 날짜. 데이터에 있는 것만 적는다(GitHub 이 준 설명·언어, DB 의 분석).
+ */
 export function RepoRow({ hit }: { hit: RepositoryHit }) {
   const { repository: repo, analyses, latest } = hit;
   return (
-    <li className="repo-row">
-      <div className="repo-row-main">
-        <Link href={repoHref(repo.owner, repo.name)} className="repo-link">
+    <li>
+      <Link href={repoHref(repo.owner, repo.name)} className="sr-row repo-row">
+        <span className="sr-name repo-link" translate="no">
           <RepoName owner={repo.owner} name={repo.name} />
-        </Link>
-        {repo.synthetic && <span className="tag">합성 예시</span>}
-      </div>
-      {repo.description && <p className="repo-desc">{repo.description}</p>}
-      <p className="repo-facts">
-        {repo.language && <span>{repo.language}</span>}
-        {latest ? (
-          <>
-            <span>분석 {analyses}회</span>
-            <span className="repo-latest">
-              최근 분석{" "}
-              <Link href={analysisHref(repo.owner, repo.name, latest.id)} prefetch={false}>
-                <code>{latest.id}</code>
-              </Link>{" "}
-              <AnalysisBadge status={latest.status} /> <time dateTime={latest.requestedAt}>{formatKst(latest.requestedAt)}</time>
-            </span>
-          </>
-        ) : (
-          <span>분석된 적 없음</span>
-        )}
-      </p>
+        </span>
+        <span className="sr-facts">
+          {repo.language && <span>{repo.language}</span>}
+          {latest ? (
+            <>
+              <span>분석 {analyses}회</span>
+              <span>
+                최근 <time dateTime={latest.requestedAt}>{kstDate(latest.requestedAt)}</time>
+              </span>
+            </>
+          ) : (
+            <span>분석된 적 없음</span>
+          )}
+        </span>
+        <Icon name="chevron-right" />
+        {repo.description && <span className="sr-desc">{repo.description}</span>}
+      </Link>
     </li>
   );
+}
+
+/**
+ * 이 사이트에서 분석된 저장소의 한 줄(검색 0건 화면, 목업 search-empty). 분석 수, 가장 나중의 분석 날짜, 그리고 보이는 분석의
+ * 발견 수(끝남) 또는 상태. 설명은 기록에 있을 때만(운영 DB 의 기록에는 없다).
+ */
+export function AnalyzedRow({ activity, count }: { activity: RepositoryActivity; count: number | null | undefined }) {
+  const { repository: repo, analysis, analyses, latestAt } = activity;
+  return (
+    <li>
+      <Link href={repoHref(repo.owner, repo.name)} className="sr-row repo-row">
+        <span className="sr-name repo-link" translate="no">
+          <RepoName owner={repo.owner} name={repo.name} />
+        </span>
+        <span className="sr-facts">
+          <span>분석 {analyses}회</span>
+          <span>
+            최근 <time dateTime={latestAt}>{kstDate(latestAt)}</time>
+          </span>
+          <span>{analysis.status === "succeeded" ? findingCount(count) : ANALYSIS_STATUS_LABEL[analysis.status]}</span>
+        </span>
+        <Icon name="chevron-right" />
+        {repo.description && <span className="sr-desc">{repo.description}</span>}
+      </Link>
+    </li>
+  );
+}
+
+/** 끝난 분석의 발견 수. 결과가 없거나 읽지 못했으면 0 이라고 적지 않고 모른다고 적는다. */
+export function findingCount(count: number | null | undefined): string {
+  return typeof count === "number" ? `발견 ${count}건` : `발견 수 ${STATUS_LABEL["pack-unknown"]}`;
 }

@@ -20,6 +20,25 @@ const JOINED = /((?:[([‘“「『'"][^\s()[\]‘’“”「」『』'"]*|\S)[
  * 사이트가 쓴 글에만 쓴다. CLI 출력과 팩의 글(조문 원문, 알리는 말, 질문, 고치는 법)에는 쓰지 않는다. 그 글에도 같은 꼴이
  * 있고 너비에 따라 줄이 바뀐다(docs/architecture.md 의 "글꼴·간격·색").
  */
+/** 조문 이름 끝의 조·항·호('제50조 제3항', '제22조의2 제1항'). */
+const ARTICLE = /(제\d+조(?:의\d+)?(?: 제\d+항)?(?: 제\d+호)?)$/;
+
+/**
+ * 팩이 준 조문 이름('… 법률 제50조 제3항')을 줄 바꿈만 손본다: 끝의 조·항(·호)을 줄을 바꾸지 않는 조각(`.nobreak`)으로 묶어
+ * '제50조 ⏎ 제3항' 처럼 갈리지 않게 한다. 글자는 그대로다(목업의 keepArticle). 끝이 그 꼴이 아니면 글을 그대로 돌려준다.
+ */
+export function keepArticle(label: string): ReactNode {
+  const parts = label.split(ARTICLE);
+  if (parts.length === 1) return label;
+  return (
+    <>
+      {parts[0]}
+      <span className="nobreak">{parts[1]}</span>
+      {parts[2]}
+    </>
+  );
+}
+
 export function keepParticles(text: string): ReactNode {
   const parts = text.split(JOINED);
   if (parts.length === 1) return text;

@@ -7,7 +7,7 @@ import { closeChrome, launchChrome, NO_STORAGE, openPage, serveSite, stored, typ
 //   초점이 메뉴 밖으로 나가거나 메뉴 밖을 눌러도 닫혀, 펼친 메뉴가 초점이 간 것을 덮지 않는다(WCAG 2.4.11).
 //   그동안 사이트 밖으로 나가는 요청과 브라우저 저장소가 없다.
 // - 1280px: 56px 한 줄이고 본문과 왼쪽 끝이 같다. 머리글의 검색창은 본문에 검색창이 없는 쪽에만 보인다. 지금 쪽을 굵게 적고
-//   aria-current 로 알린다.
+//   aria-current 로 알린다. 첫 화면에는 머리글이 없다(재디자인 D3). 이름은 검색 쪽(/search/)으로 간다.
 // - "/" 키는 검색창으로 가지 않는다(글자 하나짜리 단축키는 뺐다. docs/ROADMAP.md 의 "사람 결정이 필요한 것").
 // 머리글의 HTML 이 모든 쪽에서 같은지는 tests/browser/served-files.test.ts 가 본다.
 
@@ -98,7 +98,8 @@ describe("390px: 펼치는 메뉴", () => {
   });
 
   it("초점이 메뉴 밖으로 나가거나 메뉴 밖을 누르면 닫혀, 펼친 메뉴가 본문의 검색창과 단추를 덮지 않는다", async () => {
-    const { page, outside } = await open("/", 390);
+    // 본문에 검색창이 있는 쪽. 첫 화면은 재디자인 D3 부터 머리글이 없어(메뉴도 없다) 검색 쪽에서 본다.
+    const { page, outside } = await open("/search/", 390);
     // 덮였는지: 그 요소 안의 여러 점에서 맨 위에 그려진 것이 그 요소(또는 그 안)인가.
     const covered = (selector: string) =>
       page.locator(selector).evaluate((el) => {
@@ -128,7 +129,9 @@ describe("390px: 펼치는 메뉴", () => {
     // 메뉴 밖을 누르면 닫힌다.
     await page.locator(".site-header .menu > summary").click();
     expect(await menuOpen(page)).toBe(true);
-    await page.mouse.click(30, 600);
+    // 링크가 아닌 자리(최근 분석 상자의 머리 띠)를 누른다. 검색 쪽은 본문의 줄이 링크라 아무 데나 누르면 쪽을 옮긴다.
+    const blank = (await page.locator(".search-home-recent .box-hd").boundingBox())!;
+    await page.mouse.click(blank.x + 8, blank.y + blank.height / 2);
     expect(await menuOpen(page)).toBe(false);
 
     // 본문에 초점이 있을 때의 Esc 는 초점을 옮기지 않는다.
@@ -187,11 +190,15 @@ describe("1280px: 한 줄 머리글", () => {
     await page.goto(`${site.origin}/demo/`, { waitUntil: "networkidle" });
     expect(await read()).toMatchObject({ height: 56, search: true, policy: "400", demo: "600", current: ["/demo/"] });
 
-    // 본문에 검색창이 있는 쪽(첫 화면, 검색)에서는 머리글의 검색창을 감춘다.
-    for (const pathname of ["/", "/search/", "/search/?q=kids"]) {
+    // 본문에 검색창이 있는 쪽(검색)에서는 머리글의 검색창을 감춘다.
+    for (const pathname of ["/search/", "/search/?q=kids"]) {
       await page.goto(`${site.origin}${pathname}`, { waitUntil: "networkidle" });
       expect(await read(), pathname).toMatchObject({ height: 56, search: false, policy: "400", demo: "400", current: [] });
     }
+    // 첫 화면에는 머리글이 없다(재디자인 D3: 표지와 큰 검색창이 그 자리다). HTML 은 그대로이고 CSS 가 감춘다.
+    await page.goto(`${site.origin}/`, { waitUntil: "networkidle" });
+    expect(await page.locator(".site-header").isVisible()).toBe(false);
+    expect(await page.locator(".site-header .brand").getAttribute("href")).toBe("/search/");
     expect(outside).toEqual([]);
   });
 

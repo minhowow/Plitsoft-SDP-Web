@@ -1,79 +1,76 @@
 import Link from "next/link";
-import { Icon } from "@/components/Icon";
-import { RepoName } from "@/components/service/parts";
-import { findingCount } from "@/components/service/analysis";
-import { SearchForm } from "@/components/service/SearchForm";
-import { packMeta, policyHref, primaryLaw } from "@/lib/pack";
+import { ActivityList } from "@/components/service/activity";
+import { HomeSearch } from "@/components/service/SearchForm";
 import { orUnavailable } from "@/lib/service/errors";
-import { analysisHref, shortCommit } from "@/lib/service/href";
-import { formatKst } from "@/lib/service/steps";
 import { SITE } from "@/lib/site";
+import { showsSyntheticTag } from "@/server/config";
 import { getStore } from "@/server/store";
 
-// 최근 분석은 요청 때 DB 에서 읽는다.
+// 최근 분석은 요청 때 DB 에서 읽는다. 이 쪽은 다시 읽지 않는다(진행 중인 줄도 그린 때의 것이다. docs/redesign.md 의 D3 결과).
 export const dynamic = "force-dynamic";
 
+/** 첫 화면에 보이는 최근 분석 줄 수(저장소마다 한 줄). */
+const HOME_ROWS = 4;
+
+/**
+ * 첫 화면(docs/redesign.md 3장 "첫 화면", 목업 home-feed). 머리글 없이 가운데 한 단에 표지(서비스 이름), 큰 검색창, 이 사이트의
+ * 최근 분석(저장소마다 한 줄). 설명 구획은 두지 않는다. 면책은 바닥글에 있다. 머리글을 감추는 것은 CSS 가 이 쪽의 표시
+ * (`data-page="home"`)를 보고 한다(머리글의 HTML 은 모든 쪽에서 같다).
+ */
 export default async function Home() {
   const store = getStore();
   const loaded = await orUnavailable(
     (async () => {
-      const recent = await store.recentSucceeded(3);
-      const counts = new Map<string, number>();
-      const found = await store.findingCounts(recent.map(({ analysis }) => analysis.id));
-      for (const [id, count] of Object.entries(found)) if (count !== null) counts.set(id, count);
-      return { recent, counts };
+      const rows = await store.recentActivity(HOME_ROWS);
+      const findings = await store.findingCounts(rows.filter(({ analysis }) => analysis.status === "succeeded").map(({ analysis }) => analysis.id));
+      return { rows, findings };
     })(),
   );
-  const { recent, counts } = loaded.ok ? loaded.value : { recent: [], counts: new Map<string, number>() };
+  const tagged = showsSyntheticTag();
 
-  const anyZero = recent.some(({ analysis }) => counts.get(analysis.id) === 0);
+  return (
+    <div className="home" data-page="home">
+      <h1 className="wm">
+        <Wordmark />
+      </h1>
+      <HomeSearch id="home-q" label="저장소 검색" />
+      <section className="home-feed" aria-labelledby="recent-title">
+        <div className="home-feed-hd">
+          <h2 id="recent-title">최근 분석</h2>
+          {tagged && <span className="tag">합성 예시</span>}
+          {loaded.ok && loaded.value.rows.length > 0 && <span className="home-kst">시각 KST</span>}
+          <Link href="/search/" className="home-all">
+            모두 보기
+          </Link>
+        </div>
+        {!loaded.ok ? (
+          <p className="notice notice-warn">{loaded.message}</p>
+        ) : loaded.value.rows.length === 0 ? (
+          <p className="home-empty">아직 분석 없음</p>
+        ) : (
+          <ActivityList rows={loaded.value.rows} findings={loaded.value.findings} variant="feed" />
+        )}
+      </section>
+    </div>
+  );
+}
 
-  // 설명 구획(소개 문장, 사용법, "이 도구가 아닌 것", 다른 길 카드)은 두지 않는다(docs/redesign.md). 면책은 바닥글에 있다.
+/**
+ * 표지: 서비스 이름(`SITE.name`). 한글 낱말은 라틴 글자의 어센더 높이에 맞춰 조금 작게 적는다(CSS `.wm-ko`). 이름이 바뀌어도
+ * 낱말마다 한글이 들었는지로만 가른다.
+ */
+function Wordmark() {
+  const words = SITE.name.split(" ");
   return (
     <>
-      <h1 className="visually-hidden">저장소 검색</h1>
-      <SearchForm id="home-q" label="저장소 검색(첫 화면)" />
-
-      <section aria-labelledby="recent-title">
-        <h2 id="recent-title">
-          최근 분석 {store.synthetic && <span className="tag">합성 예시</span>}
-        </h2>
-        {!loaded.ok && <p className="notice notice-warn">{loaded.message}</p>}
-        {loaded.ok && recent.length === 0 && <p className="hint">아직 끝난 분석 없음</p>}
-        <ul className="recent">
-          {recent.map(({ repository, analysis }) => (
-            <li key={analysis.id}>
-              <Link href={analysisHref(repository.owner, repository.name, analysis.id)} className="recent-card">
-                <span className="recent-name">
-                  <RepoName owner={repository.owner} name={repository.name} />
-                </span>
-                <span className="recent-facts">
-                  분석 <code>{analysis.id}</code> · 커밋 <code>{shortCommit(analysis.commit)}</code>
-                </span>
-                <span className="recent-facts">
-                  <time dateTime={analysis.requestedAt}>{formatKst(analysis.requestedAt)}</time> ·{" "}
-                  {findingCount(counts.get(analysis.id))}
-                </span>
-                <Icon name="chevron-right" />
-              </Link>
-            </li>
-          ))}
-        </ul>
-        {/* 발견 0건이 보이면 그 수의 뜻을 바로 아래에 둔다(docs/commitments.md 의 1). */}
-        {anyZero && <p className="hint">{SITE.zeroIsNotClearance}</p>}
-      </section>
-
-      <section aria-labelledby="policies-title">
-        <h2 id="policies-title">검사하는 정책</h2>
-        <ul className="policy-index">
-          {packMeta.policies.map((policy) => (
-            <li key={policy.id}>
-              <Link href={policyHref(policy.id)}>{policy.title}</Link>
-              <span className="law">{primaryLaw(policy)}</span>
-            </li>
-          ))}
-        </ul>
-      </section>
+      {words.map((word, i) => (
+        <span key={i}>
+          {i > 0 && " "}
+          <span className={/[가-힣]/.test(word) ? "wm-ko" : "wm-latin"} translate={/[가-힣]/.test(word) ? undefined : "no"}>
+            {word}
+          </span>
+        </span>
+      ))}
     </>
   );
 }

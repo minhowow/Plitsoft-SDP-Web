@@ -83,6 +83,17 @@ export interface RepositoryHit {
   latest: Pick<Analysis, "id" | "status" | "requestedAt"> | null;
 }
 
+/** 최근 분석의 한 줄(`ServiceStore.recentActivity`). */
+export interface RepositoryActivity {
+  repository: Repository;
+  /** 보이는 분석: 대기·분석 중인 것이 있으면 그것, 없으면 가장 나중에 요청한 것. */
+  analysis: Analysis;
+  /** 그 저장소의 분석 수. */
+  analyses: number;
+  /** 그 저장소에서 가장 나중에 요청한 때. */
+  latestAt: string;
+}
+
 /** 검색의 결과. GitHub 을 부르지 못하면 그 까닭을 그대로 보인다(빈 목록으로 꾸미지 않는다). */
 export type SearchOutcome =
   | { ok: true; hits: RepositoryHit[]; /** 맞는 저장소 수(GitHub 이 센 것. 보이는 것보다 많을 수 있다). */ total: number }
@@ -138,8 +149,12 @@ export interface ServiceStore {
    * 대기열이 없으므로 null 이다(숫자를 꾸며 적지 않는다).
    */
   queue(): Promise<QueueSnapshot | null>;
-  /** 최근에 끝난 분석(나중 것이 앞). */
-  recentSucceeded(limit: number): Promise<{ repository: Repository; analysis: Analysis }[]>;
+  /**
+   * 이 사이트의 최근 분석. 저장소마다 한 줄이고, 그 저장소에 대기·분석 중인 분석이 있으면 그것, 없으면 가장 나중에 요청한
+   * 분석이다(`activity.ts` 의 `pickActivity`). 줄은 그 분석을 요청한 때의 차례(나중 것이 앞)다. 운영 구현은 다른 읽기와 같이
+   * 정리(`tidyQueue`)를 한 뒤에 읽어 시간을 넘긴 분석이 이미 실패로 보인다. GitHub 은 부르지 않는다(저장소는 기록의 이름이다).
+   */
+  recentActivity(limit: number): Promise<RepositoryActivity[]>;
   /** 분석을 요청한다. 같은 커밋에 진행 중이거나 최근에 끝난 분석이 있으면 새로 만들지 않고 그것을 돌려준다. */
   requestAnalysis(owner: string, name: string): Promise<RequestOutcome>;
   /** 지금 요청을 받지 않으면 그 까닭(화면의 요청 단추 옆에 적는다). 받으면 null. */

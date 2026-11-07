@@ -39,8 +39,9 @@ afterAll(async () => {
 type Scheme = "light" | "dark";
 
 const hits = syntheticRepositories();
-const PAGES = ["/search/", "/search/?q=example"];
-const WIDE = ["/search/?q=example"];
+// 재디자인 D3 의 새 면: 첫 화면(머리글 없는 한 단), 검색 빈 상태(상자 둘), 검색 0건(이 사이트에서 분석된 저장소).
+const PAGES = ["/", "/search/", "/search/?q=example", "/search/?q=ㅁㅁ"];
+const WIDE = ["/", "/search/", "/search/?q=example"];
 for (const { repository: r } of hits) {
   PAGES.push(repoHref(r.owner, r.name));
   for (const analysis of await store.listAnalyses(r.owner, r.name)) {

@@ -46,7 +46,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         */}
         <header className="site-header">
           <div className="wrap hdr-in">
-            <Link href="/" className="brand">
+            <Link href="/search/" className="brand">
               {SITE.name}
             </Link>
             <HeaderSearch id="site-q" label="저장소 검색" />

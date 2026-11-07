@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { DEFAULTS, readConfig } from "@/server/config";
+import { DEFAULTS, readConfig, showsSyntheticTag, usesFakeGitHub } from "@/server/config";
 import { wakeRunner } from "@/server/runner";
 import { root } from "./helpers";
 
@@ -102,6 +102,23 @@ describe("설정", () => {
     ] as const) {
       expect(doc, name).toMatch(new RegExp(`\\| \`${name}\` \\| ${value} \\|`));
     }
+  });
+});
+
+describe("합성 예시 이름표의 조건 (docs/redesign.md 4장, D3)", () => {
+  it("운영 설정(DB, 실제 GitHub)에서는 꺼져 있다", () => {
+    expect(showsSyntheticTag(readConfig({}))).toBe(false);
+    expect(showsSyntheticTag(readConfig({ GITHUB_API_BASE: "https://api.github.com/" }))).toBe(false);
+    expect(showsSyntheticTag(readConfig({ DATABASE_URL: "postgres://example.invalid/db", RUNNER: "github", GITHUB_TOKEN: "x" }))).toBe(false);
+    expect(usesFakeGitHub(readConfig({}))).toBe(false);
+  });
+
+  it("합성 저장소(SERVICE_STORE=synthetic)이거나 GitHub 이 가짜(GITHUB_API_BASE 가 기본값이 아님)이면 켠다", () => {
+    expect(showsSyntheticTag(readConfig({ SERVICE_STORE: "synthetic" }))).toBe(true);
+    expect(showsSyntheticTag(readConfig({ GITHUB_API_BASE: "http://127.0.0.1:4010" }))).toBe(true);
+    expect(usesFakeGitHub(readConfig({ GITHUB_API_BASE: "http://127.0.0.1:4010" }))).toBe(true);
+    // 합성 저장소는 GitHub 을 부르지 않으므로 가짜 GitHub 안내와는 따로다.
+    expect(usesFakeGitHub(readConfig({ SERVICE_STORE: "synthetic" }))).toBe(false);
   });
 });
 
