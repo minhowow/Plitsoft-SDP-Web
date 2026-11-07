@@ -9,6 +9,7 @@ import {
   useState,
   type ChangeEvent,
   type MouseEvent,
+  type ReactNode,
   type RefObject,
 } from "react";
 import { ReportWithRecord } from "@/components/result/ReportWithRecord";
@@ -27,7 +28,7 @@ interface Loaded {
   /** 열 때마다 달라지는 번호(늘어나기만 한다). 결과 화면과 안내를 통째로 새로 만들기 위한 key 다. */
   seq: number;
   name: string;
-  /** 제목 아래에 적는 말. 예시가 무엇을 보여 주는지, 또는 파일을 여럿 놓았을 때 첫 파일만 본다는 것. */
+  /** 제목 아래에 적는 말. 파일을 여럿 놓았을 때 첫 파일만 본다는 것. */
   note: string | null;
   /** 예시를 열었으면 그 id, 직접 연 파일이면 빈 문자열. */
   sampleId: string;
@@ -57,7 +58,7 @@ function fromSample(sample: Sample, seq: number): Loaded {
   return {
     seq,
     name: `${sample.label} (${sample.origin})`,
-    note: `합성 예시입니다. ${sample.note}`,
+    note: null,
     sampleId: sample.id,
     result: parseReport(sample.data),
   };
@@ -83,6 +84,7 @@ function Result({
   contract,
   pack,
   source,
+  heading,
   onDrawn,
 }: {
   seq: number;
@@ -90,14 +92,16 @@ function Result({
   contract: Contract;
   pack: PackIndex;
   source: RecordSource;
+  /** 결과 틀의 머리 첫 줄: 연 파일의 이름과 합성 예시 이름표. */
+  heading: ReactNode;
   onDrawn: (seq: number) => void;
 }) {
   useEffect(() => {
     onDrawn(seq);
   }, [onDrawn, seq]);
   // 단추로 결과와 기록을 오가는 것은 아래 부품의 상태다. 오갈 때 이 부품은 다시 그려지지 않으므로 화면 구조도 다시
-  // 만들지 않는다.
-  return <ReportWithRecord view={buildReportView(report, contract, pack)} pack={pack} source={source} />;
+  // 만들지 않는다. 판정자가 꺼진 결과에는 켜 보라는 권고를 한 번 둔다(분석 쪽에는 없다).
+  return <ReportWithRecord view={buildReportView(report, contract, pack)} pack={pack} source={source} heading={heading} recommend />;
 }
 
 /** 읽지 못한 파일의 안내: 까닭, 그리고 이 뷰어가 여는 파일과 그것을 만드는 명령. */
@@ -138,20 +142,36 @@ const Opened = memo(function Opened({
 }) {
   const { result, seq } = loaded;
   // 예시를 연 것이면 기록에도 합성 예시라고 밝힌다. 기록만 인쇄되므로 제목 아래의 "합성 예시입니다"는 함께 나오지 않는다.
-  const source: RecordSource = { name: loaded.name, synthetic: loaded.sampleId !== "" };
-  return (
+  const synthetic = loaded.sampleId !== "";
+  const source: RecordSource = { name: loaded.name, synthetic };
+  // 연 파일의 이름과 합성 예시 이름표. 결과로 읽었으면 결과의 틀(조문별 검사 기록 단추가 있는 머리)의 첫 줄이 된다.
+  const head = (
     <>
       <h2 ref={heading} className="viewer-title">
         {loaded.name}
       </h2>
+      {synthetic && <span className="tag">합성 예시</span>}
+    </>
+  );
+  return (
+    <>
+      {!result.ok && <div className="ttl viewer-ttl">{head}</div>}
       {loaded.note && <p className="viewer-note">{loaded.note}</p>}
       {/*
         결과와 안내는 열 때마다 새로 만든다(key). 안내(role="alert")가 같은 요소로 남으면, 같은 까닭으로 읽지 못한 파일을
         잇달아 열었을 때 화면 낭독기에 다시 알려지지 않는다.
       */}
       {result.ok ? (
-        <ResultBoundary key={seq} onFailed={() => onFailed(seq)}>
-          <Result seq={seq} report={result.report} contract={result.contract} pack={pack} source={source} onDrawn={onDrawn} />
+        <ResultBoundary key={seq} onFailed={() => onFailed(seq)} head={<div className="ttl viewer-ttl">{head}</div>}>
+          <Result
+            seq={seq}
+            report={result.report}
+            contract={result.contract}
+            pack={pack}
+            source={source}
+            heading={head}
+            onDrawn={onDrawn}
+          />
         </ResultBoundary>
       ) : (
         <Unreadable key={seq} errors={result.errors} />
@@ -300,11 +320,11 @@ export function ReportViewer({ pack }: { pack: PackIndex }) {
 
   return (
     <div className="viewer">
+      {/*
+        드롭존은 한 줄 띠다(docs/redesign.md 3장): [파일 고르기] 짧은 한 줄 …… 합성 예시 열기 [▾]. 파일 입력은 화면에서 감추고
+        (키보드와 화면 낭독기에는 남는다) 그 이름표를 단추 모양으로 그린다.
+      */}
       <div className={`dropzone${dragging ? " dropzone-on" : ""}`}>
-        <label htmlFor="report-file">
-          <strong>결과 파일 열기</strong>
-          <span>파일을 이 화면에 끌어다 놓거나 고르세요. 파일은 이 브라우저 안에서만 읽습니다.</span>
-        </label>
         {/*
           autoComplete="off": 브라우저가 이 입력의 값을 기억했다가 되살리지 않게 한다. 뒤로·앞으로 가기로 문서를 다시 받으면
           연 것은 사라지고 기본 예시가 열리는데(메모리에만 두었다), 브라우저는 폼 값을 되살린다. 되살리게 두면 화면은 기본
@@ -312,6 +332,7 @@ export function ReportViewer({ pack }: { pack: PackIndex }) {
         */}
         <input
           id="report-file"
+          className="file-input"
           ref={fileInput}
           type="file"
           accept=".json,.sarif,application/json"
@@ -319,6 +340,25 @@ export function ReportViewer({ pack }: { pack: PackIndex }) {
           onClick={onChoose}
           onChange={onPick}
         />
+        <label htmlFor="report-file" className="btn pick">
+          파일 고르기
+        </label>
+        <span className="drop-line">
+          {SITE.cli} 결과(JSON·SARIF)를 이 자리에 놓거나 고르세요. {SITE.viewLocal}
+        </span>
+        <span className="samples">
+          <label htmlFor="sample-select">합성 예시 열기</label>
+          <select id="sample-select" value={loaded.sampleId} autoComplete="off" onChange={onSample}>
+            <option value="" disabled>
+              직접 연 파일
+            </option>
+            {SAMPLES.map((sample) => (
+              <option key={sample.id} value={sample.id}>
+                {sample.label} · {sample.origin}
+              </option>
+            ))}
+          </select>
+        </span>
       </div>
 
       {/* 파일을 끄는 동안 창 둘레에 그린다. 아래로 내려 드롭존이 화면 밖에 있어도, 어디에 놓든 받는다는 것이 보인다. */}
@@ -327,20 +367,6 @@ export function ReportViewer({ pack }: { pack: PackIndex }) {
           <span>이 화면 어디에 놓아도 됩니다</span>
         </div>
       )}
-
-      <div className="samples">
-        <label htmlFor="sample-select">합성 예시 열기</label>
-        <select id="sample-select" value={loaded.sampleId} autoComplete="off" onChange={onSample}>
-          <option value="" disabled>
-            직접 연 파일
-          </option>
-          {SAMPLES.map((sample) => (
-            <option key={sample.id} value={sample.id}>
-              {sample.label} · {sample.origin}
-            </option>
-          ))}
-        </select>
-      </div>
 
       <p className="visually-hidden" role="status">
         {status}

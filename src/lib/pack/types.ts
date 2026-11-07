@@ -72,7 +72,11 @@ export interface IndexedLegal {
  */
 export interface PackIndex {
   pack: { digest: string };
-  policies: { id: string; title: string; legal: IndexedLegal[] }[];
+  /**
+   * `ruleIds` 는 그 정책의 규칙 id(팩의 차례). 결과 화면이 규칙 id 를 조문 도감으로 이을지 정한다(팩에 없는 규칙은 글로만 적는다).
+   * 팩 메타데이터 전체(`PackMeta`)를 그대로 넘길 때는 없다(그때는 `rules[].id` 를 읽는다).
+   */
+  policies: { id: string; title: string; legal: IndexedLegal[]; ruleIds?: string[] }[];
 }
 
 export interface PackMeta {

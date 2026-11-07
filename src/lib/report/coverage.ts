@@ -35,12 +35,6 @@ export const GAPS_TITLE = "다 보지 못한 것";
 export const GAPS_NOTE = "결과에 실린 목록입니다";
 
 /**
- * 발견이 있는 결과에서 표 아래에 접어 두는 `SITE.notSeen` 의 이름 옆에 적는 말. 접혀 있어도 표에 나오지 않는 것이
- * 있다는 것이 보이게 한다. 그 목록의 항목 이름을 그대로 부른다.
- */
-export const GAPS_UNLISTED = "목록 없이 빠지는 파일, 검사한 범위 밖의 파일 등";
-
-/**
  * SARIF 를 열었을 때 검사한 파일 수 줄 아래에 적는 말. SARIF 에는 두 수가 실리지 않는다(`sarif.ts`). 줄에는
  * "알 수 없음"만 보이므로, 까닭과 그 수를 볼 수 있는 길을 한 번 적는다. 같은 검사의 JSON 출력에는 두 수가 있다
  * (`contract/cli-current/kids-signup.main.*` 로 맞춰 봤다).

@@ -5,7 +5,7 @@ import { policyCardId } from "@/lib/pack/href";
 import { scopeLabel } from "@/lib/report/scope";
 import { AI_CLEARED, AI_DISMISSED } from "@/lib/report/record";
 import { STATUS_LABEL } from "@/lib/report/status";
-import type { LocationView, PolicyView, ReportView } from "@/lib/report/view-model";
+import { aiReviewRan, type LocationView, type PolicyView, type ReportView } from "@/lib/report/view-model";
 import { analysisHref, shortCommit } from "@/lib/service/href";
 import { duration, finishedAt, formatKst } from "@/lib/service/steps";
 import type { Analysis, Repository } from "@/lib/service/types";
@@ -60,7 +60,7 @@ export function LatestAnalysis({ repository, analysis, view }: { repository: Rep
           ) : (
             <span className="nw">{findingCount(null)}</span>
           )}
-          {view?.judge && (
+          {view && aiReviewRan(view) && (
             <>
               <span className="nw">
                 {AI_CLEARED} <span className="v">{view.aiCleared.length}건</span>

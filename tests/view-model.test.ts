@@ -6,7 +6,8 @@ import { parseReport } from "@/lib/report/parse";
 import { judgedScope } from "@/lib/report/scope";
 import type { Status } from "@/lib/report/status";
 import type { Finding, Report } from "@/lib/report/types";
-import { buildReportView, SHOWN_PER_RULE, type PolicyView, type ReportView } from "@/lib/report/view-model";
+import { aiReviewRan, buildReportView, SHOWN_PER_RULE, type PolicyView, type ReportView } from "@/lib/report/view-model";
+import { packIndex } from "@/lib/pack";
 import { jsonFiles, readJson, withoutKeys } from "./helpers";
 
 function viewOf(data: unknown): ReportView {
@@ -354,6 +355,124 @@ describe("판정자를 켠 결과 (손으로 만든 시험용 자료)", () => {
   });
 });
 
+describe("AI 검토의 자리 (D5: 에이전트 결과를 받을 모양. 데이터는 지금 run.judge·ai_cleared·ai_dismissed 에서만 온다)", () => {
+  const cleared = () => readJson("tests", "fixtures", "judge-on.cleared.json") as Report;
+
+  it("aiReviewRan: AI 검토가 돌았는지는 함수 하나가 가른다. 지금은 결과의 run.judge 가 있는지다", () => {
+    for (const file of jsonFiles("contract", "cli-current")) {
+      const v = view("cli-current", file);
+      expect(aiReviewRan(v), file).toBe(false);
+      expect(v.judge, file).toBeNull();
+    }
+    for (const file of ["judge-on.cleared.json", "judge-on.dismissed.json", "judge-on.citation-rejected.json"]) {
+      expect(aiReviewRan(view("../tests/fixtures", file)), file).toBe(true);
+    }
+    // 다른 필드(AI 가 푼 경고가 실렸는지 등)로 가르지 않는다. 판정자를 켰는데 풀린 것이 없어도 돌았다.
+    const data = cleared();
+    expect(aiReviewRan(viewOf({ ...data, run: { ...data.run, ai_cleared: [], ai_dismissed: [] } }))).toBe(true);
+    expect(aiReviewRan(viewOf({ ...data, run: { ...data.run, judge: null } }))).toBe(false);
+  });
+
+  it("빠진 판정이 결과에 다 실렸는지(aiDismissedKnown)는 aiReviewRan 과 같은 판단에서 나온다", () => {
+    const data = cleared();
+    const { ai_dismissed: _dropped, ...withoutDismissed } = data.run;
+    void _dropped;
+    // AI 검토가 돌지 않았으면 물은 것이 없으므로 안다.
+    const off = viewOf({ ...data, run: { ...withoutDismissed, judge: null } });
+    expect(aiReviewRan(off)).toBe(false);
+    expect(off.aiDismissedKnown).toBe(true);
+    // 돌았으면 결과에 그 목록이 실려 있어야 안다.
+    const unknown = viewOf({ ...data, run: withoutDismissed });
+    expect(aiReviewRan(unknown)).toBe(true);
+    expect(unknown.aiDismissedKnown).toBe(false);
+    const known = viewOf({ ...data, run: { ...data.run, ai_dismissed: [] } });
+    expect(aiReviewRan(known)).toBe(true);
+    expect(known.aiDismissedKnown).toBe(true);
+  });
+
+  it("검사 정보의 AI 줄은 이름표·값의 목록이다. 지금은 판정자 한 줄이고 값은 CLI 가 낸 글 그대로다(꺼졌으면 꺼짐)", () => {
+    expect(view("cli-current", "kids-signup.main.json").aiRows).toEqual([{ label: "판정자", value: "꺼짐" }]);
+    expect(view("../tests/fixtures", "judge-on.cleared.json").aiRows).toEqual([{ label: "판정자", value: "claude-cli:haiku" }]);
+    const data = cleared();
+    expect(viewOf({ ...data, run: { ...data.run, judge: "anthropic:claude-haiku-4-5 (시험)" } }).aiRows).toEqual([
+      { label: "판정자", value: "anthropic:claude-haiku-4-5 (시험)" },
+    ]);
+  });
+
+  it("AI 가 푼 경고와 빠진 판정은 어디서 왔는지 모르는 줄의 목록(ReviewItem)으로 옮긴다. 인용한 글은 실린 그대로이고 줄 번호를 지어내지 않는다", () => {
+    const v = view("../tests/fixtures", "judge-on.cleared.json");
+    expect(v.cleared).toEqual([
+      {
+        policy: "kr.pipa.22-2",
+        title: "만 14세 미만 아동의 개인정보 처리",
+        rule: "signup-without-guard",
+        ruleInPack: true,
+        file: "src/auth/signup.ts",
+        line: 5,
+        alternatives: ["ai-guard"],
+        // AI 가 인용한 글에는 줄 번호가 실려 있지 않다. 판정 단위의 줄(5)을 인용한 줄로 옮기지 않는다.
+        quotes: [{ file: "src/auth/signup.ts", line: null, text: "const age = calcKoreanAge(form.birthDate);", alternative: "ai-guard" }],
+        uncited: [],
+        question: null,
+        answer: null,
+      },
+    ]);
+    expect(v.dismissed).toEqual([]);
+    const d = view("../tests/fixtures", "judge-on.dismissed.json");
+    expect(d.dismissed).toEqual([
+      {
+        policy: "kr.pipa.22-2",
+        title: "만 14세 미만 아동의 개인정보 처리",
+        rule: "signup-without-guard",
+        ruleInPack: true,
+        file: "src/auth/signup.ts",
+        line: 5,
+        alternatives: [],
+        quotes: [],
+        uncited: [],
+        question: "이 코드는 생년월일이나 나이를 받아 회원 가입을 처리하는가?",
+        answer: "아니오",
+      },
+    ]);
+    // 인용이 없는 대안은 인용 없이 적는다. 여러 대안이면 인용도 여럿이고, 인용마다 그 인용이 받치는 대안의 id 가 붙는다
+    // (사람이 "그 줄이 그 대안의 근거가 맞는지" 봐야 한다).
+    const data = cleared();
+    const [one] = data.run.ai_cleared!;
+    const many = viewOf({
+      ...data,
+      run: {
+        ...data.run,
+        ai_cleared: [{ ...one, alternatives: [{ id: "a", cite: "첫 줄\n둘째 줄" }, { id: "b", cite: null }, { id: "c", cite: "셋째" }] }],
+      },
+    });
+    expect(many.cleared[0]).toMatchObject({
+      alternatives: ["a", "b", "c"],
+      quotes: [
+        { file: "src/auth/signup.ts", line: null, text: "첫 줄\n둘째 줄", alternative: "a" },
+        { file: "src/auth/signup.ts", line: null, text: "셋째", alternative: "c" },
+      ],
+      uncited: ["b"],
+    });
+  });
+
+  it("규칙 id 가 이 사이트의 팩에 있는지 안다(팩 메타데이터 전체로도, 브라우저로 넘기는 팩 정보로도). 없으면 조문 도감으로 잇지 않는다", () => {
+    const data = readJson("contract", "cli-current", "night-push.main.json") as Report;
+    for (const pack of [packMeta, packIndex]) {
+      const v = buildReportView(data, "cli-0.3", pack);
+      const locations = v.policies.flatMap((p) => p.locations);
+      expect(locations.length).toBeGreaterThan(0);
+      expect(locations.every((l) => l.ruleInPack)).toBe(true);
+    }
+    const unknown = { ...data, findings: data.findings.map((f) => ({ ...f, rule: "no-such-rule" })) };
+    expect(viewOf(unknown).policies.flatMap((p) => p.locations).some((l) => l.ruleInPack)).toBe(false);
+    // 다른 정책의 규칙 id 는 그 정책의 것이 아니다.
+    const swapped = { ...data, findings: data.findings.map((f) => ({ ...f, rule: "signup-without-guard" })) };
+    expect(viewOf(swapped).policies.flatMap((p) => p.locations).some((l) => l.ruleInPack)).toBe(false);
+    // 팩 정보 없이 만든 화면 구조에서는 모른다(잇지 않는다).
+    expect(buildReportView(data, "cli-0.3").policies.flatMap((p) => p.locations).some((l) => l.ruleInPack)).toBe(false);
+  });
+});
+
 describe("v1 초안으로 만든 화면 구조", () => {
   it("충족 근거 위치가 있으면 충족 근거 발견이다", () => {
     const v = view("samples-v1-draft", "kids-signup.fixed.json");
@@ -556,7 +675,7 @@ describe("빈 결과에서 아는 것과 모르는 것", () => {
     expect(v.packMatches).toBe(false);
     expect(packMeta.policies).toHaveLength(5);
     expect(v.policyCount).toBe(3);
-    expect(fact(v, "정책")).toMatchObject({ value: "3개", note: "결과에 정책별 요약이 실려 있어, 아래에 정책마다 적었습니다." });
+    expect(fact(v, "정책")).toMatchObject({ value: "3개", note: "결과에 정책별 요약이 실려 있어, ‘정책 3’에 정책마다 적었습니다." });
     // 카드도 그 셋뿐이다. 이 사이트의 팩에만 있는 정책을 "알 수 없음"으로 채워 넣지 않는다.
     expect(v.policies.map((p) => p.id)).toEqual(policies.map((p) => p.policy));
     expect(v.policies.every((p) => p.units !== null && p.status === "no-signal")).toBe(true);
@@ -590,7 +709,7 @@ describe("빈 결과에서 아는 것과 모르는 것", () => {
     const freed = viewOf({ ...data, run: { ...data.run, policies: [all[1]], ai_cleared: [cleared] } });
     expect(freed.policies.map((p) => [p.id, p.units])).toEqual([[pack[1], 0], [pack[0], null]]);
     expect(freed.policyCount).toBe(1);
-    expect(fact(freed, "정책").note).toContain("요약에 없는 정책 1개도 아래에 있습니다.");
+    expect(fact(freed, "정책").note).toContain("요약에 없는 정책 1개도 ‘정책 2’에 있습니다.");
   });
 
   it("CLI 0.3: 카드는 이 사이트의 팩에 실린 정책 전부다 (결과에 정책 목록이 없어서 팩에서 채운다)", () => {

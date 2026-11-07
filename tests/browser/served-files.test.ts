@@ -180,10 +180,11 @@ describe("빌드된 사이트가 내주는 것", () => {
     const policyPage = contents.find(({ file }) => file === pageFile(policyHref(packFile.policies[0].id), "html"))!.text;
     expect(readAround(policyPage).chrome).toBe(chromes[0].chrome);
 
-    // 결과 보기와 데모의 본문: 제목, 머리말, 그리고 부품 하나. 그 사이와 둘레에 다른 글이나 요소가 없다.
+    // 결과 보기와 데모의 본문: 제목(데모는 제목과 이름표 `합성 예시` 의 줄), 그리고 부품 하나. 그 사이와 둘레에 다른 글이나
+    // 요소가 없다. (D5) 머리말(p.lede)은 지웠다(docs/redesign.md 3장).
     const html = (dir: string) => contents.find(({ file }) => file === path.join(dir, "index.html"))!.text;
-    expect(mainChildren(html("view"))).toEqual(["<h1>", '<p class="lede">', '<div class="viewer">']);
-    expect(mainChildren(html("demo"))).toEqual(["<h1>", '<p class="lede">', '<div class="demo">']);
+    expect(mainChildren(html("view"))).toEqual(["<h1>", '<div class="viewer">']);
+    expect(mainChildren(html("demo"))).toEqual(['<div class="ttl demo-head">', '<div class="demo">']);
   });
 
   it.each([

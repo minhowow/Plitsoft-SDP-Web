@@ -359,7 +359,10 @@ describe("기록에 싣는 것", () => {
       expect(page.policies!.groups[0].map((row) => row.head)).toEqual(packFile.policies.map((policy) => `${policy.title} ${policy.id}`));
       expect(page.policyNotes[0]).toContain("정책 목록과 대표 조문, 시행일, 원문 해시(SHA-256)는");
       expect(page.policyNotes[0].endsWith("결과에는 정책 목록이 없습니다.")).toBe(true);
-      expect(renderToStaticMarkup(<ReportSummary view={viewOf(data)} />)).toContain("결과에는 정책 목록이 없어, 팩 판이 같은 이 사이트의 팩에서 가져와 아래에 적었습니다.");
+      // (D5 검토 반영) 화면의 글은 곁칸의 이름(‘정책 N’)으로 가리킨다. N 은 팩의 정책 수다.
+      expect(textOf(renderToStaticMarkup(<ReportSummary view={viewOf(data)} />))).toContain(
+        `결과에는 정책 목록이 없어, 팩 판이 같은 이 사이트의 팩에서 가져와 ‘정책 ${packFile.policies.length}’에 적었습니다.`,
+      );
       // SARIF 로 연 결과도 같다. v1 초안은 정책이 결과의 요약에 실려 있으므로 그 말을 적지 않는다.
       expect(readSheet(sheet(readJson("contract", "cli-current", "kids-signup.main.sarif"))).policyNotes[0].endsWith("결과에는 정책 목록이 없습니다.")).toBe(true);
       const draft = read("contract", "samples-v1-draft", "kids-signup.fixed.json");
@@ -586,11 +589,12 @@ describe("기록에 싣는 것", () => {
       // 주어만 좁힌 것이다. 나머지는 상태의 뜻 그대로다.
       expect(NOT_REPORTED_NOR_CLEARED.replace("발견도 AI 가 푼 경고도 없는", "발견이 없는")).toBe(STATUS_LEGEND["not-reported"]);
       expect(readSheet(sheet(data)).statusNotes).toEqual([`${STATUS_LABEL["not-reported"]}: ${NOT_REPORTED_NOR_CLEARED}`]);
-      // 결과 화면의 그 정책 카드에도 "나누어 적지 않습니다"가 없다(tests/demo.test.tsx 가 본다). 여기서는 같은 결과로 견준다.
+      // 결과 화면의 그 정책에도 "나누어 적지 않습니다"가 없다(tests/demo.test.tsx 가 본다). 여기서는 같은 결과로 견준다.
+      // (D5) 그 정책은 곁칸에서 `발견 없음, AI 가 푼 경고 N건` 으로 따로 선다(`발견 없음` 묶음에 넣지 않는다).
       const summary = renderToStaticMarkup(<ReportSummary view={viewOf(data)} />);
-      const card = elementsOf(summary, '<article class="policy ').find((html) => textOf(html).includes(metaOf(cleared.policy).title))!;
-      expect(textOf(card)).toContain("AI 판정자의 답으로 풀린 경고가 1건 있습니다");
-      expect(textOf(card)).not.toContain("나누어 적지 않습니다");
+      const sideRow = elementsOf(summary, '<li class="p">').find((html) => textOf(html).includes(metaOf(cleared.policy).title))!;
+      expect(textOf(sideRow)).toContain("발견 없음, AI 가 푼 경고 1건");
+      expect(textOf(summary)).not.toContain("나누어 적지 않습니다");
 
       // AI 가 푼 경고가 없는 결과에서는 뜻을 그대로 적는다(빠진 판정만 있는 결과도 그렇다. 빠진 판정은 판정 단위에 들지 않는다).
       for (const name of ["judge-on.dismissed", "judge-on.citation-rejected"]) {
@@ -796,14 +800,18 @@ describe("기록에 싣는 것", () => {
       const view = viewOf(data);
       const page = readSheet(sheet(data));
       expect(page.facts.map((fact) => fact.label)).toEqual(LABELS);
-      // 결과 화면의 머리(도구, 엔진, 판정자, 팩 판, 출력 형식)에서 읽은 값.
+      // 결과 화면의 검사 정보(도구, 팩 판, 엔진, AI 줄, 판정 단위, 출력 형식 …)에서 읽은 값. (D5) 결과 화면의 차례는 쪽 아래 검사
+      // 정보의 것이라 기록과 다르다(docs/redesign.md 3장). 이름표마다 견준다.
       const result = renderToStaticMarkup(<ReportSummary view={view} />);
-      const meta = elementsOf(elementAt(result, result.indexOf('<dl class="report-meta">')), "<div>").map((row) => [
-        textOf(elementAt(row, row.indexOf("<dt>"))),
-        textOf(elementAt(row, row.indexOf("<dd>"))),
-      ]);
-      expect(meta.map(([label]) => label)).toEqual(LABELS.slice(0, 5));
-      expect(page.facts.slice(0, 5).map((fact) => [fact.label, fact.value])).toEqual(meta);
+      const meta = new Map(
+        elementsOf(elementAt(result, result.indexOf('<dl class="report-meta">')), "<div>").map((row) => [
+          textOf(elementAt(row, row.indexOf("<dt>"))),
+          textOf(elementAt(row, row.indexOf("<dd>"))),
+        ]),
+      );
+      expect(page.facts.slice(0, 5).map((fact) => [fact.label, meta.get(fact.label)])).toEqual(
+        page.facts.slice(0, 5).map((fact) => [fact.label, fact.value]),
+      );
       // 결과에 실린 값이기도 하다.
       const report = reportOf(parts);
       expect(page.facts.slice(0, 5).map((fact) => fact.value)).toEqual([
@@ -910,8 +918,9 @@ describe("기록에 싣는 것", () => {
       expect(page.gapsNote).toBe(
         "이 도구가 보지 못하는 것은 위 목록에 실리지 않습니다: JS/TS 가 아닌 파일, 목록 없이 빠지는 JS/TS 파일, 검사한 범위 밖의 파일, 서버·인프라 설정, 데이터에만 있는 동의 상태.",
       );
-      // 결과 화면의 "이 도구가 보지 못하는 것"의 항목 이름 그대로다. 항목이 더해지면 따라온다.
-      expect(page.gapsNote).toBe(`${SITE.notSeen.title}은 위 목록에 실리지 않습니다: ${SITE.notSeen.items.map((item) => item.what).join(", ")}.`);
+      // 결과 화면의 그 목록(D5 부터 이름은 "검사에 들지 않는 파일과 정보")의 항목 이름 그대로다. 항목이 더해지면 따라온다. 기록이
+      // 부르는 목록의 이름은 바꾸지 않았다(기록의 문구는 그대로. SITE.notSeen.recordName).
+      expect(page.gapsNote).toBe(`${SITE.notSeen.recordName}은 위 목록에 실리지 않습니다: ${SITE.notSeen.items.map((item) => item.what).join(", ")}.`);
       // 든 것이 하나도 없으면 줄을 촘촘히 적는다. 있으면 줄마다 선을 긋는다.
       expect(page.article).toContain('<table class="record-gaps record-gaps-none" role="table" ');
       expect(readSheet(sheet(fixture("incomplete-coverage"))).article).toContain('<table class="record-gaps" role="table" ');
@@ -1502,21 +1511,24 @@ describe("결과 화면과 기록을 오가는 틀 (ReportWithRecord)", () => {
   it.each(every)("%s: 처음에는 결과 화면이다. 고르는 단추가 그 위에 있고, 기록은 고르기 전에는 그리지 않는다", (_name, parts) => {
     const data = readJson(...parts);
     const html = frame(data);
-    expect(html.startsWith('<div class="report-switch"><div class="segmented" role="group" aria-label="결과와 검사 기록 고르기">')).toBe(true);
-    const group = elementAt(html, html.indexOf('<div class="segmented"'));
-    expect(elementsOf(group, "<button").map((button) => [textOf(button), /aria-pressed="(true|false)"/.exec(button)?.[1], /type="([^"]*)"/.exec(button)?.[1]])).toEqual([
-      ["결과", "true", "button"],
-      ["조문별 검사 기록", "false", "button"],
+    // (D5) "결과 | 조문별 검사 기록" 두 단추(segmented, "결과와 검사 기록 고르기")를 머리 오른쪽의 보조 단추 하나로 바꿨다
+    // (docs/redesign.md 2.3 낱말 표). 단추는 눌린 상태(aria-pressed)를 가진다. 처음에는 눌리지 않았다(결과 화면).
+    expect(html.startsWith('<div class="report-switch"><header class="an-head report-head"><div class="ttl">')).toBe(true);
+    const head = elementAt(html, html.indexOf("<header"));
+    expect(elementsOf(head, "<button").map((button) => [textOf(button), /aria-pressed="(true|false)"/.exec(button)?.[1], /type="([^"]*)"/.exec(button)?.[1]])).toEqual([
+      ["조문별 검사 기록 인쇄용", "false", "button"],
     ]);
     // 단추 아래는 결과 화면 그대로다.
-    expect(html).toBe(`<div class="report-switch">${group}<div>${renderToStaticMarkup(<ReportSummary view={viewOf(data)} />)}</div></div>`);
+    expect(html).toBe(`<div class="report-switch">${head}<div>${renderToStaticMarkup(<ReportSummary view={viewOf(data)} />)}</div></div>`);
     // 기록은 없다. 0의 뜻 같은 말이 결과 화면에 두 번 보이지 않는다.
     expect(html).not.toContain('class="record"');
-    expect(html).not.toContain("인쇄");
+    // 인쇄 단추(기록을 고른 뒤의 `인쇄`)는 없다. (D5) 기록 단추의 이름표 `인쇄용` 만 있다.
+    expect(html.replace('<span class="sub">인쇄용</span>', "")).not.toContain("인쇄");
+    expect(html).not.toContain("record-tools");
   });
 
   it("단추의 이름은 사이트의 문구에서 온다", () => {
     expect(SITE.record.title).toBe("조문별 검사 기록");
-    expect(frame(capture("plain.main"))).toContain(`>${SITE.record.title}</button>`);
+    expect(frame(capture("plain.main"))).toContain(`>${SITE.record.title} <span class="sub">인쇄용</span></button>`);
   });
 });

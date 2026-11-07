@@ -223,19 +223,30 @@ describe("DB + GitHub 으로 띄운 사이트", () => {
     }
   });
 
-  it("끝난 분석은 대시보드, 실패한 분석은 멈춘 단계와 까닭", async () => {
+  it("끝난 분석은 결과 화면, 실패한 분석은 멈춘 단계와 까닭. 가짜 GitHub 이라 분석 쪽 머리에 합성 예시 이름표를 단다", async () => {
     const { page } = await open(analysisHref("example-org", "kids-signup", SUCCEEDED));
-    await page.waitForSelector(".dash");
+    await page.waitForSelector(".report");
     expect(await page.locator("main").textContent()).not.toContain("합성 예시입니다");
+    // (D5, D3 검토 D5-TAG-1) 이름표는 서버 설정(showsSyntheticTag: 가짜 GitHub)으로 단다. DB 의 저장소 기록은 합성이 아니다
+    // (가짜 GitHub 의 저장소도 실제 저장소처럼 적힌다). 저장소, 커밋, 분석 id, 시각이 머리에 함께 있다.
+    expect(await page.locator(".an-head .tag").textContent()).toBe("합성 예시");
+    const meta = (await page.locator(".an-meta").innerText()).replace(/\s+/g, " ");
+    expect(meta).toContain(`분석 ${SUCCEEDED}`);
+    expect(meta).toMatch(/\d{4}-\d\d-\d\d \d\d:\d\d–[\d: -]+ KST/);
+    expect(await page.locator(".an-head h1").textContent()).toBe("example-org / kids-signup");
     await page.goto(`${site.origin}${analysisHref("example-org", "kids-signup", FAILED)}`);
-    expect(await page.locator(".notice-warn").first().textContent()).toContain("저장소를 받지 못했습니다(시험).");
+    expect(await page.locator(".an-head .tag").textContent()).toBe("합성 예시");
+    expect(await page.locator(".fail-box").textContent()).toContain("저장소를 받지 못했습니다(시험).");
+    expect(await page.locator(".fail-box").textContent()).toContain("검토할 곳이 없다는 뜻이 아닙니다");
     expect(await page.locator(".step-failed .step-name").allTextContents()).toEqual(["저장소 받기·도구 설치"]);
   });
 
   it("대기열: 실행 자리가 차 있으면 대기 중인 분석 쪽과 저장소 쪽에 대기열의 몇 번째인지만 적는다(DB 에서 센 숫자. 실행 자리의 수는 적지 않는다)", async () => {
     const { page, outside } = await open(analysisHref("example-studio", "genai-chat", QUEUED));
-    expect(await page.locator(".an-title .badge").textContent()).toBe("대기 중");
-    expect(await page.locator(".an-queue").textContent()).toBe("대기열 1번째");
+    expect(await page.locator(".an-meta .badge").textContent()).toBe("대기 중");
+    // (D5) `진행` 상자의 지금 단계 줄(role=status)이 대기열의 자리다.
+    expect(await page.locator(".live-now").textContent()).toBe("대기열 1번째");
+    expect(await page.locator(".an-head .tag").textContent()).toBe("합성 예시");
     // 진행 읽기도 같은 숫자를 준다.
     const api = (await (await fetch(`${site.origin}/api/analyses/${QUEUED}/`)).json()) as { queue: unknown };
     expect(api.queue).toEqual({ kind: "waiting", ahead: 0, poolSize: 1, inUse: 1 });
@@ -249,7 +260,7 @@ describe("DB + GitHub 으로 띄운 사이트", () => {
 
     // 자리를 차지한 분석(실행기에 보냄, 아직 시작을 알리지 않음).
     await page.goto(`${site.origin}${analysisHref("example-labs", "plain.utils", WAITING)}`);
-    expect(await page.locator(".an-queue").textContent()).toBe("실행기에 보냄, 시작 기다림");
+    expect(await page.locator(".live-now").textContent()).toBe("실행기에 보냄, 시작 기다림");
     expect(outside).toEqual([]);
   });
 
@@ -321,7 +332,7 @@ describe("DB + GitHub 으로 띄운 사이트", () => {
     expect(problems.splice(0)).toEqual(["콘솔: Failed to load resource: the server responded with a status of 422 (Unprocessable Entity)"]);
 
     await page.goto(`${site.origin}${analysisHref("example-studio", "genai-chat", QUEUED)}`, { waitUntil: "networkidle" });
-    await page.locator(".an-queue").waitFor();
+    await page.locator(".live-now", { hasText: "대기열" }).waitFor();
     await check("대기열");
     await page.goto(`${site.origin}${repoHref("example-studio", "genai-chat")}`, { waitUntil: "networkidle" });
     await check("저장소 쪽의 대기열");
@@ -347,7 +358,8 @@ describe("DB + GitHub 으로 띄운 사이트", () => {
     const { page, outside } = await open(analysisHref("example-labs", "plain.utils", WAITING));
     await page.evaluate(() => ((window as unknown as { __sameDocument: boolean }).__sameDocument = true));
     expect(await page.locator(".step-active .step-name").allTextContents()).toEqual(["대기"]);
-    expect(await page.locator(".an-progress").textContent()).toContain("몇 초마다 진행을 다시 읽고");
+    // (D5) "몇 초마다 다시 읽는다"는 풀이 문장은 지웠다. 지금 단계 줄이 화면 낭독기에 바뀐 것을 알린다.
+    expect(await page.locator(".live-now").getAttribute("role")).toBe("status");
     await expect.poll(polls, { timeout: 5_000 }).toBeGreaterThanOrEqual(1);
 
     // 탭을 숨긴다(헤드리스 Chrome 은 탭을 숨기지 못해 문서의 값을 바꾸고 알린다).
@@ -383,8 +395,8 @@ describe("DB + GitHub 으로 띄운 사이트", () => {
     await failed.arrayBuffer();
     expect(failed.status).toBe(200);
     await page.locator("#failed-title").waitFor({ timeout: 8_000 });
-    expect(await page.locator(".notice-warn").first().textContent()).toContain("저장소를 받지 못했습니다(진행 시험).");
-    expect(await page.locator(".an-title .badge").textContent()).toBe("실패");
+    expect(await page.locator(".fail-box").textContent()).toContain("저장소를 받지 못했습니다(진행 시험).");
+    expect(await page.locator(".an-meta .badge").textContent()).toBe("실패");
     // 쪽을 다시 연 것이 아니라 같은 문서가 서버가 새로 그린 것을 받았다(router.refresh).
     expect(await page.evaluate(() => (window as unknown as { __sameDocument?: boolean }).__sameDocument)).toBe(true);
     // 끝난 뒤에는 더 읽지 않는다.
@@ -408,20 +420,20 @@ describe("DB + GitHub 으로 띄운 사이트", () => {
     expect(page.url()).toBe(`${site.origin}${analysisHref("example-org", "night-push", id)}`);
     const created = site.requests.filter((r) => r.method === "POST" && r.url === "/api/analyses/").at(-1);
     expect(created?.status).toBe(201);
-    await page.locator(".an-title .badge").waitFor();
-    expect(await page.locator(".an-title .badge").textContent()).toBe("대기 중");
+    await page.locator(".an-meta .badge").waitFor();
+    expect(await page.locator(".an-meta .badge").textContent()).toBe("대기 중");
     expect(await page.locator(".step-active .step-name").allTextContents()).toEqual(["대기"]);
     // 실행 자리(1)는 앞서 보낸 QUEUED 가 쓰고 있다. 이 분석은 대기열의 첫째다.
-    expect(await page.locator(".an-queue").textContent()).toBe("대기열 1번째");
+    expect(await page.locator(".live-now").textContent()).toBe("대기열 1번째");
 
     // 로컬 실행기가 QUEUED 를 먼저 돌리고(단계 사이 4초), 그 결과를 받은 서버가 자리를 이 분석에 넘기면 곧바로 집어 이어서 돌린다
     // ('실행기에 보냄'은 집어 가기까지의 한순간이라 쪽에 그려지지 않을 수 있다). 쪽이 3초마다 읽으므로 중간 단계 하나는 그려진다.
     const runner = runLocalRunner(["--fixture", "--once", "--step-delay", "4000", "--site", site.origin], { RUNNER_SECRET });
     try {
       await page.locator(".step-active .step-name", { hasText: /저장소 받기|검사/ }).waitFor({ timeout: 30_000 });
-      expect(await page.locator(".an-title .badge").textContent()).toBe("분석 중");
-      expect(await page.locator(".an-queue").count()).toBe(0);
-      await page.locator(".dash").waitFor({ timeout: 15_000 });
+      expect(await page.locator(".an-meta .badge").textContent()).toBe("분석 중");
+      expect(await page.locator(".live-now").textContent()).not.toContain("대기열");
+      await page.locator(".report").waitFor({ timeout: 15_000 });
     } finally {
       await runner;
     }

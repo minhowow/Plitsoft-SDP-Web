@@ -70,15 +70,18 @@ describe("브라우저로 가는 묶음", () => {
     }
   });
 
-  it("브라우저로 넘기는 팩 정보에는 팩 판, 정책의 id·제목·조문 이름, 대표 조문의 시행일·원문 해시만 있다", () => {
+  it("브라우저로 넘기는 팩 정보에는 팩 판, 정책의 id·제목·조문 이름·규칙 id, 대표 조문의 시행일·원문 해시만 있다", () => {
     expect(Object.keys(packIndex).sort()).toEqual(["pack", "policies"]);
     expect(Object.keys(packIndex.pack)).toEqual(["digest"]);
     expect(packIndex.pack.digest).toBe(packMeta.pack.digest);
     expect(packIndex.policies).toHaveLength(packMeta.policies.length);
     for (const [i, policy] of packIndex.policies.entries()) {
       const meta = packMeta.policies[i];
-      expect(Object.keys(policy).sort(), policy.id).toEqual(["id", "legal", "title"]);
+      // (D5) 규칙 id(`ruleIds`)를 더했다. 결과 화면이 팩에 있는 규칙 id 만 조문 도감으로 잇는다(팩에 없는 규칙은 글로만 적는다).
+      expect(Object.keys(policy).sort(), policy.id).toEqual(["id", "legal", "ruleIds", "title"]);
       expect([policy.id, policy.title], policy.id).toEqual([meta.id, meta.title]);
+      expect(policy.ruleIds, policy.id).toEqual(meta.rules.map((rule) => rule.id));
+      expect(policy.ruleIds!.length, policy.id).toBeGreaterThan(0);
       expect(policy.legal.map((ref) => ref.label), policy.id).toEqual(meta.legal.map((ref) => ref.label));
       // 조문은 이름만 넘긴다. 대표 조문(첫 조문)에만 조문별 검사 기록이 적는 값이 더 실린다: 시행일, 원문 해시, 그 해시가
       // 팩 안의 원문 파일과 맞는지(src/lib/report/record.ts).

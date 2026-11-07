@@ -20,6 +20,11 @@ export interface LocationView {
   /** 판정이 본 범위. 발견 줄에서는 줄 번호 옆에 늘 함께 보인다(줄 번호는 문제의 줄이 아니다). */
   scope: JudgedScope;
   rule: string;
+  /**
+   * 이 규칙이 이 사이트의 팩(data/pack-meta.json)에 있는지. 있으면 화면이 규칙 id 를 조문 도감의 그 정책 쪽으로 잇고, 없으면
+   * (다른 판의 팩, 손으로 만든 파일) 글로만 적는다.
+   */
+  ruleInPack: boolean;
   status: Status;
   fingerprint: string;
   finding: Finding;
@@ -142,6 +147,71 @@ export interface ReportView {
    * 없는 결과도 읽으므로, 그때는 `aiDismissed` 가 비어 있어도 빠진 판정이 없었다고 하지 않는다).
    */
   aiDismissedKnown: boolean;
+  /**
+   * 검사 정보의 AI 줄. 이름표와 값의 목록이다(화면은 줄마다 하나씩 그린다). 지금은 결과의 `run.judge` 를 CLI 가 낸 글 그대로
+   * 옮긴 한 줄이고, 판정자가 꺼져 있었으면 "꺼짐"이다. AI 검토를 한 무엇이 결과에 더 실리면 이 목록에 줄을 더한다.
+   */
+  aiRows: InfoRow[];
+  /**
+   * AI 가 푼 경고의 줄(화면의 "AI 가 푼 경고" 상자). 어디서 온 기록인지와 상관없는 모양이다(`ReviewItem`). 지금은
+   * `run.ai_cleared` 를 옮긴 것이다.
+   */
+  cleared: ReviewItem[];
+  /** AI 가 적용되지 않는다고 답해 빠진 판정의 줄. 지금은 `run.ai_dismissed` 를 옮긴 것이다. */
+  dismissed: ReviewItem[];
+}
+
+/** 이름표와 값 한 쌍(검사 정보의 한 줄). 값은 결과에 실린 글 그대로다. */
+export interface InfoRow {
+  label: string;
+  value: string;
+}
+
+/**
+ * 인용한 줄 하나: 파일, 줄(모르면 null), 글. 글은 결과에 실린 그대로다(여러 줄일 수 있다). 줄 번호가 실려 있지 않으면 짐작해
+ * 채우지 않는다(AI 가 인용한 글에는 줄 번호가 없다. 판정 단위의 줄을 인용한 줄로 옮기지 않는다).
+ */
+export interface QuotedLine {
+  file: string;
+  line: number | null;
+  text: string;
+  /**
+   * 이 인용이 받치는 대안의 id(풀린 경고). 사람이 "그 줄이 그 대안의 근거가 맞는지" 확인하려면 어느 대안의 인용인지 알아야
+   * 한다(CLI 는 대안마다 인용 하나를 싣는다). 대안과 이어지지 않은 인용이면 null.
+   */
+  alternative: string | null;
+}
+
+/**
+ * AI 의 답으로 풀리거나 빠진 판정 하나. 화면의 상자가 받는 모양이다. 어떤 기록에서 왔는지(지금은 `run.ai_cleared`,
+ * `run.ai_dismissed`)를 상자는 모른다.
+ */
+export interface ReviewItem {
+  policy: string;
+  /** 정책의 제목(발견이나 팩에서). 모르면 정책 id. */
+  title: string;
+  rule: string;
+  ruleInPack: boolean;
+  file: string;
+  line: number | null;
+  /** 풀린 대안의 id(실린 차례). 빠진 판정에는 없다. */
+  alternatives: string[];
+  /** 인용한 줄. 대안마다 하나이고 그 대안의 id 를 지닌다(`QuotedLine.alternative`). 없으면 빈 목록이다. */
+  quotes: QuotedLine[];
+  /** 인용이 없는 대안의 id(풀린 경고). "인용 없음"으로 적는다. */
+  uncited: string[];
+  /** 빠진 판정: 묻는 말과 답(결과에 실린 그대로). */
+  question: string | null;
+  answer: string | null;
+}
+
+/**
+ * 이 결과에서 AI 검토(판정자)가 돌았는지. "판정자를 켜 보라"는 권고(`/view`·데모), 요약 줄의 AI 수, 저장소 쪽 최신 분석의 AI 수가
+ * 이 함수로 가른다. 적용 질문으로 빠진 판정이 결과에 다 실렸는지(`aiDismissedKnown`. 조문별 검사 기록, 빈 결과의 `검사한 것`,
+ * 요약 줄이 쓴다)도 `buildReportView` 에서 이 함수로 셈한다. 지금은 결과의 `run.judge` 가 있는지다.
+ */
+export function aiReviewRan(view: Pick<ReportView, "judge">): boolean {
+  return view.judge !== null;
 }
 
 /**
@@ -201,6 +271,13 @@ function groupByRule(found: LocationView[]): RuleGroupView[] {
  * SARIF 에서 옮긴 결과(`sarif.ts`)도 같은 길로 간다. 정책별 요약이 없는 것은 CLI 0.3 의 JSON 과 같으므로 발견과 정책
  * 카드는 같게 만들어지고, SARIF 에 없는 것(판정 단위 수, 검사한 파일 수, 일부 판정 구역)만 "알 수 없음"으로 남는다.
  */
+/** 팩의 정책 하나가 지닌 규칙 id. 브라우저로 넘기는 팩 정보(`ruleIds`)와 팩 메타데이터 전체(`rules[].id`)를 함께 받는다. */
+function ruleIdsOf(policy: PackIndex["policies"][number]): Set<string> {
+  if (policy.ruleIds) return new Set(policy.ruleIds);
+  const rules = (policy as { rules?: { id: string | null }[] }).rules ?? [];
+  return new Set(rules.map((rule) => rule.id).filter((id): id is string => typeof id === "string"));
+}
+
 export function buildReportView(report: Report, contract: Contract, pack?: PackIndex): ReportView {
   const byPolicy = new Map<string, Finding[]>();
   for (const finding of report.findings) {
@@ -212,6 +289,8 @@ export function buildReportView(report: Report, contract: Contract, pack?: PackI
   // 정책별 요약은 v1 초안에서만 믿는다. 판 번호 없는 결과에 같은 이름의 필드가 있어도 쓰지 않는다.
   const summaries = new Map((contract === "v1-draft" ? (report.run.policies ?? []) : []).map((s) => [s.policy, s]));
   const packPolicies = new Map((pack?.policies ?? []).map((p) => [p.id, p]));
+  const packRules = new Map((pack?.policies ?? []).map((p) => [p.id, ruleIdsOf(p)]));
+  const inPack = (policy: string, rule: string) => packRules.get(policy)?.has(rule) ?? false;
   const packMatches = pack ? pack.pack.digest === report.run.pack_digest : null;
 
   const aiCleared = report.run.ai_cleared ?? [];
@@ -252,6 +331,7 @@ export function buildReportView(report: Report, contract: Contract, pack?: PackI
       lineUnsure: contract === "sarif" && finding.line === 1 && finding.region === null,
       scope: judgedScope(finding),
       rule: finding.rule,
+      ruleInPack: inPack(finding.policy, finding.rule),
       status: findingStatus(finding),
       fingerprint: finding.fingerprint,
       finding,
@@ -291,6 +371,23 @@ export function buildReportView(report: Report, contract: Contract, pack?: PackI
   // 정렬은 안정적이다. 같은 상태 안에서는 팩 순서가 남는다.
   policies.sort((a, b) => byUrgency(a.status, b.status));
 
+  const titles = new Map(policies.map((policy) => [policy.id, policy.title]));
+  const item = (record: { policy: string; rule: string; file: string; line?: number | null }): ReviewItem => ({
+    policy: record.policy,
+    title: titles.get(record.policy) ?? record.policy,
+    rule: record.rule,
+    ruleInPack: inPack(record.policy, record.rule),
+    file: record.file,
+    line: record.line ?? null,
+    alternatives: [],
+    quotes: [],
+    uncited: [],
+    question: null,
+    answer: null,
+  });
+
+  // AI 검토가 돌았는지는 한 곳(aiReviewRan)에서 정한다. 빠진 판정을 아는지도 이 값에서 셈한다.
+  const ran = aiReviewRan({ judge: report.run.judge });
   const engine = report.run.engine;
   // 커밋도 정책별 요약처럼 v1 초안에서만 읽는다. 파서가 모양을 보지 않는 필드라서 커밋 해시의 모양인지 여기서 확인한다.
   const commit = contract === "v1-draft" ? report.run.commit : null;
@@ -318,6 +415,21 @@ export function buildReportView(report: Report, contract: Contract, pack?: PackI
     aiCleared,
     staticCleared,
     aiDismissed,
-    aiDismissedKnown: report.run.judge === null || report.run.ai_dismissed !== undefined,
+    aiDismissedKnown: !ran || report.run.ai_dismissed !== undefined,
+    aiRows: [{ label: "판정자", value: report.run.judge ?? "꺼짐" }],
+    cleared: aiCleared.map((cleared) => ({
+      ...item(cleared),
+      alternatives: cleared.alternatives.map((alt) => alt.id),
+      // 인용한 글에는 줄 번호가 실려 있지 않다. 파일만 적는다. 어느 대안의 인용인지는 함께 옮긴다(CLI 는 대안마다 인용을 싣는다).
+      quotes: cleared.alternatives.flatMap((alt) =>
+        alt.cite ? [{ file: cleared.file, line: null, text: alt.cite, alternative: alt.id }] : [],
+      ),
+      uncited: cleared.alternatives.filter((alt) => !alt.cite).map((alt) => alt.id),
+    })),
+    dismissed: aiDismissed.map((dismissed) => ({
+      ...item(dismissed),
+      question: dismissed.question ?? null,
+      answer: dismissed.answer ?? null,
+    })),
   };
 }

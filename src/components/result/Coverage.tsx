@@ -1,7 +1,6 @@
 import {
   GAPS_NOTE,
   GAPS_TITLE,
-  GAPS_UNLISTED,
   SHOWN_PER_LIST,
   type CoverageSummary,
   type GapFile,
@@ -13,41 +12,38 @@ import { SITE } from "@/lib/site";
 import { Where } from "./Where";
 
 /**
- * 이 도구가 보지 못하는 것(`SITE.notSeen`). 빈 결과 화면에는 펼친 채로, 발견이 있는 결과에는 커버리지 보기에 접힌
- * 채로 들어간다. 목록은 같고 첫 문단만 다르다.
+ * 검사에 들지 않는 파일과 정보(`SITE.notSeen`). 발견이 0인 결과 화면에 펼친 채로 들어간다. 발견이 있는 결과에서는 쪽 아래
+ * 검사 정보의 링크가 조문 도감으로 잇는다(docs/redesign.md 3장). 목록은 같고 첫 문단만 발견 수에 따라 다르다.
  */
 export function NotSeen({ view }: { view: ReportView }) {
   return (
     <>
       <p className="hint">{view.findingCount === 0 ? SITE.notSeen.lead : SITE.notSeen.leadWithFindings}</p>
+      {/* 항목마다 한 줄: 무엇(왼쪽) | 왜(오른쪽, 까닭이 여럿이면 한 줄씩). 좁은 화면에서는 위아래로 쌓는다(CSS, 목업 notseen 의 def 줄).
+          쌍점은 화면 낭독기와 글 복사에만 남긴다. */}
       <ul className="not-seen">
         {SITE.notSeen.items.map((item) => (
           <li key={item.what}>
-            <strong>{item.what}:</strong> {item.why}
-            {item.cases && (
-              <ul className="not-seen-cases">
-                {item.cases.map((text) => (
-                  <li key={text}>{text}</li>
-                ))}
-              </ul>
-            )}
+            <strong>
+              {item.what}
+              <span className="visually-hidden">:</span>
+            </strong>{" "}
+            <div className="ns-why">
+              {item.why}
+              {item.cases && (
+                <ul className="not-seen-cases">
+                  {item.cases.map((text) => (
+                    <li key={text}>{text}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </li>
         ))}
       </ul>
       {/* 대상 언어는 팩이 정한다. 다른 판의 팩으로 만든 결과에서는 위의 "JS/TS"가 맞는지 알 수 없다. */}
       {view.packMatches === false && <p className="hint">{SITE.notSeen.otherPack}</p>}
     </>
-  );
-}
-
-/** 맨 위 경고. 다 보지 못했거나, 검사한 파일이 없거나, 엔진을 돌리지 않은 결과에만 있다. 결과 화면의 첫 줄에 둔다. */
-export function CoverageWarning({ summary }: { summary: CoverageSummary }) {
-  if (!summary.warning) return null;
-  return (
-    <p className="notice notice-warn coverage-warning">
-      <strong>{summary.warning.lead}</strong>
-      {summary.warning.detail && ` ${summary.warning.detail}`}
-    </p>
   );
 }
 
@@ -129,25 +125,35 @@ function GapDetail({ row }: { row: GapRow }) {
 }
 
 /**
- * 커버리지 보기. 검사한 파일 수와 판정 단위 수, 그 아래 "다 보지 못한 것" 표. 두 수가 결과에 없으면(SARIF) "알 수
- * 없음"으로 적고, 그 줄 아래에 까닭을 한 줄 덧붙인다.
+ * 맨 위 경고(docs/redesign.md 3장 "분석"). 다 보지 못했거나, 검사한 파일이 없거나, 엔진을 돌리지 않은 결과에만 있다. 결과 화면의
+ * 첫 상자다. 머리에 굵은 첫 문장과 나머지를 적고, 그 아래에 "다 보지 못한 것" 표를 둔다.
  *
- * 표는 세 목록(검사하지 않은 파일, 일부를 읽지 못한 파일, 엔진이 끝내지 못한 파일)을 늘 같은 순서로 보인다. 든
- * 것이 없는 줄은 이름과 "없음"만 보이고, 든 것이 있는 줄에만 뜻과 파일이 붙는다. 엔진 오류는 있을 때만 넷째 줄이다.
+ * 표는 세 목록(검사하지 않은 파일, 일부를 읽지 못한 파일, 엔진이 끝내지 못한 파일)을 늘 같은 순서로 보인다. 든 것이 없는 줄은
+ * 이름과 "없음"만 보이고, 든 것이 있는 줄에만 뜻과 파일이 붙는다. 엔진 오류는 있을 때만 넷째 줄이다. 경고가 없는 결과에는 표도
+ * 없다(쪽 아래 검사 정보가 "결과에 실린 ‘다 보지 못한 파일’ 없음"이라고 적는다).
  *
- * 좁은 화면에서는 CSS 가 줄을 세로로 쌓는다(이름과 수가 한 줄, 뜻과 파일이 그 아래). 그때 display 가 바뀌어도
- * 화면 낭독기가 표로 읽게 role 을 직접 적는다. 칸 머리는 화면에는 보이지 않고 화면 낭독기에만 읽힌다.
- *
- * 발견이 있는 결과에는 표 아래에 "이 도구가 보지 못하는 것"을 접어 둔다. 발견이 0인 결과에서는 바로 아래의 빈 결과
- * 화면이 같은 목록을 펼쳐 보이므로 여기에는 두지 않는다.
+ * 좁은 화면에서는 CSS 가 줄을 세로로 쌓는다(이름과 수가 한 줄, 뜻과 파일이 그 아래). 그때 display 가 바뀌어도 화면 낭독기가 표로
+ * 읽게 role 을 직접 적는다. 칸 머리는 화면에는 보이지 않고 화면 낭독기에만 읽힌다.
  */
-export function Coverage({ view, summary }: { view: ReportView; summary: CoverageSummary }) {
+export function CoverageWarning({ summary }: { summary: CoverageSummary }) {
+  if (!summary.warning) return null;
+  return (
+    <section className="warn coverage-warning" aria-labelledby="coverage-warning-title">
+      <p className="warn-hd" id="coverage-warning-title">
+        <strong>{summary.warning.lead}</strong>
+        {summary.warning.detail && ` ${summary.warning.detail}`}
+      </p>
+      <GapTable summary={summary} />
+    </section>
+  );
+}
+
+/** "다 보지 못한 것" 표. 맨 위 경고 안에 둔다. */
+export function GapTable({ summary }: { summary: CoverageSummary }) {
   // 든 것이 하나도 없으면 줄을 촘촘히 적는다(CSS). 볼 것이 없는 표가 그 아래의 발견을 밀어내지 않게 한다.
   const none = summary.rows.every((row) => row.count === 0);
   return (
     <div className="coverage">
-      <p>{summary.line}</p>
-      {summary.lineNote && <p className="hint">{summary.lineNote}</p>}
       <table className={none ? "gaps gaps-none" : "gaps"} role="table">
         <caption>
           {GAPS_TITLE} <span className="caption-note">{GAPS_NOTE}</span>
@@ -181,14 +187,6 @@ export function Coverage({ view, summary }: { view: ReportView; summary: Coverag
           ))}
         </tbody>
       </table>
-      {view.findingCount > 0 && (
-        <details className="fold">
-          <summary>
-            {SITE.notSeen.title} <span className="fold-note">{GAPS_UNLISTED}</span>
-          </summary>
-          <NotSeen view={view} />
-        </details>
-      )}
     </div>
   );
 }

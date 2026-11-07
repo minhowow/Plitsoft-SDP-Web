@@ -126,19 +126,25 @@ function singleFindingGroups(count: number): unknown {
   };
 }
 
-const SWITCH = "결과와 검사 기록 고르기";
-const switchButton = (page: Page, name: string) => page.getByRole("group", { name: SWITCH }).getByRole("button", { name, exact: true });
-/** 눌려 있는 단추의 이름. */
-const pressed = (page: Page) => page.locator('.report-switch > .segmented button[aria-pressed="true"]').allInnerTexts();
+/**
+ * 결과와 기록을 오가는 단추. (D5) "결과 | 조문별 검사 기록" 두 단추(group "결과와 검사 기록 고르기")를 결과 머리의 보조 단추 하나
+ * `조문별 검사 기록 인쇄용` 으로 바꿨다(docs/redesign.md 2.3). 눌린 상태(aria-pressed)를 가지고, 다시 누르면 결과로 돌아간다.
+ */
+const RECORD_BUTTON = `${SITE.record.title} 인쇄용`;
+const recordButton = (page: Page) => page.getByRole("button", { name: RECORD_BUTTON, exact: true });
+/** 지금 보이는 것: 단추가 눌려 있으면 기록, 아니면 결과. 앞의 시험들이 두 단추 가운데 눌린 것의 이름을 적던 모양 그대로 돌려준다. */
+const pressed = async (page: Page) => [(await recordButton(page).getAttribute("aria-pressed")) === "true" ? SITE.record.title : "결과"];
 
 /** 단추로 기록을 고른다. 기록이 그려지거나, 만들지 않은 까닭이 보일 때까지 기다린다. */
 async function showRecord(page: Page): Promise<void> {
-  await switchButton(page, SITE.record.title).click();
+  expect(await recordButton(page).getAttribute("aria-pressed")).toBe("false");
+  await recordButton(page).click();
   await page.waitForSelector(".record, .record-refused");
 }
 
 async function showResult(page: Page): Promise<void> {
-  await switchButton(page, "결과").click();
+  expect(await recordButton(page).getAttribute("aria-pressed")).toBe("true");
+  await recordButton(page).click();
   await page.waitForSelector(".record, .record-refused", { state: "detached" });
 }
 
@@ -256,8 +262,9 @@ const drawnLabel = (label: string) => `"${label}" / ""`;
 const POLICY_COLUMNS = ["정책", "대표 조문", "시행일", "원문 해시", "발견"];
 
 /** 결과 화면에서 기록 밖에 있는 것들. 인쇄할 때 나오면 안 된다. */
-const VIEW_CHROME = [".site-header", ".site-footer", "main > h1", ".lede", ".dropzone", ".samples", ".viewer-title", ".viewer-note", ".report-switch > .segmented", ".record-tools"];
-const DEMO_CHROME = [".site-header", ".site-footer", "main > h1", ".lede", ".demo-pick", ".demo-title", ".demo-note", ".codeblock", ".demo-compare", ".report-switch > .segmented", ".record-tools"];
+// (D5) 부제(.lede)·설명(.demo-note)·연 예시의 설명(.viewer-note)은 걷었다. 결과 머리(제목, 이름표, 단추)는 .report-head 다.
+const VIEW_CHROME = [".site-header", ".site-footer", "main h1", ".dropzone", ".samples", ".viewer-title", ".report-head", ".record-btn", ".record-tools"];
+const DEMO_CHROME = [".site-header", ".site-footer", "main h1", ".demo-pick", ".demo-title", ".codeblock", ".demo-compare", ".report-head", ".record-btn", ".record-tools"];
 
 describe("결과가 열려 있는 자리에서 바로 기록을 본다", () => {
   // ROADMAP 7번의 완료 조건이다.
@@ -280,7 +287,7 @@ describe("결과가 열려 있는 자리에서 바로 기록을 본다", () => {
       const rects = shown.map((el) => el.getBoundingClientRect());
       return { order: shown.map((el) => el.className), between: rects.slice(1).map((rect, i) => Math.round(rect.top - rects[i].bottom)) };
     });
-    expect(gaps.order).toEqual(["segmented", "record-tools", "record"]);
+    expect(gaps.order).toEqual(["an-head report-head", "record-tools", "record"]);
     for (const gap of gaps.between) expect(gap).toBeGreaterThanOrEqual(8);
     const text = await recordText(page);
     expect(text).toContain("조문별 검사 기록");
@@ -410,27 +417,29 @@ describe("결과가 열려 있는 자리에서 바로 기록을 본다", () => {
 
   it("키보드만으로 기록을 고르고 돌아온다. 초점은 누른 단추에 남는다", async () => {
     const { page } = await open("/view/");
-    const focused = () => page.evaluate(() => (document.activeElement?.closest(".report-switch > .segmented") ? document.activeElement!.textContent : null));
-    // 예시 고르기 다음이 결과와 기록을 고르는 단추다.
+    // (D5) 단추는 하나다(눌린 상태를 가진다). 초점이 그 단추에 있는지와 눌린 상태를 본다.
+    const focused = () =>
+      page.evaluate(() => {
+        const el = document.activeElement;
+        return el?.classList.contains("record-btn") ? `${el.textContent} ${el.getAttribute("aria-pressed")}` : null;
+      });
+    // 예시 고르기 다음이 결과와 기록을 오가는 단추다.
     await page.locator("#sample-select").focus();
     await page.keyboard.press("Tab");
-    expect(await focused()).toBe("결과");
-    await page.keyboard.press("Tab");
-    expect(await focused()).toBe(SITE.record.title);
+    expect(await focused()).toBe(`${RECORD_BUTTON} false`);
     expect(await page.evaluate(() => getComputedStyle(document.activeElement!).outlineStyle)).toBe("solid");
     await page.keyboard.press("Enter");
     await page.waitForSelector(".record");
-    expect(await focused()).toBe(SITE.record.title);
+    expect(await focused()).toBe(`${RECORD_BUTTON} true`);
     // 다음은 인쇄 단추다. 기록 안에는 초점을 받는 것이 없다(링크도 단추도 없다).
     await page.keyboard.press("Tab");
     expect(await page.evaluate(() => document.activeElement?.closest(".record-tools") !== null && document.activeElement!.textContent)).toBe("인쇄");
     expect(await page.locator(".record a, .record button, .record summary, .record [tabindex]").count()).toBe(0);
     await page.keyboard.press("Shift+Tab");
-    await page.keyboard.press("Shift+Tab");
-    expect(await focused()).toBe("결과");
+    expect(await focused()).toBe(`${RECORD_BUTTON} true`);
     await page.keyboard.press("Space");
     await page.waitForSelector(".record", { state: "detached" });
-    expect(await focused()).toBe("결과");
+    expect(await focused()).toBe(`${RECORD_BUTTON} false`);
     expect(await pressed(page)).toEqual(["결과"]);
   });
 });
@@ -469,7 +478,7 @@ describe("인쇄하면 기록만 나온다", () => {
     // 기록이 없으면 기록만 찍는 규칙이 듣지 않는다. 화면에서 고르는 데만 쓰는 것(파일 고르기, 예시 고르기, 결과와 기록을
     // 오가는 단추)만 찍지 않는다(9번. 인쇄할 때 밝은 색으로 찍는 것과 함께 tests/browser/colors.test.ts 가 본다). 인쇄 단추는
     // 기록을 고르기 전에는 없다.
-    const controls = [".dropzone", ".samples", ".report-switch > .segmented"];
+    const controls = [".dropzone", ".samples", ".record-btn"];
     const kept = VIEW_CHROME.filter((selector) => selector !== ".record-tools" && !controls.includes(selector));
     expect(kept.length).toBeGreaterThan(4);
     expect(await drawn(page, controls)).toEqual(controls.map(() => true));
@@ -872,10 +881,10 @@ describe("좁은 화면과 두 테마", () => {
     const policyTable = page.locator(".record-table").first();
     expect(await accessibleNodes(context, page, policyTable.locator("thead th"))).toEqual(POLICY_COLUMNS.map((column) => ({ role: "columnheader", name: column })));
     expect((await accessibleNodes(context, page, policyTable.locator("tbody th"))).map((node) => node.role)).toEqual(packFile.policies.map(() => "rowheader"));
-    // 고르는 단추와 인쇄 단추는 글이 접히지 않는다.
-    const heights = await page.locator(".report-switch > .segmented button, .record-tools button").evaluateAll((all) => all.map((el) => Math.round(el.getBoundingClientRect().height)));
-    expect(heights).toHaveLength(3);
-    expect(new Set(heights).size).toBe(1);
+    // 기록 단추와 인쇄 단추는 글이 접히지 않는다(한 줄 높이).
+    const heights = await page.locator(".record-btn, .record-tools button").evaluateAll((all) => all.map((el) => Math.round(el.getBoundingClientRect().height)));
+    expect(heights).toHaveLength(2);
+    for (const height of heights) expect(height).toBeLessThanOrEqual(44);
   });
 
   // 901px 은 표를 나란히 놓는 가장 좁은 화면이다(900px 까지는 쌓는다).
@@ -1170,8 +1179,9 @@ describe("좁은 화면과 두 테마", () => {
     // 경고가 있는 결과다.
     expect(await page.locator(".record-warning").innerText()).toContain("다 보지 못한 검사입니다.");
     // 고르는 단추와 인쇄 단추의 글자도 읽힌다.
-    const buttons = await page.locator(".report-switch > .segmented button, .record-tools button").evaluateAll((all) =>
-      all.map((el) => ({ color: getComputedStyle(el).color, background: getComputedStyle(el).backgroundColor })),
+    // 기록 단추의 덧붙인 이름표(`인쇄용`)는 단추의 바탕 위에 있다.
+    const buttons = await page.locator(".record-btn, .record-btn .sub, .record-tools button").evaluateAll((all) =>
+      all.map((el) => ({ color: getComputedStyle(el).color, background: getComputedStyle(el.closest("button")!).backgroundColor })),
     );
     for (const button of buttons) expect(contrast(button.color, button.background), JSON.stringify(button)).toBeGreaterThanOrEqual(4.5);
   });
@@ -1238,10 +1248,10 @@ describe("데모의 판마다 기록을 본다", () => {
       });
     const [first, second] = await page.locator(".compare tbody th a").all();
 
-    // 기록을 보는 동안에는 정책 카드가 가려져 있다. 표의 말("누르면 아래 결과의 그 정책으로 갑니다")은 그대로 보인다.
+    // 기록을 보는 동안에는 정책 상자가 가려져 있다. 표(정책 이름의 링크)는 그대로 보인다.
     await showRecord(page);
     expect(await page.locator("#policy-kr-network-act-50-3").isVisible()).toBe(false);
-    expect(await page.locator(".demo-compare").innerText()).toContain("표의 정책 이름을 누르면 아래 결과(고친 뒤)의 그 정책으로 갑니다.");
+    expect(await page.locator(".demo-compare .compare tbody th a").count()).toBe(2);
 
     // 마우스로 누른다. 결과 화면으로 돌아가고, 그 정책 카드가 창 위쪽에 오고, 초점이 카드로 옮겨 간다.
     await second.click();
@@ -1266,7 +1276,7 @@ describe("데모의 판마다 기록을 본다", () => {
 
     // 기록 단추를 누른 바로 뒤에(기록이 아직 그려지기 전일 수 있다) 눌러도 결과 화면에서 그 카드로 간다.
     await page.evaluate(() => {
-      const record = [...document.querySelectorAll<HTMLButtonElement>(".report-switch > .segmented button")].find((button) => button.getAttribute("aria-pressed") === "false")!;
+      const record = document.querySelector<HTMLButtonElement>('.record-btn[aria-pressed="false"]')!;
       record.click();
       document.querySelectorAll<HTMLAnchorElement>(".compare tbody th a")[1].click();
     });

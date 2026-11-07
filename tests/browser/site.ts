@@ -1317,19 +1317,38 @@ export const unknownAttributes = (page: Page, root: string, allowed: Record<stri
   ));
 
 /**
- * 결과 화면(`.report`)에 붙는 속성. 표의 role(좁은 화면에서도 표로 읽히게), 정책 카드의 id(데모의 표에서 옮겨 온다), 상태
- * 칩의 title(상태의 뜻), 경로의 줄바꿈 자리(wbr)의 aria-hidden, 충족 근거 목록의 이름(aria-label). 그 밖의 속성은 없다.
+ * 결과 화면(`.report`)에 붙는 속성. 표의 role(좁은 화면에서도 표로 읽히게), 정책 상자의 id(곁칸·데모의 표에서 옮겨 온다), 경로의
+ * 줄바꿈 자리(wbr)와 곁칸의 상태 점의 aria-hidden, 충족 근거 목록의 이름(aria-label), 구획과 그 머리를 잇는 id·aria-labelledby,
+ * 식별자(규칙·대안 id, 인용한 글, 판정 경로)의 translate="no", 커밋 고정 링크(분석 쪽)의 새 창(target, rel)과 그 안의 선 아이콘
+ * (svg 와 path·circle 의 그리는 속성). 그 밖의 속성은 없다. (D5) 상태 칩의 title 을 걷었다(docs/redesign.md 2.1).
  */
 export const RESULT_ATTRIBUTES: Record<string, string> = {
   class: "*",
   role: "table, thead, tbody, tr, th, td",
   scope: "th",
-  id: "article.policy",
+  id: "article.policy, h2, p.warn-hd",
   href: "a",
-  title: ".chip",
   open: "details",
-  "aria-hidden": "wbr",
+  "aria-hidden": "wbr, span.dot, svg",
   "aria-label": "ul.evidence",
+  "aria-labelledby": "article.policy, section, table",
+  translate: "code, ol.path",
+  target: "a.gh",
+  rel: "a.gh",
+  // 선 아이콘(components/Icon.tsx): 새 창 링크(분석 쪽의 GitHub 링크)에만 있다.
+  width: "svg",
+  height: "svg",
+  viewBox: "svg",
+  fill: "svg",
+  stroke: "svg",
+  "stroke-width": "svg",
+  "stroke-linecap": "svg",
+  "stroke-linejoin": "svg",
+  focusable: "svg",
+  d: "svg path",
+  cx: "svg circle",
+  cy: "svg circle",
+  r: "svg circle",
 };
 
 /** 그려도 되는 CSS 의 글 하나: 그 선택자에 맞는 요소의 그 자리(`::before` 등)가 그 속성들의 값을 빈칸으로 이어 그린 것. */

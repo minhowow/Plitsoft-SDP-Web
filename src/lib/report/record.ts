@@ -339,7 +339,8 @@ export function buildRecord(view: ReportView, pack: PackIndex, source?: RecordSo
   const facts = [
     fact("도구", view.tool),
     fact("엔진", view.engine ?? "실행 안 함"),
-    fact("판정자", view.judge ?? "꺼짐"),
+    // AI 검토의 줄(지금은 판정자 한 줄). 화면의 검사 정보와 같은 목록에서 온다(`view-model.ts` 의 `aiRows`).
+    ...view.aiRows.map((row) => fact(row.label, row.value)),
     fact("팩 판", view.packDigest, "code"),
     fact("출력 형식", CONTRACT_LABEL[view.contract]),
     coverage.files === null ? fact("검사한 파일", UNKNOWN, "missing") : fact("검사한 파일", `${coverage.files}개`),
@@ -456,7 +457,7 @@ export function buildRecord(view: ReportView, pack: PackIndex, source?: RecordSo
       ],
       gaps,
       // 항목 이름에 가운뎃점이 든 것이 있어서(서버·인프라 설정) 쉼표로 나눈다.
-      gapsNote: `${SITE.notSeen.title}은 위 목록에 실리지 않습니다: ${SITE.notSeen.items.map((item) => item.what).join(", ")}.`,
+      gapsNote: `${SITE.notSeen.recordName}은 위 목록에 실리지 않습니다: ${SITE.notSeen.items.map((item) => item.what).join(", ")}.`,
       findingCount: view.findingCount,
       counts: countByStatus(locations).map(({ status, count }) => ({
         label: STATUS_LABEL[status],

@@ -11,7 +11,10 @@ import { CONTRACT_LABEL, type ReportView } from "./view-model";
  * "써 보기", CLI 소스 `evaluate/engine.py` 의 evaluate 와 `discover.py` 의 admit).
  *
  * 설명은 같은 화면의 다른 글과 맞아야 한다. 화면의 다른 곳을 가리킬 때("위의 …", "아래 …")는 그곳의 이름을 그대로
- * 부르고, 그곳이 접혀 있으면 펼치라고 적는다. 아래 카드나 목록에 보이는 것과 부딪치는 말을 쓰지 않는다.
+ * 부르고, 그곳이 접혀 있으면 펼치라고 적는다. 아래 상자나 목록에 보이는 것과 부딪치는 말을 쓰지 않는다.
+ *
+ * 정책의 목록은 곁칸 `정책 N`(`ReportSummary` 의 `SidePolicies`)이다. 넓은 화면에서는 오른쪽, 좁은 화면에서는 아래에 있으므로
+ * "아래"라고 하지 않고 그 이름(`sideName`)으로 부른다. 발견이나 충족 근거 위치가 있는 정책만 본문의 정책 상자가 된다.
  */
 export interface ExaminedFact {
   label: string;
@@ -55,22 +58,25 @@ function filesFact(files: number | null): ExaminedFact {
   };
 }
 
-/** 정책별 요약 없이 그려진 카드의 수. v1 초안에서 요약에 없는데 발견이나 AI 가 푼 경고에만 나온 정책이다. */
+/** 곁칸의 이름(`정책 N`). N 은 화면에 그린 정책의 수다(`SidePolicies` 와 같은 수). */
+const sideName = (view: ReportView) => `‘정책 ${view.policies.length}’`;
+
+/** 정책별 요약 없이 그려진 정책의 수. v1 초안에서 요약에 없는데 발견이나 AI 가 푼 경고에만 나온 정책이다. */
 function unsummarized(view: ReportView): number {
   return view.policies.filter((policy) => policy.units === null).length;
 }
 
 /**
  * CLI 0.3 의 `run.units` 는 모든 정책을 합친 수다. 정책별 수는 없다. 발견 없이 끝난 단위가 어느 정책의 것인지는
- * AI 가 푼 경고(`run.ai_cleared`)와, 결과 판 1 부터는 강한 정적 대안으로 풀린 단위(`run.static_cleared`. 정책 카드의 충족
+ * AI 가 푼 경고(`run.ai_cleared`)와, 결과 판 1 부터는 강한 정적 대안으로 풀린 단위(`run.static_cleared`. 정책 상자의 충족
  * 근거 위치)에 실린 것만 알 수 있다. 판 번호 없는 출력에서는 정적 조건으로 풀린 단위가 어디에도 나오지 않는다
- * (`docs/cli-requests.md` 의 R1). 그래서 그 출력의 정책 카드는 모두 "발견 없음"으로 같고, 결과마다 다른 것은 이 수뿐이다.
+ * (`docs/cli-requests.md` 의 R1). 그래서 그 출력의 정책은 곁칸에서 모두 "발견 없음"으로 같고, 결과마다 다른 것은 이 수뿐이다.
  * 결과 판 1 에서 CLI 는 "단위 수 = 발견 + AI 가 푼 것 + 정적 대안으로 풀린 것"이라고 적지만(CLI 소스 `report/json_out.py`),
  * 웹은 그 관계로 정책별 수나 "적용 신호 없음"을 셈해 내지 않는다(`docs/cli-followup.md`).
  *
  * - 수가 0이면 정책별 수도 모두 0이다. "정책별 수가 없다"는 한계가 아니므로 그렇게 적지 않고, 어느 정책에서도
- *   판정한 곳이 없다고 적는다. 그래도 카드는 "발견 없음"(충족인지 미적용인지 나누어 적지 않는다)으로 보이므로, 카드의
- *   설명이 판정 단위가 있는 결과와 같다는 것을 함께 적는다. 카드의 상태를 바꾸지는 않는다(관문 G1 의 일이다).
+ *   판정한 곳이 없다고 적는다. 그래도 곁칸에서는 "발견 없음"(충족인지 미적용인지 나누어 적지 않는다)으로 묶이므로, 그 묶음이
+ *   판정 단위가 있는 결과와 같다는 것을 함께 적는다. 정책의 상태를 바꾸지는 않는다(관문 G1 의 일이다).
  * - AI 가 적용되지 않는다고 답해 빠진 판정(`run.ai_dismissed`)은 이 수에 들어 있지 않다. CLI 는 적용 조건이
  *   '모름'일 때만 AI 에게 적용 여부를 묻고, '아니오'를 받은 단위를 뺀 뒤에 센다(CLI 소스 `evaluate/engine.py` 의
  *   evaluate, `evaluate/planner.py`). 그 단위는 위 풀이대로라면 "모름이어서 판정한 곳"인데 수에는 없으므로, 빠진
@@ -89,8 +95,8 @@ function unitsFact(view: ReportView): ExaminedFact {
 
   if (view.contract === "v1-draft") {
     if (view.policyCount === 0) notes.push("결과의 정책별 요약이 비어 있어 정책별 수가 없습니다.");
-    else if (unsummarized(view) > 0) notes.push("정책별 수는 아래에서 요약이 실린 정책에만 적었습니다.");
-    else notes.push("정책별 수는 아래 정책마다 적었습니다.");
+    else if (unsummarized(view) > 0) notes.push(`정책별 수는 ${sideName(view)}에서 요약이 실린 정책에만 적었습니다.`);
+    else notes.push(`정책별 수는 ${sideName(view)}에 정책마다 적었습니다.`);
   } else {
     // 결과 머리의 "출력 형식"에 적힌 이름과 같게 부른다.
     const format = `이 출력 형식(${CONTRACT_LABEL[view.contract]})`;
@@ -98,18 +104,18 @@ function unitsFact(view: ReportView): ExaminedFact {
     if (view.aiCleared.length > 0 || staticCleared > 0) {
       const places = [
         ...(view.aiCleared.length > 0 ? ["'AI 가 푼 경고'"] : []),
-        ...(staticCleared > 0 ? ["정책 카드의 충족 근거 위치"] : []),
+        ...(staticCleared > 0 ? ["정책 상자의 충족 근거 위치"] : []),
       ].join("와 ");
       notes.push(`${format}에는 정책별 수가 없어서, 어느 정책의 것인지는 아래 ${places}에 실린 것만 알 수 있습니다.`);
     } else if (units !== 0) {
       notes.push(`${format}에는 정책별 수가 없어서, 어느 정책에서 적용 신호를 봤는지 알 수 없습니다.`);
     } else if (dismissed === 0 && view.aiDismissedKnown) {
       notes.push("0이므로 어느 정책에서도 판정한 곳이 없습니다.");
-      // 아래 카드가 "발견 없음"일 때만 덧붙인다. 다른 판의 팩이면 카드는 "알 수 없음"이고, 팩 메타데이터가 없으면 카드가 없다.
+      // 곁칸에 "발견 없음" 묶음이 있을 때만 덧붙인다. 다른 판의 팩이면 묶음은 "알 수 없음"이고, 팩 메타데이터가 없으면 정책이 없다.
       if (view.policies.some((policy) => policy.status === "not-reported")) {
-        // 카드에 적힌 상태 이름 그대로 부른다.
+        // 곁칸의 묶음 이름표에 적힌 상태 이름 그대로 부른다.
         const shown = STATUS_LABEL["not-reported"];
-        notes.push(`다만 ${format}에는 정책별 요약이 없어, 아래 정책 카드는 판정 단위가 있는 결과와 같은 설명('${shown}')으로 보입니다.`);
+        notes.push(`다만 ${format}에는 정책별 요약이 없어, ${sideName(view)}의 정책은 판정 단위가 있는 결과와 같은 '${shown}'으로 묶입니다.`);
       }
     }
   }
@@ -155,10 +161,10 @@ function skippedFact(skipped: number): ExaminedFact {
 }
 
 /**
- * 정책의 수와, 아래 정책 카드가 어디서 온 것인지.
+ * 정책의 수와, 곁칸 `정책 N` 의 정책이 어디서 온 것인지.
  *
  * CLI 0.3 결과에는 정책 목록이 없다. 팩 판이 같은 이 사이트의 팩에서 가져온 것임을 밝힌다. v1 초안은 결과에 실린
- * 정책별 요약의 수다. 카드도 결과에 나온 정책만 그리므로(`view-model.ts`) 수와 카드가 맞는다. 맞지 않는 경우는
+ * 정책별 요약의 수다. 곁칸도 결과에 나온 정책만 그리므로(`view-model.ts`) 수와 목록이 맞는다. 맞지 않는 경우는
  * 손으로 만든 결과에서만 생긴다: 요약이 비어 있거나, 요약에 없는 정책이 AI 가 푼 경고에만 나온다. 그때는 그렇다고
  * 적는다.
  */
@@ -180,21 +186,22 @@ function policiesFact(view: ReportView): ExaminedFact {
     return {
       label,
       value,
-      note: "결과에는 정책 목록이 없어, 팩 판이 같은 이 사이트의 팩에서 가져와 아래에 적었습니다.",
+      note: `결과에는 정책 목록이 없어, 팩 판이 같은 이 사이트의 팩에서 가져와 ${sideName(view)}에 적었습니다.`,
       warn: false,
     };
   }
   const extra = unsummarized(view);
-  const others = extra > 0 ? ` 요약에 없는 정책 ${extra}개도 아래에 있습니다. 결과의 다른 곳에만 나온 정책이라 정책별 수가 없습니다.` : "";
+  const others =
+    extra > 0 ? ` 요약에 없는 정책 ${extra}개도 ${sideName(view)}에 있습니다. 결과의 다른 곳에만 나온 정책이라 정책별 수가 없습니다.` : "";
   if (view.policyCount === 0) {
     return {
       label,
       value,
-      note: `결과의 정책별 요약이 비어 있습니다.${others || " 아래에 적을 정책이 없습니다."}`,
+      note: `결과의 정책별 요약이 비어 있습니다.${others || ` ${sideName(view)}에 적을 정책이 없습니다.`}`,
       warn: true,
     };
   }
-  return { label, value, note: `결과에 정책별 요약이 실려 있어, 아래에 정책마다 적었습니다.${others}`, warn: false };
+  return { label, value, note: `결과에 정책별 요약이 실려 있어, ${sideName(view)}에 정책마다 적었습니다.${others}`, warn: false };
 }
 
 /** 파일 수, 판정 단위 수, 검사하지 않은 파일, 정책. 이 순서로 보인다. */

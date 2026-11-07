@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { ReportWithRecord } from "@/components/result/ReportWithRecord";
-import { AnalysisHeader, Failed, InProgress, PROGRESS_NOTE, StepList } from "@/components/service/analysis";
+import { AnalysisHeader, AnalysisMeta, AnalysisTitle, Failed, InProgress, PROGRESS_NOTE, StepList } from "@/components/service/analysis";
 import { LiveAnalysis } from "@/components/service/LiveAnalysis";
 import { AnalysisDashboard, type Statute } from "@/components/service/AnalysisDashboard";
 import { packIndex, packMeta } from "@/lib/pack";
@@ -13,7 +13,7 @@ import { analysisHref } from "@/lib/service/href";
 import { isAnalysisId } from "@/lib/service/id";
 import { isRepoFullName } from "@/lib/service/names";
 import { formatKst } from "@/lib/service/steps";
-import { SITE } from "@/lib/site";
+import { showsSyntheticTag } from "@/server/config";
 import { getStore } from "@/server/store";
 
 // 분석의 진행과 결과(DB)를 요청 때 읽는다.
@@ -51,13 +51,19 @@ export default async function AnalysisPage({ params }: PageProps<"/r/[owner]/[re
   if (!found.value) notFound();
   const { repository, analysis, result, place } = found.value;
 
-  const synthetic = store.synthetic && <p className="notice">{SITE.service.synthetic}</p>;
+  // 합성 예시 이름표: 합성 미리보기이거나 가짜 GitHub 일 때(서버 설정. 저장소 기록의 synthetic 이 아니다. 가짜 GitHub 의 저장소는
+  // DB 에 실제 저장소처럼 적힌다).
+  const tagged = showsSyntheticTag();
+  const head = (
+    <>
+      <AnalysisHeader repository={repository} analysis={analysis} tagged={tagged} />
+    </>
+  );
 
   if (analysis.status === "failed") {
     return (
       <div className="page-wide an-page">
-        <AnalysisHeader repository={repository} analysis={analysis} />
-        {synthetic}
+        {head}
         <Failed analysis={analysis} />
       </div>
     );
@@ -68,12 +74,11 @@ export default async function AnalysisPage({ params }: PageProps<"/r/[owner]/[re
       <div className="page-wide an-page">
         {store.synthetic ? (
           <>
-            <AnalysisHeader repository={repository} analysis={analysis} />
-            {synthetic}
+            {head}
             <InProgress analysis={analysis} note={PROGRESS_NOTE.synthetic} />
           </>
         ) : (
-          <LiveAnalysis repository={repository} analysis={analysis} place={place} />
+          <LiveAnalysis repository={repository} analysis={analysis} place={place} tagged={tagged} />
         )}
       </div>
     );
@@ -84,8 +89,7 @@ export default async function AnalysisPage({ params }: PageProps<"/r/[owner]/[re
   if (!parsed.ok) {
     return (
       <div className="page-wide an-page">
-        <AnalysisHeader repository={repository} analysis={analysis} />
-        {synthetic}
+        {head}
         <p className="notice notice-warn">이 분석의 결과를 읽지 못했습니다. {parsed.errors.slice(0, 3).join(" ")}</p>
       </div>
     );
@@ -104,43 +108,33 @@ export default async function AnalysisPage({ params }: PageProps<"/r/[owner]/[re
 
   return (
     <div className="page-wide an-page">
-      <AnalysisHeader
-        repository={repository}
-        analysis={analysis}
-        extra={
-          <>
-            <div>
-              <dt>판정자</dt>
-              <dd>{view.judge ?? "꺼짐"}</dd>
-            </div>
-            <div>
-              <dt>엔진</dt>
-              <dd>{view.engine ?? "실행 안 함"}</dd>
-            </div>
-          </>
-        }
-      />
-      {store.synthetic && (
-        <p className="notice">
-          {SITE.service.synthetic}
-          {!code && repository.synthetic && " 합성 저장소는 GitHub 에 없어서 파일·줄과 커밋에 링크를 걸지 않습니다."}
-        </p>
-      )}
       <ReportWithRecord
         view={view}
         pack={packIndex}
+        heading={<AnalysisTitle repository={repository} tagged={tagged} />}
+        meta={<AnalysisMeta repository={repository} analysis={analysis} />}
         source={{
           name: `${repository.owner}/${repository.name} · 분석 ${analysis.id}`,
-          synthetic: repository.synthetic,
+          synthetic: tagged,
           analysis: { id: analysis.id, commit: analysis.commit, scannedAt: `${formatKst(scannedAt)} KST` },
         }}
       >
-        <AnalysisDashboard view={view} code={code} statutes={statutes} />
+        <AnalysisDashboard
+          view={view}
+          code={code}
+          statutes={statutes}
+          progress={
+            <details className="lg an-steps">
+              <summary>
+                진행 기록 <span className="lg-name">{analysis.steps.length}단계</span>
+              </summary>
+              <div className="lg-body">
+                <StepList analysis={analysis} />
+              </div>
+            </details>
+          }
+        />
       </ReportWithRecord>
-      <details className="fold an-steps">
-        <summary>진행 기록</summary>
-        <StepList analysis={analysis} />
-      </details>
     </div>
   );
 }

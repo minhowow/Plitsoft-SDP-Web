@@ -17,7 +17,7 @@ import { packIndex, packMeta, policyCardId } from "@/lib/pack";
 import { parseReport } from "@/lib/report/parse";
 import { buildRecord } from "@/lib/report/record";
 import { scopeNote, type JudgedScope } from "@/lib/report/scope";
-import { STATUS_HINT, STATUS_LABEL, STATUS_LEGEND, STATUS_ORDER, type Status } from "@/lib/report/status";
+import { STATUS_HINT, STATUS_LABEL, STATUS_LEGEND, STATUS_ORDER } from "@/lib/report/status";
 import type { Finding, Report } from "@/lib/report/types";
 import { buildReportView, type ReportView } from "@/lib/report/view-model";
 import { SAMPLES } from "@/lib/samples";
@@ -71,9 +71,12 @@ function appWith(key: string, views: ReportView[]): DemoApp {
   return { ...app, variants: app.variants.map((variant, i) => ({ ...variant, view: views[i] })) };
 }
 
-/** 그려 낸 코드 상자 하나를 뜯어 본 것. 줄과, 줄 아래에 적은 말이 문서 순서대로 나온다. */
+/**
+ * 그려 낸 코드 상자 하나를 뜯어 본 것. 줄과, 줄 아래에 적은 말이 문서 순서대로 나온다. (D5) 상자의 머리 띠에는 경로와 그
+ * 판의 코드가 무엇을 하는지(데모 앱의 설명)가 있다(목업 demo).
+ */
 function codeBox(figure: string) {
-  const pre = elementAt(figure, figure.indexOf("<pre>"));
+  const pre = elementAt(figure, figure.indexOf("<pre"));
   const items = [...pre.matchAll(/<span class="(codeline(?: codeline-marked)?|codenote)"([^>]*)>([^<]*)<\/span>/g)].map((match) => {
     const kind = match[1] === "codenote" ? ("note" as const) : ("line" as const);
     const text = textOf(match[3]);
@@ -88,21 +91,28 @@ function codeBox(figure: string) {
     };
   });
   // 뜯어 본 것이 상자의 전부다. 다른 요소가 섞여 있지 않다.
-  expect(pre.replace(/<span class="(codeline(?: codeline-marked)?|codenote)"[^>]*>[^<]*<\/span>/g, "")).toBe("<pre></pre>");
-  const legendAt = figure.indexOf('<p class="code-legend">');
+  expect(pre.replace(/<span class="(codeline(?: codeline-marked)?|codenote)"[^>]*>[^<]*<\/span>/g, "")).toBe('<pre translate="no"></pre>');
+  const legendAt = figure.indexOf('<p class="code-legend box-ft">');
+  const caption = elementAt(figure, figure.indexOf("<figcaption"));
   return {
-    caption: textOf(elementAt(figure, figure.indexOf("<figcaption>"))),
+    /** 머리 띠의 경로. */
+    caption: textOf(elementAt(caption, caption.indexOf("<code"))),
+    /** 머리 띠의 설명(그 판의 코드가 무엇을 하는지). */
+    about: textOf(elementAt(caption, caption.indexOf('<span class="end">'))),
     lines: items.filter((item) => item.kind === "line"),
     items,
     legend: legendAt === -1 ? null : textOf(elementAt(figure, legendAt)),
   };
 }
 
-const codeBoxes = (html: string) => elementsOf(html, '<figure class="codeblock">').map(codeBox);
+const codeBoxes = (html: string) => elementsOf(html, '<figure class="box codeblock">').map(codeBox);
 
-/** 그려 낸 "고치기 전과 고친 뒤의 결과" 구역을 뜯어 본 것. 없으면 null. */
+/**
+ * 그려 낸 "고치기 전과 고친 뒤" 상자를 뜯어 본 것. 없으면 null. (D5) 표 아래의 상태 풀이 목록과 사용법 문장("표의 정책 이름을
+ * 누르면 …", "… 단추를 누르면 나옵니다")은 걷었다(docs/redesign.md 3장 "데모"). 상자 아래 줄(`box-ft`)에는 0의 뜻이 늘 있다.
+ */
 function compareBlock(html: string) {
-  const at = html.indexOf('<div class="demo-compare">');
+  const at = html.indexOf('<section class="box demo-compare"');
   if (at === -1) return null;
   const block = elementAt(html, at);
   const table = elementAt(block, block.indexOf("<table"));
@@ -115,7 +125,7 @@ function compareBlock(html: string) {
   });
   return {
     at,
-    caption: textOf(elementAt(table, table.indexOf("<caption>"))),
+    caption: textOf(elementAt(block, block.indexOf('<h2 id="compare-title">'))),
     columns: elementsOf(elementAt(table, table.indexOf("<thead")), "<th ").map(textOf),
     rows: elementsOf(elementAt(table, table.indexOf("<tbody")), "<tr ").map((tr) => {
       const head = elementAt(tr, tr.indexOf("<th "));
@@ -126,9 +136,10 @@ function compareBlock(html: string) {
         cells: elementsOf(tr, "<td ").map(cell),
       };
     }),
-    notes: elementsOf(elementAt(block, block.indexOf('<ul class="status-notes">')), "<li>").map(textOf),
-    /** 표와 상태의 뜻 아래에 옅게 덧붙인 말(문서 순서). */
-    hints: elementsOf(block, '<p class="hint">').map(textOf),
+    /** 상자 아래 줄(0의 뜻). */
+    footer: elementsOf(block, '<p class="box-ft">').map(textOf),
+    /** 머리 오른쪽의 `상태의 뜻` 링크. */
+    legend: /<a class="end" href="([^"]*)">상태의 뜻<\/a>/.exec(block)?.[1] ?? /<a href="([^"]*)" class="end">상태의 뜻<\/a>/.exec(block)?.[1] ?? null,
   };
 }
 
@@ -439,22 +450,26 @@ describe("코드 상자에서 칠하는 줄", () => {
     expect(marks(name)[0].reduce((sum, mark) => sum + mark.findings, 0)).toBe(captured(name).findings.length);
   });
 
+  // (D5) 칠한 줄 아래의 말은 `발견 N건이 가리키는 줄(파일 전체 판정)` 이다(docs/redesign.md 3장 "데모"). 범위의 이름은 발견 줄의
+  // 것(scopeLabel)과 같다. 위의 문장(scopeNote 의 "code" 자리)은 코드 상자에서 쓰지 않게 됐다.
+  const FILE = "파일 전체 판정";
+
   it("줄마다 발견 수와 판정이 본 범위를 적는다. 수집본에서 함수 단위 판정은 고친 뒤 광고 푸시의 야간 광고 하나다", () => {
-    expect(marks("kids-signup.main")).toEqual([[{ line: 5, findings: 1, notes: [FILE_SCOPE] }]]);
+    expect(marks("kids-signup.main")).toEqual([[{ line: 5, findings: 1, scopes: [FILE] }]]);
     expect(marks("kids-signup.fixed")).toEqual([[]]);
     // 같은 줄에 규칙이 다른 발견이 둘 있다.
-    expect(marks("night-push.main")).toEqual([[{ line: 2, findings: 2, notes: [FILE_SCOPE] }]]);
+    expect(marks("night-push.main")).toEqual([[{ line: 2, findings: 2, scopes: [FILE] }]]);
     // 고친 뒤에는 발견이 두 줄에 실린다. 12행(발송 호출)은 야간 광고 규칙의 발견이고, 그 규칙은 CLI 7300205 부터 함수
     // 단위라 발송 호출을 감싼 함수(9~19행)를 보고 내린 판정이다.
     expect(marks("night-push.fixed")).toEqual([
       [
-        { line: 2, findings: 2, notes: [FILE_SCOPE] },
-        { line: 12, findings: 1, notes: ["함수 단위로 내린 판정입니다. 판정 구역은 9~19행입니다."] },
+        { line: 2, findings: 2, scopes: [FILE] },
+        { line: 12, findings: 1, scopes: ["함수 9~19행 판정"] },
       ],
     ]);
     // 같은 줄에 정책이 다른 발견이 둘 있다.
-    expect(marks("genai-chat.main")).toEqual([[{ line: 1, findings: 2, notes: [FILE_SCOPE] }]]);
-    expect(marks("genai-chat.fixed")).toEqual([[{ line: 1, findings: 2, notes: [FILE_SCOPE] }]]);
+    expect(marks("genai-chat.main")).toEqual([[{ line: 1, findings: 2, scopes: [FILE] }]]);
+    expect(marks("genai-chat.fixed")).toEqual([[{ line: 1, findings: 2, scopes: [FILE] }]]);
   });
 
   it("다른 파일의 발견과 줄이 없는 발견은 칠하지 않는다. 판정 범위가 다르면 범위를 모두 적는다", () => {
@@ -474,7 +489,7 @@ describe("코드 상자에서 칠하는 줄", () => {
       {
         line: 12,
         findings: 2,
-        notes: [FILE_SCOPE, "함수 단위로 내린 판정입니다. 판정 구역은 9~19행입니다."],
+        scopes: [FILE, "함수 9~19행 판정"],
       },
     ]);
     expect(lineMarks(view, "src/other.ts").map((mark) => mark.line)).toEqual([2]);
@@ -584,11 +599,12 @@ describe("그려 낸 데모 화면", () => {
   it.each(named)("%s: 합성 예시라고 밝히고, 쓰지 않는 말이 없다", (_name, entry) => {
     const html = panel(entry);
     for (const [pattern, why] of BANNED_WORDING) expect(pattern.test(html), `${pattern} — ${why}`).toBe(false);
-    expect(textOf(elementAt(html, html.indexOf("<h2")))).toBe(`${entry.app.label} · ${entry.variant.label}`);
-    // 판마다 두 곳에 밝힌다: 설명의 첫 문장과 코드 상자의 이름표.
-    expect(textOf(elementAt(html, html.indexOf('<p class="demo-note">')))).toBe(`합성 예시입니다. ${entry.variant.note}`);
-    for (const box of codeBoxes(html)) expect(box.caption).toMatch(/^src\/\S+ · 합성 예시$/);
-    expect(html).toContain(SITE.disclaimer);
+    expect(textOf(elementAt(html, html.indexOf('<h2 class="demo-title">')))).toBe(`${entry.app.label} · ${entry.variant.label}`);
+    // (D5) 합성 예시라는 것은 쪽 제목 옆의 이름표 `합성 예시` 가 밝힌다(docs/redesign.md 3장 "데모". 아래 "쪽의 머리말"이 본다).
+    // 판의 코드가 무엇을 하는지는 코드 상자의 머리 띠에 적는다. 기록에는 합성 예시라고 적힌다(아래 "기록으로도 본다").
+    for (const box of codeBoxes(html)) expect(box.about).toBe(entry.variant.note);
+    // 면책은 바닥글(모든 쪽)이 싣는다.
+    expect(html).not.toContain(SITE.disclaimer);
     // 팩 작성자 메모는 화면 구조에도 없다.
     expect(JSON.stringify(entry.variant)).not.toMatch(/rationale|motivation/);
   });
@@ -597,7 +613,7 @@ describe("그려 낸 데모 화면", () => {
     const boxes = codeBoxes(panel(entry));
     expect(boxes).toHaveLength(entry.variant.files.length);
     entry.variant.files.forEach((file, i) => {
-      expect(boxes[i].caption).toBe(`${file.path} · 합성 예시`);
+      expect(boxes[i].caption).toBe(file.path);
       expect(boxes[i].lines.map((line) => line.line)).toEqual(file.lines.map((_, n) => n + 1));
       expect(boxes[i].lines.map((line) => `${line.text}\n`).join("")).toBe(fixture(name, file.path));
     });
@@ -618,10 +634,11 @@ describe("그려 낸 데모 화면", () => {
       const count = findings.filter((finding) => finding.line === line).length;
       const note = box.items[box.items.findIndex((item) => item.kind === "line" && item.line === line) + 1];
       const here = findings.filter((finding) => finding.line === line);
+      // (D5) `발견 N건이 가리키는 줄(파일 전체 판정)`(목업 demo). 범위의 이름은 발견 줄의 것과 같다.
       const scope = here.every((finding) => finding.scope === "file")
-        ? "파일 전체를 보고 내린 판정입니다. 줄 번호는 조문이 닿는다고 본 첫 줄입니다."
-        : `함수 단위로 내린 판정입니다. 판정 구역은 ${here[0].region!.start_line}~${here[0].region!.end_line}행입니다.`;
-      expect(note.text, `${line}행`).toBe(`발견 ${count}건에 실린 줄 번호입니다. ${scope}`);
+        ? "파일 전체 판정"
+        : `함수 ${here[0].region!.start_line}~${here[0].region!.end_line}행 판정`;
+      expect(note.text, `${line}행`).toBe(`발견 ${count}건이 가리키는 줄(${scope})`);
     }
   });
 
@@ -648,34 +665,32 @@ describe("그려 낸 데모 화면", () => {
   });
 
   describe("고치기 전과 고친 뒤의 결과", () => {
+    // (D5) 표는 상자 하나다: 머리에 이름과 `상태의 뜻`(조문 도감 #status), 아래 줄에 0의 뜻(docs/redesign.md 3장 "데모"). 표 아래의
+    // 상태 풀이 목록과 사용법 문장("표의 정책 이름을 누르면 …", "… 단추를 누르면 나옵니다")은 지웠다(2.3, 8장 반박 (2)).
     const PENDING = STATUS_LABEL["needs-review-ai-pending"];
     const UNCERTAIN = STATUS_LABEL.uncertain;
     const NONE = STATUS_LABEL["not-reported"];
-    /** 표의 정책 이름이 어디로 가는지. 아래 결과가 어느 판의 것인지를 함께 적는다(표는 두 판을 함께 보인다). */
-    const WHERE = (label: string) => `표의 정책 이름을 누르면 아래 결과(${label})의 그 정책으로 갑니다.`;
-    /** 발견마다의 까닭이 어디에 나오는지. 아래 결과에 판정 경로가 실려 있을 때만 위의 말 뒤에 붙는다. */
-    const WHY = "발견마다의 까닭은 그 안의 ‘판정 경로’에 CLI 가 남긴 문장으로 나옵니다.";
-    /** 표에는 나오지만 아래 결과에는 없는 것(다른 판의 발견)을 어디서 보는지. */
-    const ELSEWHERE = (label: string) => `${label}의 결과는 위의 ‘${label}’ 단추를 누르면 나옵니다.`;
     const cells = (name: string) => compareBlock(panel(find(name)))!.rows.map((row) => [row.title, ...row.cells.map((c) => [c.status, c.counts])]);
     const report = (html: string) => html.slice(html.indexOf('<section class="report">'));
-    /** 그려 낸 정책 카드의 id 와 이름. */
+    /** 그려 낸 정책 상자의 id 와 이름. (D5) 상자는 발견이나 충족 근거 위치가 있는 정책뿐이다. */
     const cards = (html: string) =>
-      elementsOf(html, '<article class="policy ').map((card) => ({
+      elementsOf(html, '<article class="box policy ').map((card) => ({
         id: /^<article [^>]*\bid="([^"]*)"/.exec(card)?.[1],
-        title: textOf(elementAt(card, card.indexOf("<h3"))),
+        title: textOf(elementAt(card, card.indexOf('<h2 class="t"'))),
       }));
+    const boxed = (view: ReportView) => view.policies.filter((policy) => policy.locations.length > 0 || policy.evidence.length > 0);
 
-    it.each(named)("%s: 표는 두 결과의 정책 카드와 같은 상태·발견 수를 적는다", (_name, entry) => {
+    it.each(named)("%s: 표는 두 결과의 정책과 같은 상태·발견 수를 적는다", (_name, entry) => {
       const html = panel(entry);
       const block = compareBlock(html)!;
-      expect(block.caption).toBe("고치기 전과 고친 뒤의 결과");
+      expect(block.caption).toBe("고치기 전과 고친 뒤");
       expect(block.columns).toEqual(["정책", "고치기 전", "고친 뒤"]);
       const expected = compareByPolicy(entry.app.variants.map((variant) => variant.view));
+      const linked = new Set(boxed(entry.variant.view).map((policy) => policy.id));
       expect(block.rows).toEqual(
         expected.map((row) => ({
           title: row.title,
-          href: `#${policyCardId(row.id)}`,
+          href: linked.has(row.id) ? `#${policyCardId(row.id)}` : null,
           cells: row.cells.map((cell, i) => ({
             label: entry.app.variants[i].label,
             status: STATUS_LABEL[cell.status],
@@ -685,7 +700,12 @@ describe("그려 낸 데모 화면", () => {
           })),
         })),
       );
-      // 코드 아래, 이 판의 결과 위에 있다.
+      // 상태의 뜻은 조문 도감 한 곳에 있다. 표 아래에는 0의 뜻만 있다.
+      expect(block.legend).toBe("/policy#status");
+      expect(block.footer).toEqual([SITE.zeroIsNotClearance]);
+      expect(html).not.toContain("status-notes");
+      expect(textOf(html)).not.toMatch(/누르면/);
+      // 코드 다음, 이 판의 결과 위에 있다(1100px 이상에서는 코드가 왼쪽 단, 표와 결과가 오른쪽 단이다).
       const order = [html.lastIndexOf("</figure>"), block.at, html.indexOf('<section class="report">')];
       expect([...order].sort((a, b) => a - b)).toEqual(order);
     });
@@ -695,7 +715,7 @@ describe("그려 낸 데모 화면", () => {
       // 둔다. Chrome 155 는 role 이 없어도 표로 드러내서, Chrome 의 접근성 트리를 읽는 브라우저 시험(tests/browser/demo.test.ts)은
       // role 이 빠져도 통과한다. 붙어 있는지는 여기서 본다(결과 화면의 표는 tests/parts.test.tsx 가 본다).
       const html = panel(entry);
-      const block = elementAt(html, html.indexOf('<div class="demo-compare">'));
+      const block = elementAt(html, html.indexOf('<section class="box demo-compare"'));
       const table = elementAt(block, block.indexOf("<table"));
       const tags = [...table.matchAll(/<(table|thead|tbody|tr|th|td)\b([^>]*)>/g)].map(([, tag, attributes]) => ({ tag, attributes }));
       const ROLE = { table: "table", thead: "rowgroup", tbody: "rowgroup", tr: "row", td: "cell" } as const;
@@ -708,6 +728,8 @@ describe("그려 낸 데모 화면", () => {
       const rows = compareBlock(html)!.rows.length;
       expect(tags.filter(({ tag }) => tag === "tr")).toHaveLength(1 + rows);
       expect(tags.filter(({ tag }) => tag === "td")).toHaveLength(rows * 2);
+      // 표의 이름은 상자 머리의 제목이다.
+      expect(table).toContain('aria-labelledby="compare-title"');
     });
 
     it("고친 뒤에도 남은 발견을 그대로 보인다", () => {
@@ -724,7 +746,7 @@ describe("그려 낸 데모 화면", () => {
       for (const key of ["kids-signup", "night-push", "genai-chat"]) expect(cells(`${key}.main`)).toEqual(cells(`${key}.fixed`));
     });
 
-    it("칸의 발견 수는 정책 카드의 발견 수다. 규칙 묶음의 수가 아니다", () => {
+    it("칸의 발견 수는 정책의 발견 수다. 규칙 묶음의 수가 아니다", () => {
       // 수집본은 규칙마다 발견이 한 건이라 두 수가 같다. 같은 규칙이 여러 파일에 나오는 결과로 본다(시험에서만 쓰는 자료).
       const repeated = viewOf(readJson("tests", "fixtures", "repeated-rule.json"));
       const policy = repeated.policies.find((p) => p.id === "kr.network-act.50-4")!;
@@ -736,29 +758,14 @@ describe("그려 낸 데모 화면", () => {
       });
       const html = renderToStaticMarkup(<DemoPanel app={app} variant={app.variants[0]} pack={packIndex} />);
       expect(compareBlock(html)!.rows[0].cells.map((cell) => cell.counts)).toEqual([["발견 25건"], ["발견 2건"]]);
-      // 바로 아래 결과의 그 정책 카드가 적는 수와 같다.
-      const card = elementsOf(html, '<article class="policy ').find((el) => el.includes(`id="${policyCardId(policy.id)}"`))!;
-      expect(textOf(elementAt(card, card.indexOf('<span class="count">')))).toBe("발견 25건");
+      // (D5) 바로 아래 결과의 곁칸이 그 정책에 적는 수와 같다.
+      const side = elementsOf(html, '<li class="p">').find((li) => li.includes(`href="#${policyCardId(policy.id)}"`))!;
+      expect(textOf(elementAt(side, side.indexOf('<span class="n">')))).toBe("25건");
     });
 
-    it("왜 그 상태인지는 상태의 뜻으로 적는다: AI 확인 전, 약한 근거", () => {
-      const notes = (name: string) => compareBlock(panel(find(name)))!.notes;
-      const pending = `${PENDING} ${STATUS_LEGEND["needs-review-ai-pending"]}`;
-      const uncertain = `${UNCERTAIN} ${STATUS_LEGEND.uncertain}`;
-      const none = `${NONE} ${STATUS_LEGEND["not-reported"]}`;
-      // 표에 나온 상태만, 먼저 봐야 할 것부터 적는다.
-      expect(notes("kids-signup.fixed")).toEqual([pending, `${STATUS_LABEL["evidence-found"]} ${STATUS_LEGEND["evidence-found"]}`]);
-      expect(notes("night-push.fixed")).toEqual([pending, uncertain, none]);
-      expect(notes("genai-chat.fixed")).toEqual([pending, uncertain]);
-      expect(STATUS_LEGEND["needs-review-ai-pending"]).toContain("AI 에게 물어야 할 조건은 판정에 넣을 답이 없습니다");
-      expect(STATUS_LEGEND.uncertain).toContain("약한 근거만 있거나");
-      // 발견이 없다는 것을 충족이라고 적지 않는다.
-      expect(STATUS_LEGEND["not-reported"]).toContain("나누어 적지 않습니다");
-    });
-
-    it("상태의 뜻은 정책 카드 밖에서 적는 말이다: 곁에 없는 정책·조문을 '이'로 가리키지 않는다", () => {
-      // 정책 카드 안의 말(STATUS_HINT)은 그 카드의 정책을 두고 "이 정책", "이 조문"이라고 적는다. 표 아래의 풀이에는
-      // 그 말이 가리킬 정책이 없다.
+    it("상태의 뜻 문장(조문별 검사 기록이 쓴다)은 정책 밖에서 적는 말이다: 곁에 없는 정책·조문을 '이'로 가리키지 않는다. 칩에는 뜻을 숨겨 두지 않는다", () => {
+      // 정책 카드 안의 말(STATUS_HINT)은 그 카드의 정책을 두고 "이 정책", "이 조문"이라고 적는다. 표 아래의 풀이(D5 부터는
+      // 조문별 검사 기록과 조문 도감의 상태의 뜻)에는 그 말이 가리킬 정책이 없다.
       const POINTS = /이 (정책|조문|결과)/;
       for (const status of STATUS_ORDER) {
         expect(STATUS_LEGEND[status], status).not.toMatch(POINTS);
@@ -771,70 +778,52 @@ describe("그려 낸 데모 화면", () => {
         "not-reported",
         "pack-unknown",
       ]);
-      // 가리키는 말만 걷어 냈다. 뜻을 이루는 말은 정책 카드의 것과 같다.
-      for (const [status, kept] of [
-        ["needs-review", "조문이 닿는 코드인데, 적법한 대안이 하나도 확인되지 않았습니다. 사람이 봐야 합니다."],
-        ["no-signal", "조문이 닿는 코드 신호를 찾지 못했습니다. 법적 문제가 없다는 뜻은 아닙니다."],
-        ["not-reported", "아직 '충족 근거 발견'과 '적용 신호 없음'으로 나누어 적지 않습니다."],
-        ["pack-unknown", "알 수 없습니다."],
-      ] as const) {
-        expect(STATUS_HINT[status], status).toContain(kept);
-        expect(STATUS_LEGEND[status], status).toContain(kept);
-      }
-      // 그 구역의 칩에 마우스를 올렸을 때 뜨는 말도 그 자리의 말이다(칩 옆의 글과 다른 말이 뜨지 않는다).
+      // (D5) 칩의 title(마우스를 올리면 뜨는 뜻)을 걷었다(docs/redesign.md 2.1). 표의 글에도 가리키는 말이 없다.
       for (const entry of every) {
         const html = panel(entry);
-        const block = elementAt(html, html.indexOf('<div class="demo-compare">'));
-        const chips = [...block.matchAll(/<span class="chip chip-([a-z-]+)" title="([^"]*)">/g)];
-        expect(chips.length, entry.name).toBeGreaterThan(0);
-        for (const [, status, hint] of chips) expect(textOf(hint), `${entry.name}: ${status}`).toBe(STATUS_LEGEND[status as Status]);
+        const block = elementAt(html, html.indexOf('<section class="box demo-compare"'));
+        expect([...block.matchAll(/<span class="chip chip-([a-z-]+)">/g)].length, entry.name).toBeGreaterThan(0);
+        expect(html, entry.name).not.toContain("title=");
         expect(textOf(block), entry.name).not.toMatch(POINTS);
       }
     });
 
-    it.each(named)("%s: 표의 정책 이름은 아래 결과의 그 정책 카드로 가는 링크다", (_name, entry) => {
+    it.each(named)("%s: 표의 정책 이름은 아래 결과의 그 정책 상자로 가는 링크다. 상자가 없는 정책은 링크가 아니다", (_name, entry) => {
       const html = panel(entry);
       const below = cards(report(html));
-      // 카드마다 id 가 있고 서로 다르다. 주소의 이름과 같게 점이 없다.
-      expect(below).toHaveLength(packMeta.policies.length);
+      // 상자마다 id 가 있고 서로 다르다. 주소의 이름과 같게 점이 없다.
+      expect(below).toHaveLength(boxed(entry.variant.view).length);
       expect(new Set(below.map((card) => card.id)).size).toBe(below.length);
       for (const card of below) expect(card.id, card.title).toMatch(/^policy-[a-z0-9-]+$/);
       const rows = compareBlock(html)!.rows;
       expect(rows.length).toBeGreaterThan(0);
       for (const row of rows) {
-        // 같은 쪽 안의 자리다. 다른 쪽으로 가지 않는다.
+        if (row.href === null) {
+          // 이 판에 상자가 없는 정책(발견도 충족 근거도 없다)은 곁칸의 묶음에 있다.
+          expect(below.map((card) => card.title), row.title).not.toContain(row.title);
+          continue;
+        }
+        // 같은 쪽 안의 자리다. 다른 쪽으로 가지 않는다. 가는 곳은 같은 정책의 상자다.
         expect(row.href, row.title).toMatch(/^#policy-/);
-        // 가는 곳은 같은 정책의 카드다. 그 판에 발견이 없는 정책이어도 카드는 있다.
         expect(below.filter((card) => `#${card.id}` === row.href).map((card) => card.title), row.title).toEqual([row.title]);
       }
     });
 
-    it("아래 결과에 카드가 없는 정책의 이름은 링크가 아니다 (팩 메타데이터 없이 만든 결과)", () => {
+    it("아래 결과에 상자가 없는 정책의 이름은 링크가 아니다 (팩 메타데이터 없이 만든 결과)", () => {
       const app = appWith("night-push", [bareView("night-push.main"), bareView("night-push.fixed")]);
       const [before, after] = app.variants.map((variant) => compareBlock(renderToStaticMarkup(<DemoPanel app={app} variant={variant} pack={packIndex} />))!);
-      // 고치기 전의 결과에는 제50조 제3항의 카드가 없다(발견이 없고, 팩 메타데이터도 없다).
+      // 고치기 전의 결과에는 제50조 제3항의 상자가 없다(발견이 없고, 팩 메타데이터도 없다).
       expect(before.rows.map((row) => row.href)).toEqual(["#policy-kr-network-act-50-4", null]);
       expect(after.rows.map((row) => row.href)).toEqual(["#policy-kr-network-act-50-4", "#policy-kr-network-act-50-3"]);
-      // 그 칸은 "발견 없음"이 아니라 "알 수 없음"이고, 뜻도 그렇게 적는다.
+      // 그 칸은 "발견 없음"이 아니라 "알 수 없음"이다.
       expect(before.rows[1].cells.map((cell) => cell.status)).toEqual([STATUS_LABEL["pack-unknown"], UNCERTAIN]);
-      expect(before.notes.at(-1)).toBe(`${STATUS_LABEL["pack-unknown"]} ${STATUS_LEGEND["pack-unknown"]}`);
     });
 
-    it("가리키는 말은 지금 보는 판의 결과를 가리킨다. 다른 판의 결과는 그 판을 골라야 나온다고 적는다", () => {
-      for (const { name, app, variant } of every) {
+    it("발견마다의 까닭(판정 경로)은 아래 결과에 CLI 가 남긴 문장 그대로 있다. 다른 판의 결과는 그 판을 골라야 나온다", () => {
+      for (const { name } of every) {
         const html = panel(find(name));
-        const block = compareBlock(html)!;
-        const other = app.variants.find((v) => v.key !== variant.key)!;
-        expect(block.hints, name).toEqual([
-          // 발견이 0인 다른 판이 표에 있으면 0의 뜻을 먼저 적는다(아래의 시험).
-          ...(variant.view.findingCount > 0 && other.view.findingCount === 0 ? [SITE.zeroIsNotClearance] : []),
-          // 발견이 없는 판(아동 가입 고친 뒤)에는 가리킬 판정 경로가 없다. 정책 이름이 어디로 가는지만 적는다.
-          variant.view.findingCount > 0 ? `${WHERE(variant.label)} ${WHY}` : WHERE(variant.label),
-          // 다른 판에 발견이 있으면, 그 결과를 어디서 보는지 적는다.
-          ...(other.view.findingCount > 0 ? [ELSEWHERE(other.label)] : []),
-        ]);
         // 판정 경로의 문장은 아래 결과에 글자 그대로 있다. 발견마다 하나다.
-        const shown = elementsOf(report(html), '<ol class="path">').map((ol) => elementsOf(ol, "<li>").map(textOf));
+        const shown = elementsOf(report(html), '<ol class="path"').map((ol) => elementsOf(ol, "<li>").map(textOf));
         expect(shown, name).toHaveLength(captured(name).findings.length);
         for (const finding of captured(name).findings) expect(shown, `${name}: ${finding.rule}`).toContainEqual(finding.decision_path);
       }
@@ -845,49 +834,38 @@ describe("그려 낸 데모 화면", () => {
       expect(captured("night-push.fixed").findings.map((f) => f.untested_reasons)).toEqual([["no-judge"], ["no-judge"], ["no-judge"]]);
     });
 
-    it("고치기 전을 볼 때: 표의 '고친 뒤' 칸에 있는 판단 보류의 까닭은 아래 결과에 없다. 그래서 아래 결과가 고치기 전의 것이라고 적는다", () => {
-      // 표와 상태의 뜻은 어느 판을 보든 같다. 아래 결과는 지금 보는 판의 것뿐이다. "아래 결과의 판정 경로"라고만 적으면
-      // 고치기 전을 볼 때 표의 판단 보류(고친 뒤의 것)까지 아래에서 찾게 된다.
+    it("고치기 전을 볼 때: 표의 '고친 뒤' 칸에 있는 판단 보류는 아래 결과에 없다. 아래 결과의 제목이 어느 판의 것인지 말한다", () => {
       const WEAK = "약한 근거 — AI 확인 전에는 풀지 않음 → unknown";
       for (const key of ["night-push", "genai-chat"]) {
         const [before, after] = [panel(find(`${key}.main`)), panel(find(`${key}.fixed`))];
         const block = compareBlock(before)!;
-        // 표에는 고친 뒤의 판단 보류가 보이고, 그 뜻도 적혀 있다.
+        // 표에는 고친 뒤의 판단 보류가 보인다.
         expect(block.rows.flatMap((row) => row.cells.filter((cell) => cell.label === "고친 뒤").map((cell) => cell.status)), key).toContain(UNCERTAIN);
-        expect(block.notes.filter((note) => note.startsWith(UNCERTAIN)), key).toHaveLength(1);
         // 아래 결과(고치기 전)에는 판단 보류인 발견도, 약한 근거라는 문장도 없다. 고친 뒤를 골라야 나온다.
         expect(textOf(report(before)), key).not.toContain(UNCERTAIN);
         expect(textOf(report(before)), key).not.toContain(WEAK);
         expect(textOf(report(after)), key).toContain(UNCERTAIN);
         expect(textOf(report(after)), key).toContain(WEAK);
-        expect(block.hints, key).toEqual([`${WHERE("고치기 전")} ${WHY}`, ELSEWHERE("고친 뒤")]);
-        expect(compareBlock(after)!.hints, key).toEqual([`${WHERE("고친 뒤")} ${WHY}`, ELSEWHERE("고치기 전")]);
+        // 아래 결과의 제목(결과 틀의 머리)이 지금 보는 판이다.
+        expect(textOf(elementAt(before, before.indexOf('<h2 class="demo-title">'))), key).toMatch(/· 고치기 전$/);
+        expect(textOf(elementAt(after, after.indexOf('<h2 class="demo-title">'))), key).toMatch(/· 고친 뒤$/);
       }
     });
 
-    it("고친 뒤에 발견이 0인 앱은, 어느 판을 보고 있든 0이 법적 문제가 없다는 뜻이 아니라는 말이 한 번 보인다", () => {
-      // 표는 고치기 전을 보고 있을 때도 고친 뒤의 "발견 없음"을 보인다. 0의 뜻이 그 판을 열어야만 보이면 안 된다.
-      // 발견이 0인 판을 보고 있을 때는 바로 아래의 결과가 같은 말을 적는다. 두 번 적지 않는다.
-      const count = (html: string) => html.split(SITE.zeroIsNotClearance).length - 1;
-      for (const { name, app, variant } of every) {
-        const zero = app.variants.some((v) => v.view.findingCount === 0);
-        expect(zero, name).toBe(app.key === "kids-signup");
+    it("0이 법적 문제가 없다는 뜻이 아니라는 말이 표 아래에 늘 있다. 발견이 0인 판의 결과에도 있다", () => {
+      // (D5) 표에는 발견 없음인 칸이 늘 있을 수 있어 표 아래에 늘 적는다(docs/redesign.md 3장 "데모"의 표: 0의 뜻).
+      for (const { name, variant } of every) {
         const html = panel(find(name));
-        const block = compareBlock(html)!;
-        expect(count(html), name).toBe(zero ? 1 : 0);
-        expect(block.hints.includes(SITE.zeroIsNotClearance), name).toBe(zero && variant.view.findingCount > 0);
+        expect(compareBlock(html)!.footer, name).toEqual([SITE.zeroIsNotClearance]);
+        if (variant.view.findingCount === 0) expect(html, name).toContain(`<p class="zero-line">${SITE.zeroIsNotClearance}</p>`);
       }
-      // 고치기 전을 볼 때: 상태의 뜻 다음, 정책 이름과 판정 경로를 가리키는 말 앞에 적는다.
-      expect(compareBlock(panel(find("kids-signup.main")))!.hints).toEqual([SITE.zeroIsNotClearance, `${WHERE("고치기 전")} ${WHY}`]);
-      // 고친 뒤를 볼 때: 아래 결과에 발견이 없으므로 판정 경로를 가리키지 않는다. 고치기 전의 발견은 그 판을 골라야 나온다.
-      expect(compareBlock(panel(find("kids-signup.fixed")))!.hints).toEqual([WHERE("고친 뒤"), ELSEWHERE("고치기 전")]);
       expect(SITE.zeroIsNotClearance).toContain("법적 문제가 없다는 뜻은 아닙니다");
     });
 
     it("풀렸다고도 여전히 문제라고도 적지 않는다", () => {
       for (const entry of every) {
         const html = panel(entry);
-        // 결과 화면 위쪽(설명, 코드 상자, 두 결과의 표)에 웹이 더한 글.
+        // 결과 화면 위쪽(코드 상자, 두 결과의 표, 권고)에 웹이 더한 글.
         const added = textOf(html.slice(0, html.indexOf('<section class="report">')));
         expect(added, entry.name).not.toMatch(/해결|통과|안전|괜찮|여전히|아직도|고쳐졌|풀렸|풀립니다|충족했|준수/);
       }
@@ -899,8 +877,6 @@ describe("그려 낸 데모 화면", () => {
       const rejected = viewOf(readJson("tests", "fixtures", "judge-on.citation-rejected.json"));
       const cleared = viewOf(readJson("tests", "fixtures", "judge-on.cleared.json"));
       const judged = appWith("kids-signup", [rejected, cleared]);
-      const AI_NOTE =
-        "AI 가 푼 경고는 AI 판정자의 답으로 풀린 경고이고, 발견에는 들어 있지 않습니다. 인용한 줄은 그 결과의 ‘AI 가 푼 경고’에서 확인하세요.";
 
       it("칸마다 AI 가 푼 경고의 수를 싣는다. 발견이 없고 AI 가 푼 경고만 있는 정책도 줄이 된다", () => {
         expect([rejected.judge, cleared.judge]).toEqual(["claude-cli:haiku", "claude-cli:haiku"]);
@@ -921,7 +897,7 @@ describe("그려 낸 데모 화면", () => {
       });
 
       it.each(judged.variants.map((variant) => [variant.label, variant] as const))(
-        "%s 판을 볼 때: 표에 'AI 가 푼 경고 1건'이 보이고, 풀이가 그 정책 카드의 말과 어긋나지 않는다",
+        "%s 판을 볼 때: 표에 'AI 가 푼 경고 1건'이 보이고, 판정자를 켜 보라고 권하지 않는다",
         (_label, variant) => {
           const html = renderToStaticMarkup(<DemoPanel app={judged} variant={variant} pack={packIndex} />);
           const block = compareBlock(html)!;
@@ -931,54 +907,53 @@ describe("그려 낸 데모 화면", () => {
               ["고친 뒤", NONE, ["AI 가 푼 경고 1건"]],
             ],
           ]);
-          // 발견이 없고 AI 가 푼 경고가 있는 칸에는 "발견 없음"의 풀이(충족인지 미적용인지 나누어 적지 않는다)를 적지 않는다.
-          // 그 정책 카드도 그 말 대신 AI 가 푼 경고가 있다고 적는다.
-          expect(block.notes).toEqual([`${PENDING} ${STATUS_LEGEND["needs-review-ai-pending"]}`, AI_NOTE]);
           for (const [pattern, why] of BANNED_WORDING) expect(pattern.test(html), `${pattern} — ${why}`).toBe(false);
           // 판정자가 켜져 있던 결과다. 켜 보라고 권하지 않는다.
           expect(html).not.toContain("판정자를 켜고");
+          expect(html).not.toContain("judge-advice");
         },
       );
 
-      it("고친 뒤(AI 가 푼 판)를 볼 때: 아래 결과의 정책 카드와 목록이 같은 것을 말한다", () => {
+      it("고친 뒤(AI 가 푼 판)를 볼 때: 아래 결과의 곁칸과 목록이 같은 것을 말한다", () => {
         const html = renderToStaticMarkup(<DemoPanel app={judged} variant={judged.variants[1]} pack={packIndex} />);
-        const card = elementsOf(html, '<article class="policy ').find((el) => el.includes(`id="${policyCardId("kr.pipa.22-2")}"`))!;
-        expect(textOf(card)).toContain("AI 판정자의 답으로 풀린 경고가 1건 있습니다.");
-        expect(textOf(card)).not.toContain("나누어 적지 않습니다");
+        // (D5) 그 정책은 곁칸에서 `발견 없음, AI 가 푼 경고 1건` 으로 따로 선다. "나누어 적지 않습니다"는 그 정책의 말이 아니다.
+        expect(textOf(report(html))).toContain("발견 없음, AI 가 푼 경고 1건");
+        expect(textOf(html)).not.toContain("나누어 적지 않습니다");
         expect(html).toContain("<summary>AI 가 푼 경고 1건</summary>");
-        // 발견이 0인 판이다. 0의 뜻은 아래 결과가 적는다.
-        expect(html.split(SITE.zeroIsNotClearance).length - 1).toBe(1);
-        expect(compareBlock(html)!.hints).toEqual([WHERE("고친 뒤"), ELSEWHERE("고치기 전")]);
+        // 발견이 0인 판이다. 0의 뜻은 표 아래와 아래 결과(굵게)에 있다.
+        expect(html).toContain(`<p class="zero-line">${SITE.zeroIsNotClearance}</p>`);
       });
 
-      it("고치기 전을 볼 때: 고친 뒤의 AI 가 푼 경고는 그 판을 골라야 나온다고 적는다", () => {
+      it("고치기 전을 볼 때: 아래 결과(고치기 전)에는 AI 가 푼 경고의 목록이 없다. 표의 칸이 그 수를 보인다", () => {
         const html = renderToStaticMarkup(<DemoPanel app={judged} variant={judged.variants[0]} pack={packIndex} />);
-        // 아래 결과(고치기 전)에는 AI 가 푼 경고의 목록이 없다.
-        expect(report(html)).not.toContain("AI 가 푼 경고");
-        expect(compareBlock(html)!.hints).toEqual([SITE.zeroIsNotClearance, `${WHERE("고치기 전")} ${WHY}`, ELSEWHERE("고친 뒤")]);
+        expect(report(html)).not.toContain("<summary>AI 가 푼 경고");
+        expect(compareBlock(html)!.rows[0].cells[1].counts).toEqual(["AI 가 푼 경고 1건"]);
       });
 
       it("판정자 없이 검사한 결과에는 AI 가 푼 경고의 말이 없다 (수집본 여섯 판)", () => {
         for (const entry of every) {
           const block = compareBlock(panel(entry))!;
-          expect(block.notes.join(" "), entry.name).not.toContain("AI 가 푼 경고");
           expect(block.rows.flatMap((row) => row.cells.flatMap((cell) => cell.counts)).join(" "), entry.name).not.toContain("AI");
+          expect(panel(entry), entry.name).not.toContain("AI 가 푼 경고");
         }
       });
     });
   });
 
-  it.each(named)("%s: 판정자를 켜 보라고 권하는 자리마다 코드가 외부로 나간다는 것을 함께 적는다", (name, entry) => {
+  it.each(named)("%s: 판정자를 켜 보라는 권고는 판마다 한 번이고, 코드가 외부로 나간다는 것을 함께 적는다", (name, entry) => {
+    // (D5) 발견마다 붙던 권고를 쪽(판)마다 한 번의 줄로 줄였다(docs/redesign.md 2.3). 발견마다는 "AI 에게 묻지 않은 조건: …
+    // 판정자 없이 만든 결과입니다." 한 줄이다.
     const html = panel(entry);
-    const advice = elementsOf(html, '<p class="pending">').map(textOf);
-    // 판정자가 꺼져 있었고 AI 에게 묻지 못한 발견마다 한 번씩 권한다. 발견이 없는 판에서는 권하지 않는다.
-    expect(advice).toHaveLength(captured(name).findings.filter((finding) => finding.ai_pending.length > 0).length);
-    for (const text of advice) {
-      expect(text).toContain("판정자를 켜고 다시 검사하면 풀릴 수 있습니다.");
-      expect(text).toContain("판정자를 켜면 판정 대상 코드가 외부 API 로 나갑니다.");
-    }
+    const advice = elementsOf(html, '<p class="judge-advice">').map(textOf);
+    expect(advice).toHaveLength(1);
+    expect(advice[0]).toContain("판정자가 꺼져 있었습니다.");
+    expect(advice[0]).toContain("판정자를 켜면 판정 대상 코드가 외부 API 로 나갑니다.");
+    const pending = elementsOf(html, '<p class="pending">').map(textOf);
+    expect(pending).toHaveLength(captured(name).findings.filter((finding) => finding.ai_pending.length > 0).length);
+    for (const text of pending) expect(text).toMatch(/^AI 에게 묻지 않은 조건: .+\. 판정자 없이 만든 결과입니다\.$/);
     // 그 밖의 자리에서는 권하지 않는다.
-    expect(html.split("판정자를 켜고").length - 1).toBe(advice.length);
+    expect(html.split("판정자를 켜고").length - 1).toBe(1);
+    expect(html.split("외부 API").length - 1).toBe(1);
   });
 
   it("발견이 없는 판(아동 가입 고친 뒤): 0이어도 법적 문제가 없다는 뜻이 아니라고 적는다", () => {
@@ -1014,19 +989,14 @@ describe("고르는 단추와 쪽의 머리말", () => {
           ["고친 뒤", "false"],
         ],
       },
-      // 그 판의 결과 바로 위에 있는 단추. 그 결과를 조문별 검사 기록으로도 본다(tests/record.test.tsx). 처음에는 결과다.
-      {
-        label: "결과와 검사 기록 고르기",
-        buttons: [
-          ["결과", "true"],
-          ["조문별 검사 기록", "false"],
-        ],
-      },
     ]);
-    // 고르는 단추 두 줄은 쪽의 위쪽에, 결과와 기록을 오가는 단추는 두 결과의 표 아래에 있다.
+    // (D5) 조작 한 줄: [앱 셋] …… [판 둘](docs/redesign.md 3장 "데모"). 결과와 기록을 오가는 "결과 | 조문별 검사 기록" 두 단추는
+    // 결과 머리의 보조 단추 하나(`조문별 검사 기록 인쇄용`, aria-pressed)로 바꿨다(2.3 낱말 표). 그 단추는 두 결과의 표 아래에 있다.
     expect(count(elementAt(html, html.indexOf('<div class="demo-pick">')), '<div class="segmented"')).toBe(2);
-    expect(html.indexOf('<div class="demo-compare">')).toBeLessThan(html.indexOf('<div class="report-switch">'));
-    expect(textOf(elementAt(html, html.indexOf("<h2")))).toBe("아동 가입 · 고치기 전");
+    const record = elementsOf(html, '<button type="button" class="btn record-btn"').map((button) => [textOf(button), /aria-pressed="(true|false)"/.exec(button)?.[1]]);
+    expect(record).toEqual([["조문별 검사 기록 인쇄용", "false"]]);
+    expect(html.indexOf('<section class="box demo-compare"')).toBeLessThan(html.indexOf('<div class="report-switch">'));
+    expect(textOf(elementAt(html, html.indexOf('<h2 class="demo-title">')))).toBe("아동 가입 · 고치기 전");
     expect(html).toContain(panel(find("kids-signup.main")));
   });
 
@@ -1042,7 +1012,7 @@ describe("고르는 단추와 쪽의 머리말", () => {
     expect(handed, entry.name).toHaveBeenCalledTimes(1);
     const [props] = handed.mock.calls[0];
     const title = `${entry.app.label} · ${entry.variant.label}`;
-    expect(textOf(elementAt(html, html.indexOf("<h2")))).toBe(title);
+    expect(textOf(elementAt(html, html.indexOf('<h2 class="demo-title">')))).toBe(title);
     expect(props.source, entry.name).toEqual({ name: title, synthetic: true });
     expect(props.view, entry.name).toBe(entry.variant.view);
     expect(props.pack, entry.name).toBe(packIndex);
@@ -1057,39 +1027,37 @@ describe("고르는 단추와 쪽의 머리말", () => {
     }
   });
 
-  it("쪽의 머리말: 합성 예시이고 실제 서비스의 코드가 아니라고 밝힌다. 판정자 없이 검사했다고 적는다", () => {
+  it("쪽의 머리: 제목 `데모` 옆에 이름표 `합성 예시`. 부제·사용법·상태 풀이 줄은 없다", () => {
+    // (D5) 머리말 문단("합성 예시입니다. 실제 서비스의 코드가 아닙니다. … 판정자 없이 같은 팩으로 검사한 CLI 실제 출력을
+    // 보입니다.")을 지우고 이름표 `합성 예시` 로 대신했다(docs/redesign.md 3장 "데모", 2.3 낱말 표). 판정자 없이 만든 결과라는
+    // 것은 판마다의 권고 줄("판정자가 꺼져 있었습니다. …")이 말한다(위 "권고는 판마다 한 번").
     const html = renderToStaticMarkup(<DemoPage />);
-    expect(textOf(elementAt(html, html.indexOf("<h1")))).toBe("데모: 고치기 전과 고친 뒤");
-    expect(textOf(elementAt(html, html.indexOf('<p class="lede">')))).toBe(
-      "합성 예시입니다. 실제 서비스의 코드가 아닙니다. 코드 3가지를 고치기 전과 고친 뒤로 나눠, 판정자 없이 같은 팩으로 검사한 CLI 실제 출력을 보입니다.",
-    );
-    // 같은 팩이라고 적었다. 여섯 결과의 팩 판이 하나다. 판정자 없이 검사했다는 것은 위에서 결과마다 봤다.
+    expect(textOf(elementAt(html, html.indexOf("<h1")))).toBe("데모");
+    expect(html).toContain('<h1>데모</h1><span class="tag">합성 예시</span>');
+    expect(html).not.toContain('class="lede"');
+    // 같은 팩으로 검사한 결과다. 여섯 결과의 팩 판이 하나다.
     expect(new Set(every.map(({ variant }) => variant.view.packDigest)).size).toBe(1);
     // 쪽이 그리는 것은 고르는 단추와 첫 판이다.
     expect(html).toContain(renderToStaticMarkup(<DemoSwitcher apps={apps} pack={packIndex} />));
     for (const [pattern, why] of BANNED_WORDING) expect(pattern.test(html), `${pattern} — ${why}`).toBe(false);
   });
 
-  it("판정자를 켠 결과가 하나라도 실리면 머리말에 '판정자 없이'를 적지 않는다", () => {
+  it("판정자를 켠 결과가 실리면 그 판에는 판정자를 켜 보라는 권고가 없다 (쪽이 읽는 수집본을 바꿔 본다)", () => {
     // 쪽은 빌드할 때 현재 폴더의 contract/ 를 읽는다. 저장소 밖의 임시 폴더에 합성 코드와 수집본을 옮겨 놓고, 수집본
-    // 하나를 판정자를 켠 결과(손으로 만든 시험용 자료)로 바꾼 뒤 그 폴더에서 쪽을 그려 본다.
+    // 하나를 판정자를 켠 결과(손으로 만든 시험용 자료)로 바꾼 뒤 그 폴더에서 읽어 그려 본다.
     const copy = mkdtempSync(path.join(tmpdir(), "policypack-demo-test-"));
     const cwd = vi.spyOn(process, "cwd");
     try {
       for (const dir of ["fixtures", "cli-current"]) {
         cpSync(path.join(root, "contract", dir), path.join(copy, "contract", dir), { recursive: true });
       }
-      const lede = () => {
-        const html = renderToStaticMarkup(<DemoPage />);
-        return textOf(elementAt(html, html.indexOf('<p class="lede">')));
-      };
-      const WITHOUT = "합성 예시입니다. 실제 서비스의 코드가 아닙니다. 코드 3가지를 고치기 전과 고친 뒤로 나눠, 판정자 없이 같은 팩으로 검사한 CLI 실제 출력을 보입니다.";
       cwd.mockReturnValue(copy);
-      // 옮겨 놓은 그대로면 저장소에서 그린 것과 같다(쪽이 임시 폴더를 읽는다는 뜻이다).
-      expect(lede()).toBe(WITHOUT);
       cpSync(path.join(root, "tests", "fixtures", "judge-on.cleared.json"), path.join(copy, "contract", "cli-current", "kids-signup.fixed.json"));
-      expect(lede()).toBe(WITHOUT.replace("판정자 없이 ", ""));
-      expect(lede()).toBe("합성 예시입니다. 실제 서비스의 코드가 아닙니다. 코드 3가지를 고치기 전과 고친 뒤로 나눠, 같은 팩으로 검사한 CLI 실제 출력을 보입니다.");
+      const changed = loadDemoApps(packIndex).find((app) => app.key === "kids-signup")!;
+      const [before, after] = changed.variants.map((variant) => renderToStaticMarkup(<DemoPanel app={changed} variant={variant} pack={packIndex} />));
+      expect(before).toContain('<p class="judge-advice">');
+      expect(after).not.toContain('<p class="judge-advice">');
+      expect(after).not.toContain("외부 API");
     } finally {
       cwd.mockRestore();
       rmSync(copy, { recursive: true, force: true });

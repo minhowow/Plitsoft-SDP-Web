@@ -106,7 +106,7 @@ async function codeBox(page: Page) {
     // 줄의 글 앞에 CSS 가 그리는 것: 줄 번호, 다른 판과 다른 줄이면 그 앞에 표시("+12"처럼 모아 읽는다).
     const gutters = lines.map((line) => getComputedStyle(line, "::before").content.replace(/["\s]/g, ""));
     return {
-      caption: figure.querySelector("figcaption")!.textContent,
+      caption: figure.querySelector("figcaption code")!.textContent,
       /** 줄의 글을 이은 것. 줄마다 줄바꿈으로 끝난다. */
       code: lines.map((line) => line.textContent).join(""),
       numbers: gutters.map((gutter) => gutter.replace(/^\D+/, "")),
@@ -187,12 +187,27 @@ async function compareTable(page: Page) {
   });
 }
 
+/**
+ * 아래 결과의 발견 줄마다의 상태(화면 순서). (D5) 칩은 정책과 상태가 다를 때만 있고, 같으면 화면 낭독기에만 읽히는 글이다.
+ */
+const rowStatuses = (page: Page) =>
+  page.locator("li.finding > details > summary").evaluateAll((all) =>
+    all.map((summary) => (summary.querySelector(".chip") ?? summary.querySelector(".visually-hidden"))!.textContent),
+  );
+/** 지금 판에서 상자로 그린 정책(발견이나 충족 근거 위치가 있다). 표의 정책 이름은 그 상자로만 잇는다. */
+const boxedIn = (name: string) =>
+  demoApps
+    .flatMap((app) => app.variants.map((variant) => ({ name: `${app.key}.${variant.key}`, view: variant.view })))
+    .find((entry) => entry.name === name)!
+    .view.policies.filter((policy) => policy.locations.length > 0 || policy.evidence.length > 0)
+    .map((policy) => policy.id);
+
 const AI = STATUS_LABEL["needs-review-ai-pending"];
 const UNCERTAIN = STATUS_LABEL.uncertain;
 const NONE = STATUS_LABEL["not-reported"];
 const EVIDENCE = STATUS_LABEL["evidence-found"];
-// 코드 상자에는 곁에 조문 이름이 없다. "이 조문"이라고 적지 않는다(채팅의 1행에는 조문이 다른 발견이 둘 실린다).
-const FILE_SCOPE = "파일 전체를 보고 내린 판정입니다. 줄 번호는 조문이 닿는다고 본 첫 줄입니다.";
+// (D5) 칠한 줄 아래에는 `발견 N건이 가리키는 줄(파일 전체 판정)` 을 적는다(docs/redesign.md 3장 "데모"). 범위의 이름은 발견 줄의 것이다.
+const FILE_SCOPE = "파일 전체 판정";
 
 /** 판마다 화면에 보여야 하는 것. 수집본(contract/cli-current)과 합성 코드(contract/fixtures)에서 읽은 대로다. */
 interface Expected {
@@ -255,11 +270,11 @@ const EXPECTED: Record<string, Expected> = {
   },
 };
 
-/** 표 아래에 적는 말. 아래 결과가 어느 판의 것인지와, 다른 판의 결과를 어디서 보는지. */
-const WHERE = (label: string) => `표의 정책 이름을 누르면 아래 결과(${label})의 그 정책으로 갑니다.`;
-const WHY = "발견마다의 까닭은 그 안의 ‘판정 경로’에 CLI 가 남긴 문장으로 나옵니다.";
-const ELSEWHERE = (label: string) => `${label}의 결과는 위의 ‘${label}’ 단추를 누르면 나옵니다.`;
-const hints = (page: Page) => page.locator(".demo-compare p.hint").allInnerTexts();
+/**
+ * 표 상자 아래 줄. (D5) 0의 뜻이 늘 있다. 표 아래에 적던 사용법 문장("표의 정책 이름을 누르면 …", "… 단추를 누르면 나옵니다")과
+ * 상태 풀이 목록은 지웠다(docs/redesign.md 3장 "데모").
+ */
+const footer = (page: Page) => page.locator(".demo-compare .box-ft").allInnerTexts();
 /** 두 결과의 표의 칸 머리. */
 const COMPARE_COLUMNS = ["정책", "고치기 전", "고친 뒤"];
 
@@ -281,8 +296,10 @@ describe("세 앱 × 두 판", () => {
     // 처음에는 첫 앱의 고치기 전이 열려 있다.
     expect(await title(page)).toBe("아동 가입 · 고치기 전");
     expect(await pressed(page)).toEqual(["아동 가입", "고치기 전"]);
-    expect(await page.locator("h1").innerText()).toBe("데모: 고치기 전과 고친 뒤");
-    expect(await page.locator(".lede").innerText()).toContain("합성 예시입니다. 실제 서비스의 코드가 아닙니다.");
+    // (D5) 제목 `데모` 옆에 이름표 `합성 예시`. 머리말 문단은 없다.
+    expect(await page.locator("h1").innerText()).toBe("데모");
+    expect(await page.locator(".demo-head .tag").innerText()).toBe("합성 예시");
+    expect(await page.locator(".lede").count()).toBe(0);
 
     for (const { app, variant, name } of every) {
       const want = EXPECTED[name];
@@ -290,10 +307,9 @@ describe("세 앱 × 두 판", () => {
       await pick(page, app.label, variant.label);
       expect(await pressed(page), name).toEqual([app.label, variant.label]);
 
-      // 판마다 합성 예시라고 밝힌다: 설명의 첫 문장과 코드 상자의 이름표.
-      expect(await page.locator(".demo-note").innerText(), name).toMatch(/^합성 예시입니다\. /);
+      // 코드 상자의 머리 띠: 경로와, 그 판의 코드가 무엇을 하는지. 합성 예시라는 것은 쪽 제목 옆의 이름표가 밝힌다.
       const box = await codeBox(page);
-      expect(box.caption, name).toBe(`${want.file} · 합성 예시`);
+      expect(box.caption, name).toBe(want.file);
 
       // 코드는 합성 코드 파일 그대로다. 줄 번호는 1부터 차례대로 보인다.
       const code = readFileSync(path.join(root, "contract", "fixtures", app.key, variant.key, want.file), "utf8");
@@ -309,8 +325,8 @@ describe("세 앱 × 두 판", () => {
           const here = data.findings.filter((finding) => finding.line === line);
           const scope = here.every((finding) => finding.scope === "file")
             ? FILE_SCOPE
-            : `함수 단위로 내린 판정입니다. 판정 구역은 ${here[0].region!.start_line}~${here[0].region!.end_line}행입니다.`;
-          return { after: line, text: `발견 ${here.length}건에 실린 줄 번호입니다. ${scope}`, inside: true };
+            : `함수 ${here[0].region!.start_line}~${here[0].region!.end_line}행 판정`;
+          return { after: line, text: `발견 ${here.length}건이 가리키는 줄(${scope})`, inside: true };
         }),
       );
       for (const note of await page.locator(".codenote").all()) expect(await note.isVisible(), name).toBe(true);
@@ -321,7 +337,7 @@ describe("세 앱 × 두 판", () => {
       expect(box.legend, name).toBe(want.differs.length > 0 ? LEGEND[variant.key] : null);
 
       // 두 결과의 표: 어느 판을 보고 있든 고치기 전과 고친 뒤의 상태가 함께 보인다.
-      expect(await page.locator(".compare caption").innerText(), name).toBe("고치기 전과 고친 뒤의 결과");
+      expect(await page.locator("#compare-title").innerText(), name).toBe("고치기 전과 고친 뒤");
       expect((await page.locator(".compare tbody td").allInnerTexts()).map((text) => text.replace(/\s+/g, " ").trim()), name).toEqual(
         want.compare,
       );
@@ -333,8 +349,11 @@ describe("세 앱 × 두 판", () => {
       // 지금 보는 판의 이름만 짙게 적는다.
       expect(table.head.filter((th) => th.current).map((th) => th.text), name).toEqual([variant.label]);
       expect(table.head.map((th) => th.weight), name).toEqual(table.head.map((th) => (th.current ? "600" : "400")));
-      // 줄마다 정책 이름이 보인다. 이름은 아래 결과의 그 정책 카드로 가는 링크다.
-      expect(table.rows.map((row) => [row.name, row.href]), name).toEqual(want.policies.map(([policy, card]) => [policy, `#${card}`]));
+      // 줄마다 정책 이름이 보인다. 이름은 아래 결과의 그 정책 상자로 가는 링크다(이 판에 상자가 있는 정책만).
+      const boxed = boxedIn(name);
+      expect(table.rows.map((row) => [row.name, row.href]), name).toEqual(
+        want.policies.map(([policy, card]) => [policy, boxed.some((id) => `policy-${id.replaceAll(".", "-")}` === card) ? `#${card}` : null]),
+      );
       for (const th of await page.locator(".compare tbody th").all()) expect(await th.isVisible(), name).toBe(true);
       for (const row of table.rows) {
         expect(row.cells.map((cell) => cell.left), `${name} ${row.name}`).toEqual(table.head.slice(1).map((th) => th.left));
@@ -342,27 +361,25 @@ describe("세 앱 × 두 판", () => {
         expect(row.cells.map((cell) => cell.label), `${name} ${row.name}`).toEqual(["none", "none"]);
         for (const count of row.cells.flatMap((cell) => cell.counts)) expect(count, `${name} ${row.name}`).toEqual({ lines: 1, dropped: false, aligned: true });
       }
-      // 표 아래: 아래 결과가 지금 보는 판의 것이라는 말과, 다른 판의 결과를 어디서 보는지.
-      const other = DEMO_VARIANTS.find((v) => v.key !== variant.key)!;
-      const otherFindings = (readJson("contract", "cli-current", `${app.key}.${other.key}.json`) as Report).findings.length;
-      expect(await hints(page), name).toEqual([
-        ...(data.findings.length > 0 && otherFindings === 0 ? [SITE.zeroIsNotClearance] : []),
-        data.findings.length > 0 ? `${WHERE(variant.label)} ${WHY}` : WHERE(variant.label),
-        ...(otherFindings > 0 ? [ELSEWHERE(other.label)] : []),
-      ]);
+      // 표 아래: 0의 뜻. 상태의 뜻은 표 머리의 링크(조문 도감)다.
+      expect(await footer(page), name).toEqual([SITE.zeroIsNotClearance]);
+      expect(await page.locator(".demo-compare .box-hd a").getAttribute("href"), name).toBe("/policy/#status");
 
-      // 그 판의 결과: 발견 수, 발견 줄마다의 상태(고친 뒤에도 남은 것은 남은 대로), 정책 카드 다섯.
-      expect(await page.locator(".report > .notice").innerText(), name).toBe(
-        data.findings.length > 0 ? `사람이 확인할 발견이 ${data.findings.length}건 있습니다.` : SITE.zeroIsNotClearance,
+      // 그 판의 결과: 발견 수, 발견 줄마다의 상태(고친 뒤에도 남은 것은 남은 대로), 상자로 그린 정책.
+      expect((await page.locator(".report > .sumline").innerText()).replace(/\s+/g, " "), name).toBe(
+        `사람이 볼 곳 ${data.findings.length}건 검사한 파일 ${data.run.files}개`,
       );
-      expect(await page.locator("li.finding summary .chip").allInnerTexts(), name).toEqual(want.statuses);
+      if (data.findings.length === 0) expect(await page.locator(".report .zero-line").innerText(), name).toBe(SITE.zeroIsNotClearance);
+      expect(await rowStatuses(page), name).toEqual(want.statuses);
       expect(want.statuses, name).toHaveLength(data.findings.length);
-      expect((await page.locator("li.finding summary code").allInnerTexts()).sort(), name).toEqual(
+      expect((await page.locator("li.finding summary code:not(.rule-id)").allInnerTexts()).sort(), name).toEqual(
         data.findings.map((finding) => `${finding.file}:${finding.line}`).sort(),
       );
-      expect(await page.locator("article.policy").count(), name).toBe(5);
+      expect(await page.locator("article.policy").count(), name).toBe(boxed.length);
       expect(await page.locator(".report-meta").innerText(), name).toContain("꺼짐");
-      for (const selector of [".demo-title", ".codeblock", ".report", ".disclaimer"]) {
+      // 판정자를 켜 보라는 권고는 판마다 한 번, 외부 API 고지와 함께다.
+      expect(await page.locator(".judge-advice").allInnerTexts(), name).toEqual([expect.stringContaining("판정자를 켜면 판정 대상 코드가 외부 API 로 나갑니다.")]);
+      for (const selector of [".demo-title", ".codeblock", ".report", ".site-footer"]) {
         expect(await page.locator(selector).first().isVisible(), `${name} ${selector}`).toBe(true);
       }
     }
@@ -371,31 +388,39 @@ describe("세 앱 × 두 판", () => {
   it("고친 뒤에도 남은 발견에는 왜 그런지가 화면에 보인다: 상태의 뜻과, CLI 가 남긴 판정 경로의 문장", async () => {
     const { page } = await openDemo();
     await pick(page, "광고 푸시", "고친 뒤");
-    const notes = (await page.locator(".status-notes li").allInnerTexts()).map((text) => text.replace(/\s+/g, " "));
-    expect(notes).toHaveLength(3);
-    expect(notes[0]).toContain(`${AI} 정적 조건으로는 대안이 확인되지 않았고, AI 에게 물어야 할 조건은 판정에 넣을 답이 없습니다`);
-    expect(notes[1]).toContain(`${UNCERTAIN} 적용 여부나 대안이 '모름'으로 남았습니다. 약한 근거만 있거나`);
-    expect(notes[2]).toBe(`${NONE} 발견이 없는 정책은 이 사이트가 아직 '충족 근거 발견'과 '적용 신호 없음'으로 나누어 적지 않습니다.`);
-    // 표 아래의 글은 여러 정책을 두고 하는 말이다. 곁에 없는 정책이나 조문을 "이"로 가리키지 않는다.
+    // (D5) 상태의 뜻은 조문 도감 한 곳에 있고(표 머리의 `상태의 뜻`), 표 아래의 상태 풀이 목록은 지웠다(docs/redesign.md 3장).
+    expect(await page.locator(".status-notes").count()).toBe(0);
+    const legend = page.locator(".demo-compare .box-hd a", { hasText: "상태의 뜻" });
+    expect(await legend.isVisible()).toBe(true);
+    expect(await legend.getAttribute("href")).toBe("/policy/#status");
+    // 표 머리와 아래의 글은 곁에 없는 정책이나 조문을 "이"로 가리키지 않는다.
     expect(await page.locator(".demo-compare").innerText()).not.toMatch(/이 (정책|조문|결과)/);
-    // 판단 보류로 남은 발견의 판정 경로는 처음부터 펼쳐져 있다. 약한 근거라는 문장이 접히지 않은 채 보인다.
+    // 판단 보류로 남은 발견은 그 정책 상자의 첫 발견이라 펼쳐져 있다. 판정 경로(CLI 원문)는 접어 두고, 펼치면 약한 근거라는
+    // 문장이 CLI 가 낸 그대로 보인다.
     const weak = page.locator("ol.path li", { hasText: "대안 night-consent-field: 약한 근거 — AI 확인 전에는 풀지 않음 → unknown" });
     expect(await weak.count()).toBe(1);
+    expect(await weak.isVisible()).toBe(false);
+    const fold = page.locator("details.path-fold", { has: weak });
+    await fold.locator("> summary").click();
     expect(await weak.isVisible()).toBe(true);
-    // 판정자를 켜 보라고 권하는 자리마다 코드가 외부로 나간다는 것이 함께 보인다.
-    const advice = await page.locator("p.pending").allInnerTexts();
-    expect(advice).toHaveLength(3);
-    for (const text of advice) {
-      expect(text).toContain("판정자를 켜고 다시 검사하면 풀릴 수 있습니다.");
-      expect(text).toContain("판정자를 켜면 판정 대상 코드가 외부 API 로 나갑니다.");
-    }
+    // 판정자를 켜 보라는 권고는 판에 한 번이고, 코드가 외부로 나간다는 것이 함께 보인다. 발견마다는 묻지 않은 조건 한 줄이다.
+    const advice = await page.locator(".judge-advice").allInnerTexts();
+    expect(advice).toHaveLength(1);
+    expect(advice[0]).toContain("판정자를 켜고 다시 검사하면");
+    expect(advice[0]).toContain("판정자를 켜면 판정 대상 코드가 외부 API 로 나갑니다.");
+    // 닫힌 발견 줄 안의 것도 센다(글로 읽는다).
+    const pending = await page.locator("p.pending").allTextContents();
+    expect(pending).toHaveLength(3);
+    for (const text of pending) expect(text).toMatch(/판정자 없이 만든 결과입니다\.$/);
 
     await pick(page, "생성형 AI 채팅", "고친 뒤");
     const label = page.locator("ol.path li", { hasText: "대안 label-text: 약한 근거 — AI 확인 전에는 풀지 않음 → unknown" });
+    expect(await label.count()).toBe(1);
+    await page.locator("details.path-fold", { has: label }).locator("> summary").click();
     expect(await label.isVisible()).toBe(true);
   });
 
-  it("고치기 전을 볼 때: 표의 '고친 뒤' 칸에 있는 판단 보류의 까닭은 아래에 없고, 고친 뒤를 고르면 나온다고 적혀 있다", async () => {
+  it("고치기 전을 볼 때: 표의 '고친 뒤' 칸에 있는 판단 보류의 까닭은 아래에 없고, 고친 뒤를 고르면 나온다", async () => {
     // 표와 상태의 뜻은 두 판을 함께 보이지만 아래의 결과는 지금 보는 판의 것뿐이다.
     const { page } = await openDemo({ width: 375, height: 667 });
     const weak = page.locator("ol.path li", { hasText: "약한 근거 — AI 확인 전에는 풀지 않음 → unknown" });
@@ -403,18 +428,15 @@ describe("세 앱 × 두 판", () => {
       await pick(page, app, "고치기 전");
       // 표에는 고친 뒤의 판단 보류가 보이고 그 뜻도 적혀 있다.
       expect((await compareTable(page)).rows.flatMap((row) => row.cells[1].text), app).toContain(`${UNCERTAIN} 발견 1건`);
-      expect(await page.locator(".status-notes li", { hasText: UNCERTAIN }).isVisible(), app).toBe(true);
-      // 아래 결과(고치기 전)에는 판단 보류인 발견도, 약한 근거라는 문장도 없다.
-      expect(await page.locator("li.finding summary .chip").allInnerTexts(), app).not.toContain(UNCERTAIN);
+      // 아래 결과(고치기 전)에는 판단 보류인 발견도, 약한 근거라는 문장도 없다. 아래 결과의 제목이 지금 보는 판이다.
+      expect(await rowStatuses(page), app).not.toContain(UNCERTAIN);
       expect(await weak.count(), app).toBe(0);
-      // 그래서 가리키는 말이 아래 결과가 고치기 전의 것임을 밝히고, 고친 뒤의 결과를 어디서 보는지 적는다.
-      expect(await hints(page), app).toEqual([`${WHERE("고치기 전")} ${WHY}`, ELSEWHERE("고친 뒤")]);
-      for (const hint of await page.locator(".demo-compare p.hint").all()) expect(await hint.isVisible(), app).toBe(true);
-      // 적힌 대로 위의 단추를 누르면 나온다.
+      expect(await title(page), app).toBe(`${app} · 고치기 전`);
+      // 위의 `고친 뒤` 단추를 누르면 나온다.
       await button(page, VARIANTS, "고친 뒤").click();
       await shown(page, `${app} · 고친 뒤`);
       expect(await weak.count(), app).toBe(1);
-      expect(await hints(page), app).toEqual([`${WHERE("고친 뒤")} ${WHY}`, ELSEWHERE("고치기 전")]);
+      expect(await rowStatuses(page), app).toContain(UNCERTAIN);
     }
   });
 
@@ -430,7 +452,7 @@ describe("세 앱 × 두 판", () => {
       [7, "+"],
       [10, "+"],
     ]);
-    expect(await page.locator("li.finding summary .chip").allInnerTexts()).toEqual([AI, UNCERTAIN]);
+    expect(await rowStatuses(page)).toEqual([AI, UNCERTAIN]);
     await button(page, APPS, "아동 가입").click();
     await shown(page, "아동 가입 · 고친 뒤");
     expect(await pressed(page)).toEqual(["아동 가입", "고친 뒤"]);
@@ -447,6 +469,7 @@ describe("세 앱 × 두 판", () => {
     // 고친 뒤의 다른 판정에서도 접힌 채로 남아 판정 경로가 보이지 않는다.
     const { page } = await openDemo();
     const open = () => page.locator("li.finding > details").evaluateAll((all) => all.map((el) => (el as HTMLDetailsElement).open));
+    // 채팅의 두 발견은 정책이 서로 달라 저마다 정책 상자의 첫 발견이다(펼쳐 둔다).
     await pick(page, "생성형 AI 채팅", "고치기 전");
     expect(await open()).toEqual([true, true]);
     for (const summary of await page.locator("li.finding > details > summary").all()) await summary.click();
@@ -497,10 +520,10 @@ describe("표의 정책 이름으로 아래 결과의 그 정책으로 간다", 
       url: "/demo/",
       history: start.history,
     });
-    expect(await card.locator("h3").innerText()).toBe("야간(21시~08시) 광고성 정보 전송의 별도 동의");
-    expect(await card.locator(".policy-state .chip").innerText()).toBe(UNCERTAIN);
-    // 까닭을 적은 문장(약한 근거)이 그 카드 안에 있다.
-    expect(await card.locator("ol.path li", { hasText: "대안 night-consent-field: 약한 근거 — AI 확인 전에는 풀지 않음 → unknown" }).isVisible()).toBe(true);
+    expect(await card.locator("h2.t").innerText()).toBe("야간(21시~08시) 광고성 정보 전송의 별도 동의");
+    expect(await card.locator(".pbox-hd .chip").innerText()).toBe(UNCERTAIN);
+    // 까닭을 적은 문장(약한 근거)이 그 상자 안에 있다(접어 둔 판정 경로 안).
+    expect(await card.locator("ol.path li", { hasText: "대안 night-consent-field: 약한 근거 — AI 확인 전에는 풀지 않음 → unknown" }).count()).toBe(1);
 
     // 다음 Tab 은 그 카드 안에서 이어진다(카드의 첫 링크). 초점이 떠나면 카드는 다시 초점을 받지 않는 요소다.
     await page.keyboard.press("Tab");
@@ -523,18 +546,16 @@ describe("표의 정책 이름으로 아래 결과의 그 정책으로 간다", 
     expect(await overflow(page)).toMatchObject({ page: 0, over: [] });
   });
 
-  it("고치기 전을 볼 때는 그 판의 카드로 간다 (그 판에 발견이 없는 정책이어도)", async () => {
+  it("고치기 전을 볼 때 그 판에 상자가 없는 정책(발견 없음)은 링크가 아니다. 그 정책은 아래 결과의 곁칸 묶음에 있다", async () => {
+    // (D5) 발견도 충족 근거도 없는 정책은 상자로 그리지 않는다(곁칸의 `발견 없음` 묶음). 표의 이름은 갈 곳이 없어 글로만 적는다.
     const { page } = await openDemo();
     await pick(page, "광고 푸시", "고치기 전");
-    await page.locator(".compare tbody th a").nth(1).click();
-    const at = await where(page);
-    expect(at).toMatchObject({ id: "policy-kr-network-act-50-3", url: "/demo/" });
-    // 발견이 없는 카드는 쪽의 아래쪽에 있어서, 창 위쪽까지 올라오지 못하면 창 안의 어딘가에 놓인다.
-    expect(at.top).toBeGreaterThanOrEqual(12);
-    expect(at.top).toBeLessThan(720);
-    const card = page.locator("#policy-kr-network-act-50-3");
-    expect(await card.locator(".policy-state .chip").innerText()).toBe(NONE);
-    expect(await card.locator("li.finding").count()).toBe(0);
+    const rows = (await compareTable(page)).rows;
+    expect(rows.map((row) => row.href)).toEqual(["#policy-kr-network-act-50-4", null]);
+    expect(rows[1].cells.map((cell) => cell.text)).toEqual([NONE, `${UNCERTAIN} 발견 1건`]);
+    expect(await page.locator("#policy-kr-network-act-50-3").count()).toBe(0);
+    const group = page.locator(".side-group", { hasText: NONE });
+    expect(await group.locator("li", { hasText: "야간(21시~08시) 광고성 정보 전송의 별도 동의" }).count()).toBe(1);
   });
 
   it("옮겨 간 뒤에 다른 쪽에 다녀와도 뒤로 가기가 듣는다", async () => {
@@ -547,12 +568,12 @@ describe("표의 정책 이름으로 아래 결과의 그 정책으로 간다", 
     expect(landed).toMatchObject({ id: "policy-kr-network-act-50-3", url: "/demo/" });
     const y = await scrollY(page);
 
-    await page.locator("#policy-kr-network-act-50-3 h3 a").click();
+    await page.locator("#policy-kr-network-act-50-3 a.law").click();
     await page.waitForURL("**/policy/kr-network-act-50-3/");
     await page.waitForSelector(".demo", { state: "detached" });
     await page.goBack();
     await shown(page, "광고 푸시 · 고친 뒤");
-    expect(await page.locator("h1").innerText()).toBe("데모: 고치기 전과 고친 뒤");
+    expect(await page.locator("h1").innerText()).toBe("데모");
     expect(await page.evaluate(() => location.pathname + location.hash)).toBe("/demo/");
     expect(await pressed(page)).toEqual(["광고 푸시", "고친 뒤"]);
     await expect.poll(() => scrollY(page), { timeout: 5_000 }).toBe(y);
@@ -577,7 +598,7 @@ describe("판을 바꿔도 밖으로 나가는 요청이 없다", () => {
       await pick(page, app.label, variant.label);
       // 맨 아래까지 한 화면씩 내린다. 정책 카드의 링크가 차례로 화면에 들어온다.
       await scrollThrough(page, 40);
-      await page.locator("article.policy h3 a").last().hover();
+      await page.locator("article.policy a.law").last().hover();
       // 표의 정책 이름을 눌러 아래 결과의 그 정책으로 옮겨 간다. 같은 쪽 안에서 옮겨 갈 뿐이다.
       for (const link of await page.locator(".compare tbody th a").all()) {
         await link.click();
@@ -608,8 +629,10 @@ describe("좁은 화면", () => {
     for (const { app, variant, name } of every) {
       await pick(page, app.label, variant.label);
       expect(await overflow(page), `${name} (접힌 채)`).toEqual({ ...FITS, limit });
+      // 본문의 접어 둔 것을 모두 편다. (D5) 머리글의 펼치는 메뉴(details.menu)는 펴지 않는다. 펴면 메뉴가 바로 아래의 고르는
+      // 단추를 덮어 다음 판을 고르지 못한다(조작 한 줄이 쪽 제목 바로 아래로 올라왔다).
       await page.evaluate(() => {
-        for (const details of document.querySelectorAll("details")) details.open = true;
+        for (const details of document.querySelectorAll("main details")) (details as HTMLDetailsElement).open = true;
       });
       expect(await overflow(page), `${name} (펼친 채)`).toEqual({ ...FITS, limit });
       // 긴 코드 줄은 쪽을 넓히지 않고 코드 상자 안에서 가로로 밀린다. 줄 아래의 설명은 상자 너비 안에서 줄을 바꾼다.
@@ -846,13 +869,84 @@ describe("키보드만으로", () => {
   });
 });
 
+describe("조작 한 줄과 두 단 (재디자인 D5, docs/redesign.md 3장 \"데모\")", () => {
+  /** 고르는 단추 두 묶음, 코드 상자, 표 상자, 결과의 자리. */
+  const layout = (page: Page) =>
+    page.evaluate(() => {
+      const box = (selector: string) => {
+        const rect = document.querySelector(selector)!.getBoundingClientRect();
+        return { left: Math.round(rect.left), right: Math.round(rect.right), top: Math.round(rect.top) };
+      };
+      const groups = [...document.querySelectorAll(".demo-pick .segmented")].map((el) => {
+        const rect = el.getBoundingClientRect();
+        return { left: Math.round(rect.left), right: Math.round(rect.right), top: Math.round(rect.top) };
+      });
+      return { groups, code: box(".codeblock"), compare: box(".demo-compare"), report: box(".report") };
+    });
+
+  it("1280px: [앱 셋] …… [판 둘] 이 한 줄이고, 1100px 이상에서는 코드가 왼쪽 단, 표·결과가 오른쪽 단이다. 1099px 은 한 단이다", async () => {
+    const { page } = await openDemo({ width: 1280, height: 720 });
+    const wide = await layout(page);
+    expect(wide.groups).toHaveLength(2);
+    expect(wide.groups[0].top).toBe(wide.groups[1].top);
+    expect(wide.groups[0].left).toBeLessThan(wide.groups[1].left);
+    // 판 단추 묶음은 오른쪽 끝에 붙는다(본문의 오른쪽 여백 24px).
+    expect(wide.groups[1].right).toBe(1280 - 24);
+    expect(wide.compare.left).toBeGreaterThan(wide.code.right);
+    expect(wide.compare.top).toBe(wide.code.top);
+    expect(wide.report.left).toBe(wide.compare.left);
+    for (const width of [1100, 1099]) {
+      await page.setViewportSize({ width, height: 720 });
+      const at = await layout(page);
+      if (width === 1100) expect(at.compare.left, `${width}px`).toBeGreaterThan(at.code.right);
+      else expect([at.compare.left, at.compare.top > at.code.top], `${width}px`).toEqual([at.code.left, true]);
+    }
+  });
+
+  it("고르는 단추는 눌린 상태(aria-pressed)를 가진 단추이고 키보드로 고른다. 고른 것은 브라우저 저장소에 두지 않는다", async () => {
+    const { page } = await openDemo({ width: 1280, height: 720 });
+    const states = () => page.locator(".demo-pick button").evaluateAll((all) => all.map((el) => [el.textContent, el.getAttribute("aria-pressed")]));
+    expect(await states()).toEqual([
+      ["아동 가입", "true"],
+      ["광고 푸시", "false"],
+      ["생성형 AI 채팅", "false"],
+      ["고치기 전", "true"],
+      ["고친 뒤", "false"],
+    ]);
+    // 묶음마다 이름이 있다(화면 낭독기가 단추 묶음으로 읽는다).
+    expect(await page.locator(".demo-pick .segmented").evaluateAll((all) => all.map((el) => [el.getAttribute("role"), el.getAttribute("aria-label")]))).toEqual([
+      ["group", APPS],
+      ["group", VARIANTS],
+    ]);
+    // 키보드: 앱 단추에서 Tab 으로 다음 단추, Space 와 Enter 로 고른다.
+    await button(page, APPS, "아동 가입").focus();
+    await page.keyboard.press("Tab");
+    await page.keyboard.press("Tab");
+    await page.keyboard.press("Enter");
+    await shown(page, "생성형 AI 채팅 · 고치기 전");
+    await page.keyboard.press("Tab");
+    await page.keyboard.press("Tab");
+    await page.keyboard.press("Space");
+    await shown(page, "생성형 AI 채팅 · 고친 뒤");
+    expect(await states()).toEqual([
+      ["아동 가입", "false"],
+      ["광고 푸시", "false"],
+      ["생성형 AI 채팅", "true"],
+      ["고치기 전", "false"],
+      ["고친 뒤", "true"],
+    ]);
+    expect(await page.evaluate(() => document.activeElement?.textContent)).toBe("고친 뒤");
+    expect(await stored(page)).toEqual(NO_STORAGE);
+  });
+});
+
 describe("다른 쪽에 다녀오거나 새로 고친 뒤", () => {
   it("정책 링크로 갔다가 뒤로 와도, 머리의 링크로 다녀와도 고른 앱과 판이 그대로다", async () => {
     // 고른 것은 메모리에만 둔다. 되살리지 않으면 뒤로 왔을 때 첫 앱의 고치기 전이 열리는데, 브라우저가 스크롤 자리는
     // 되살리므로 보던 것과 다른 앱의 결과 한가운데에 놓인다.
     const { page } = await openDemo();
     await pick(page, "광고 푸시", "고친 뒤");
-    const link = page.locator("article.policy h3 a").nth(1);
+    const link = page.locator("article.policy a.law").nth(1);
     await link.scrollIntoViewIfNeeded();
     const before = { y: await scrollY(page), cards: await page.locator(".policies").innerText() };
     expect(before.y).toBeGreaterThan(720);
@@ -883,8 +977,9 @@ describe("다른 쪽에 다녀오거나 새로 고친 뒤", () => {
     // 그대로 두면 보던 것과 다른 앱의 결과 한가운데에 놓이고, 무엇이 열려 있는지 알리는 이름과 단추는 화면 밖이다.
     const { page } = await openDemo();
     await pick(page, "광고 푸시", "고친 뒤");
-    await page.evaluate(() => window.scrollTo(0, 2000));
-    expect(await scrollY(page)).toBe(2000);
+    // (D5) 정책 상자마다 첫 발견만 펼쳐 쪽이 짧아졌다(1280×720 에서 끝까지 1600px 남짓). 그만큼 깊이 내린다.
+    await page.evaluate(() => window.scrollTo(0, 1200));
+    expect(await scrollY(page)).toBe(1200);
     await page.reload({ waitUntil: "load" });
     await shown(page, "아동 가입 · 고치기 전");
     expect(await pressed(page)).toEqual(["아동 가입", "고치기 전"]);
@@ -933,7 +1028,8 @@ describe("데모의 글과 꾸밈 (조문 도감·기록의 시험과 같은 기
     role: `${RESULT_ATTRIBUTES.role}, .segmented`,
     "aria-label": `${RESULT_ATTRIBUTES["aria-label"]}, .segmented`,
     type: "button",
-    "aria-pressed": ".segmented button",
+    "aria-pressed": ".segmented button, .record-btn",
+    translate: `${RESULT_ATTRIBUTES.translate}, .codeblock pre`,
     "data-line": ".codeline",
     "data-sign": ".codeline",
     "data-label": ".compare td",
@@ -953,7 +1049,8 @@ describe("데모의 글과 꾸밈 (조문 도감·기록의 시험과 같은 기
       children: [...el.children].map((child) => `${child.tagName.toLowerCase()}.${child.className}`),
       text: el.textContent ?? "",
     }));
-    expect(main.children).toEqual(["h1.", "p.lede", "div.demo"]);
+    // (D5) 제목과 이름표의 줄, 그리고 데모. 머리말 문단(p.lede)은 지웠다.
+    expect(main.children).toEqual(["div.ttl demo-head", "div.demo"]);
     expect(partingOf(squash(main.text), await builtMainText(site.origin, "demo"))).toBeNull();
   });
 
@@ -1027,7 +1124,7 @@ describe("데모의 글과 꾸밈 (조문 도감·기록의 시험과 같은 기
       for (const width of [375, 1280]) {
         await page.setViewportSize({ width, height: 720 });
         const at = `${name} ${width}px`;
-        expect(await nodes(".compare"), at).toEqual([{ role: "table", name: "고치기 전과 고친 뒤의 결과" }]);
+        expect(await nodes(".compare"), at).toEqual([{ role: "table", name: "고치기 전과 고친 뒤" }]);
         expect((await nodes(".compare tr")).map((node) => node.role), at).toEqual(Array(1 + want.policies.length).fill("row"));
         // 그려진 칸이 모두 칸으로 드러난다.
         const drawn = await page.locator(".compare td").evaluateAll((all) => all.map((td) => td.getClientRects().length > 0));

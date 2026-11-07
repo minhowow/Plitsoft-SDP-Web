@@ -1,228 +1,31 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { Icon } from "@/components/Icon";
+import { keepArticle } from "@/components/text";
 import { policyCardId, policyHref } from "@/lib/pack/href";
 import { reasonLabel } from "@/lib/report/reasons";
 import { scopeLabel, scopeNote } from "@/lib/report/scope";
-import { STATUS_HINT } from "@/lib/report/status";
+import { STATUS_LABEL } from "@/lib/report/status";
 import { fileLink, shortCommit } from "@/lib/service/href";
 import type { UnsatisfiedAlternative } from "@/lib/report/types";
 import type { LocationView, PolicyView, RuleGroupView } from "@/lib/report/view-model";
 import { FindingSummary } from "./FindingSummary";
+import { RuleId } from "./RuleId";
 import { StatusChip } from "./StatusChip";
 import { Where } from "./Where";
 
-function AiPending({ location, service }: { location: LocationView; service: boolean }) {
-  const { finding } = location;
-  if (finding.ai_pending.length === 0) return null;
-  const conditions = finding.ai_pending.join(", ");
-  // 판정자가 꺼져 있었을 때만 켜 보라고 권한다. 켰는데 답을 쓰지 못한 경우에는 아래 이유가 설명한다.
-  if (finding.untested_reasons.includes("no-judge")) {
-    // 분석 서비스의 쪽에서는 권하지 않는다. 서버의 분석은 판정자를 늘 켜고, 권하는 자리는 `/view` 에만 둔다
-    // (docs/commitments.md 의 "CLI 가 이미 약속한 것"). 판정자 없이 만든 결과라는 사실만 적는다.
-    if (service) {
-      return (
-        <p className="pending">
-          AI 에게 묻지 않은 조건: {conditions}. 이 결과는 판정자 없이 만들어졌습니다.
-        </p>
-      );
-    }
-    return (
-      <p className="pending">
-        AI 에게 묻지 않은 조건: {conditions}. 판정자가 꺼져 있었습니다. 로컬에서 판정자를 켜고 다시 검사하면 풀릴 수
-        있습니다. 판정자를 켜면 판정 대상 코드가 외부 API 로 나갑니다.
-      </p>
-    );
-  }
-  return (
-    <p className="pending">
-      판정에 넣지 못한 AI 조건: {conditions}. 판정자가 답하지 못했거나 답을 쓸 수 없었습니다.
-    </p>
-  );
-}
-
-/** 확인되지 않은 대안 하나. 무엇이 확인되지 않았는지 → 질문 → 고치는 법 순서로 읽힌다. */
-function Alternative({ alt }: { alt: UnsatisfiedAlternative }) {
-  return (
-    <li className="alt">
-      <p className="alt-id">{alt.id}</p>
-      {alt.message && <p className="alt-message">{alt.message}</p>}
-      {/* CLI 는 참이 아닌 대안을 싣는다(거짓 또는 모름). 모름이면 메시지가 "없다"로 읽히지 않게 그 사실을 적는다. */}
-      {alt.value === "unknown" && (
-        <p className="hint">
-          이 대안의 값은 &lsquo;모름&rsquo;입니다. 확인하지 못했을 뿐이고, 없다고 판정된 것은 아닙니다.
-        </p>
-      )}
-      {alt.value !== "unknown" && alt.value !== "false" && <p className="hint">이 대안의 값: {alt.value}</p>}
-      <dl className="alt-rows">
-        <div>
-          <dt>질문</dt>
-          <dd>{alt.ask_developer ?? <span className="none">이 대안에는 질문이 실려 있지 않습니다.</span>}</dd>
-        </div>
-        <div>
-          <dt>고치는 법</dt>
-          <dd>{alt.remediation ?? <span className="none">이 대안에는 고치는 법이 실려 있지 않습니다.</span>}</dd>
-        </div>
-      </dl>
-    </li>
-  );
-}
-
 /**
- * 발견 하나를 펼친 안쪽. 맨 위에 판정이 본 범위를 문장으로 적고, 그 아래는
- * 확인되지 않은 대안(질문·고치는 법) → 판정을 끝까지 하지 못한 이유 → 판정 경로 순서다.
- */
-function FindingBody({ location, code, service }: { location: LocationView; code: CodeSource | null; service: boolean }) {
-  const { finding } = location;
-  const link = code && fileLink(code.htmlUrl, code.commit, location.file, location.line);
-  const alternatives = finding.unsatisfied_alternatives;
-  // 판정자가 꺼져 있었다는 이유는 AI 조건 안내가 이미 말한다. 같은 말을 두 번 적지 않는다.
-  const reasons = finding.untested_reasons.filter(
-    (reason) => !(reason === "no-judge" && finding.ai_pending.length > 0),
-  );
-  return (
-    <div className="finding-body">
-      <p className="hint">
-        {scopeNote(
-          location.scope,
-          location.line === null ? "none" : location.lineUnsure ? "unsure" : "known",
-          finding.decision_path.length > 0,
-        )}
-      </p>
-      {link && code && (
-        <p className="code-link">
-          <a href={link} target="_blank" rel="noopener noreferrer">
-            GitHub 에서 이 줄 보기
-          </a>{" "}
-          <span className="hint">커밋 {shortCommit(code.commit)} 에 고정한 링크입니다. 새 창으로 열립니다.</span>
-        </p>
-      )}
-
-      <section className="step">
-        <h5>확인되지 않은 적법한 대안{alternatives.length > 0 && ` ${alternatives.length}개`}</h5>
-        {alternatives.length > 0 ? (
-          <ul className="alternatives">
-            {alternatives.map((alt, i) => (
-              <Alternative key={`${alt.id}:${i}`} alt={alt} />
-            ))}
-          </ul>
-        ) : (
-          // 목록이 비어도 대안이 모두 확인됐다는 뜻이 아니다. CLI 는 참이 아니라고 판정한 대안만 싣는다.
-          <p className="hint">
-            결과에 실린 것이 없습니다. 여기에는 확인되지 않은 것으로 판정된 대안만 실립니다. 판정에 넣지 않은 AI 조건과,
-            약한 근거만 있어 풀지 못한 대안은 판정 경로에서 볼 수 있습니다.
-          </p>
-        )}
-      </section>
-
-      {(finding.ai_pending.length > 0 || reasons.length > 0) && (
-        <section className="step">
-          <h5>판정을 끝까지 하지 못한 이유</h5>
-          <AiPending location={location} service={service} />
-          {reasons.length > 0 && (
-            <ul className="reasons">
-              {reasons.map((reason, i) => (
-                <li key={`${reason}:${i}`}>{reasonLabel(reason)}</li>
-              ))}
-            </ul>
-          )}
-        </section>
-      )}
-
-      <section className="step">
-        <h5>판정 경로</h5>
-        {finding.decision_path.length > 0 ? (
-          <>
-            <p className="hint">CLI 가 남긴 문장 그대로입니다.</p>
-            <ol className="path">
-              {finding.decision_path.map((step, i) => (
-                <li key={i}>{step}</li>
-              ))}
-            </ol>
-          </>
-        ) : (
-          <p className="hint">결과에 판정 경로가 실려 있지 않습니다.</p>
-        )}
-      </section>
-    </div>
-  );
-}
-
-/**
- * 발견 하나. 단위는 정책 × 규칙 × 파일(함수 단위 규칙이면 함수)이다. 한 줄로 보이고, 펼치면 안쪽이 나온다.
+ * 정책 상자(docs/redesign.md 3장 "분석"). 발견이나 충족 근거 위치가 있는 정책만 상자로 그린다(나머지는 곁칸의 상태별 묶음).
  *
- * 닫힌 줄에서도 보여야 하는 것은 줄 안(summary)에 둔다: 경로·줄, 판정이 본 범위, 상태. 줄 번호는 문제의 줄이 아니라
- * 판정이 본 범위 안의 한 줄이므로, 줄 번호가 보이는 곳에는 범위가 늘 함께 보여야 한다.
+ * 머리: 조문(12px, 조문 도감 링크), 제목(16/600), 칩 하나. 그다음 정책의 질문(16px), 발견 줄. 맨 아래에 근거 조문 원문을 접어
+ * 둔다(분석 쪽만. 서버가 팩 메타데이터에서 넘긴다).
+ *
+ * 발견 줄의 첫 줄은 첫 미확인 대안의 메시지(CLI 가 낸 글 그대로)다. 둘째 줄은 `경로:줄` 과 판정이 본 범위다. 칩은 정책과 상태가
+ * 다를 때만 단다(같으면 화면 낭독기에만 상태를 읽힌다). 규칙 이름도 화면 낭독기용으로 줄에 남는다.
+ *
+ * 정책마다 첫 발견만 펼친다. 다른 발견도 줄(메시지와 위치)은 늘 보이므로 가려지지 않는다. 같은 규칙이 여러 곳이면 묶음 머리에
+ * 메시지와 `규칙 id · N곳` 을 두고, 대표 3곳 다음은 접는다. 접힌 곳에만 있는 상태는 머리에 개수로 적는다.
  */
-function FindingItem({
-  location,
-  open,
-  code,
-  service,
-}: {
-  location: LocationView;
-  open: boolean;
-  code: CodeSource | null;
-  service: boolean;
-}) {
-  return (
-    <li className="finding">
-      <details open={open}>
-        <FindingSummary>
-          {/* 배치는 안쪽 상자에서 한다. summary 자체를 flex·grid 로 만들면 브라우저에 따라 다르게 그려진 적이 있다. */}
-          <span className="finding-head">
-            <Where file={location.file} line={location.line} />{" "}
-            <span className="finding-scope">{scopeLabel(location.scope)}</span>{" "}
-            <StatusChip status={location.status} />{" "}
-            {/* 같은 파일·같은 줄에 규칙이 다른 발견이 있으면 줄의 글이 같아진다. 눈에는 묶음 머리가 규칙을 말해 주지만,
-                화면 낭독기로 줄만 옮겨 다니면 구분되지 않으므로 줄마다 규칙 이름을 보이지 않게 붙여 둔다. */}
-            <span className="visually-hidden">규칙 {location.rule}</span>
-          </span>
-        </FindingSummary>
-        <FindingBody location={location} code={code} service={service} />
-      </details>
-    </li>
-  );
-}
-
-/**
- * 같은 규칙의 발견 묶음. 대표 위치를 먼저 보이고, 같은 규칙이 그보다 많이 반복될 때만 나머지를 접는다.
- * 접는 것은 이 묶음 안에서만 한다. 규칙이 다른 발견은 서로 다른 의무라서 접어 가리지 않는다.
- */
-function RuleGroup({ group, code, service }: { group: RuleGroupView; code: CodeSource | null; service: boolean }) {
-  const total = group.shown.length + group.folded.length;
-  return (
-    <section className="rule-group">
-      <div className="rule-head">
-        <h4>규칙 {group.rule}</h4>
-        {total > 1 && <span className="count">{total}곳</span>}
-        {/* 접힌 곳에만 있는 상태가 가려지지 않게, 상태가 섞여 있으면 개수를 머리에 적는다. */}
-        {group.folded.length > 0 &&
-          group.counts.length > 1 &&
-          group.counts.map(({ status, count }) => (
-            <span key={status} className="rule-count">
-              <StatusChip status={status} /> {count}곳
-            </span>
-          ))}
-      </div>
-      <ul className="findings">
-        {group.shown.map((location, i) => (
-          // 묶음의 첫 발견만 펼쳐 둔다. 같은 규칙의 다른 곳은 대안이 대개 같으므로 한 줄로 둔다.
-          <FindingItem key={`${location.fingerprint}:${i}`} location={location} open={i === 0} code={code} service={service} />
-        ))}
-      </ul>
-      {group.folded.length > 0 && (
-        <details className="more">
-          <summary>같은 규칙의 나머지 {group.folded.length}곳</summary>
-          <ul className="findings">
-            {group.folded.map((location, i) => (
-              <FindingItem key={`${location.fingerprint}:${i}`} location={location} open={false} code={code} service={service} />
-            ))}
-          </ul>
-        </details>
-      )}
-    </section>
-  );
-}
 
 /**
  * 파일·줄을 GitHub 의 커밋 고정 링크로 보낼 때 쓰는 것(분석 서비스의 쪽만 준다). 저장소 주소(GitHub 이 돌려준 html_url)와
@@ -234,83 +37,363 @@ export interface CodeSource {
 }
 
 /**
- * 정책 하나. 같은 정책의 발견은 한 장에 묶고, 그 안에서 규칙별로 나눠 보여 준다.
+ * 대안 값이 '모름'일 때의 문장. 확인되지 않은 대안의 메시지가 "없다"로 읽히지 않게 한다. 펼친 안쪽에서 대안들 뒤에 한 번 적는다
+ * (docs/redesign.md 3장 "펼친 안쪽"의 차례). 어느 대안인지는 메시지 앞의 `모름` 이름표가 가리킨다.
+ */
+export const UNKNOWN_ALTERNATIVE = "‘모름’ 이름표가 붙은 대안은 값이 ‘모름’입니다. 확인하지 못했을 뿐이고, 없다고 판정된 것은 아닙니다.";
+
+/** 발견 줄의 첫 줄에 적는 대안: 결과에 실린 첫 미확인 대안. */
+const firstAlternative = (location: LocationView): UnsatisfiedAlternative | undefined =>
+  location.finding.unsatisfied_alternatives[0];
+
+/** 발견 줄의 첫 줄(메시지). 값이 '모름'이면 앞에 이름표를 단다. 메시지가 없으면 규칙 id 를 적는다(지어내지 않는다). */
+function Message({ location }: { location: LocationView }) {
+  const first = firstAlternative(location);
+  return (
+    <span className="msg">
+      {first?.value === "unknown" && <span className="unk">모름</span>}
+      {first?.message ?? (
+        <code className="rule-id" translate="no">
+          {location.rule}
+        </code>
+      )}
+    </span>
+  );
+}
+
+/** AI 에게 묻지 않은 조건, 또는 판정에 넣지 못한 AI 조건. 늘 보인다(발견을 펼친 안쪽). */
+function AiPending({ location }: { location: LocationView }) {
+  const { finding } = location;
+  if (finding.ai_pending.length === 0) return null;
+  const conditions = (
+    <code translate="no">{finding.ai_pending.join(", ")}</code>
+  );
+  // 판정자가 꺼져 있었으면 그 사실만 적는다. 켜 보라는 권고는 쪽마다 한 번만 한다(`/view`·데모. docs/redesign.md 2.3).
+  if (finding.untested_reasons.includes("no-judge")) {
+    return (
+      <p className="pending">
+        AI 에게 묻지 않은 조건: {conditions}. 판정자 없이 만든 결과입니다.
+      </p>
+    );
+  }
+  return (
+    <p className="pending">
+      판정에 넣지 못한 AI 조건: {conditions}. 판정자가 답하지 못했거나 답을 쓸 수 없었습니다.
+    </p>
+  );
+}
+
+/**
+ * 확인되지 않은 대안 하나. 첫 대안의 메시지는 발견 줄의 첫 줄이 이미 적었으므로 여기서는 되풀이하지 않는다. 질문은 늘 적고(없으면
+ * 없다고), 고치는 법은 실려 있을 때만 적는다.
+ */
+function Alternative({ alt, first }: { alt: UnsatisfiedAlternative; first: boolean }) {
+  const unknown = alt.value === "unknown";
+  return (
+    <li className="alt">
+      {/* CLI 는 참이 아닌 대안을 싣는다(거짓 또는 모름). 모름이면 발견 줄의 첫 줄처럼 메시지 앞에 `모름` 이름표를 단다. */}
+      {!first && (alt.message || unknown) && (
+        <p className="alt-message">
+          {unknown && <span className="unk">모름</span>}
+          {alt.message}
+        </p>
+      )}
+      {!unknown && alt.value !== "false" && <p className="hint">이 대안의 값: {alt.value}</p>}
+      <dl className="qa">
+        <dt>질문</dt>
+        <dd>{alt.ask_developer ?? <span className="none">이 대안에는 질문이 실려 있지 않습니다.</span>}</dd>
+        {alt.remediation && (
+          <>
+            <dt>고치는 법</dt>
+            <dd>{alt.remediation}</dd>
+          </>
+        )}
+      </dl>
+    </li>
+  );
+}
+
+/**
+ * 발견 하나를 펼친 안쪽: 판정이 본 범위 → 대안(질문과 고치는 법, 나머지 대안) → '모름' 문장(있을 때) → AI 에게 묻지 않은 조건과
+ * 판정을 끝까지 하지 못한 이유(늘 보인다) → 규칙·대안 id(12px) → 접힌 판정 경로(CLI 원문)와 GitHub 링크.
+ */
+function FindingBody({ location, code }: { location: LocationView; code: CodeSource | null }) {
+  const { finding } = location;
+  const link = code && fileLink(code.htmlUrl, code.commit, location.file, location.line);
+  const alternatives = finding.unsatisfied_alternatives;
+  // 판정자가 꺼져 있었다는 이유는 AI 조건 줄이 이미 말한다. 같은 말을 두 번 적지 않는다.
+  const reasons = finding.untested_reasons.filter((reason) => !(reason === "no-judge" && finding.ai_pending.length > 0));
+  return (
+    <div className="finding-body">
+      <p className="hint">
+        {scopeNote(
+          location.scope,
+          location.line === null ? "none" : location.lineUnsure ? "unsure" : "known",
+          finding.decision_path.length > 0,
+        )}
+      </p>
+      {alternatives.length > 0 ? (
+        <>
+          <ul className="alternatives">
+            {alternatives.map((alt, i) => (
+              <Alternative key={`${alt.id}:${i}`} alt={alt} first={i === 0} />
+            ))}
+          </ul>
+          {/* 질문과 고치는 법, 나머지 대안 다음에 '모름' 문장을 한 번 적는다(값이 모름인 대안이 있을 때만). */}
+          {alternatives.some((alt) => alt.value === "unknown") && <p className="unk-note">{UNKNOWN_ALTERNATIVE}</p>}
+        </>
+      ) : (
+        // 목록이 비어도 대안이 모두 확인됐다는 뜻이 아니다. CLI 는 참이 아니라고 판정한 대안만 싣는다.
+        <p className="hint">
+          결과에 실린 대안이 없습니다. 판정에 넣지 않은 AI 조건과 약한 근거만 있어 풀지 못한 대안은 판정 경로에 있습니다.
+        </p>
+      )}
+      {(finding.ai_pending.length > 0 || reasons.length > 0) && (
+        <div className="why">
+          <AiPending location={location} />
+          {reasons.length > 0 && (
+            <ul className="reasons">
+              {reasons.map((reason, i) => (
+                <li key={`${reason}:${i}`}>{reasonLabel(reason)}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+      <p className="ids">
+        <span>
+          규칙 <RuleId policy={finding.policy} rule={location.rule} inPack={location.ruleInPack} />
+        </span>
+        {alternatives.length > 0 && (
+          <span>
+            대안{" "}
+            {alternatives.map((alt, i) => (
+              <span key={`${alt.id}:${i}`}>
+                {i > 0 && " "}
+                <code className="alt-id" translate="no">
+                  {alt.id}
+                </code>
+              </span>
+            ))}
+          </span>
+        )}
+      </p>
+      <div className="fd-more">
+        {finding.decision_path.length > 0 ? (
+          <details className="path-fold">
+            <summary>판정 경로(CLI 원문)</summary>
+            <ol className="path" translate="no">
+              {finding.decision_path.map((step, i) => (
+                <li key={i}>{step}</li>
+              ))}
+            </ol>
+          </details>
+        ) : (
+          <p className="hint">결과에 판정 경로가 실려 있지 않습니다.</p>
+        )}
+        {link && code && (
+          <a className="gh" href={link} target="_blank" rel="noopener noreferrer">
+            GitHub 에서 이 줄 보기
+            <Icon name="external" />
+            <span className="visually-hidden">(새 창, 커밋 {shortCommit(code.commit)} 에 고정)</span>
+          </a>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * 발견 하나. 단위는 정책 × 규칙 × 파일(함수 단위 규칙이면 함수)이다. 두 줄로 보이고, 펼치면 안쪽이 나온다.
  *
- * `service` 는 분석 서비스의 쪽이 그릴 때다(판정자를 켜 보라고 권하지 않는다). `statute` 는 질문 아래에 끼워 넣는 것(분석
- * 쪽이 접어 둔 근거 조문 원문을 넘긴다).
+ * 닫힌 줄에서도 보여야 하는 것은 줄 안(summary)에 둔다: 메시지, 경로·줄, 판정이 본 범위, 상태(정책과 다르면 칩, 같으면 화면
+ * 낭독기에만), 규칙 이름(화면 낭독기에만). 줄 번호는 문제의 줄이 아니라 판정이 본 범위 안의 한 줄이므로, 줄 번호가 보이는
+ * 곳에는 범위가 늘 함께 보여야 한다. `message` 가 거짓이면 첫 줄을 적지 않는다(묶음 머리가 같은 메시지를 이미 적었다).
+ */
+function FindingItem({
+  location,
+  open,
+  code,
+  policy,
+  message,
+}: {
+  location: LocationView;
+  open: boolean;
+  code: CodeSource | null;
+  policy: PolicyView;
+  message: boolean;
+}) {
+  return (
+    <li className="finding">
+      <details open={open}>
+        <FindingSummary>
+          {/* 배치는 안쪽 상자에서 한다. summary 자체를 flex·grid 로 만들면 브라우저에 따라 다르게 그려진 적이 있다. */}
+          <span className="finding-head">
+            {message && <Message location={location} />}
+            <span className="loc">
+              <Where file={location.file} line={location.line} />{" "}
+              <span className="finding-scope">{scopeLabel(location.scope)}</span>
+            </span>{" "}
+            {location.status === policy.status ? (
+              <span className="visually-hidden">{STATUS_LABEL[location.status]}</span>
+            ) : (
+              <StatusChip status={location.status} />
+            )}{" "}
+            {/* 같은 파일·같은 줄에 규칙이 다른 발견이 있으면 줄의 글이 같아질 수 있다. 화면 낭독기로 줄만 옮겨 다녀도 구분되게
+                줄마다 규칙 이름을 보이지 않게 붙여 둔다. */}
+            <span className="visually-hidden">규칙 {location.rule}</span>
+          </span>
+        </FindingSummary>
+        <FindingBody location={location} code={code} />
+      </details>
+    </li>
+  );
+}
+
+/** 발견 줄의 메시지 글(묶음 머리와 견줄 때 쓴다). */
+const messageOf = (location: LocationView) => firstAlternative(location)?.message ?? null;
+
+/**
+ * 같은 규칙의 발견 묶음. 한 곳뿐이면 줄 하나다. 여러 곳이면 머리에 메시지와 `규칙 id · N곳` 을 두고, 대표 위치를 먼저 보이고,
+ * 그보다 많이 반복될 때만 나머지를 접는다. 접는 것은 이 묶음 안에서만 한다. 규칙이 다른 발견은 서로 다른 의무라서 접어 가리지
+ * 않는다. `first` 는 이 묶음의 첫 줄을 펼칠지(정책 상자의 첫 발견).
+ */
+function RuleGroup({
+  group,
+  code,
+  policy,
+  first,
+}: {
+  group: RuleGroupView;
+  code: CodeSource | null;
+  policy: PolicyView;
+  first: boolean;
+}) {
+  const total = group.shown.length + group.folded.length;
+  const lead = group.shown[0];
+  const headMessage = total > 1 ? messageOf(lead) : null;
+  // 묶음 머리가 메시지를 적었으면, 같은 메시지인 줄은 첫 줄을 되풀이하지 않는다.
+  const own = (location: LocationView) => headMessage === null || messageOf(location) !== headMessage;
+  return (
+    <section className="rule-group">
+      {total > 1 && (
+        <div className="rule-head">
+          {lead && <Message location={lead} />}
+          <h3>
+            규칙 <RuleId policy={policy.id} rule={group.rule} inPack={lead?.ruleInPack ?? false} /> · {total}곳
+          </h3>
+          {/* 접힌 곳에만 있는 상태가 가려지지 않게, 상태가 섞여 있으면 개수를 머리에 적는다. */}
+          {group.folded.length > 0 &&
+            group.counts.length > 1 &&
+            group.counts.map(({ status, count }) => (
+              <span key={status} className="rule-count">
+                <StatusChip status={status} /> {count}곳
+              </span>
+            ))}
+        </div>
+      )}
+      <ul className="findings">
+        {group.shown.map((location, i) => (
+          <FindingItem
+            key={`${location.fingerprint}:${i}`}
+            location={location}
+            open={first && i === 0}
+            code={code}
+            policy={policy}
+            message={own(location)}
+          />
+        ))}
+      </ul>
+      {group.folded.length > 0 && (
+        <details className="more">
+          <summary>같은 규칙의 나머지 {group.folded.length}곳</summary>
+          <ul className="findings">
+            {group.folded.map((location, i) => (
+              <FindingItem
+                key={`${location.fingerprint}:${i}`}
+                location={location}
+                open={false}
+                code={code}
+                policy={policy}
+                message={own(location)}
+              />
+            ))}
+          </ul>
+        </details>
+      )}
+    </section>
+  );
+}
+
+/** 상자로 그리는 정책인지: 발견이나 충족 근거 위치가 있다. 나머지는 곁칸의 묶음에만 나온다. */
+export const isBoxed = (policy: PolicyView) => policy.locations.length > 0 || policy.evidence.length > 0;
+
+/**
+ * 정책 하나의 상자. `statute` 는 상자 맨 아래에 접어 두는 근거 조문 원문(분석 쪽이 서버에서 팩 메타데이터의 글을 넘긴다).
  */
 export function PolicyCard({
   policy,
   code = null,
-  service = false,
   statute,
 }: {
   policy: PolicyView;
   code?: CodeSource | null;
-  service?: boolean;
   statute?: ReactNode;
 }) {
   const question = policy.locations[0]?.finding.ask_developer;
-  // 발견이 없는 정책에는 왜 없는지(상태의 설명)를 늘 적는다. 충족 근거 위치가 함께 실려 있어도 적는다.
-  const quiet = policy.locations.length === 0;
-  // 정책별 수는 결과에 정책별 요약이 있을 때(v1 초안)만 안다. CLI 0.3 의 전체 수에서 짐작해 적지 않는다.
-  const units = policy.units === null ? null : `이 정책의 판정 단위는 ${policy.units}개입니다.`;
+  const titleId = `${policyCardId(policy.id)}-title`;
   return (
-    // id 는 같은 쪽 안에서 이 카드로 옮겨 올 때 쓴다(데모의 두 결과의 표). 한 쪽에 그리는 결과는 하나뿐이다.
-    <article className={`policy policy-${policy.status}`} id={policyCardId(policy.id)}>
-      <header className="policy-head">
-        <div>
-          <p className="law">{policy.law}</p>
-          <h3>
-            {policy.inPack ? (
-              // 프리페치를 끈다. 연 파일의 내용에 따라 달라지는 요청이 나가지 않게 한다.
-              <Link href={policyHref(policy.id)} prefetch={false}>
-                {policy.title}
-              </Link>
-            ) : (
-              policy.title
-            )}
-          </h3>
-        </div>
-        <div className="policy-state">
+    // id 는 같은 쪽 안에서 이 상자로 옮겨 올 때 쓴다(곁칸, 데모의 표). 한 쪽에 그리는 결과는 하나뿐이다.
+    <article className={`box policy policy-${policy.status}`} id={policyCardId(policy.id)} aria-labelledby={titleId}>
+      <header className="pbox-hd">
+        {policy.law &&
+          (policy.inPack ? (
+            // 프리페치를 끈다. 연 파일의 내용에 따라 달라지는 요청이 나가지 않게 한다.
+            <Link href={policyHref(policy.id)} prefetch={false} className="law">
+              {keepArticle(policy.law)}
+            </Link>
+          ) : (
+            <p className="law">{keepArticle(policy.law)}</p>
+          ))}
+        <div className="tl">
+          <h2 className="t" id={titleId}>
+            {policy.title}
+          </h2>
           <StatusChip status={policy.status} />
-          {policy.locations.length > 0 && <span className="count">발견 {policy.locations.length}건</span>}
         </div>
       </header>
 
-      {quiet ? (
-        <p className="hint">
-          {policy.aiCleared > 0 ? (
-            <>
-              AI 판정자의 답으로 풀린 경고가 {policy.aiCleared}건 있습니다. 아래 &lsquo;AI 가 푼 경고&rsquo;에서 인용한 줄을
-              확인하세요.
-            </>
-          ) : (
-            STATUS_HINT[policy.status]
-          )}
-          {units && ` ${units}`}
-        </p>
-      ) : (
-        units && <p className="hint">{units}</p>
+      {question && (
+        <dl className="qa pq">
+          <dt>질문</dt>
+          <dd className="q">{question}</dd>
+        </dl>
       )}
 
-      {question && <p className="question">개발자에게 할 질문: {question}</p>}
+      {/* 정책별 수는 결과에 정책별 요약이 있을 때(v1 초안)만 안다. 전체 수에서 짐작해 적지 않는다. */}
+      {policy.units !== null && <p className="hint pbox-units">이 정책의 판정 단위는 {policy.units}개입니다.</p>}
 
-      {statute}
+      <div className="rows">
+        {policy.evidence.length > 0 && (
+          <ul className="evidence" aria-label="충족 근거 위치">
+            {policy.evidence.map((e, i) => (
+              <li key={`${e.file}:${e.line}:${e.alternative}:${i}`}>
+                <Where file={e.file} line={e.line} /> 에서 대안{" "}
+                <code className="alt-id" translate="no">
+                  {e.alternative}
+                </code>{" "}
+                확인
+              </li>
+            ))}
+          </ul>
+        )}
 
-      {policy.evidence.length > 0 && (
-        <ul className="evidence" aria-label="충족 근거 위치">
-          {policy.evidence.map((e, i) => (
-            <li key={`${e.file}:${e.line}:${e.alternative}:${i}`}>
-              <Where file={e.file} line={e.line} /> 에서 대안 <span className="alt-id">{e.alternative}</span> 확인
-            </li>
-          ))}
-        </ul>
-      )}
+        {policy.rules.map((group, i) => (
+          <RuleGroup key={group.rule} group={group} code={code} policy={policy} first={i === 0} />
+        ))}
 
-      {policy.rules.map((group) => (
-        <RuleGroup key={group.rule} group={group} code={code} service={service} />
-      ))}
+        {statute}
+      </div>
     </article>
   );
 }

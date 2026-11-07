@@ -35,6 +35,7 @@ export const packIndex: PackIndex = {
           }
         : { label: ref.label },
     ),
+    ruleIds: policy.rules.map((rule) => rule.id).filter((id): id is string => typeof id === "string"),
   })),
 };
 

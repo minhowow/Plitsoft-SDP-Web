@@ -223,13 +223,15 @@ describe("부품", () => {
     expect(textOf(renderToStaticMarkup(<InProgress analysis={find("running")} />))).not.toContain("고정해 보인 것");
   });
 
-  it("진행 중인 실제 분석(LiveAnalysis): 머리와 단계를 그리고, 다시 읽는다고 적고, 지금 단계의 줄을 화면 낭독기가 읽는다", () => {
+  it("진행 중인 실제 분석(LiveAnalysis): 머리와 단계를 그리고, 지금 단계의 줄을 화면 낭독기가 읽는다", () => {
     const running = find("running");
     const html = renderToStaticMarkup(<LiveAnalysis repository={repoOf(running)} analysis={running} />);
-    expect(html).toContain(`분석 <code>${running.id}</code>`);
+    expect(html).toContain(`분석 <code class="v" translate="no">${running.id}</code>`);
     expect(html.match(/aria-current="step"/g)).toHaveLength(1);
-    expect(html).toMatch(/<p class="notice" role="status">지금 ‘검사\(정적 검사와 AI 판정\)’/);
-    expect(textOf(html)).toContain(PROGRESS_NOTE.live);
+    // (D5) `진행` 상자 하나: 지금 단계 한 줄(role=status)과 단계 표(docs/redesign.md 3장). "누구나 볼 수 있고 끝나면 이 주소에…"와
+    // "몇 초마다 다시 읽는다"는 풀이 문장은 지웠다(2.3).
+    expect(html).toMatch(/<p class="live-now" role="status">지금 ‘검사\(정적 검사와 AI 판정\)’ 단계<\/p>/);
+    expect(textOf(html)).not.toMatch(/누구나 볼 수 있고|몇 초마다/);
     expect(textOf(html)).not.toContain("고정해 보인 것");
     expect(POLL_MS).toBe(3_000);
     expectNoBannedWording(html);
@@ -257,7 +259,9 @@ describe("부품", () => {
   it("실패: 멈춘 단계와 까닭을 보이고, 검토할 곳이 없다는 뜻이 아니라고 적는다", () => {
     const failed = find("failed");
     const html = renderToStaticMarkup(<Failed analysis={failed} />);
-    expect(textOf(html)).toContain("‘저장소 받기·도구 설치’ 단계에서 멈췄습니다.");
+    // (D5) 빨간 테두리 상자의 머리가 멈춘 단계다(목업 analysis-live #failed).
+    expect(textOf(html)).toContain("‘저장소 받기·도구 설치’ 단계에서 멈춤");
+    expect(html).toContain('<section class="box live-box fail-box"');
     expect(textOf(html)).toContain(failed.failure!.reason);
     expect(textOf(html)).toContain("검토할 곳이 없다는 뜻이 아닙니다");
   });
@@ -328,7 +332,8 @@ describe("부품", () => {
     expect(placeAt(place!, snapshot.countedAt)).toBe("대기열 2번째 (12:04 KST 기준)");
     // 분석 쪽은 다시 읽으므로 대기열 줄도 화면 낭독기가 읽는다(role="status"). 센 때는 적지 않는다(늘 지금 숫자다).
     const live = renderToStaticMarkup(<InProgress analysis={queued} live place={place} />);
-    expect(live).toMatch(/<p class="hint an-queue" role="status">대기열 2번째<\/p>/);
+    // (D5) 대기 중이면 지금 단계 줄이 대기열의 자리다(목업 analysis-live #queued).
+    expect(live).toMatch(/<p class="live-now" role="status">대기열 2번째<\/p>/);
     expect(textOf(live)).not.toMatch(/실행 자리|사용 중|기준/);
     // 저장소 쪽의 표는 한 번 그리고 다시 읽지 않는다. 센 때(한국 표준시 시:분)를 붙인다.
     const table = textOf(renderToStaticMarkup(<HistoryTable repository={repository} analyses={[queued]} findings={{}} queue={snapshot} />));
@@ -420,7 +425,7 @@ describe("부품", () => {
     expect(failedText).toContain("하지 않음");
     const queued = find("queued");
     const html = renderToStaticMarkup(<StepList analysis={queued} />);
-    expect(html).toMatch(/aria-current="step"[^]*?<span class="step-name">대기<\/span><span class="step-state">대기 중<\/span>/);
+    expect(html).toMatch(/aria-current="step"[^]*?<span class="step-name">대기<\/span><span class="step-time">[^]*?<\/span><span class="step-state">대기 중<\/span>/);
     expect(textOf(html)).not.toContain("진행 중");
   });
 
@@ -439,30 +444,39 @@ describe("부품", () => {
 });
 
 describe("대시보드", () => {
+  // (D5) 분석 쪽의 결과는 /view·데모와 같은 부품(ReportSummary)을 같은 차례로 그린다(docs/redesign.md 3장 "분석").
   const done = analyses.filter((a) => a.status === "succeeded");
 
-  it.each(done.map((a) => [SYNTHETIC_RESULT_SOURCES[a.id], a.id] as const))("%s: 정책마다 요약과 카드가 있고, 점수 대신 수만 센다", (_name, id) => {
+  it.each(done.map((a) => [SYNTHETIC_RESULT_SOURCES[a.id], a.id] as const))("%s: 곁칸이 정책 전부를 세고 잇는다. 점수 대신 수만 센다", (_name, id) => {
     const view = viewOf(id);
     const html = renderToStaticMarkup(<AnalysisDashboard view={view} code={null} />);
     const text = textOf(html);
-    // 정책별 요약은 카드로 가는 링크다.
+    // 곁칸 `정책 N`: N 은 데이터에서 센다. 상자가 있는 정책은 상자로, 나머지는 조문 도감으로 잇는다.
+    expect(html).toContain(`정책 <span class="count">${view.policies.length}</span>`);
     for (const policy of view.policies) {
-      expect(html).toContain(`href="#policy-${policy.id.replaceAll(".", "-")}"`);
-      expect(html).toContain(`id="policy-${policy.id.replaceAll(".", "-")}"`);
+      const boxed = policy.locations.length > 0 || policy.evidence.length > 0;
+      if (boxed) {
+        expect(html).toContain(`href="#policy-${policy.id.replaceAll(".", "-")}"`);
+        expect(html).toContain(`id="policy-${policy.id.replaceAll(".", "-")}"`);
+      } else {
+        expect(html).toContain(linked(policyHref(policy.id)));
+        expect(html).not.toContain(`id="policy-${policy.id.replaceAll(".", "-")}"`);
+      }
     }
-    expect(text).toContain(`사람이 볼 곳${view.findingCount}건`);
-    expect(text).toContain(SITE.disclaimer);
-    if (view.findingCount === 0) expect(text).toContain(SITE.zeroIsNotClearance);
-    // AI 가 푼 것과 검사 범위를 숨기지 않는다.
-    expect(text).toContain("AI 가 푼 것");
-    expect(text).toContain("다 보지 못한 것");
+    expect(text).toContain(`사람이 볼 곳 ${view.findingCount}건`);
+    // 면책은 바닥글(모든 쪽)이 싣는다. 결과 화면 안에 되풀이하지 않는다.
+    expect(text).not.toContain(SITE.disclaimer);
+    if (view.findingCount === 0) expect(html).toContain(`<p class="zero-line">${SITE.zeroIsNotClearance}</p>`);
+    // AI 검토와 다 보지 못한 것을 숨기지 않는다: 검사 정보의 AI 줄과 "결과에 실린 ‘다 보지 못한 파일’ 없음".
+    expect(html).toContain(`<dt>판정자</dt><dd>${view.judge ?? "꺼짐"}</dd>`);
+    expect(text).toContain("결과에 실린 ‘다 보지 못한 파일’없음");
     expect(text).not.toMatch(/%|점수|등급/);
     expectNoBannedWording(html);
     // 합성 저장소에는 GitHub 링크가 없다.
     expect(html).not.toContain("target=\"_blank\"");
   });
 
-  it("발견이 있는 정책 카드에 근거 조문 원문을 접어 두고(팩 그대로), 판정자를 켜 보라고 권하지 않는다", () => {
+  it("발견이 있는 정책 상자 맨 아래에 근거 조문 원문을 접어 두고(팩 그대로), 판정자를 켜 보라고 권하지 않는다", () => {
     const id = done.find((a) => viewOf(a.id).findingCount > 0)!.id;
     const view = viewOf(id);
     const statutes = Object.fromEntries(
@@ -478,26 +492,43 @@ describe("대시보드", () => {
       const text = statutes[policy.id]?.text;
       if (text) expect(textOf(html)).toContain(textOf(renderToStaticMarkup(<pre>{text}</pre>)));
     }
-    expect(html.match(/<details class="fold dash-statute">/g)).toHaveLength(withFindings.filter((p) => statutes[p.id]).length);
+    // 접힌 채로 둔다(details, open 없음). 이름은 "근거 조문 원문"이다. 조문 이름은 상자 머리의 조문 링크와 다를 때만 덧붙인다
+    // (같은 사실을 한 상자에 두 번 적지 않는다).
+    const folds = html.match(/<details class="lg"><summary>근거 조문 원문(?: <span class="lg-name">[^<]*<\/span>)?<\/summary>/g) ?? [];
+    expect(folds).toHaveLength(withFindings.filter((p) => statutes[p.id]).length);
+    for (const policy of withFindings.filter((p) => statutes[p.id])) {
+      const named = html.includes(`근거 조문 원문 <span class="lg-name">${statutes[policy.id]!.label}</span>`);
+      if (statutes[policy.id]!.label === policy.law) expect(named).toBe(false);
+    }
     expect(html).not.toContain("로컬에서 판정자를 켜고");
+    expect(html).not.toContain("외부 API");
   });
 
-  it("발견이 없는 정책은 표 한 장에 모으고, 상태의 뜻을 상태마다 한 번만 적는다", () => {
+  it("발견이 없는 정책은 곁칸의 상태별 묶음에 모으고, 0의 뜻을 그 아래에 한 번 적는다. 상태 풀이 문장은 정책마다 적지 않는다", () => {
     for (const analysis of done) {
       const view = viewOf(analysis.id);
       const html = renderToStaticMarkup(<AnalysisDashboard view={view} code={null} />);
       const quiet = view.policies.filter((p) => p.locations.length === 0 && p.evidence.length === 0 && p.aiCleared === 0);
-      expect((html.match(/<article class="policy /g) ?? []).length, analysis.id).toBe(view.policies.length - quiet.length);
-      expect((html.match(/class="hint quiet-hint"/g) ?? []).length, analysis.id).toBe(new Set(quiet.map((p) => p.status)).size);
+      expect((html.match(/<article class="box policy /g) ?? []).length, analysis.id).toBe(
+        view.policies.filter((p) => p.locations.length > 0 || p.evidence.length > 0).length,
+      );
+      expect((html.match(/<div class="side-group">/g) ?? []).length, analysis.id).toBe(new Set(quiet.map((p) => p.status)).size);
+      expect((html.match(/<p class="z">/g) ?? []).length, analysis.id).toBe(quiet.length > 0 ? 1 : 0);
+      expect(html).not.toContain("quiet-hint");
+      expect(html).toContain('href="/policy#status">상태의 뜻</a>');
     }
   });
 
-  it("저장소 주소가 있으면 발견 줄마다 커밋 고정 링크를 새 창으로 건다", () => {
+  it("저장소 주소가 있으면 발견 줄마다 커밋 고정 링크를 새 창으로 걸고, 새 창과 고정한 커밋을 화면 낭독기에 알린다", () => {
     const view = viewOf("64y4jdtazh");
     const base = ["https:", "", "github.com", "someone", "night-push"].join("/");
     const commit = "b".repeat(40);
     const html = renderToStaticMarkup(<AnalysisDashboard view={view} code={{ htmlUrl: base, commit }} />);
-    const links = [...html.matchAll(/<a href="([^"]+)" target="_blank" rel="noopener noreferrer">GitHub 에서 이 줄 보기<\/a>/g)].map((m) => m[1]);
+    const links = [
+      ...html.matchAll(
+        /<a class="gh" href="([^"]+)" target="_blank" rel="noopener noreferrer">GitHub 에서 이 줄 보기<svg[^]*?<\/svg><span class="visually-hidden">\(새 창, 커밋 bbbbbbb 에 고정\)<\/span><\/a>/g,
+      ),
+    ].map((m) => m[1]);
     expect(links).toHaveLength(view.findingCount);
     for (const link of links) expect(link.startsWith(`${base}/blob/${commit}/src/marketing/campaign.ts#L`)).toBe(true);
   });

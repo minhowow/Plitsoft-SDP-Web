@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { readPlace, type QueuePlace } from "@/lib/service/queue";
 import { STEP_ORDER } from "@/lib/service/steps";
 import type { Analysis, Repository } from "@/lib/service/types";
-import { AnalysisHeader, InProgress, PROGRESS_NOTE } from "./analysis";
+import { AnalysisHeader, InProgress } from "./analysis";
 
 /**
  * 진행 중인 실제 분석의 머리와 단계(브라우저 부품). 같은 사이트의 `GET /api/analyses/{id}/` 를 `POLL_MS` 마다 읽어 단계를 다시
@@ -34,9 +34,12 @@ export function LiveAnalysis({
   repository,
   analysis: initial,
   place: initialPlace = null,
+  tagged = false,
 }: {
   repository: Repository;
   analysis: Analysis;
+  /** 합성 예시 이름표를 다는지(쪽이 서버 설정으로 정한다. `showsSyntheticTag`). */
+  tagged?: boolean;
   /** 대기 중이면 대기열의 어디에 있는지(서버가 DB 에서 센 것). 다시 읽을 때마다 서버가 준 값으로 바꾼다. */
   place?: QueuePlace | null;
 }) {
@@ -108,20 +111,22 @@ export function LiveAnalysis({
 
   return (
     <>
-      <AnalysisHeader repository={repository} analysis={analysis} />
+      <AnalysisHeader repository={repository} analysis={analysis} tagged={tagged} />
       <InProgress
         analysis={analysis}
         live
         place={place}
         note={
-          <>
-            <p>{stopped ?? PROGRESS_NOTE.live}</p>
-            {trouble && !stopped && (
-              <p className="an-progress-trouble" role="status">
-                {trouble}
-              </p>
-            )}
-          </>
+          (stopped || trouble) && (
+            <>
+              {stopped && <p>{stopped}</p>}
+              {trouble && !stopped && (
+                <p className="an-progress-trouble" role="status">
+                  {trouble}
+                </p>
+              )}
+            </>
+          )
         }
       />
     </>

@@ -27,11 +27,12 @@ const render = (data: unknown) => renderToStaticMarkup(<ReportSummary view={view
 const part = (html: string, open: string) => (html.includes(open) ? elementAt(html, html.indexOf(open)) : "");
 
 /**
- * 화면의 발견 부분: 발견 수를 알리는 줄, 정책 카드(규칙 묶음, 발견 줄, 대안, 판정 경로), AI 가 푼 경고와 빠진 판정.
- * 결과 머리(도구·엔진…)와 커버리지 보기, 빈 결과 화면은 발견 부분이 아니다.
+ * 화면의 발견 부분: 정책 상자(규칙 묶음, 발견 줄, 대안, 판정 경로), AI 가 푼 경고와 빠진 판정, 곁칸의 정책 목록.
+ * 요약 줄(검사한 파일 수가 SARIF 에는 없다), 검사 정보, 빈 결과 화면은 발견 부분이 아니다. (D5) 발견 수를 알리던 알림 줄은
+ * 요약 한 줄(`사람이 볼 곳 N건`)로 바뀌어 발견 부분에서 뺐다. 그 수는 아래 시험이 요약 줄에서 따로 본다.
  */
 const findingsPart = (html: string) =>
-  [part(html, '<p class="notice">'), part(html, '<div class="policies">'), part(html, '<div class="ai-decisions">')].join("");
+  [part(html, '<div class="policies">'), part(html, '<div class="ai-decisions">'), part(html, '<details class="box side-pol"')].join("");
 
 /** 앞의 목록에만 있는 줄(같은 줄이 여러 번이면 그 수만큼 견준다). */
 function onlyIn(lines: string[], others: string[]): string[] {
@@ -80,8 +81,10 @@ describe("같은 검사의 SARIF 와 JSON (contract/cli-current 의 수집본 �
     expect(findingsPart(sarif)).toBe(findingsPart(json));
     // 빈 것끼리 견주고 통과하지 않게, 견준 부분에 무엇이 들어 있는지 본다.
     const found = findingsPart(json);
-    expect(textOf(found)).toContain("사람이 확인할 발견이 1건 있습니다.");
-    expect(elementsOf(found, '<article class="policy ')).toHaveLength(packMeta.policies.length);
+    // (D5) 발견 수는 요약 줄에 있고 두 형식에서 같다. 정책 상자는 발견이 있는 정책 하나이고, 곁칸이 정책 전부를 센다.
+    for (const html of [json, sarif]) expect(textOf(part(html, '<p class="sumline">'))).toContain("사람이 볼 곳 1건");
+    expect(elementsOf(found, '<article class="box policy ')).toHaveLength(1);
+    expect(found).toContain(`정책 <span class="count">${packMeta.policies.length}</span>`);
     expect(elementsOf(found, '<li class="finding">')).toHaveLength(1);
     // 확인되지 않은 대안 셋: under14-branch, guardian-call, age-gate-text(CLI 7300205 의 팩에서 더해진 약한 대안).
     expect(elementsOf(found, '<li class="alt">')).toHaveLength(3);
@@ -99,13 +102,14 @@ describe("같은 검사의 SARIF 와 JSON (contract/cli-current 의 수집본 �
     ]) {
       expect(row, text).toContain(text);
     }
-    expect(textOf(found)).toContain("개발자에게 할 질문: 만 14세 미만 사용자를 받는다면 법정대리인 동의를 확인하거나 가입을 막고 있나요?");
+    expect(textOf(found)).toContain("질문만 14세 미만 사용자를 받는다면 법정대리인 동의를 확인하거나 가입을 막고 있나요?");
   });
 
   it("화면 전체에서 다른 줄은 SARIF 에 없는 두 수와 출력 형식뿐이다", () => {
     const [a, b] = [linesOf(json), linesOf(sarif)];
-    expect(onlyIn(a, b)).toEqual(["CLI 0.3", "파일 1개 검사 · 판정 단위 1개"]);
-    expect(onlyIn(b, a)).toEqual(["SARIF", "검사한 파일 수 알 수 없음 · 판정 단위 수 알 수 없음", SARIF_COUNTS_NOTE]);
+    // (D5) 두 수는 요약 줄(검사한 파일)과 쪽 아래 검사 정보(판정 단위)에 있다. SARIF 의 수·줄 안내는 요약 줄 바로 아래다.
+    expect(onlyIn(a, b)).toEqual(["사람이 볼 곳 1건 검사한 파일 1개", "1개", "CLI 0.3"]);
+    expect(onlyIn(b, a)).toEqual(["사람이 볼 곳 1건 검사한 파일 알 수 없음", SARIF_COUNTS_NOTE, "알 수 없음", "SARIF"]);
     expect(SARIF_COUNTS_NOTE).toBe(
       "SARIF 에는 검사한 파일 수와 판정 단위 수가 실려 있지 않습니다. JSON 출력(--output-format json)에는 있습니다.",
     );
@@ -292,7 +296,8 @@ describe("JSON 결과를 SARIF 로 옮겨 열어 본다 (시험용 흉내)", () 
     for (const [pattern, why] of BANNED_WORDING) {
       expect(pattern.test(html), `${pattern} — ${why}`).toBe(false);
     }
-    expect(html).toContain("법률 자문이 아닙니다");
+    // (D5) 면책은 결과 화면 안에 되풀이하지 않는다. 모든 쪽의 바닥글이 싣는다(tests/commitments.test.ts).
+    expect(html).not.toContain("법률 자문이 아닙니다");
   });
 });
 
@@ -384,7 +389,7 @@ describe("SARIF 로는 알 수 없는 것", () => {
       "판정 단위": "알 수 없음. 판정 단위 수가 결과에 실려 있지 않습니다.",
       // 아래 두 줄은 JSON 과 같다. 목록과 팩 판은 SARIF 에도 실려 있다.
       "검사하지 않은 파일": examinedFacts(a)[2].value + ". " + examinedFacts(a)[2].note,
-      정책: "5개. 결과에는 정책 목록이 없어, 팩 판이 같은 이 사이트의 팩에서 가져와 아래에 적었습니다.",
+      정책: "5개. 결과에는 정책 목록이 없어, 팩 판이 같은 이 사이트의 팩에서 가져와 ‘정책 5’에 적었습니다.",
     });
     expect(examinedFacts(b).every((fact) => !fact.warn)).toBe(true);
     const [json, sarif] = [render(withoutStatic(data)), render(toSarif(data))];
@@ -421,7 +426,9 @@ describe("SARIF 로는 알 수 없는 것", () => {
     expect(linesOf(html)[0]).toBe("엔진을 돌리지 않은 결과입니다. CLI 는 검사할 파일이 없을 때 엔진을 돌리지 않습니다.");
     const text = textOf(html);
     expect(text).toContain("실행 안 함");
-    expect(text).toContain("검사한 파일 수 알 수 없음 · 판정 단위 수 알 수 없음");
+    // (D5) 두 수는 요약 줄과 검사 정보에 있다. 둘 다 0이 아니라 알 수 없음이다.
+    expect(text).toContain("검사한 파일 알 수 없음");
+    expect(html).toContain("<dt>판정 단위</dt><dd>알 수 없음</dd>");
     expect(text).not.toContain("검사한 파일이 없습니다.");
     expect(text).not.toContain("검사한 파일이 없어서");
     expect(text).not.toContain("0개");
@@ -450,7 +457,7 @@ describe("SARIF 로는 알 수 없는 것", () => {
     );
     expect(textOf(body)).not.toContain("알 수 없습니다");
     // 그 문장은 실린 그대로 보인다.
-    expect(elementsOf(elementAt(body, body.indexOf('<ol class="path">')), "<li>").map(textOf)[0]).toBe("적용: 정적 true [구역 파일 전체]");
+    expect(elementsOf(elementAt(body, body.indexOf('<ol class="path"')), "<li>").map(textOf)[0]).toBe("적용: 정적 true [구역 파일 전체]");
   });
 });
 

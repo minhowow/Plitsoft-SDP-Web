@@ -3,9 +3,10 @@ import type { ReactNode } from "react";
 import { keepParticles } from "@/components/text";
 import { analysisHref, commitLink, repoHref, shortCommit } from "@/lib/service/href";
 import { placeAt, placeOf, placeText, type QueuePlace, type QueueSnapshot } from "@/lib/service/queue";
-import { activeStep, ANALYSIS_STATUS_LABEL, duration, finishedAt, formatKst, STEP_LABEL, stepState, stepStateLabel } from "@/lib/service/steps";
+import { activeStep, ANALYSIS_STATUS_LABEL, duration, finishedAt, formatKst, STEP_LABEL, STEP_STATE_LABEL, stepState, stepStateLabel } from "@/lib/service/steps";
 import type { Analysis, Repository } from "@/lib/service/types";
 import { STATUS_LABEL } from "@/lib/report/status";
+import { Icon } from "@/components/Icon";
 import { SITE } from "@/lib/site";
 import { AnalysisBadge, RepoName } from "./parts";
 
@@ -34,70 +35,108 @@ export function CommitRef({ repository, commit }: { repository: Repository; comm
   );
 }
 
-/** 이름표와 값 한 쌍(쪽 머리의 사실 줄). */
-function Fact({ label, children }: { label: string; children: ReactNode }) {
+/** 시각 둘을 "2026-11-03 22:11–22:12" 처럼 적는다(한국 표준시). 날이 다르면 끝도 날짜까지 적는다. */
+function kstRange(from: string, to: string): { start: string; end: string } {
+  const start = formatKst(from);
+  const end = formatKst(to);
+  return { start, end: end.slice(0, 10) === start.slice(0, 10) ? end.slice(11) : end };
+}
+
+/**
+ * 분석 쪽 머리의 첫 줄: 저장소 이름(h1, 저장소 쪽으로 가는 링크)과 합성 예시 이름표. 이름표를 달지는 쪽이 서버 설정으로 정한다
+ * (`showsSyntheticTag`: 합성 미리보기, 가짜 GitHub).
+ */
+export function AnalysisTitle({ repository, tagged }: { repository: Repository; tagged: boolean }) {
   return (
-    <div>
-      <dt>{label}</dt>
-      <dd>{children}</dd>
+    <>
+      <h1>
+        <Link href={repoHref(repository.owner, repository.name)} translate="no">
+          <RepoName owner={repository.owner} name={repository.name} />
+        </Link>
+      </h1>
+      {tagged && <span className="tag">합성 예시</span>}
+    </>
+  );
+}
+
+/**
+ * 분석 쪽 머리의 메타 줄: 배지, 분석 id, 커밋과 브랜치, 시각(KST), 걸린 시간. 저장소(위 줄), 커밋, 분석 id, 시각이 한자리에
+ * 있다(docs/commitments.md 의 "실제 결과로 보인다"). 끝난 분석은 시작–끝 시각과 걸린 시간을, 그 밖에는 요청 시각을 적는다.
+ */
+export function AnalysisMeta({ repository, analysis }: { repository: Repository; analysis: Analysis }) {
+  const ended = analysis.status === "succeeded" ? finishedAt(analysis) : null;
+  const started = analysis.steps[0]?.startedAt ?? analysis.requestedAt;
+  const range = ended ? kstRange(started, ended) : null;
+  return (
+    <div className="meta an-meta">
+      <AnalysisBadge status={analysis.status} />
+      <span>
+        분석{" "}
+        <code className="v" translate="no">
+          {analysis.id}
+        </code>
+      </span>
+      <span>
+        <Icon name="commit" />
+        <span className="visually-hidden">커밋 </span>
+        <CommitRef repository={repository} commit={analysis.commit} />{" "}
+        <span className="v" translate="no">
+          {analysis.branch}
+        </span>
+      </span>
+      {range && ended ? (
+        <>
+          <span className="num">
+            <time dateTime={started}>{range.start}</time>–<time dateTime={ended}>{range.end}</time> KST
+          </span>
+          <span>
+            걸린 시간 <span className="v num">{duration(started, ended)}</span>
+          </span>
+        </>
+      ) : (
+        <span>
+          요청{" "}
+          <span className="v num">
+            <time dateTime={analysis.requestedAt}>{formatKst(analysis.requestedAt)}</time> KST
+          </span>
+        </span>
+      )}
     </div>
   );
 }
 
-/**
- * 분석 쪽의 머리. 저장소·분석 id·상태를 맨 위에, 그 아래에 커밋·시각·도구와 팩의 판을 한 줄로 늘어놓는다(GitHub 의 저장소 쪽
- * 머리처럼). 판정자·엔진처럼 결과에서만 아는 것은 `extra` 로 받는다(끝난 분석).
- */
-export function AnalysisHeader({ repository, analysis, extra }: { repository: Repository; analysis: Analysis; extra?: ReactNode }) {
-  const ended = finishedAt(analysis);
+/** 분석 쪽의 머리(결과가 없는 분석: 대기·분석 중·실패). 끝난 분석은 조문별 검사 기록 단추와 함께 결과의 틀이 그린다. */
+export function AnalysisHeader({ repository, analysis, tagged }: { repository: Repository; analysis: Analysis; tagged: boolean }) {
   return (
     <header className="an-head">
-      <p className="an-crumbs">
-        <Link href={repoHref(repository.owner, repository.name)}>
-          <RepoName owner={repository.owner} name={repository.name} />
-        </Link>
-        {repository.synthetic && <span className="tag">합성 예시</span>}
-      </p>
-      <div className="an-title">
-        <h1>
-          분석 <code>{analysis.id}</code>
-        </h1>
-        <AnalysisBadge status={analysis.status} />
+      <div className="ttl">
+        <AnalysisTitle repository={repository} tagged={tagged} />
       </div>
-      <dl className="an-facts">
-        <Fact label="커밋">
-          <CommitRef repository={repository} commit={analysis.commit} /> <span className="an-branch">{analysis.branch}</span>
-        </Fact>
-        <Fact label="요청">
-          <time dateTime={analysis.requestedAt}>{formatKst(analysis.requestedAt)}</time>
-        </Fact>
-        {ended && (
-          <Fact label={analysis.status === "failed" ? "멈춤" : "끝남"}>
-            <time dateTime={ended}>{formatKst(ended)}</time>{" "}
-            <span className="an-dim">({duration(analysis.requestedAt, ended)})</span>
-          </Fact>
-        )}
-        <Fact label="도구">
-          {analysis.versions ? (
-            <>
-              {SITE.cli} {analysis.versions.tool}
-            </>
-          ) : (
-            <span className="an-dim">설치 전</span>
-          )}
-        </Fact>
-        <Fact label="팩 판">
-          {analysis.versions ? <code>{analysis.versions.pack}</code> : <span className="an-dim">설치 전</span>}
-        </Fact>
-        {extra}
-      </dl>
-      <p className="an-time-note">시각은 한국 표준시(KST)입니다.</p>
+      <AnalysisMeta repository={repository} analysis={analysis} />
     </header>
   );
 }
 
+/** 단계 하나의 오른쪽 칸: 끝난 단계는 걸린 시간, 그 밖에는 형편(진행 중, 기다림, 멈춤, 하지 않음). */
+function stepEnd(analysis: Analysis, step: Analysis["steps"][number]): ReactNode {
+  const state = stepState(analysis, step);
+  const took = step.startedAt && step.endedAt ? duration(step.startedAt, step.endedAt) : null;
+  if (state === "done") {
+    return took ? (
+      <>
+        <span className="visually-hidden">{STEP_STATE_LABEL.done}, </span>
+        {took}
+      </>
+    ) : (
+      STEP_STATE_LABEL.done
+    );
+  }
+  if (state === "failed" && took) return `${took}, ${STEP_STATE_LABEL.failed}`;
+  return stepStateLabel(analysis, step);
+}
+
 /**
- * 진행 단계. 단계마다 형편(끝남, 진행 중, 대기 중, 기다림, 멈춤, 하지 않음)과 시각을 적는다. 진행 중인 단계는 화면 낭독기에도 그렇다고
+ * 진행 단계. 단계마다 점, 이름, 시작 시각(시:분, KST), 걸린 시간이나 형편을 적는다. 진행 중인 단계는 화면 낭독기에도 그렇다고
  * 알린다(aria-current).
  */
 export function StepList({ analysis }: { analysis: Analysis }) {
@@ -109,11 +148,8 @@ export function StepList({ analysis }: { analysis: Analysis }) {
           <li key={step.name} className={`step-item step-${state}`} aria-current={state === "active" ? "step" : undefined}>
             <span className="step-dot" aria-hidden="true" />
             <span className="step-name">{STEP_LABEL[step.name]}</span>
-            <span className="step-state">{stepStateLabel(analysis, step)}</span>
-            <span className="step-time">
-              {step.startedAt && <time dateTime={step.startedAt}>{formatKst(step.startedAt)}</time>}
-              {step.startedAt && step.endedAt && ` · ${duration(step.startedAt, step.endedAt)}`}
-            </span>
+            <span className="step-time">{step.startedAt && <time dateTime={step.startedAt}>{formatKst(step.startedAt).slice(11)}</time>}</span>
+            <span className="step-state">{stepEnd(analysis, step)}</span>
           </li>
         );
       })}
@@ -121,15 +157,15 @@ export function StepList({ analysis }: { analysis: Analysis }) {
   );
 }
 
-/** 진행 중인 분석 쪽의 맨 아래 말. 합성은 움직이지 않는 한 순간이고, 실제 분석은 쪽이 몇 초마다 다시 읽는다(`LiveAnalysis`). */
+/** 진행 중인 합성 분석의 맨 아래 말. 합성은 움직이지 않는 한 순간이다(실제 분석은 쪽이 몇 초마다 다시 읽는다. `LiveAnalysis`). */
 export const PROGRESS_NOTE = {
   synthetic: "합성 예시의 한 순간을 고정해 보인 것이라 이 쪽은 움직이지 않습니다.",
-  live: "이 쪽은 몇 초마다 진행을 다시 읽고, 끝나면 이 자리에 결과를 그립니다. 탭이 보이지 않는 동안은 읽기를 쉽니다.",
 } as const;
 
 /**
- * 진행 중(대기·분석 중)인 분석의 본문(분석 쪽). `note` 는 맨 아래 말(`PROGRESS_NOTE`). `live` 면 지금 단계를 알리는 줄이 바뀔 때
- * 화면 낭독기가 읽는다(role="status").
+ * 진행 중(대기·분석 중)인 분석의 `진행` 상자(분석 쪽). 지금 단계 한 줄과 단계 표. 대기 중이고 대기열의 자리를 알면 지금 단계 대신
+ * 그 자리를 적는다(실행 자리의 수는 적지 않는다). `live` 면 그 줄이 바뀔 때 화면 낭독기가 읽는다(role="status"). `note` 는 맨
+ * 아래 말(합성의 고정된 순간, 다시 읽지 못한 까닭).
  */
 export function InProgress({
   analysis,
@@ -150,40 +186,40 @@ export function InProgress({
       ? "분석이 끝났습니다."
       : analysis.status === "failed"
         ? "분석이 멈췄습니다."
-        : step
-          ? keepParticles(`지금 ‘${STEP_LABEL[step.name]}’ 단계입니다.`)
-          : "다음 단계를 기다리고 있습니다.";
-  // 대기열의 몇 번째인지만 적는다(실행 자리의 수는 적지 않는다). 이 쪽은 다시 읽으므로 센 때를 붙이지 않는다. 바뀌는 대로
-  // 화면 낭독기가 읽게 한다(live 일 때).
-  const queue = analysis.status === "queued" && place && (
-    <p className="hint an-queue" role={live ? "status" : undefined}>
-      {keepParticles(placeText(place))}
-    </p>
-  );
+        : analysis.status === "queued" && place
+          ? placeText(place)
+          : step
+            ? `지금 ‘${STEP_LABEL[step.name]}’ 단계`
+            : "다음 단계를 기다리고 있습니다.";
   return (
-    <section className="an-progress" aria-labelledby="progress-title">
-      <h2 id="progress-title">진행 상황</h2>
-      <p className="notice" role={live ? "status" : undefined}>
-        {now} 진행 중인 분석은 누구나 볼 수 있고, 끝나면 이 주소에 결과가 그려집니다.
-      </p>
-      {queue}
-      <StepList analysis={analysis} />
-      {note && <div className="hint an-progress-note">{note}</div>}
+    <section className="box live-box" aria-labelledby="progress-title">
+      <div className="box-hd">
+        <h2 id="progress-title">진행</h2>
+      </div>
+      <div className="bd">
+        <p className="live-now" role={live ? "status" : undefined}>
+          {keepParticles(now)}
+        </p>
+        <StepList analysis={analysis} />
+        {note && <div className="hint an-progress-note">{note}</div>}
+      </div>
     </section>
   );
 }
 
-/** 실패한 분석의 본문. 까닭과 멈춘 단계를 숨기지 않는다. */
+/** 실패한 분석의 `진행` 상자(빨간 테두리). 멈춘 단계와 까닭을 숨기지 않는다. */
 export function Failed({ analysis }: { analysis: Analysis }) {
   const failure = analysis.failure!;
   return (
-    <section className="an-progress" aria-labelledby="failed-title">
-      <h2 id="failed-title">분석이 끝나지 못했습니다</h2>
-      <p className="notice notice-warn">
-        <strong>{keepParticles(`‘${STEP_LABEL[failure.step]}’ 단계에서 멈췄습니다.`)}</strong> {failure.reason}
-      </p>
-      <p className="hint">검사를 끝내지 못해 결과가 없습니다. 검토할 곳이 없다는 뜻이 아닙니다.</p>
-      <StepList analysis={analysis} />
+    <section className="box live-box fail-box" aria-labelledby="failed-title">
+      <div className="box-hd">
+        <h2 id="failed-title">{keepParticles(`‘${STEP_LABEL[failure.step]}’ 단계에서 멈춤`)}</h2>
+      </div>
+      <div className="bd">
+        <p>{failure.reason}</p>
+        <p className="zero-line">검사를 끝내지 못해 결과가 없습니다. 검토할 곳이 없다는 뜻이 아닙니다.</p>
+        <StepList analysis={analysis} />
+      </div>
     </section>
   );
 }

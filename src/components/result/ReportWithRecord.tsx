@@ -44,7 +44,11 @@ export interface ReportSwitch {
 }
 
 /**
- * 결과 한 건을 두 가지로 본다: 결과 화면(`ReportSummary`)과 조문별 검사 기록(`RecordSheet`). 뷰어와 데모가 함께 쓴다.
+ * 결과 한 건을 두 가지로 본다: 결과 화면(`ReportSummary`)과 조문별 검사 기록(`RecordSheet`). 분석 쪽, 뷰어, 데모가 함께 쓴다.
+ *
+ * 머리(`heading`, `meta`)는 쪽이 준다. 이 틀은 그 첫 줄(`.ttl`) 오른쪽에 보조 단추 `조문별 검사 기록 인쇄용` 하나를 둔다
+ * (docs/redesign.md 2.3). 단추는 눌린 상태(aria-pressed)를 가진다. 누르면 결과 화면을 가리고 기록을 보이며, 다시 누르면 결과
+ * 화면으로 돌아간다.
  *
  * 기록은 결과가 메모리에 있는 바로 이 자리에서 만든다. 1층에는 서버도 브라우저 저장소도 없어서, 기록을 다른 쪽으로
  * 넘길 길이 없다. 주소에 싣지도 않는다(`docs/architecture.md` 의 "조문별 검사 기록"). 고른 것은 이 부품의 상태일 뿐이라
@@ -58,20 +62,29 @@ export interface ReportSwitch {
  * 화면에 붙이는 동안은 멈춘다(잰 값은 `docs/architecture.md` 의 "조문별 검사 기록"). 결과로 돌아갈 때는 늦추지 않는다.
  * 기록을 걷고 가려 둔 결과 화면을 드러내는 일뿐이다.
  *
- * `children` 을 주면 결과 화면 자리에 `ReportSummary` 대신 그것을 그린다. 분석 쪽이 같은 결과를 대시보드로 배치해 넘긴다
- * (`components/service/AnalysisDashboard.tsx`. 서버 부품이 그려 넘긴 것이다).
+ * `children` 을 주면 결과 화면 자리에 `ReportSummary` 대신 그것을 그린다. 분석 쪽이 같은 결과를 코드 링크·근거 조문과 함께
+ * 그려 넘긴다(`components/service/AnalysisDashboard.tsx`. 서버 부품이 그려 넘긴 것이다). `recommend` 는 `children` 이 없을 때
+ * 결과 화면에 판정자 권고를 둘지다(`/view`).
  */
 export function ReportWithRecord({
   view,
   pack,
   source,
   ref,
+  heading,
+  meta,
+  recommend = false,
   children,
 }: {
   view: ReportView;
   pack: PackIndex;
   source: RecordSource;
   ref?: Ref<ReportSwitch>;
+  /** 머리의 첫 줄(제목과 이름표). 없으면 단추만 오른쪽에 둔다. */
+  heading?: ReactNode;
+  /** 머리의 둘째 줄(메타 줄). */
+  meta?: ReactNode;
+  recommend?: boolean;
   children?: ReactNode;
 }) {
   const [record, setRecord] = useState(false);
@@ -90,17 +103,16 @@ export function ReportWithRecord({
 
   return (
     <div className="report-switch">
-      <div className="segmented" role="group" aria-label="결과와 검사 기록 고르기">
-        <button type="button" aria-pressed={!record} onClick={() => setRecord(false)}>
-          결과
-        </button>
-        <button type="button" aria-pressed={record} onClick={() => setRecord(true)}>
-          {SITE.record.title}
-        </button>
-      </div>
-      <div hidden={shown}>
-        {children ?? <Summary view={view} />}
-      </div>
+      <header className="an-head report-head">
+        <div className="ttl">
+          {heading}
+          <button type="button" className="btn record-btn" aria-pressed={record} onClick={() => setRecord((on) => !on)}>
+            {SITE.record.title} <span className="sub">인쇄용</span>
+          </button>
+        </div>
+        {meta}
+      </header>
+      <div hidden={shown}>{children ?? <Summary view={view} recommend={recommend} />}</div>
       {shown && <RecordPanel view={view} pack={pack} source={source} />}
     </div>
   );

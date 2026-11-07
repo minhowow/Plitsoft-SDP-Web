@@ -107,13 +107,19 @@ class Scans {
     if (scan.lowCount > scan.low.length) this.low.push(`${where}: 그 밖에 ${scan.lowCount - scan.low.length}곳`);
   }
 
-  /** 접힌 채로 한 번 재고, 접어 둔 것을 모두 펼친 채로 한 번 더 잰다. */
+  /**
+   * 접힌 채로 한 번 재고, 접어 둔 것을 모두 펼친 채로 한 번 더 잰다. 잰 뒤에 머리글의 펼치는 메뉴는 다시 닫는다(D5 부터 데모의
+   * 고르는 단추가 쪽 제목 바로 아래라, 열린 메뉴가 그 단추를 덮는다).
+   */
   async both(page: Page, where: string): Promise<void> {
     this.add(`${where} (접힌 채)`, await textContrast(page));
     await page.evaluate(() => {
       for (const details of document.querySelectorAll("details")) details.open = true;
     });
     this.add(`${where} (펼친 채)`, await textContrast(page));
+    await page.evaluate(() => {
+      for (const menu of document.querySelectorAll<HTMLDetailsElement>("details.menu")) menu.open = false;
+    });
   }
 }
 
@@ -197,14 +203,19 @@ const VIEW_STEPS: { name: string; act: (page: Page) => Promise<void> }[] = [
   { name: "읽지 못한 파일의 안내", act: (page) => pickContent(page, "scan.txt", "검토 필요 1건\n") },
 ];
 
-/** 결과 화면과 조문별 검사 기록을 오가는 단추. */
+/**
+ * 결과 화면과 조문별 검사 기록을 오가는 단추. (D5) 결과 머리의 보조 단추 하나(`조문별 검사 기록 인쇄용`, 눌린 상태를 가진다)다.
+ * 다시 누르면 결과 화면으로 돌아간다.
+ */
+const recordButton = (page: Page) => page.getByRole("button", { name: `${SITE.record.title} 인쇄용`, exact: true });
+
 async function showRecord(page: Page): Promise<void> {
-  await page.getByRole("group", { name: "결과와 검사 기록 고르기" }).getByRole("button", { name: SITE.record.title }).click();
+  await recordButton(page).click();
   await page.waitForSelector(".record, .record-refused");
 }
 
 async function showResult(page: Page): Promise<void> {
-  await page.getByRole("group", { name: "결과와 검사 기록 고르기" }).getByRole("button", { name: "결과", exact: true }).click();
+  await recordButton(page).click();
   await page.waitForSelector(".report");
 }
 
@@ -230,7 +241,7 @@ describe("두 테마의 명도 대비: 그려진 글자마다 4.5:1 이상", () 
     expectReadable(scans, scheme);
   });
 
-  it.each(SCHEMES)("%s: 결과 보기의 결과 스무 가지(처음에 열린 예시와 고른 것 열아홉). 상태 칩은 status.ts 의 일곱 상태가 모두 그려진다", async (scheme) => {
+  it.each(SCHEMES)("%s: 결과 보기의 결과 스무 가지(처음에 열린 예시와 고른 것 열아홉). 발견·충족 근거의 상태 칩이 모두 그려진다", async (scheme) => {
     const scans = new Scans();
     const { page } = await open("/view/", scheme);
     await expectScheme(page, scheme);
@@ -241,8 +252,10 @@ describe("두 테마의 명도 대비: 그려진 글자마다 4.5:1 이상", () 
       await scans.both(page, `${scheme} /view/ ${step.name}`);
     }
     expectReadable(scans, scheme);
-    // 칩은 일곱 상태가 모두 그려졌다(칩이 없어서 통과한 것이 아니다).
-    expect([...scans.chips].sort()).toEqual([...STATUS_ORDER].sort());
+    // 칩이 그려졌다(칩이 없어서 통과한 것이 아니다). (D5) 칩은 정책 상자(발견이나 충족 근거가 있는 정책)와 발견 줄에만 있다.
+    // 발견이 없는 정책의 상태(적용 신호 없음, 발견 없음, 알 수 없음)는 곁칸 묶음의 이름표(글)로 보이고, 그 글도 위에서 쟀다.
+    expect([...scans.chips].sort()).toEqual(["evidence-found", "needs-review", "needs-review-ai-pending", "uncertain"]);
+    expect(STATUS_ORDER.filter((status) => !scans.chips.has(status))).toEqual(["no-signal", "not-reported", "pack-unknown"]);
   });
 
   it.each(SCHEMES)("%s: 데모 세 앱 × 두 판", async (scheme) => {
@@ -357,7 +370,8 @@ describe("키보드 초점의 둘레선", () => {
 describe("누르거나 고르는 것의 테두리", () => {
   // 고르기 상자, 파일 고르기 단추, 고르는 단추는 사이트의 색으로 그린다(9번 전에는 앞의 둘이 브라우저의 기본 모양이었다). 테두리는
   // 나누는 선(--rule)보다 짙은 --control-line 이다. 나누는 선으로 그리면 바탕과 1.3~1.6:1 이라 테두리로는 단추인 줄 보이지 않는다.
-  const CONTROLS: [string, "::file-selector-button"?][] = [["#sample-select"], ["#report-file", "::file-selector-button"], [".segmented button"]];
+  // (D5) 파일 고르기는 감춘 입력의 이름표를 단추로 그린다(.pick). 결과와 기록을 오가는 단추는 결과 머리의 보조 단추(.record-btn)다.
+  const CONTROLS: [string, "::file-selector-button"?][] = [["#sample-select"], [".dropzone .pick"], [".segmented button"], [".record-btn"]];
 
   it.each(SCHEMES)("%s: 고르기 상자, 파일 고르기 단추, 고르는 단추의 테두리가 그 바깥 바탕과 3:1 이상이다 (결과 보기, 데모)", async (scheme) => {
     const low: string[] = [];
@@ -373,12 +387,13 @@ describe("누르거나 고르는 것의 테두리", () => {
       }
     }
     expect(low).toEqual([]);
-    // 잰 것이 있다: 결과 보기의 고르기 상자·파일 고르기 단추·결과와 기록을 오가는 단추 둘, 데모의 단추 일곱(앱 셋, 판 둘, 결과와 기록 둘).
+    // 잰 것이 있다: 결과 보기의 고르기 상자·파일 고르기 단추·기록 단추, 데모의 고르는 단추 다섯(앱 셋, 판 둘)과 기록 단추.
     expect(Object.fromEntries(seen)).toEqual({
       "/view/ #sample-select": 1,
-      "/view/ #report-file::file-selector-button": 1,
-      "/view/ .segmented button": 2,
-      "/demo/ .segmented button": 7,
+      "/view/ .dropzone .pick": 1,
+      "/view/ .record-btn": 1,
+      "/demo/ .segmented button": 5,
+      "/demo/ .record-btn": 1,
     });
   });
 });
@@ -386,8 +401,8 @@ describe("누르거나 고르는 것의 테두리", () => {
 describe("인쇄: 기록이 열려 있지 않은 쪽", () => {
   /** 쪽마다 화면에서 고르는 데만 쓰는 것. 인쇄할 때는 찍지 않는다. */
   const CONTROLS: Record<string, string[]> = {
-    "/view/": [".dropzone", ".samples", ".report-switch > .segmented"],
-    "/demo/": [".demo-pick", ".report-switch > .segmented"],
+    "/view/": [".dropzone", ".samples", ".record-btn"],
+    "/demo/": [".demo-pick", ".record-btn"],
   };
   const drawn = (page: Page, selectors: string[]) =>
     page.evaluate((list) => list.map((selector) => [...document.querySelectorAll(selector)].some((el) => el.getClientRects().length > 0)), selectors);
@@ -435,10 +450,13 @@ describe("강제 색 모드(윈도의 고대비 테마 등)", () => {
       const { page } = await open(pathname, scheme);
       await page.emulateMedia({ colorScheme: scheme, forcedColors: "active" });
       expect(await page.evaluate(() => matchMedia("(forced-colors: active)").matches), pathname).toBe(true);
-      const count = await page.locator(".segmented button").count();
+      // (D5) 결과와 기록을 오가는 것은 눌린 상태를 가진 단추 하나(.record-btn)다. 결과 보기에서는 눌린 것과 눌리지 않은 것을
+      // 견주려고 한 번 눌러 둔 채로도 잰다(아래).
+      const SELECTOR = ".segmented button, .record-btn";
+      const count = await page.locator(SELECTOR).count();
       const buttons: { pressed: boolean; name: string; fill: string; ink: number }[] = [];
-      for (let i = 0; i < count; i++) {
-        const button = page.locator(".segmented button").nth(i);
+      const measure = async (i: number) => {
+        const button = page.locator(SELECTOR).nth(i);
         await button.scrollIntoViewIfNeeded();
         const box = await button.evaluate((el) => {
           const outer = el.getBoundingClientRect();
@@ -456,7 +474,12 @@ describe("강제 색 모드(윈도의 고대비 테마 등)", () => {
         });
         expect(box.text.width, `${pathname} "${box.name}"`).toBeGreaterThan(8);
         buttons.push({ pressed: box.pressed, name: box.name, fill: await pixelAt(page, box.fill.x, box.fill.y), ink: await inkContrast(page, box.text) });
-      }
+      };
+      for (let i = 0; i < count; i++) await measure(i);
+      // 기록 단추를 눌러 둔 채로 한 번 더 잰다(눌린 기록 단추).
+      await page.locator(".record-btn").click();
+      await page.waitForSelector(".record, .record-refused");
+      await measure(count - 1);
       const pressed = buttons.filter((button) => button.pressed);
       const others = buttons.filter((button) => !button.pressed);
       expect(pressed.length, pathname).toBeGreaterThan(0);
@@ -467,7 +490,7 @@ describe("강제 색 모드(윈도의 고대비 테마 등)", () => {
       for (const button of buttons) expect(button.ink, `${pathname} "${button.name}" 의 글자`).toBeGreaterThanOrEqual(4.5);
       seen += buttons.length;
     }
-    // 결과 보기의 둘(결과와 기록), 데모의 일곱(앱 셋, 판 둘, 결과와 기록 둘).
+    // 결과 보기의 기록 단추(눌리지 않은 채와 눌린 채), 데모의 일곱(앱 셋, 판 둘, 기록 단추 눌리지 않은 채와 눌린 채).
     expect(seen).toBe(9);
   });
 });
@@ -496,8 +519,9 @@ describe("줄바꿈: 사이트가 쓴 글에서 닫는 따옴표·괄호 뒤의 
 
   /** 지금 연 것을 너비마다 잰다(접어 둔 것을 모두 펼친다). 사이트가 쓴 글에서 줄이 바뀐 곳을 모으고, 본 자리의 수를 센다. */
   async function sweep(page: Page, where: string, own: string[]): Promise<number> {
+    // 본문의 접어 둔 것을 모두 편다. 머리글의 펼치는 메뉴는 펴지 않는다(D5: 펴면 데모의 고르는 단추를 덮는다).
     await page.evaluate(() => {
-      for (const details of document.querySelectorAll("details")) details.open = true;
+      for (const details of document.querySelectorAll("main details")) (details as HTMLDetailsElement).open = true;
     });
     let checked = 0;
     for (const width of WIDTHS) {
@@ -541,11 +565,15 @@ describe("줄바꿈: 사이트가 쓴 글에서 닫는 따옴표·괄호 뒤의 
     expect(checked).toBeGreaterThan(100);
   });
 
-  it("대조: 묶은 조각이 줄을 바꿀 수 있게 하면 데모 표 아래의 말이 375px 에서 '‘판정 경로’ ⏎ 에'로 끊긴다", async () => {
-    // 찾는 법이 실제로 그 자리를 잡는지 본다. 이 컴퓨터의 글꼴로 잰 자리다(9번의 첫 검토에서 그 말이 그렇게 끊겼다).
+  it("대조: 묶은 조각이 줄을 바꿀 수 있게 하면 데모(아동 가입 · 고친 뒤)의 판정 단위 풀이가 375px 에서 '함수 하나) ⏎ 가'로 끊긴다", async () => {
+    // 찾는 법이 실제로 그 자리를 잡는지 본다. 이 컴퓨터의 글꼴로 잰 자리다. 9번의 첫 검토에서 잡던 데모 표 아래의 말('‘판정 경로’
+    // ⏎ 에')은 D5 에서 지웠다(사용법 문장). 발견이 0인 판의 "검사한 것" 아래 풀이(UNIT_GLOSS)로 본다.
     const { page } = await open("/demo/", "light");
+    await pickDemo(page, "아동 가입", "고친 뒤");
     await page.addStyleTag({ content: ".nobreak { white-space: normal; }" });
     const result = await particleBreaks(page);
-    expect(result.found.filter((entry) => !isOutside(entry)).map((entry) => entry.around)).toEqual([expect.stringContaining("판정 경로’⏎에")]);
+    expect(result.found.filter((entry) => !isOutside(entry)).map((entry) => entry.around)).toEqual(
+      expect.arrayContaining([expect.stringContaining("하나)⏎가")]),
+    );
   });
 });

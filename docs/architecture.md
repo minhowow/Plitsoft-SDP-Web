@@ -2528,3 +2528,42 @@ anthropic:<모델> --output-format json`, `../Plitsoft-SDP` 의 `cli.py` 의 `cm
   상태들과 합성, 로컬+실제 GitHub 거절), `tests/runner.test.ts`(목록에 없는 저장소의 실패), `tests/browser/combobox.test.ts`(치기·무리·
   ↑↓·Enter·Esc·한글 조합·빈 초점·좁은 화면·상한·머리글·검색 쪽·스크립트 없음·넘침), `tests/browser/header.test.ts`(최근 분석).
 
+
+## 재디자인 D5: 결과 부품 (2026-11-07)
+
+`docs/redesign.md` 3장의 분석 쪽·`/view`·`/demo` 를 목업(analysis, analysis-zero, analysis-live, view, view-judge, demo)대로 바꿨다.
+세 쪽이 같은 결과 부품(`ReportWithRecord` → `ReportSummary` → `PolicyCard`)을 쓴다. 위 "B1·B2" 절의 분석 쪽 대시보드(수 여섯, 정책별
+요약, 결과 끝의 면책)와 "커버리지 보기"의 표 아래 접힌 목록은 이 절이 대신한다. 다르게 한 것은 `docs/redesign.md` 3장의
+"D5 에서 위와 다르게 한 것".
+
+- **결과의 차례**(`ReportSummary`): 다 보지 못한 검사의 경고(`CoverageWarning`, 표 "다 보지 못한 것") → 팩 판이 다른 결과의 알림 →
+  요약 한 줄(사람이 볼 곳 N건 · 검사한 파일 N개, 판정자를 켰으면 AI 가 푼 경고 N건과 적용 질문으로 빠진 판정 N건 또는 알 수 없음) → SARIF 알림, 판정자 권고(`recommend`) → 두
+  칸(`.cols`. `.report` 의 컨테이너 너비 960px 이상에서 오른쪽 곁칸).
+  - 본문: 발견 0이면 0의 뜻(굵게)과 `검사한 것`. 정책 상자(발견이나 충족 근거 위치가 있는 정책만). AI 가 푼 경고 상자(`AiDecisions`,
+    1건 이상이면 펼침, 적용 질문으로 빠진 판정 포함). 발견 0이면 `검사에 들지 않는 파일과 정보`(`NotSeen`, 무엇 | 왜 의 줄)를 펼친 채로.
+  - 곁칸 `정책 N`(N 은 결과에 실린 정책 수, 열린 `details`. 한 단일 때만 머리를 눌러 접는다): 발견이 있는 정책(색 점·링크·건수), AI 가
+    푼 경고만 있는 정책, 조용한 상태별 묶음(상태 글 N, 정책 이름과 판정 단위 N개)과 0의 뜻(조용한 줄이 하나라도 있으면), `상태의 뜻` 링크.
+  - 검사 정보(전체 폭): 도구, 팩 판, 엔진, AI 칸(`view.aiRows`), 판정 단위, 출력 형식, 다 보지 못한 파일이 없으면 그 사실, 진행 기록
+    (`progress`, 분석 쪽만), 발견이 있으면 `검사에 들지 않는 파일과 정보` 링크(`/policy/#scope`).
+- **정책 상자**(`PolicyCard`): 머리(조문 링크, 제목, 칩 하나), 질문, 판정 단위. 규칙 묶음(`RuleGroup`, 여러 곳이면 메시지와 `규칙 id ·
+  N곳` 머리, 3곳 뒤 접음은 전과 같다). 발견 줄은 첫 미확인 대안의 메시지(값이 '모름'이면 `모름` 이름표)와 `경로:줄 · 판정 범위`, 정책과
+  상태가 다를 때만 칩. 정책 상자마다 첫 발견만 펼친다. 안쪽: 범위 문장 → 대안(질문, 있으면 고치는 법, 나머지 대안. 모름인 대안의 메시지에 `모름` 이름표) → '모름' 문장(한 번) → AI 에게 묻지 않은
+  조건과 이유 → 규칙·대안 id → 접힌 판정 경로 → `GitHub 에서 이 줄 보기`(분석 쪽만, 커밋에 고정). 맨 아래 접힌 근거 조문 원문(분석
+  쪽만, 서버가 `legal[].text` 에서 고른다).
+- **에이전트 결과 자리**(`lib/report/view-model.ts`): `aiReviewRan(view)`(지금은 `run.judge` 가 있는지. `aiDismissedKnown` 도 이 값에서 셈한다), `aiRows: InfoRow[]`(검사 정보와
+  조문별 기록의 AI 칸), `cleared`·`dismissed: ReviewItem[]`(위치, 규칙과 팩 안 여부, 대안 id, 인용 여러 줄 `QuotedLine` 과 그 인용이 받치는 대안 id, 질문·답),
+  `LocationView.ruleInPack`. 부품 `Citation`(인용 목록), `RuleId`(팩에 있는 규칙만 조문 도감 링크). 팩 색인(`PackIndex`)에 정책마다
+  `ruleIds`. `run.agent` 는 스키마·타입·파서 어디에서도 읽지 않는다.
+- **분석 쪽**: 머리 `AnalysisTitle`(h1 저장소, `showsSyntheticTag()` 면 합성 예시)·`AnalysisMeta`(배지, 분석 id, 커밋·브랜치, 끝났으면
+  `시작–끝 KST` 와 걸린 시간, 아니면 요청 시각). 끝난 분석은 `ReportWithRecord`(머리 오른쪽 `조문별 검사 기록 인쇄용` 단추,
+  `aria-pressed`)와 `AnalysisDashboard`(= `ReportSummary` 에 조문·코드 링크·진행 기록). 대기·분석 중은 `진행` 상자(지금 단계
+  role=status, 단계 표), 실패는 빨간 테두리 상자(멈춘 단계, 까닭, 결과가 없다는 뜻이 검토할 곳이 없다는 뜻이 아님, 단계 표).
+- **`/view`**: h1 `결과 파일 열기`, 한 줄 드롭존 띠(`파일 고르기` 라벨, 놓기 안내, 합성 예시 고르기), 연 파일 이름(h2)과 합성 예시
+  이름표가 결과 부품의 머리다(그리지 못해도 남는다). 판정자가 꺼진 결과면 권고 한 줄.
+- **`/demo`**: h1 `데모` + 합성 예시, 조작 한 줄(앱 셋 | 고치기 전·고친 뒤), 1100px 이상 두 칸(코드 상자 | 고치기 전과 고친 뒤 표·권고·
+  결과).
+- **약속 문구의 자리**: 0의 뜻은 0이 보이는 곳마다(0의 줄·곁칸의 조용한 묶음·데모 비교 표. 실패 상자는 결과가 없다는 문장), 면책은 바닥글, 합성 예시 이름표는 머리. 칩에 `title`
+  속성이 없다(시험이 결과 부품의 소스를 본다).
+- 시험: `tests/view-model.test.ts`(aiReviewRan, aiRows, ReviewItem, ruleInPack), `tests/parts.test.tsx`(Citation 여러 줄, 팩 밖 규칙 id,
+  정책 수, `title` 없음), `tests/render.test.tsx`·`sarif`·`record`·`demo`·`service`(새 자리), 브라우저 `service.test.ts`(1280 에 발견 문장
+  둘, 390 에 첫 문장과 쪽 높이 2000px 이하), `service-db.test.ts`(DB + 가짜 GitHub 의 분석 쪽 합성 이름표), `demo.test.ts`(키보드).

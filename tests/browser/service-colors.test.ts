@@ -88,7 +88,7 @@ describe("두 테마의 명도 대비: 분석 서비스의 쪽", () => {
     }
     expect(low).toEqual([]);
     expect(measured).toBeGreaterThan(0);
-    // 칩이 실제로 그려졌다(대시보드의 정책별 요약과 카드).
-    expect([...chips]).toEqual(expect.arrayContaining(["needs-review-ai-pending", "not-reported"]));
+    // 칩이 실제로 그려졌다(정책 상자와 발견 줄). (D5) 발견이 없는 정책은 칩 대신 곁칸 묶음의 이름표(글)라 "발견 없음" 칩은 없다.
+    expect([...chips]).toEqual(expect.arrayContaining(["needs-review-ai-pending", "evidence-found"]));
   });
 });

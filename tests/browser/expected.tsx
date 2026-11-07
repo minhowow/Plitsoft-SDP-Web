@@ -28,8 +28,11 @@ export function viewOfText(text: string): ReportView {
 /** 저장소의 결과 파일(경로 조각)을 화면 구조로 만든다. */
 export const viewOfFile = (...parts: string[]) => viewOfText(readFileSync(path.join(root, ...parts), "utf8"));
 
-/** 결과 화면(`ReportSummary`)이 그 결과로 그리는 글 전체. 빈칸은 뺀다(요소 사이의 빈칸은 그리는 길마다 다르다). */
-export const reportText = (view: ReportView) => squash(plain(renderToStaticMarkup(<ReportSummary view={view} />)));
+/**
+ * 결과 화면(`ReportSummary`)이 그 결과로 그리는 글 전체. 빈칸은 뺀다(요소 사이의 빈칸은 그리는 길마다 다르다). 결과 파일 열기가
+ * 그리는 대로 판정자 권고(`recommend`)를 켠다(판정자가 꺼진 결과에만 한 줄 나온다. D5).
+ */
+export const reportText = (view: ReportView) => squash(plain(renderToStaticMarkup(<ReportSummary view={view} recommend />)));
 
 /** 데모가 빌드할 때 읽는 앱(쪽과 같은 방법으로 읽는다). */
 export const demoApps: DemoApp[] = loadDemoApps(packIndex);

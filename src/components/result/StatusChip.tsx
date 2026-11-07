@@ -1,13 +1,9 @@
-import { STATUS_HINT, STATUS_LABEL, type Status } from "@/lib/report/status";
+import { STATUS_LABEL, type Status } from "@/lib/report/status";
 
 /**
- * 상태 칩. 마우스를 올리면 상태의 뜻이 보인다. 뜻은 정책 카드 안에서 쓰는 말(`STATUS_HINT`)이다. 정책 카드 밖에서
- * 상태의 뜻을 풀이로 적는 자리에서는 그 자리의 말을 `hint` 로 준다(칩 옆의 글과 다른 말이 뜨지 않게).
+ * 상태 칩(채운 알약. 판정 상태에만 쓴다). 상태의 이름만 적는다. 뜻은 `title` 속성에 숨기지 않는다(터치와 키보드에서 보이지
+ * 않는다. docs/redesign.md 2.1). 상태의 뜻 전체는 조문 도감의 `#status` 한 곳에 있고, 결과 화면의 곁칸이 그곳으로 잇는다.
  */
-export function StatusChip({ status, hint = STATUS_HINT[status] }: { status: Status; hint?: string }) {
-  return (
-    <span className={`chip chip-${status}`} title={hint}>
-      {STATUS_LABEL[status]}
-    </span>
-  );
+export function StatusChip({ status }: { status: Status }) {
+  return <span className={`chip chip-${status}`}>{STATUS_LABEL[status]}</span>;
 }

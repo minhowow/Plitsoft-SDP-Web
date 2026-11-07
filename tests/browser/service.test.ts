@@ -241,7 +241,8 @@ describe("저장소 → 분석", () => {
     await page.goBack();
     await page.locator(".an-table").getByRole("link", { name: "64y4jdtazh" }).click();
     await page.waitForURL(`${site.origin}${analysisHref("example-org", "night-push", "64y4jdtazh")}`);
-    await page.waitForSelector(".dash");
+    // (D5) 끝난 분석은 결과 화면(.report)이다. 결과 파일 열기·데모와 같은 부품이다.
+    await page.waitForSelector(".report");
     expect(outside).toEqual([]);
   });
 
@@ -258,8 +259,11 @@ describe("분석 쪽의 세 상태", () => {
     const { page } = await open(hrefOf(byStatus("running")));
     expect(await page.locator(".step-item").count()).toBe(4);
     expect(await page.locator(".step-active .step-name").allTextContents()).toEqual(["검사(정적 검사와 AI 판정)"]);
-    expect(await page.locator(".dash").count()).toBe(0);
-    expect(await page.locator("main").textContent()).toContain("합성 예시");
+    expect(await page.locator(".report").count()).toBe(0);
+    // (D5) `진행` 상자 하나에 지금 단계(role=status)와 단계 표. 합성 예시라는 것은 제목 옆의 이름표가 밝힌다.
+    expect(await page.locator(".live-box .live-now").textContent()).toBe("지금 ‘검사(정적 검사와 AI 판정)’ 단계");
+    expect(await page.locator(".an-head .tag").textContent()).toBe("합성 예시");
+    expect(await page.locator("main").textContent()).not.toContain("누구나 볼 수 있고");
   });
 
   it("대기: 대기 단계가 진행 중이다", async () => {
@@ -270,24 +274,29 @@ describe("분석 쪽의 세 상태", () => {
   it("실패: 멈춘 단계와 까닭", async () => {
     const failed = byStatus("failed");
     const { page } = await open(hrefOf(failed));
-    expect(await page.locator(".notice-warn").textContent()).toContain(failed.failure!.reason);
+    // (D5) 빨간 테두리의 `진행` 상자: 머리에 멈춘 단계, 안에 까닭과 "검토할 곳이 없다는 뜻이 아닙니다".
+    expect(await page.locator(".fail-box #failed-title").textContent()).toBe("‘저장소 받기·도구 설치’ 단계에서 멈춤");
+    expect(await page.locator(".fail-box").textContent()).toContain(failed.failure!.reason);
+    expect(await page.locator(".fail-box .zero-line").textContent()).toContain("검토할 곳이 없다는 뜻이 아닙니다");
     expect(await page.locator(".step-failed .step-name").allTextContents()).toEqual(["저장소 받기·도구 설치"]);
-    expect(await page.locator(".dash").count()).toBe(0);
+    expect(await page.locator(".report").count()).toBe(0);
   });
 
-  it("끝남: 대시보드(요약 → 카드로 옮겨 가기), 그리고 조문별 검사 기록", async () => {
+  it("끝남: 요약 한 줄, 곁칸(정책 N → 상자로 옮겨 가기), 그리고 조문별 검사 기록", async () => {
     const { page } = await open(analysisHref("example-org", "kids-signup", "wtk33e9zuf"), 1280);
-    expect(await page.locator(".tile").count()).toBe(6);
-    // 넓은 화면에서 정책별 요약은 오른쪽 칸이다.
-    const side = await page.locator(".dash-side").boundingBox();
-    const main = await page.locator(".dash-main").boundingBox();
+    // (D5) 수 여섯 칸(.tile)을 요약 한 줄로 줄였다(docs/redesign.md 2.3 낱말 표). 숫자인 사실만 둔다.
+    expect(await page.locator(".tile").count()).toBe(0);
+    expect((await page.locator(".sumline").innerText()).replace(/\s+/g, " ")).toBe("사람이 볼 곳 1건 검사한 파일 1개");
+    // 넓은 화면에서 곁칸(정책 N)은 오른쪽 칸이다.
+    const side = await page.locator(".report-side").boundingBox();
+    const main = await page.locator(".report-main").boundingBox();
     expect(side!.x).toBeGreaterThan(main!.x + main!.width - 1);
-    await page.locator(".ov-title").first().click();
+    await page.locator(".side-found a").first().click();
     expect(new URL(page.url()).hash).toBe("#policy-kr-pipa-22-2");
-    await page.getByRole("group", { name: "결과와 검사 기록 고르기" }).getByRole("button", { name: SITE.record.title }).click();
+    await page.getByRole("button", { name: `${SITE.record.title} 인쇄용`, exact: true }).click();
     await page.waitForSelector(".record");
     expect(await page.locator(".record").textContent()).toContain("example-org/kids-signup · 분석 wtk33e9zuf");
-    expect(await page.locator(".dash").isVisible()).toBe(false);
+    expect(await page.locator(".report").isVisible()).toBe(false);
   });
 
   it("저장소 쪽: 최신 분석이 발견 0건이면 상자 안에, 기록 표에 0건이 있으면 표 아래에 0의 뜻을 보인다", async () => {
@@ -305,7 +314,54 @@ describe("분석 쪽의 세 상태", () => {
 
   it("발견이 0인 분석: 0의 뜻을 함께 보인다", async () => {
     const { page } = await open(analysisHref("example-labs", "plain-utils", "w7bc479x2u"));
-    expect(await page.locator(".dash").textContent()).toContain(SITE.zeroIsNotClearance);
+    // (D5) 요약 바로 아래에 굵게(docs/redesign.md 3장 "발견 0").
+    expect(await page.locator(".report > .cols .zero-line").textContent()).toBe(SITE.zeroIsNotClearance);
+  });
+});
+
+describe("분석 쪽의 완료 조건 (재디자인 D5, docs/redesign.md 6장)", () => {
+  // 표준 예시: 광고 푸시의 끝난 분석(발견 둘, 같은 파일·같은 줄의 서로 다른 규칙. 목업 analysis 와 같은 결과).
+  const STANDARD = analysisHref("example-org", "night-push", "64y4jdtazh");
+  /** 발견 줄의 첫 줄(메시지)마다: 창 안에 온전히 들어와 있는지(처음 화면, 스크롤 전). */
+  const sentences = (page: Page) =>
+    page.locator("li.finding .msg").evaluateAll((all) =>
+      all.map((el) => {
+        const box = el.getBoundingClientRect();
+        return { text: el.textContent, inView: box.height > 0 && box.top >= 0 && box.bottom <= window.innerHeight };
+      }),
+    );
+
+  it("1280×900: 첫 화면에 발견 두 줄의 문장이 보인다", async () => {
+    const { page } = await openPage(browser, site, STANDARD, { viewport: { width: 1280, height: 900 }, contexts, problems });
+    const shown = await sentences(page);
+    expect(shown).toHaveLength(2);
+    expect(shown.map((entry) => entry.inView)).toEqual([true, true]);
+    expect(new Set(shown.map((entry) => entry.text)).size).toBe(2);
+  });
+
+  it("390×844: 첫 발견 문장이 첫 화면 안에 있고, 쪽 길이는 2,000px 이하다", async () => {
+    const { page } = await openPage(browser, site, STANDARD, { viewport: { width: 390, height: 844 }, contexts, problems });
+    const [first] = await sentences(page);
+    expect(first.inView).toBe(true);
+    const height = await page.evaluate(() => document.documentElement.scrollHeight);
+    expect(height).toBeLessThanOrEqual(2000);
+    expect(await overflow(page)).toMatchObject({ page: 0, over: [] });
+  });
+
+  it("발견 0인 분석: 요약 바로 아래에 0의 뜻(굵게), 그다음 검사에 들지 않는 파일과 정보를 펼친 채로 둔다", async () => {
+    const { page } = await open(analysisHref("example-labs", "plain-utils", "w7bc479x2u"), 1280);
+    const order = await page.locator(".report").evaluate((report) =>
+      [".sumline", ".zero-line", ".empty-report", ".not-seen-box", ".side-pol", ".info"].map((selector) => {
+        const el = report.querySelector(selector);
+        return el ? Math.round(el.getBoundingClientRect().top) : null;
+      }),
+    );
+    // 곁칸(.side-pol)은 넓은 화면에서 오른쪽 칸이라 위쪽 끝이 본문의 맨 위와 같다. 나머지는 위에서부터 차례다.
+    const [sum, zero, empty, scope, , info] = order as number[];
+    expect([sum, zero, empty, scope, info].every((top) => top !== null)).toBe(true);
+    expect([sum, zero, empty, scope, info]).toEqual([...[sum, zero, empty, scope, info]].sort((a, b) => a - b));
+    expect(await page.locator(".zero-line").evaluate((el) => getComputedStyle(el).fontWeight)).toBe("600");
+    expect(await page.locator(".not-seen-box .not-seen").isVisible()).toBe(true);
   });
 });
 

@@ -49,6 +49,7 @@ export function DemoSwitcher({ apps, pack }: { apps: DemoApp[]; pack: PackIndex 
 
   return (
     <div className="demo">
+      {/* 조작 한 줄: [아동 가입|광고 푸시|생성형 AI 채팅] …… [고치기 전|고친 뒤]. 단추마다 눌린 상태(aria-pressed)를 가진다. */}
       <div className="demo-pick">
         <div className="segmented" role="group" aria-label="데모 코드 고르기">
           {apps.map((a) => (
