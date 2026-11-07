@@ -790,10 +790,10 @@ describe("다른 쪽에 다녀오거나 새로 고친 뒤", () => {
     // 새로 연 것이 아니다. 화면 낭독기에 다시 알리지 않는다.
     expect(await statusText(page)).toBe("");
 
-    // 머리의 링크로 다녀와도(뒤로 가기가 아니다) 그대로다.
+    // 머리의 링크로 다른 쪽에 갔다가 돌아와도 그대로다. 결과 파일 열기는 메뉴에 없어(2026-11-05) 뒤로 가기로 돌아온다.
     await page.locator(".site-header nav a", { hasText: "조문 도감" }).click();
     await page.waitForURL("**/policy/");
-    await page.locator(".site-header nav a", { hasText: "결과 파일 열기" }).click();
+    await page.goBack();
     await page.waitForURL("**/view/");
     await opened(page, "night-push.fixed.json");
     expect(await cards(page)).toBe(before.cards);

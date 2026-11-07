@@ -570,7 +570,6 @@ describe("판을 바꿔도 밖으로 나가는 요청이 없다", () => {
     await settle(site, page);
     const loading = site.requests.slice(start).map((request) => request.url);
     expect(loading[0]).toBe("/demo/");
-    expect(loading.some((url) => url.startsWith("/view/"))).toBe(true);
     expect(loading.some((url) => url.startsWith("/policy/"))).toBe(true);
     const mark = { server: site.requests.length, browser: seen.length };
 
@@ -784,13 +783,13 @@ describe("키보드만으로", () => {
         return el.closest(".demo-pick") ? `단추 ${el.textContent}` : el.tagName.toLowerCase();
       });
 
-    // Tab 으로 머리(이름, 검색창과 그 단추, 메뉴의 링크 넷)를 지나 앱 단추 셋, 판 단추 둘, 코드 상자 차례로 닿는다.
+    // Tab 으로 머리(이름, 검색창과 그 단추, 메뉴의 링크 둘)를 지나 앱 단추 셋, 판 단추 둘, 코드 상자 차례로 닿는다.
     const order: string[] = [];
-    for (let i = 0; i < 13; i++) {
+    for (let i = 0; i < 11; i++) {
       await page.keyboard.press("Tab");
       order.push(await focused());
     }
-    expect(order).toEqual(["a", "input", "button", "a", "a", "a", "a", "단추 아동 가입", "단추 광고 푸시", "단추 생성형 AI 채팅", "단추 고치기 전", "단추 고친 뒤", "pre"]);
+    expect(order).toEqual(["a", "input", "button", "a", "a", "단추 아동 가입", "단추 광고 푸시", "단추 생성형 AI 채팅", "단추 고치기 전", "단추 고친 뒤", "pre"]);
 
     // 단추에서 Enter 와 Space 로 고른다. 초점은 누른 단추에 남는다.
     await button(page, APPS, "광고 푸시").focus();

@@ -279,37 +279,6 @@ main.wrap > h1 + .lede {
   gap: var(--space-1);
 }
 
-/* 첫 화면 */
-.entries {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
-  gap: var(--space-3);
-}
-
-/* 카드의 높이가 같아져도 제목과 설명은 위에서부터 붙여 적는다(설명이 짧은 카드에서 둘 사이가 벌어지지 않게). */
-.entry {
-  display: grid;
-  align-content: start;
-  gap: var(--space-1);
-  padding: var(--space-4);
-  background: var(--surface);
-  border: 1px solid var(--rule);
-  border-radius: var(--radius);
-  color: var(--ink);
-  text-decoration: none;
-}
-
-.entry h2 {
-  color: var(--accent);
-  font-size: var(--text-lg);
-}
-
-.entry p {
-  font-size: var(--text-md);
-  line-height: var(--leading-snug);
-  color: var(--muted);
-}
-
 .policy-index {
   list-style: none;
   margin: 0;
@@ -2345,64 +2314,6 @@ body:has(.search-page) .site-header .search {
 }
 
 /* 첫 화면 */
-.hero {
-  display: grid;
-  gap: var(--space-3);
-  padding-bottom: var(--space-2);
-}
-
-.eyebrow {
-  font-size: var(--text-xs);
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  color: var(--accent);
-}
-
-.hero .lede {
-  max-width: var(--measure);
-}
-
-.how {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
-  gap: var(--space-3);
-}
-
-.how li {
-  display: grid;
-  align-content: start;
-  gap: var(--space-1);
-  padding: var(--space-4);
-  background: var(--surface);
-  border: 1px solid var(--rule);
-  border-radius: var(--radius);
-}
-
-.how-n {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  font-weight: 600;
-  color: var(--accent);
-}
-
-.how p,
-.not-list li {
-  font-size: var(--text-md);
-  line-height: var(--leading-snug);
-  color: var(--muted);
-}
-
-.not-list {
-  margin: 0;
-  padding-left: 18px;
-  display: grid;
-  gap: var(--space-1);
-  max-width: var(--measure);
-}
-
 .recent {
   list-style: none;
   margin: 0;

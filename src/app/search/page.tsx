@@ -23,9 +23,6 @@ export default async function SearchPage({ searchParams }: PageProps<"/search">)
   return (
     <>
       <h1>저장소 검색</h1>
-      <p className="lede">
-        저장소를 찾아 들어가면 그 저장소의 분석을 봅니다. {store.synthetic && "지금은 합성 예시 저장소만 찾습니다."}
-      </p>
       <SearchResults query={query} outcome={outcome} synthetic={store.synthetic} />
     </>
   );

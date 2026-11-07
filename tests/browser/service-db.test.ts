@@ -5,6 +5,7 @@ import type { Browser, BrowserContext } from "playwright-core";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { analysisHref, repoHref } from "@/lib/service/href";
 import { STEP_ORDER } from "@/lib/service/steps";
+import { SITE } from "@/lib/site";
 import { openDatabase } from "@/server/db";
 import { startGitHubStub } from "../../scripts/github-stub.mjs";
 import { main as runLocalRunner } from "../../scripts/local-runner.mjs";
@@ -29,6 +30,8 @@ const SUCCEEDED = "dbk7wq2zhm";
 /** 시험용 고정 서명 열쇠(비밀값이 아니다). 서버와 로컬 실행기에 같이 준다. */
 const RUNNER_SECRET = "browser-test-runner-secret";
 const FAILED = "dbk7wq2zhn";
+/** 발견 0건으로 끝난 분석. 첫 화면의 최근 분석에 0건 줄이 있으면 0의 뜻이 함께 보이는지 본다. */
+const ZERO = "dbk7wq2zhr";
 /**
  * 띄울 때 대기 중으로 넣어 두는 분석(진행 다시 읽기와 탭이 숨었을 때 쉬는 것을 본다). 실행기에 보낸 것으로 넣어 실행 자리
  * 하나(POOL_SIZE=1)를 차지한다. 아무 실행기도 집어 가지 않는다(로컬 실행기는 마지막 시험에서만 돈다. 그때는 실패로 끝나 있다).
@@ -52,6 +55,13 @@ beforeAll(async () => {
     [SUCCEEDED, commit, at(0), at(5), JSON.stringify(steps), result.tool.version, result.run.pack_digest, result.findings.length],
   );
   await db.query("INSERT INTO results (analysis_id, json) VALUES ($1, $2)", [SUCCEEDED, JSON.stringify(result)]);
+  const empty = readJson("contract", "cli-current", "plain.main.json") as typeof result;
+  await db.query(
+    `INSERT INTO analyses (id, owner, repo, repo_key, commit_sha, branch, status, requested_at, finished_at, steps, tool_version, pack_digest, finding_count)
+     VALUES ($1, 'example-labs', 'plain.utils', 'example-labs/plain.utils', $2, 'main', 'succeeded', $3, $4, $5::jsonb, $6, $7, $8)`,
+    [ZERO, "e".repeat(40), at(-10), at(-5), JSON.stringify(STEP_ORDER.map((name, i) => ({ name, startedAt: at(i - 10), endedAt: at(i - 9) }))), empty.tool.version, empty.run.pack_digest, empty.findings.length],
+  );
+  await db.query("INSERT INTO results (analysis_id, json) VALUES ($1, $2)", [ZERO, JSON.stringify(empty)]);
   await db.query(
     `INSERT INTO analyses (id, owner, repo, repo_key, commit_sha, branch, status, requested_at, finished_at, steps, failure_step, failure_reason)
      VALUES ($1, 'example-org', 'kids-signup', 'example-org/kids-signup', $2, 'main', 'failed', $3, $3, $4::jsonb, 'fetch', $5)`,
@@ -97,11 +107,12 @@ afterAll(async () => {
 const open = (pathname: string) => openPage(browser, site, pathname, { viewport: { width: 375, height: 800 }, colorScheme: "light", contexts, problems });
 
 describe("DB + GitHub 으로 띄운 사이트", () => {
-  it("첫 화면의 최근 분석은 DB 에서 온다. 합성 예시라고 적지 않는다", async () => {
+  it("첫 화면의 최근 분석은 DB 에서 온다. 합성 예시라고 적지 않고, 0건 줄이 있으면 0의 뜻을 함께 보인다", async () => {
     const { page, outside } = await open("/");
-    expect(await page.locator(".recent-card").count()).toBe(1);
-    expect(await page.locator(".recent-card").textContent()).toContain(SUCCEEDED);
-    expect(await page.locator("main").textContent()).not.toContain("합성 예시입니다");
+    expect(await page.locator(".recent-card").allTextContents()).toEqual([expect.stringContaining(SUCCEEDED), expect.stringContaining(ZERO)]);
+    expect(await page.locator(".recent-card").nth(1).textContent()).toContain("발견 0건");
+    expect(await page.locator("main").textContent()).not.toContain("합성 예시");
+    expect(await page.getByText(SITE.zeroIsNotClearance, { exact: true }).isVisible()).toBe(true);
     expect(outside).toEqual([]);
   });
 

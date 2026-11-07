@@ -59,6 +59,26 @@ const PAGES = [
 
 const rowNames = (page: Page) => page.locator(".repo-row .repo-link").allTextContents();
 
+describe("첫 화면", () => {
+  it("설명 구획 없이 검색창, 최근 분석(합성 예시 이름표), 검사하는 정책. 메뉴에 결과 파일 열기는 없고 주소는 남는다", async () => {
+    const { page, outside } = await open("/");
+    const main = (await page.locator("main").innerText()).replace(/\s+/g, " ");
+    for (const gone of ["어떻게 쓰나요", "이 도구가 아닌 것", "다른 길", SITE.service.synthetic, SITE.tagline]) expect(main).not.toContain(gone);
+    // 쪽 제목은 화면 낭독기에만 있다.
+    expect(await page.locator("main h1").textContent()).toBe("저장소 검색");
+    expect(await page.locator("main h1").getAttribute("class")).toBe("visually-hidden");
+    expect(await page.locator("#recent-title .tag").textContent()).toBe("합성 예시");
+    expect(await page.locator(".recent-card").count()).toBe(3);
+    expect(await page.locator("#policies-title").textContent()).toBe("검사하는 정책");
+    expect(await page.locator(".site-header nav a").allTextContents()).toEqual(["조문 도감", "데모"]);
+    expect(await page.locator("a[href='/view/']").count()).toBe(0);
+    const view = await fetch(`${site.origin}/view/`);
+    await view.arrayBuffer();
+    expect(view.status).toBe(200);
+    expect(outside).toEqual([]);
+  });
+});
+
 describe("검색", () => {
   it("서버가 주소의 질의로 찾아 그리고, 검색창에서 엔터를 누르면 그 질의의 주소로 간다", async () => {
     const { page } = await open("/search/?q=kids");

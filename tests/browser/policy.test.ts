@@ -509,7 +509,7 @@ describe("쪽이 스스로 내는 요청이 없다", () => {
     await settle(site, page);
     const loading = site.requests.slice(start).map((request) => request.url);
     expect(loading[0]).toBe(INDEX);
-    expect(loading.some((url) => url.startsWith("/view/"))).toBe(true);
+    expect(loading.some((url) => url.startsWith("/demo/"))).toBe(true);
     expect(loading.some((url) => url.startsWith(policyHref(policies[0].id)))).toBe(true);
 
     let hovered = 0;
@@ -748,9 +748,9 @@ describe("키보드만으로", () => {
         if (el.tagName === "SUMMARY") return `접어 둔 것: ${name}`;
         return el.closest(".legal-facts") ? "법제처 링크" : el.tagName.toLowerCase();
       });
-    // 머리(이름, 검색창과 그 단추, 메뉴의 링크 넷)를 지나, 조문마다 법제처 링크 → 조문 원문, 그다음 규칙 읽는 법 차례다.
+    // 머리(이름, 검색창과 그 단추, 메뉴의 링크 둘)를 지나, 조문마다 법제처 링크 → 조문 원문, 그다음 규칙 읽는 법 차례다.
     const order: string[] = [];
-    for (let i = 0; i < 7 + policy.legal.length * 2 + 1; i++) {
+    for (let i = 0; i < 5 + policy.legal.length * 2 + 1; i++) {
       await page.keyboard.press("Tab");
       order.push(await focused());
     }
@@ -758,8 +758,6 @@ describe("키보드만으로", () => {
       "a",
       "input",
       "button",
-      "a",
-      "a",
       "a",
       "a",
       ...policy.legal.flatMap(() => ["법제처 링크", "접어 둔 것: 조문 원문"]),
