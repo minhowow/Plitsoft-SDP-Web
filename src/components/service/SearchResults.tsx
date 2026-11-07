@@ -26,7 +26,7 @@ function EchoedQuery({ query }: { query: string }) {
 export function SearchResults({ query, outcome, synthetic }: { query: string; outcome: SearchOutcome | null; synthetic: boolean }) {
   return (
     <div className="search-page">
-      <SearchForm id="search-page-q" label="저장소 검색(이 쪽)" big defaultValue={query} />
+      <SearchForm id="search-page-q" label="저장소 검색(이 쪽)" defaultValue={query} />
       {outcome === null ? (
         <p className="search-count">
           {synthetic

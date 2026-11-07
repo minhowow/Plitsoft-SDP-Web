@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Icon } from "@/components/Icon";
 import { RepoName } from "@/components/service/parts";
 import { findingCount } from "@/components/service/analysis";
 import { SearchForm } from "@/components/service/SearchForm";
@@ -31,7 +32,7 @@ export default async function Home() {
   return (
     <>
       <h1 className="visually-hidden">저장소 검색</h1>
-      <SearchForm id="home-q" label="저장소 검색(첫 화면)" big />
+      <SearchForm id="home-q" label="저장소 검색(첫 화면)" />
 
       <section aria-labelledby="recent-title">
         <h2 id="recent-title">
@@ -53,6 +54,7 @@ export default async function Home() {
                   <time dateTime={analysis.requestedAt}>{formatKst(analysis.requestedAt)}</time> ·{" "}
                   {findingCount(counts.get(analysis.id))}
                 </span>
+                <Icon name="chevron-right" />
               </Link>
             </li>
           ))}

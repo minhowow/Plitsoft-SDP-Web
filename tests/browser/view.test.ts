@@ -791,7 +791,7 @@ describe("다른 쪽에 다녀오거나 새로 고친 뒤", () => {
     expect(await statusText(page)).toBe("");
 
     // 머리의 링크로 다른 쪽에 갔다가 돌아와도 그대로다. 결과 파일 열기는 메뉴에 없어(2026-11-05) 뒤로 가기로 돌아온다.
-    await page.locator(".site-header nav a", { hasText: "조문 도감" }).click();
+    await page.locator(".site-header .hdr-nav a", { hasText: "조문 도감" }).click();
     await page.waitForURL("**/policy/");
     await page.goBack();
     await page.waitForURL("**/view/");
@@ -805,7 +805,7 @@ describe("다른 쪽에 다녀오거나 새로 고친 뒤", () => {
     const sample = SAMPLES.find((s) => s.id === "genai-chat.main")!;
     await page.locator("#sample-select").selectOption(sample.id);
     await opened(page, `${sample.label} (${sample.origin})`);
-    await page.locator(".site-header nav a", { hasText: "데모" }).click();
+    await page.locator(".site-header .hdr-nav a", { hasText: "데모" }).click();
     await page.waitForURL("**/demo/");
     await page.goBack();
     await page.waitForURL("**/view/");
@@ -938,7 +938,8 @@ describe("좁은 화면에서 가로로 넘치지 않는다", () => {
 
   it("375px: 수집본, SARIF, v1 초안 예시, 시험용 자료", async () => {
     const { page } = await openView({ width: 375, height: 667 });
-    expect(await overflow(page)).toMatchObject({ ...NONE, limit: 355 });
+    // 재디자인 D2: 좁은 화면의 좌우 여백이 16px 이다(docs/redesign.md 2.1).
+    expect(await overflow(page)).toMatchObject({ ...NONE, limit: 359 });
     for (const parts of every) {
       const name = parts.join("/");
       await pick(page, parts);
@@ -968,40 +969,43 @@ describe("좁은 화면에서 가로로 넘치지 않는다", () => {
     });
 
   it("320px: 예시 고르기 상자가 본문 칸을 넓히지 않는다", async () => {
-    // 고르기 상자는 줄을 바꾸지 못한다. 상자가 칸(280px)보다 넓으면 칸이 그 너비만큼 넓어져 본문의 오른쪽 여백이
+    // 재디자인 D2 에서 좁은 화면의 좌우 여백이 20px 에서 16px 로 바뀌어(docs/redesign.md 2.1) 칸이 280px 에서 288px 이 됐다.
+    // 고르기 상자는 줄을 바꾸지 못한다. 상자가 칸(288px)보다 넓으면 칸이 그 너비만큼 넓어져 본문의 오른쪽 여백이
     // 사라지고 쪽이 가로로 넘친다(ROADMAP 3번에서 넘어온 것). 뷰어의 칸을 minmax(0, 1fr) 로 정해 막았다(globals.css).
     const { page } = await openView({ width: 320, height: 640 });
-    expect(await overflow(page)).toEqual({ ...NONE, limit: 300 });
+    expect(await overflow(page)).toEqual({ ...NONE, limit: 304 });
     // 넓은 글꼴을 흉내 낸다. 이 컴퓨터의 글꼴로는 상자의 제 너비(264px. 9번에서 고르기 줄의 글자를 작은 글로 맞춘 뒤의 값이다.
     // 8번까지는 276px)가 칸보다 좁아서, 여기까지만 재면 칸을 붙드는 줄을 지워도 통과한다(예시 이름을 줄인 뒤로 그랬다).
     // 상자의 글자만 키워 제 너비가 칸보다 넓어지게 한다(20px 에서 363px).
     await page.addStyleTag({ content: "#sample-select { font-size: 20px; }" });
     const select = await selectWidths(page);
     // 칸을 밀 만큼 넓어야 이 시험이 무엇인가를 본다. 여기서 실패하면 글자를 더 키운다.
-    expect(select.natural).toBeGreaterThan(280);
-    expect(await overflow(page)).toEqual({ ...NONE, limit: 300 });
+    expect(select.natural).toBeGreaterThan(288);
+    expect(await overflow(page)).toEqual({ ...NONE, limit: 304 });
     // 칸은 그대로이고, 상자가 칸에 맞춰 줄었다.
-    expect(select).toMatchObject({ room: 280, shown: 280 });
+    expect(select).toMatchObject({ room: 288, shown: 288 });
     await pick(page, ["tests", "fixtures", "repeated-rule.json"]);
-    expect(await overflow(page)).toEqual({ ...NONE, limit: 300 });
+    expect(await overflow(page)).toEqual({ ...NONE, limit: 304 });
   });
 
   it("320px: 예시 고르기 상자가 가장 긴 항목도 자르지 않는다", async () => {
-    // 고르기 상자는 가장 긴 항목에 맞춰 넓어진다. 그 너비가 칸(280px)보다 넓으면 칸에 맞춰 줄고(max-width), 고른 항목의
+    // 고르기 상자는 가장 긴 항목에 맞춰 넓어진다. 그 너비가 칸(D2 부터 288px)보다 넓으면 칸에 맞춰 줄고(max-width), 고른 항목의
     // 끝이 잘려 보인다. 이름에 출처를 한 번 더 적던 때 그랬다("… (v1 초안) · v1 초안 예시"). 줄이지 않았을 때의 너비가
     // 칸 안에 드는지를 본다. 이 컴퓨터의 글꼴로 잰 것이다(글꼴이 더 넓으면 달라진다). 9번 뒤에 264px(칸 280px)이다.
     const { page } = await openView({ width: 320, height: 640 });
     const widths = await selectWidths(page);
     expect(widths.options).toBe(SAMPLES.length + 1);
-    expect(widths.room).toBe(280);
+    expect(widths.room).toBe(288);
     expect(widths.natural).toBeLessThanOrEqual(widths.room);
     expect(widths.shown).toBe(widths.natural);
   });
 
-  it("낮은 화면(320×568)에서 파일을 열면 제목이 화면에 들어온다. 읽지 못한 파일의 안내도 보인다", async () => {
+  it("낮은 화면(320×440)에서 파일을 열면 제목이 화면에 들어온다. 읽지 못한 파일의 안내도 보인다", async () => {
     // 이 크기에서는 파일 입력과 예시 고르기 아래의 제목이 화면 아래에 있다. 스크롤 자리가 그대로면, 파일을 고른 뒤에도
-    // 무엇이 열렸는지와 읽지 못했다는 안내가 보이지 않는다.
-    const { page } = await openView({ width: 320, height: 568 });
+    // 무엇이 열렸는지와 읽지 못했다는 안내가 보이지 않는다. 재디자인 D2 에서 글자(본문 14px)와 머리글이 작아져 320×568 에서는
+    // 제목이 처음부터 화면 안(위에서 458px)에 들어왔다. 제목이 화면 아래에 있는 낮은 화면(440px)으로 본다.
+    const height = 440;
+    const { page } = await openView({ width: 320, height });
     expect(await inView(page, ".viewer-title")).toBe(false);
     await pick(page, ["contract", "cli-current", "kids-signup.main.json"]);
     expect(await inView(page, ".viewer-title")).toBe(true);
@@ -1012,7 +1016,7 @@ describe("좁은 화면에서 가로로 넘치지 않는다", () => {
     expect(await inView(page, ".viewer-title")).toBe(true);
     const alert = (await page.locator('.viewer [role="alert"]').boundingBox())!;
     expect(alert.y).toBeGreaterThanOrEqual(0);
-    expect(alert.y).toBeLessThan(568 - 100);
+    expect(alert.y).toBeLessThan(height - 100);
 
     // 예시를 고를 때는 움직이지 않는다(고르기 상자에 초점을 둔 채 넘겨 보는 동안 화면이 움직이면 안 된다).
     await page.evaluate(() => window.scrollTo(0, 0));

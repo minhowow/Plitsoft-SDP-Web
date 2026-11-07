@@ -845,8 +845,9 @@ describe("좁은 화면과 두 테마", () => {
   });
 
   it.each([
-    [375, 667, 355],
-    [320, 568, 300],
+    // 재디자인 D2: 좁은 화면(600px 아래)의 좌우 여백이 20px 에서 16px 로 바뀌어(docs/redesign.md 2.1) 본문 칸의 오른쪽 끝이 4px 넓어졌다.
+    [375, 667, 359],
+    [320, 568, 304],
   ])("%dpx: 수집본, SARIF, v1 초안 예시, 시험용 자료의 기록이 가로로 넘치지 않는다", async (width, height, limit) => {
     const { context, page } = await open("/view/", { viewport: { width, height } });
     for (const parts of everyFile) {

@@ -84,10 +84,13 @@ async function shown(page: Page, title: string): Promise<void> {
   await page.waitForFunction((want) => document.querySelector("article.policy-page h1")?.textContent === want, title);
 }
 
-/** 접어 둔 것을 모두 펼친다. */
+/**
+ * 본문의 접어 둔 것을 모두 펼친다. 머리글의 펼치는 메뉴(재디자인 D2 의 좁은 화면 메뉴)는 펼치지 않는다. 펼치면 본문 위에 떠서
+ * 그 아래의 글을 덮는다(그것은 메뉴의 일이다).
+ */
 const openAll = (page: Page) =>
   page.evaluate(() => {
-    for (const details of document.querySelectorAll("details")) details.open = true;
+    for (const details of document.querySelectorAll("main details")) (details as HTMLDetailsElement).open = true;
   });
 
 /** 쪽의 조문 원문 상자를 브라우저가 읽은 것. */
@@ -265,8 +268,9 @@ describe("좁은 화면", () => {
   const FITS: { page: number; over: string[] } = { page: 0, over: [] };
 
   it.each([
-    [375, 667, 355],
-    [320, 568, 300],
+    // 재디자인 D2: 좁은 화면(600px 아래)의 좌우 여백이 20px 에서 16px 로 바뀌어(docs/redesign.md 2.1) 본문 칸의 오른쪽 끝이 4px 넓어졌다.
+    [375, 667, 359],
+    [320, 568, 304],
   ])("%dpx: 목록과 정책 쪽이 가로로 넘치지 않는다 (접힌 채와 모두 펼친 채). 접어 둔 곳 밖의 글은 모두 그려진다", async (width, height, limit) => {
     const { page } = await open(INDEX, { viewport: { width, height } });
     expect(await overflow(page), "목록").toEqual({ ...FITS, limit });
@@ -277,7 +281,7 @@ describe("좁은 화면", () => {
       const closed = await undrawn(page, VEILED.narrow);
       expect(closed.undrawn, `${policy.id} (접힌 채)`).toEqual([]);
       await openAll(page);
-      expect(await page.locator("details:not([open])").count(), policy.id).toBe(0);
+      expect(await page.locator("main details:not([open])").count(), policy.id).toBe(0);
       expect(await overflow(page), `${policy.id} (펼친 채)`).toEqual({ ...FITS, limit });
       const opened = await undrawn(page, VEILED.narrow);
       expect(opened.undrawn, `${policy.id} (펼친 채)`).toEqual([]);
@@ -390,8 +394,9 @@ describe("좁은 화면", () => {
   });
 
   it.each([
-    [375, 355],
-    [320, 300],
+    // 재디자인 D2: 좁은 화면(600px 아래)의 좌우 여백이 20px 에서 16px 로 바뀌어(docs/redesign.md 2.1) 본문 칸의 오른쪽 끝이 4px 넓어졌다.
+    [375, 359],
+    [320, 304],
   ])("%dpx: 대안의 id 가 길어도 글이 표 밖으로 나가지 않는다 (화면에서만 긴 id 로 바꿔 본다)", async (width, limit) => {
     // 팩에 실린 id 는 짧다(가장 긴 것이 스무 자 안팎이다). 긴 id 가 실렸을 때를 쪽의 DOM 만 고쳐서 본다.
     // 빼기표가 있어 끊을 자리가 있는 것과, 끊을 자리가 없는 것.
@@ -420,8 +425,9 @@ describe("좁은 화면", () => {
   });
 
   it.each([
-    [375, 355],
-    [320, 300],
+    // 재디자인 D2: 좁은 화면(600px 아래)의 좌우 여백이 20px 에서 16px 로 바뀌어(docs/redesign.md 2.1) 본문 칸의 오른쪽 끝이 4px 넓어졌다.
+    [375, 359],
+    [320, 304],
   ])("%dpx: 규칙 id 와 적용 조건 id 가 길어도 넘치지 않고 글이 규칙 상자 안에 그려진다 (화면에서만 긴 id 로 바꿔 본다)", async (width, limit) => {
     // 6번에서 넘어온 확인이다(대안의 id 는 위에서 본다). 팩에 실린 id 는 짧다. 긴 id 가 실렸을 때를 쪽의 DOM 만 고쳐서 본다.
     // 빼기표가 있어 끊을 자리가 있는 것과, 끊을 자리가 없는 것.
@@ -520,12 +526,12 @@ describe("쪽이 스스로 내는 요청이 없다", () => {
       const mark = { server: site.requests.length, browser: seen.length };
 
       // 접어 둔 것을 하나씩 눌러 펼친다(조문 원문, 규칙 읽는 법, 판정자에게 묻는 글).
-      // 누를 때마다 닫힌 것이 하나씩 줄어든다. 늘 맨 앞의 것을 누른다.
-      const closed = page.locator("details:not([open]) > summary");
+      // 누를 때마다 닫힌 것이 하나씩 줄어든다. 늘 맨 앞의 것을 누른다. 머리글의 메뉴(넓은 화면에서는 감춘다)는 본문이 아니라 뺀다.
+      const closed = page.locator("main details:not([open]) > summary");
       const folds = await closed.count();
       expect(folds, policy.id).toBeGreaterThan(0);
       for (let left = folds; left > 0; left--) await closed.first().click();
-      expect(await page.locator("details:not([open])").count(), policy.id).toBe(0);
+      expect(await page.locator("main details:not([open])").count(), policy.id).toBe(0);
       // 맨 아래까지 한 화면씩 내린다.
       await scrollThrough(page, 30);
       // 법제처 링크에 마우스를 올린다. 누르지는 않는다.
@@ -748,18 +754,17 @@ describe("키보드만으로", () => {
         if (el.tagName === "SUMMARY") return `접어 둔 것: ${name}`;
         return el.closest(".legal-facts") ? "법제처 링크" : el.tagName.toLowerCase();
       });
-    // 머리(이름, 검색창과 그 단추, 메뉴의 링크 둘)를 지나, 조문마다 법제처 링크 → 조문 원문, 그다음 규칙 읽는 법 차례다.
+    // 머리(이름, 검색 단추, 펼치는 메뉴)를 지나, 조문마다 법제처 링크 → 조문 원문, 그다음 규칙 읽는 법 차례다.
+    // 재디자인 D2: 375px 의 머리글은 검색창과 메뉴의 링크 대신 검색 단추(/search/ 링크)와 펼치는 메뉴(details)다.
     const order: string[] = [];
-    for (let i = 0; i < 5 + policy.legal.length * 2 + 1; i++) {
+    for (let i = 0; i < 3 + policy.legal.length * 2 + 1; i++) {
       await page.keyboard.press("Tab");
       order.push(await focused());
     }
     expect(order).toEqual([
       "a",
-      "input",
-      "button",
       "a",
-      "a",
+      "접어 둔 것: 메뉴",
       ...policy.legal.flatMap(() => ["법제처 링크", "접어 둔 것: 조문 원문"]),
       "접어 둔 것: 규칙 읽는 법",
     ]);

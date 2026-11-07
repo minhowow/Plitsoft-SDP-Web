@@ -70,7 +70,9 @@ describe("첫 화면", () => {
     expect(await page.locator("#recent-title .tag").textContent()).toBe("합성 예시");
     expect(await page.locator(".recent-card").count()).toBe(3);
     expect(await page.locator("#policies-title").textContent()).toBe("검사하는 정책");
-    expect(await page.locator(".site-header nav a").allTextContents()).toEqual(["조문 도감", "데모"]);
+    // 재디자인 D2: 넓은 화면의 메뉴(.hdr-nav)와 좁은 화면의 펼치는 메뉴(.menu-pop)가 같은 링크를 갖는다.
+    expect(await page.locator(".site-header .hdr-nav a").allTextContents()).toEqual(["조문 도감", "데모"]);
+    expect(await page.locator(".site-header .menu-pop a").allTextContents()).toEqual(["조문 도감", "데모"]);
     expect(await page.locator("a[href='/view/']").count()).toBe(0);
     const view = await fetch(`${site.origin}/view/`);
     await view.arrayBuffer();
@@ -96,8 +98,9 @@ describe("검색", () => {
     await page.waitForURL(/\/search\/\?q=no-such-repository$/);
     expect(await page.locator(".repo-row").count()).toBe(0);
     expect(await page.locator(".search-page .notice").textContent()).toContain("맞는 저장소가 없습니다");
-    // 검색 쪽에서는 머리글의 검색창을 감춰 검색창이 하나만 보인다.
-    expect(await page.locator("#site-q").isVisible()).toBe(false);
+    // 검색 쪽에서는 머리글의 검색 단추를 감춰 검색 자리가 하나만 보인다. 이 너비(375)에서는 머리글의 검색창이 늘 감춰져
+    // 있어서 좁은 화면의 검색 단추를 본다. 넓은 화면의 검색창을 감추는 것은 tests/browser/header.test.ts 의 1280px 이 본다.
+    expect(await page.locator(".site-header .hdr-m-search").isVisible()).toBe(false);
 
     // 빈 질의는 아무것도 늘어놓지 않고 무엇을 넣을지 알린다(GitHub 을 부르지 않는다).
     await page.goto(`${site.origin}/search/`);
@@ -106,7 +109,8 @@ describe("검색", () => {
   });
 
   it("머리글의 검색창은 어느 쪽에서든 검색 쪽으로 간다", async () => {
-    const { page } = await open(analysisHref("example-org", "kids-signup", "wtk33e9zuf"));
+    // 재디자인 D2: 머리글의 검색창은 768px 이상에서 보인다. 좁은 화면에서는 검색 단추(/search/ 로 가는 링크)다.
+    const { page } = await open(analysisHref("example-org", "kids-signup", "wtk33e9zuf"), 1280);
     await page.locator("#site-q").fill("genai");
     await page.locator("#site-q").press("Enter");
     await page.waitForURL(/\/search\/\?q=genai$/);

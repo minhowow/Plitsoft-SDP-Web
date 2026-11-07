@@ -77,7 +77,7 @@ export function EmptyReport({ view }: { view: ReportView }) {
             </div>
           ))}
         </dl>
-        <p className="hint">{UNIT_GLOSS}</p>
+        <p className="hint">{keepParticles(UNIT_GLOSS)}</p>
       </section>
       <section>
         <h3>{SITE.notSeen.title}</h3>

@@ -599,8 +599,9 @@ describe("좁은 화면", () => {
   const FITS: { page: number; over: string[] } = { page: 0, over: [] };
 
   it.each([
-    [375, 667, 355],
-    [320, 568, 300],
+    // 재디자인 D2: 좁은 화면(600px 아래)의 좌우 여백이 20px 에서 16px 로 바뀌어(docs/redesign.md 2.1) 본문 칸의 오른쪽 끝이 4px 넓어졌다.
+    [375, 667, 359],
+    [320, 568, 304],
   ])("%dpx: 세 앱 × 두 판이 가로로 넘치지 않는다 (접힌 채와 모두 펼친 채)", async (width, height, limit) => {
     const { context, page } = await openDemo({ width, height });
     expect(await overflow(page)).toEqual({ ...FITS, limit });
@@ -783,13 +784,14 @@ describe("키보드만으로", () => {
         return el.closest(".demo-pick") ? `단추 ${el.textContent}` : el.tagName.toLowerCase();
       });
 
-    // Tab 으로 머리(이름, 검색창과 그 단추, 메뉴의 링크 둘)를 지나 앱 단추 셋, 판 단추 둘, 코드 상자 차례로 닿는다.
+    // Tab 으로 머리(이름, 검색 단추, 펼치는 메뉴)를 지나 앱 단추 셋, 판 단추 둘, 코드 상자 차례로 닿는다.
+    // 재디자인 D2: 375px 의 머리글은 검색창과 메뉴의 링크 대신 검색 단추(/search/ 링크)와 펼치는 메뉴(details)다.
     const order: string[] = [];
-    for (let i = 0; i < 11; i++) {
+    for (let i = 0; i < 9; i++) {
       await page.keyboard.press("Tab");
       order.push(await focused());
     }
-    expect(order).toEqual(["a", "input", "button", "a", "a", "단추 아동 가입", "단추 광고 푸시", "단추 생성형 AI 채팅", "단추 고치기 전", "단추 고친 뒤", "pre"]);
+    expect(order).toEqual(["a", "a", "summary", "단추 아동 가입", "단추 광고 푸시", "단추 생성형 AI 채팅", "단추 고치기 전", "단추 고친 뒤", "pre"]);
 
     // 단추에서 Enter 와 Space 로 고른다. 초점은 누른 단추에 남는다.
     await button(page, APPS, "광고 푸시").focus();
@@ -867,9 +869,10 @@ describe("다른 쪽에 다녀오거나 새로 고친 뒤", () => {
     await expect.poll(() => scrollY(page), { timeout: 5_000 }).toBe(before.y);
 
     // 머리의 링크로 다녀와도(뒤로 가기가 아니다) 그대로다.
-    await page.locator(".site-header nav a", { hasText: "조문 도감" }).click();
+    // 재디자인 D2: 머리글에는 넓은 화면의 메뉴(.hdr-nav)와 좁은 화면의 펼치는 메뉴(.menu-pop)가 함께 있다. 넓은 화면의 것을 누른다.
+    await page.locator(".site-header .hdr-nav a", { hasText: "조문 도감" }).click();
     await page.waitForURL("**/policy/");
-    await page.locator(".site-header nav a", { hasText: "데모" }).click();
+    await page.locator(".site-header .hdr-nav a", { hasText: "데모" }).click();
     await page.waitForURL("**/demo/");
     await shown(page, "광고 푸시 · 고친 뒤");
     expect(await pressed(page)).toEqual(["광고 푸시", "고친 뒤"]);

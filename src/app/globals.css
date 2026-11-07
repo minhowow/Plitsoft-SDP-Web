@@ -1,73 +1,111 @@
 /*
- * 색, 글꼴, 글자 크기, 줄 간격, 간격은 모두 여기 토큰에서 가져다 쓴다(9번에서 되풀이되던 값을 몇 단계로 모았다).
+ * 색, 글꼴, 글자 크기, 줄 간격, 간격은 모두 여기 토큰에서 가져다 쓴다. 토큰 이름은 9번에서 정한 그대로다. 값은 재디자인 D2(방향 A,
+ * docs/redesign.md 2.1)에서 GitHub Primer Primitives 11.10.0 의 기능 토큰 값으로 바꿨다(MIT. 무엇을 옮겼는지는
+ * THIRD_PARTY_NOTICES.md, 출처는 docs/design-sources.md). 패키지는 넣지 않았다. 반투명 값은 그 테마의 바탕 위에 칠한 색으로
+ * 옮겼고, 상태 칩의 글자색은 같은 색 단계에서 한 단계 짙은 것이다(옅은 바탕 위에서 4.5:1 을 넘기려고).
+ *
  * 상태 색(검토 필요·보류·충족·없음)은 강조색과 따로 둔다. 글자색은 어느 바탕에 놓이든 두 테마에서 명도 대비 4.5:1 이상이다
  * (tests/browser/colors.test.ts 가 그려진 글자마다 잰다).
  */
 :root {
-  --bg: #f4f5f7;
+  color-scheme: light;
+  /* 쪽과 상자는 같은 흰 바탕이고 상자는 1px 테두리로 가른다. 상자의 머리 띠, 알림, 올린 줄은 한 단계 옅은 회색(--bg-muted)이다. */
+  --bg: #ffffff;
   --surface: #ffffff;
-  --ink: #151c25;
-  --muted: #59626f;
-  --rule: #d9dde3;
+  --bg-muted: #f6f8fa;
+  --ink: #1f2328;
+  --muted: #59636e;
+  /* 상자의 테두리(--rule)와 상자 안 줄 사이의 옅은 선(--rule-muted). */
+  --rule: #d1d9e0;
+  --rule-muted: #dfe4e9;
   /*
-   * 누르거나 고르는 것(고르기 상자, 파일 고르기 단추, 고르는 단추)의 테두리. 나누는 선(--rule)보다 짙다. 그 바깥의 바탕(--bg,
-   * --surface)과 명도 대비 3:1 이상이라, 테두리만으로도 그 자리가 단추인 줄 보인다(tests/browser/colors.test.ts).
+   * 누르거나 고르는 것(고르기 상자, 파일 고르기 단추, 고르는 단추, 입력창)의 테두리. 나누는 선(--rule)보다 짙다. 그 바깥의
+   * 바탕(--bg, --bg-muted)과 명도 대비 3:1 이상이라, 테두리만으로도 그 자리가 단추인 줄 보인다(tests/browser/colors.test.ts).
    */
-  --control-line: #828a96;
-  --accent: #2c3f8f;
-  --accent-soft: #e7eaf6;
-  --code-bg: #eff1f4;
-  --mark: #fff1c2;
-  --st-review: #9f4d08;
-  --st-review-bg: #fcefd9;
-  --st-pending: #5f4fa0;
-  --st-pending-bg: #eceaf7;
-  --st-ok: #1b6f44;
-  --st-ok-bg: #ddf0e5;
-  --st-none: #576070;
-  --st-none-bg: #eceef2;
+  --control-line: #818b98;
+  /* 강조색: 동작 링크, 키보드 초점, 진행 중. 주 단추의 바탕은 --accent-emphasis 이고 그 위의 글자는 --on-accent 다. */
+  --accent: #0969da;
+  --accent-emphasis: #0969da;
+  --on-accent: #ffffff;
+  --accent-soft: #ddf4ff;
+  --mark: #fff8c5;
+  /* 판정 상태의 네 갈래: 글자(--st-*), 칩의 바탕(-bg), 칩 앞의 점(-dot). 어느 상태가 어느 갈래인지는 아래 .chip 에 있다. */
+  --st-review: #953800;
+  --st-review-bg: #fff1e5;
+  --st-review-dot: #bc4c00;
+  --st-pending: #7d4e00;
+  --st-pending-bg: #fff8c5;
+  --st-pending-dot: #9a6700;
+  --st-ok: #116329;
+  --st-ok-bg: #dafbe1;
+  --st-ok-dot: #1a7f37;
+  --st-none: #59636e;
+  --st-none-bg: #eff2f5;
+  --st-none-dot: #818b98;
+  /* 멈춘 분석(배지, 단계의 점)과 경고 상자(노란 바탕, 테두리). */
+  --fail: #d1242f;
+  --warn-bg: #fff8c5;
+  --warn-border: #d4a72c;
+  /* 띄워 그리는 것(좁은 화면의 메뉴)의 그림자. */
+  --pop-shadow: 0 0 0 1px #d1d9e040, 0 6px 12px -3px #25292e0a, 0 6px 18px 0 #25292e1f;
+  /* 인쇄하는 종이. 테마와 상관없이 흰 바탕에 검은 글이다(아래 @media print). */
+  --paper: #ffffff;
+  --paper-ink: #000000;
+  --paper-muted: #333333;
+  --paper-rule: #888888;
 
   /*
-   * 글꼴은 사용자의 컴퓨터에 깔린 것만 쓴다(글꼴 파일을 싣거나 밖에서 받지 않는다). 맥·iOS, 윈도, 리눅스·안드로이드에
-   * 기본으로 깔리는 한글 고딕의 이름만 차례로 적는다. 따로 깔아야 하는 글꼴은 적지 않는다. 깔린 컴퓨터에서만 글자 너비가
-   * 달라져, 이 맥의 글꼴로 잰 것(320px 의 예시 고르기 상자, 검사 기록의 쪽수)이 맞지 않게 된다.
+   * 글꼴은 사용자의 컴퓨터에 깔린 것만 쓴다(글꼴 파일을 싣거나 밖에서 받지 않는다). 라틴 글자와 숫자는 시스템 UI 글꼴이 맡고
+   * (고정폭 숫자 tabular-nums 가 듣는다), 한글은 그 뒤의 한글 고딕이 맡는다. 맥·iOS, 윈도, 리눅스·안드로이드에 기본으로 깔리는
+   * 이름만 적는다. 따로 깔아야 하는 글꼴은 깔린 컴퓨터에서만 글자 너비가 달라져, 이 맥의 글꼴로 잰 것(320px 의 예시 고르기 상자,
+   * 검사 기록의 쪽수)이 맞지 않게 된다. Apple SD Gothic Neo 를 맨 앞에 두던 때(D1 까지)는 숫자에 tabular-nums 가 듣지 않았다.
    *
-   * 조문 원문도 같은 고딕으로 적는다. 8번까지는 원문만 명조로 적었다. 이 맥에서 그 자리에 쓰인 AppleMyungjo 는 글자 사이가
-   * 성기고 획이 고르지 않아, 375px 에서 한 줄에 든 글자가 적고 긴 원문이 읽기 어려웠다(docs/architecture.md 의 "글꼴·간격·색").
+   * 조문 원문은 아직 본문과 같은 고딕이다. 8번까지는 원문만 명조로 적었는데, 이 맥의 AppleMyungjo 는 글자 사이가 성기고 획이
+   * 고르지 않아 375px 에서 긴 원문이 읽기 어려웠다(docs/architecture.md 의 "글꼴·간격·색"). 재디자인은 원문을 다시 명조
+   * (--font-serif, 16px/1.8)로 쓰기로 했고(docs/redesign.md 2.1), 그 적용과 좁은 화면의 확인은 조문 도감 단계(D6)에서 한다.
    */
-  --font-body: "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans CJK KR", system-ui, sans-serif;
-  --font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", "Noto Sans CJK KR", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  --font-serif: "AppleMyungjo", "Batang", "Noto Serif KR", "Noto Serif CJK KR", serif;
 
-  /* 글자 크기. 본문(16px) 아래로 세 단계, 위로 머리말과 제목 셋. */
-  --text-xs: 0.8rem; /* 이름표, 칩, 수, 칸 머리 */
-  --text-sm: 0.875rem; /* 풀이, 덧붙인 말, 판정 경로 */
-  --text-md: 0.9375rem; /* 알림, 질문, 표의 값, 조문 원문 */
-  --text-lg: 1.125rem; /* 머리말 */
-  --text-h3: 1.0625rem;
-  --text-h2: 1.375rem;
-  --text-h1: 1.875rem;
+  /* 글자 크기는 12·14·16·20·24px 다섯 단계, 굵기는 400·600 둘이다. 본문은 14px 이다. */
+  --text-xs: 12px; /* 이름표, 칩, 배지, 수, 칸 머리, 덧붙인 말, 바닥글 */
+  --text-sm: 14px; /* 풀이, 판정 경로. 본문과 같은 크기이고 옅은 색으로 가른다 */
+  --text-md: 14px; /* 본문, 알림, 표의 값 */
+  --text-lg: 16px; /* 질문, 조문 원문, 큰 검색창, 상자 머리의 제목 */
+  --text-h3: 16px; /* 상자의 제목(정책) */
+  --text-h2: 16px; /* 구획 머리 */
+  --text-xl: 20px; /* 좁은 화면의 쪽 제목, 기록의 제목 */
+  --text-h1: 24px; /* 쪽 제목 */
 
-  /* 줄 간격. 문단은 넉넉히, 작은 글과 표는 조금 좁게, 제목은 좁게. */
-  --leading: 1.7;
-  --leading-snug: 1.6;
-  --leading-tight: 1.35;
+  /* 줄 간격. 본문과 작은 글은 1.5, 제목은 좁게, 질문과 원문은 넉넉히. */
+  --leading: 1.5;
+  --leading-snug: 1.5;
+  --leading-tight: 1.25;
+  --leading-loose: 1.7;
 
   /*
    * 풀이 문단의 한 줄 길이(672px). 글자 크기와 상관없는 한 값이라, 한 상자 안의 글(작은 풀이, 질문, 목록)이 같은 오른쪽 끝을
-   * 갖는다. 넓은 화면에서 작은 글(14px)은 빈칸까지 일흔 자 안팎, 머리말(18px)은 예순 자 안팎에서 줄을 바꾼다. 처음(9번)에는
-   * 42em 이라 글자 크기마다 끊는 자리가 달랐고, 한 줄에 조금 넘치는 한 문장짜리 풀이가 마지막 낱말 하나만 다음 줄에 남겼다.
+   * 갖는다. 처음(9번)에는 42em 이라 글자 크기마다 끊는 자리가 달랐고, 한 줄에 조금 넘치는 한 문장짜리 풀이가 마지막 낱말 하나만
+   * 다음 줄에 남겼다.
    */
   --measure: 42rem;
 
-  /* 간격 */
+  /* 간격은 4·8·12·16·24·32·48 만 쓴다. */
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
   --space-4: 16px;
   --space-5: 24px;
-  --space-6: 40px;
-  --radius: 10px;
-  --radius-sm: 8px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --radius: 6px;
+  --radius-sm: 6px;
+  /* 목록 줄의 높이, 단추와 입력창의 높이, 쪽의 최대 폭과 좌우 여백. 좁은 화면에서는 줄·단추·여백이 바뀐다(아래). */
+  --row-h: 40px;
+  --control-h: 32px;
+  --page-max: 1280px;
+  --gutter: 24px;
 }
 
 /*
@@ -76,30 +114,55 @@
  */
 @media screen and (prefers-color-scheme: dark) {
   :root {
-    --bg: #0f1318;
-    --surface: #161c23;
-    --ink: #e5e9ef;
-    --muted: #9ba5b2;
-    --rule: #2f3843;
-    --control-line: #647080;
-    --accent: #a3b3f4;
-    --accent-soft: #222a47;
-    --code-bg: #11171e;
-    --mark: #3a3320;
-    --st-review: #f2ad62;
-    --st-review-bg: #3a2912;
-    --st-pending: #b9adf2;
-    --st-pending-bg: #29243f;
-    --st-ok: #74d6a0;
-    --st-ok-bg: #153222;
-    --st-none: #a4adba;
-    --st-none-bg: #222931;
     color-scheme: dark;
+    --bg: #0d1117;
+    --surface: #0d1117;
+    --bg-muted: #151b23;
+    --ink: #f0f6fc;
+    --muted: #9198a1;
+    --rule: #3d444d;
+    --rule-muted: #2f353d;
+    --control-line: #656c76;
+    --accent: #4493f8;
+    --accent-emphasis: #1f6feb;
+    --accent-soft: #111d2e;
+    --mark: #272215;
+    --st-review: #db6d28;
+    --st-review-bg: #221a19;
+    --st-review-dot: #db6d28;
+    --st-pending: #d29922;
+    --st-pending-bg: #272215;
+    --st-pending-dot: #d29922;
+    --st-ok: #3fb950;
+    --st-ok-bg: #12261e;
+    --st-ok-dot: #3fb950;
+    --st-none: #9198a1;
+    --st-none-bg: #1f232a;
+    --st-none-dot: #9198a1;
+    --fail: #f85149;
+    --warn-bg: #272215;
+    --warn-border: #9e6a03;
+    --pop-shadow: 0 0 0 1px #3d444d, 0 6px 12px -3px #01040966, 0 6px 18px 0 #01040966;
   }
 }
 
-* {
+/* 좁은 화면: 줄과 단추·입력창은 손가락으로 누르기 좋게 44px 로 높이고, 좌우 여백을 줄인다. */
+@media (max-width: 599px) {
+  :root {
+    --row-h: 44px;
+    --control-h: 44px;
+    --gutter: 16px;
+  }
+}
+
+*,
+*::before,
+*::after {
   box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
 }
 
 /*
@@ -113,57 +176,113 @@ html body {
   background: var(--bg);
   color: var(--ink);
   font-family: var(--font-body);
-  font-size: 16px;
+  font-size: var(--text-md);
   line-height: var(--leading);
   word-break: keep-all;
   overflow-wrap: anywhere;
+  /* 글자를 그리는 방식만 바꾼다(글자 너비와 줄 높이는 그대로). 맥에서 기본값은 획이 굵어져 400 과 600 이 덜 갈린다. */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
+/* 화면에서는 바닥글이 짧은 쪽에서도 창의 아래에 붙는다. 인쇄에는 걸지 않는다(기록의 쪽 나눔을 건드리지 않게). */
+@media screen {
+  html body {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  html body > main {
+    flex: 1 0 auto;
+  }
+}
+
+/* 링크는 강조색이다. 밑줄은 올렸을 때만 긋는다. 줄 전체가 링크인 목록과 제목·메뉴의 링크는 아래에서 본문 색으로 둔다. */
 a {
   color: var(--accent);
+  text-decoration: none;
   text-underline-offset: 0.2em;
+}
+
+a:hover {
+  text-decoration: underline;
 }
 
 h1,
 h2,
-h3 {
+h3,
+h4,
+h5 {
+  margin: 0;
+  font-weight: 600;
   line-height: var(--leading-tight);
   text-wrap: balance;
-  margin: 0;
 }
 
 h1 {
   font-size: var(--text-h1);
-  letter-spacing: -0.01em;
 }
 
+/* 구획 머리와 상자의 제목(16px)은 본문과 같은 줄 간격이다. 쪽 제목만 좁다. */
 h2 {
   font-size: var(--text-h2);
+  line-height: var(--leading);
 }
 
 h3 {
   font-size: var(--text-h3);
-  font-weight: 600;
+  line-height: var(--leading);
 }
 
 p {
   margin: 0;
 }
 
+strong,
+b {
+  font-weight: 600;
+}
+
+/* 숫자는 고정폭으로 적는다(줄마다 자릿수가 맞는다). */
+time,
+code,
+table,
+.count,
+.badge {
+  font-variant-numeric: tabular-nums;
+}
+
 code,
 pre {
   font-family: var(--font-mono);
-  font-size: 0.86em;
 }
 
-code {
-  background: var(--code-bg);
-  padding: 0.08em 0.35em;
-  border-radius: 4px;
+/*
+ * 코드 글꼴은 12px 이다. 바탕을 깔지 않는다(글꼴이 코드임을 말한다). 제목 안의 것은 한 단계 아래(16px 제목에서 14px)로 적어
+ * 글자 단계(12·14·16·20·24) 밖의 크기가 나오지 않게 한다. 검사 기록 안의 것은 기록의 em 단위를 따른다(아래 .record).
+ */
+code,
+pre {
+  font-size: var(--text-xs);
 }
 
+:is(h2, h3) code {
+  font-size: var(--text-sm);
+}
+
+/*
+ * 초점의 둘레선은 안쪽에 그린다(촘촘한 줄에서 이웃을 덮지 않는다). 칠한 단추(주 단추, 눌린 고르는 단추)만 바깥에 그린다.
+ * 안쪽에 그리면 강조색 바탕 위의 강조색이라 보이지 않고, 본문 색 바탕 위에서는 3:1 에 못 미친다.
+ */
 :focus-visible {
   outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  border-radius: var(--radius);
+}
+
+.request button:focus-visible,
+.segmented button[aria-pressed="true"]:focus-visible {
   outline-offset: 2px;
 }
 
@@ -211,16 +330,25 @@ code {
   white-space: nowrap;
 }
 
+/* 선 아이콘(components/Icon.tsx). 글자 줄 안에 놓이면 글자의 아래쪽에 맞춘다. */
+.ic {
+  flex: none;
+  vertical-align: text-bottom;
+}
+
+/* 머리글과 본문은 같은 폭(1280px)과 같은 좌우 여백을 써서 왼쪽 끝이 맞는다. */
 .wrap {
-  max-width: 920px;
+  width: 100%;
+  max-width: var(--page-max);
   margin: 0 auto;
-  padding-inline: 20px;
+  padding-inline: var(--gutter);
 }
 
 main.wrap {
-  padding-block: var(--space-6) 64px;
+  padding-block: var(--space-5) var(--space-7);
   display: grid;
   gap: var(--space-5);
+  align-content: start;
 }
 
 main.wrap > section,
@@ -235,67 +363,244 @@ main.wrap > h1 + .lede {
 }
 
 .lede {
-  font-size: var(--text-lg);
   color: var(--muted);
 }
 
-/* 머리·바닥 */
-.site-header {
-  background: var(--surface);
-  border-bottom: 1px solid var(--rule);
+@media (max-width: 599px) {
+  h1 {
+    font-size: var(--text-xl);
+  }
+
+  main.wrap {
+    padding-top: var(--space-4);
+  }
 }
 
-.site-header .wrap {
+/*
+ * 머리글: 56px 한 줄. 넓은 화면은 이름 · 검색창 · 메뉴(오른쪽 끝), 768px 아래는 이름 ······ 검색 단추 · 펼치는 메뉴다.
+ * 머리글의 HTML 은 모든 쪽에서 글자까지 같다(tests/browser/served-files.test.ts). 그래서 지금 쪽의 표시와, 본문에 검색창이
+ * 있는 쪽(첫 화면, 검색)에서 머리글의 검색창을 감추는 것은 CSS 의 :has() 로만 한다.
+ */
+.site-header {
+  background: var(--bg);
+  border-bottom: 1px solid var(--rule-muted);
+}
+
+.hdr-in {
+  height: 56px;
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2) var(--space-5);
   align-items: center;
-  justify-content: space-between;
-  padding-block: var(--space-3);
+  gap: var(--space-4);
 }
 
 .brand {
-  font-weight: 700;
+  font-size: var(--text-lg);
+  font-weight: 600;
   color: var(--ink);
+  white-space: nowrap;
+  letter-spacing: -0.01em;
+}
+
+/* 머리글의 검색창: 테두리는 입력창이 지니고, 돋보기는 그 위에 얹는다(누르면 입력창이 받는다). */
+.hdr-search {
+  position: relative;
+  flex: 0 1 320px;
+  min-width: 0;
+}
+
+.hdr-search input {
+  width: 100%;
+  height: var(--control-h);
+  padding: 0 var(--space-3) 0 32px;
+  border: 1px solid var(--control-line);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--text-md);
+}
+
+.hdr-search input::placeholder {
+  color: var(--muted);
+  opacity: 1;
+}
+
+.hdr-search input:focus-visible {
+  outline-offset: -1px;
+}
+
+.hdr-search .ic {
+  position: absolute;
+  left: 9px;
+  top: 8px;
+  color: var(--muted);
+  pointer-events: none;
+}
+
+.hdr-nav {
+  margin-left: auto;
+  display: flex;
+  gap: var(--space-5);
+  white-space: nowrap;
+}
+
+.site-header nav a {
+  color: var(--ink);
+}
+
+.hdr-m {
+  display: none;
+  margin-left: auto;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius);
+  color: var(--ink);
+}
+
+.menu {
+  position: relative;
+}
+
+.menu > summary {
+  list-style: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: 44px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius);
+}
+
+.menu > summary::-webkit-details-marker {
+  display: none;
+}
+
+.menu[open] > summary .ic {
+  transform: rotate(180deg);
+}
+
+.menu-pop {
+  position: absolute;
+  right: 0;
+  top: 48px;
+  z-index: 10;
+  min-width: 200px;
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-1) 0;
+  background: var(--bg);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  box-shadow: var(--pop-shadow);
+}
+
+.menu-pop a {
+  padding: 0 var(--space-4);
+  line-height: 44px;
+}
+
+.menu-pop a:hover {
+  background: var(--bg-muted);
   text-decoration: none;
 }
 
-.site-header nav {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-1) var(--space-4);
+/*
+ * 지금 쪽(조문 도감, 데모). 쪽이 본문에 남긴 표시(조문 도감의 쪽, 데모의 틀)로 고른다. 화면 낭독기에 알리는 aria-current 는
+ * 스크립트(HeaderBehavior)가 단다. 스크립트 없이도 보이게 표시는 :has 로 고르고, aria-current 도 함께 받는다.
+ */
+body:has(main :is(.policy-page, [data-page="policy"])) .site-header nav a[href="/policy/"],
+body:has(main > .demo) .site-header nav a[href="/demo/"],
+.site-header nav a[aria-current="page"] {
+  font-weight: 600;
 }
 
+body:has(main :is(.policy-page, [data-page="policy"])) .hdr-nav a[href="/policy/"],
+body:has(main > .demo) .hdr-nav a[href="/demo/"],
+.hdr-nav a[aria-current="page"] {
+  box-shadow: inset 0 -2px 0 var(--ink);
+  padding-bottom: 2px;
+}
+
+/* 강제 색 모드는 그림자를 지운다. 밑줄로 바꿔 긋는다. */
+@media (forced-colors: active) {
+  body:has(main :is(.policy-page, [data-page="policy"])) .hdr-nav a[href="/policy/"],
+  body:has(main > .demo) .hdr-nav a[href="/demo/"],
+  .hdr-nav a[aria-current="page"] {
+    text-decoration: underline;
+    text-decoration-thickness: 2px;
+  }
+}
+
+/* 본문에 검색창이 있는 쪽(첫 화면, 검색)에서는 머리글의 검색창과 좁은 화면의 검색 단추를 감춘다. 검색창이 하나만 보인다. */
+body:has(main [role="search"]) :is(.hdr-search, .hdr-m-search) {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  .hdr-search,
+  .hdr-nav {
+    display: none;
+  }
+
+  .hdr-m {
+    display: flex;
+  }
+}
+
+/* 바닥글: 면책과 둘째 줄. */
 .site-footer {
-  border-top: 1px solid var(--rule);
+  border-top: 1px solid var(--rule-muted);
   color: var(--muted);
-  font-size: var(--text-sm);
-  line-height: var(--leading-snug);
+  font-size: var(--text-xs);
+  line-height: var(--leading);
 }
 
 .site-footer .wrap {
-  padding-block: var(--space-5);
+  padding-block: var(--space-5) var(--space-6);
   display: grid;
   gap: var(--space-1);
 }
 
+/*
+ * 상자: 1px 테두리, 모서리 6px, 흰 바탕. 줄 목록은 상자 안의 줄이고 줄 사이는 옅은 선이다(docs/redesign.md 2.1 방향 A).
+ * 정책 목록(첫 화면, 조문 도감)도 그렇게 그린다.
+ */
 .policy-index {
   list-style: none;
   margin: 0;
   padding: 0;
-  border-top: 1px solid var(--rule);
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
 }
 
 .policy-index li {
-  padding: var(--space-3) 0;
-  border-bottom: 1px solid var(--rule);
+  min-height: var(--row-h);
+  padding: 10px var(--space-4);
   display: grid;
   gap: 2px;
   line-height: var(--leading-snug);
 }
 
+.policy-index li + li {
+  border-top: 1px solid var(--rule-muted);
+}
+
+.policy-index li > a {
+  font-weight: 600;
+  color: var(--ink);
+}
+
 .policy-index p {
-  font-size: var(--text-md);
   color: var(--muted);
 }
 
@@ -306,53 +611,66 @@ main.wrap > h1 + .lede {
 }
 
 .law {
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   line-height: var(--leading-snug);
   color: var(--muted);
 }
 
-/* 상태 칩. 뜻은 글로 말한다. 색은 갈래(검토 필요·확인 대기·충족 근거·그 밖)만 가른다. */
+/*
+ * 판정 상태 칩: 채운 알약. 칩은 판정 상태에만 쓴다(분석의 진행은 테두리 네모 .badge, 합성 예시는 테두리 이름표 .tag). 뜻은 글로
+ * 말하고, 색은 네 갈래만 가른다: 검토 필요(미충족 신호, AI 확인 전), 판단 보류, 충족 근거, 그 밖(적용 신호 없음, 발견 없음,
+ * 알 수 없음). 갈래는 칩의 class(chip-<상태>, src/lib/report/status.ts 의 상태)로 고른다.
+ */
 .chip {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  font-size: var(--text-xs);
-  font-weight: 500;
-  line-height: var(--leading-snug);
-  padding: 2px 10px;
+  gap: var(--space-1);
+  height: 20px;
+  padding: 0 var(--space-2);
   border-radius: 999px;
+  background: var(--chip-bg);
+  color: var(--chip-fg);
+  font-size: var(--text-xs);
+  font-weight: 400;
+  line-height: 20px;
   white-space: nowrap;
+  vertical-align: middle;
 }
 
 .chip::before {
   content: "";
-  width: 7px;
-  height: 7px;
+  flex: none;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
-  background: currentColor;
+  background: var(--chip-dot);
 }
 
 .chip-needs-review,
 .chip-needs-review-ai-pending {
-  color: var(--st-review);
-  background: var(--st-review-bg);
+  --chip-fg: var(--st-review);
+  --chip-bg: var(--st-review-bg);
+  --chip-dot: var(--st-review-dot);
 }
 
 .chip-uncertain {
-  color: var(--st-pending);
-  background: var(--st-pending-bg);
+  --chip-fg: var(--st-pending);
+  --chip-bg: var(--st-pending-bg);
+  --chip-dot: var(--st-pending-dot);
 }
 
 .chip-evidence-found {
-  color: var(--st-ok);
-  background: var(--st-ok-bg);
+  --chip-fg: var(--st-ok);
+  --chip-bg: var(--st-ok-bg);
+  --chip-dot: var(--st-ok-dot);
 }
 
 .chip-no-signal,
 .chip-not-reported,
 .chip-pack-unknown {
-  color: var(--st-none);
-  background: var(--st-none-bg);
+  --chip-fg: var(--st-none);
+  --chip-bg: var(--st-none-bg);
+  --chip-dot: var(--st-none-dot);
 }
 
 /* 결과 */
@@ -371,7 +689,6 @@ main.wrap > h1 + .lede {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2) var(--space-5);
-  font-size: var(--text-sm);
   line-height: var(--leading-snug);
 }
 
@@ -389,26 +706,26 @@ main.wrap > h1 + .lede {
 .coverage {
   display: grid;
   gap: var(--space-2);
-  font-size: var(--text-md);
   line-height: var(--leading-snug);
 }
 
+/* 알림: 옅은 회색 상자. 경고(.notice-warn)는 노란 바탕에 노란 테두리다. 글은 본문 색이다. */
 .notice {
-  background: var(--accent-soft);
-  border-radius: var(--radius-sm);
-  padding: var(--space-3) var(--space-4);
-  font-size: var(--text-md);
+  background: var(--bg-muted);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  padding: var(--space-2) var(--space-3);
   line-height: var(--leading-snug);
 }
 
 .notice-warn {
-  background: var(--st-review-bg);
-  color: var(--st-review);
+  background: var(--warn-bg);
+  border-color: var(--warn-border);
 }
 
 .notice ul {
   margin: var(--space-2) 0 0;
-  padding-left: 18px;
+  padding-left: var(--space-4);
 }
 
 /* 알림 안에 문단이 여럿일 때(읽지 못한 파일의 안내). */
@@ -416,12 +733,44 @@ main.wrap > h1 + .lede {
   margin-top: var(--space-2);
 }
 
-/* 접어 둔 것(목록의 나머지 파일, 결과에 실린 오류 문장, 이 도구가 보지 못하는 것). */
-.fold > summary {
+/*
+ * 펼치는 것(details)의 이름. 브라우저의 삼각형 대신 선 아이콘의 꺾쇠(components/Icon.tsx 의 chevron-down)와 같은 모양을 테두리로
+ * 그린다: 닫히면 오른쪽, 펼치면 아래를 본다. 이름의 글은 HTML 그대로라 화면 낭독기와 글을 읽는 시험에는 달라지는 것이 없다.
+ * 머리글의 메뉴(.menu)는 제 아이콘을 쓴다.
+ */
+details:not(.menu) > summary {
+  position: relative;
+  list-style: none;
   cursor: pointer;
+  padding-left: 20px;
+}
+
+details:not(.menu) > summary::-webkit-details-marker {
+  display: none;
+}
+
+details:not(.menu) > summary::before {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: calc(0.75em - 4px);
+  width: 6px;
+  height: 6px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  color: var(--muted);
+  transform: rotate(-45deg);
+}
+
+details[open]:not(.menu) > summary::before {
+  top: calc(0.75em - 5px);
+  transform: rotate(45deg);
+}
+
+/* 접어 둔 것(목록의 나머지 파일, 결과에 실린 오류 문장, 이 도구가 보지 못하는 것). 이름은 본문 색이고 꺾쇠가 옅다. 강조색은 동작 링크에만 쓴다. */
+.fold > summary {
   width: fit-content;
-  color: var(--accent);
-  font-size: var(--text-sm);
+  color: var(--ink);
 }
 
 .fold > :not(summary) {
@@ -459,7 +808,7 @@ main.wrap > h1 + .lede {
 
 .gaps tbody th,
 .gaps tbody td {
-  padding: 6px 0;
+  padding: var(--space-1) 0;
   border-top: 1px solid var(--rule);
   text-align: left;
   vertical-align: baseline;
@@ -481,7 +830,7 @@ main.wrap > h1 + .lede {
 .gaps tbody th,
 .gaps tbody .gap-count {
   width: 1%;
-  padding-right: 14px;
+  padding-right: var(--space-4);
   white-space: nowrap;
   color: var(--muted);
 }
@@ -551,7 +900,7 @@ main.wrap > h1 + .lede {
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: baseline;
     gap: 2px 12px;
-    padding: 6px 0;
+    padding: var(--space-1) 0;
     border-top: 1px solid var(--rule);
   }
 
@@ -656,7 +1005,7 @@ main.wrap > h1 + .lede {
 .not-seen,
 .legend {
   margin: 0;
-  padding-left: 18px;
+  padding-left: var(--space-4);
   display: grid;
   gap: var(--space-2);
   font-size: var(--text-md);
@@ -666,7 +1015,7 @@ main.wrap > h1 + .lede {
 /* 한 항목 안에서 까닭마다 한 줄씩 나눠 적은 목록. */
 .not-seen-cases {
   margin: var(--space-1) 0 0;
-  padding-left: 18px;
+  padding-left: var(--space-4);
   display: grid;
   gap: 2px;
 }
@@ -676,16 +1025,32 @@ main.wrap > h1 + .lede {
   gap: var(--space-3);
 }
 
+/*
+ * 정책 카드: 상자 하나. 머리(조문, 제목, 상태)는 회색 띠이고, 그 아래의 것들은 상자 안쪽 16px 에서 시작한다.
+ */
 .policy {
   background: var(--surface);
   border: 1px solid var(--rule);
   border-radius: var(--radius);
-  padding: var(--space-4);
+  padding: 0 0 var(--space-4);
   display: grid;
   gap: var(--space-3);
   min-width: 0;
   /* 같은 쪽 안에서 이 카드로 옮겨 왔을 때(데모의 두 결과의 표) 카드가 창 위쪽에 바짝 붙지 않게 한다. */
   scroll-margin-top: var(--space-3);
+}
+
+/* 머리 띠 밖의 것은 상자 안쪽 16px 에서 시작한다. 목록의 여백을 0으로 되돌리는 규칙(.evidence 등)보다 명시도를 높였다. */
+.policy > :not(.policy-head) {
+  margin-inline: var(--space-4);
+}
+
+.policy > .policy-head {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  background: var(--bg-muted);
+  border-bottom: 1px solid var(--rule);
+  border-radius: var(--radius) var(--radius) 0 0;
 }
 
 .policy-head {
@@ -696,8 +1061,9 @@ main.wrap > h1 + .lede {
   align-items: flex-start;
 }
 
-/* 카드 제목은 링크다. 굵게 적은 글에 밑줄이 겹쳐 무거워 보이지 않게 밑줄을 가늘게 둔다. */
+/* 카드 제목은 정책 쪽(조문 도감)으로 가는 링크다. 제목이라 본문 색으로 적고, 올리면 밑줄이 생긴다. */
 .policy-head h3 a {
+  color: var(--ink);
   text-decoration-thickness: 1px;
 }
 
@@ -718,11 +1084,10 @@ main.wrap > h1 + .lede {
   color: var(--muted);
 }
 
+/* 개발자에게 할 질문. 결과에서 가장 먼저 읽을 문장이라 한 단계 크게 적는다. */
 .question {
-  font-size: var(--text-md);
-  line-height: var(--leading-snug);
-  border-left: 2px solid var(--accent);
-  padding-left: var(--space-3);
+  font-size: var(--text-lg);
+  line-height: var(--leading-loose);
 }
 
 .findings,
@@ -738,7 +1103,7 @@ main.wrap > h1 + .lede {
 
 /* 규칙 묶음. 같은 규칙의 발견을 한데 두고, 접는 것도 이 안에서만 한다. */
 .rule-group {
-  border-top: 1px solid var(--rule);
+  border-top: 1px solid var(--rule-muted);
   padding-top: var(--space-3);
   display: grid;
   gap: var(--space-2);
@@ -755,9 +1120,9 @@ main.wrap > h1 + .lede {
 .rule-head h4 {
   margin: 0;
   font-family: var(--font-mono);
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   font-weight: 600;
-  line-height: 1.5;
+  line-height: var(--leading);
 }
 
 .rule-count {
@@ -767,7 +1132,7 @@ main.wrap > h1 + .lede {
 
 /* 발견 하나는 한 줄(경로·줄, 판정이 본 범위, 상태)로 보이고, 펼치면 안쪽이 나온다. */
 .findings {
-  gap: 6px;
+  gap: 2px;
 }
 
 .finding,
@@ -775,43 +1140,21 @@ main.wrap > h1 + .lede {
   min-width: 0;
 }
 
-.finding summary,
-.more > summary {
-  display: block;
-  position: relative;
-  cursor: pointer;
-  list-style: none;
-  padding: 6px 10px 6px 28px;
-  border-radius: var(--radius-sm);
-}
-
-.finding summary::-webkit-details-marker,
-.more > summary::-webkit-details-marker {
-  display: none;
-}
-
-/* 펼침 표시. 글꼴에 기대지 않고 테두리로 그린다. */
-.finding summary::before,
-.more > summary::before {
-  content: "";
-  position: absolute;
-  left: 11px;
-  top: 1.05em;
-  width: 0.42em;
-  height: 0.42em;
-  border-right: 2px solid currentColor;
-  border-bottom: 2px solid currentColor;
-  transform: rotate(-45deg);
-}
-
-.finding > details[open] > summary::before,
-.more[open] > summary::before {
-  top: 0.95em;
-  transform: rotate(45deg);
-}
-
+/* 발견 줄: 올리면 옅은 바탕. 펼침 꺾쇠는 위의 details 규칙이 그리고, 여기서는 줄의 안쪽 여백에 맞춰 자리만 옮긴다. */
 .finding summary {
-  background: var(--bg);
+  display: block;
+  min-height: var(--row-h);
+  padding: var(--space-2) var(--space-2) var(--space-2) 28px;
+  border-radius: var(--radius);
+}
+
+.finding summary::before {
+  left: 10px;
+  top: calc(var(--space-2) + 0.75em - 4px);
+}
+
+.finding > details[open] > summary::before {
+  top: calc(var(--space-2) + 0.75em - 5px);
 }
 
 /*
@@ -821,8 +1164,8 @@ main.wrap > h1 + .lede {
 .finding-head {
   display: flex;
   flex-wrap: wrap;
-  /* 가로 틈 10px: 320px 화면에서도 범위와 상태가 한 줄에 함께 들어간다. */
-  gap: 2px 10px;
+  /* 가로 틈 8px: 320px 화면에서도 범위와 상태가 한 줄에 함께 들어간다. */
+  gap: 2px var(--space-2);
   align-items: baseline;
   min-width: 0;
 }
@@ -842,37 +1185,29 @@ main.wrap > h1 + .lede {
 /* 손가락으로 누르는 화면에서는 누른 뒤에도 색이 남으므로, 가리킬 수 있는 장치에서만 바꾼다. */
 @media (hover: hover) {
   .finding summary:hover {
-    background: var(--accent-soft);
+    background: var(--bg-muted);
   }
 }
 
-.finding summary::before {
-  color: var(--muted);
-}
-
 .finding summary code {
-  background: none;
-  padding: 0;
   min-width: 0;
 }
 
 .more > summary {
   width: fit-content;
   color: var(--accent);
-  font-size: var(--text-sm);
 }
 
 .more > .findings {
-  margin-top: 6px;
+  margin-top: var(--space-1);
 }
 
 /* 펼친 안쪽: 판정이 본 범위 → 확인되지 않은 대안(질문·고치는 법) → 판정을 끝까지 하지 못한 이유 → 판정 경로. */
 .finding-body {
   display: grid;
   gap: var(--space-4);
-  margin: var(--space-2) 0 var(--space-2) var(--space-3);
-  padding-left: var(--space-4);
-  border-left: 2px solid var(--rule);
+  /* 안쪽은 줄의 글과 같은 자리(꺾쇠 다음)에서 시작한다. */
+  margin: var(--space-2) 0 var(--space-3) 28px;
   min-width: 0;
 }
 
@@ -885,8 +1220,7 @@ main.wrap > h1 + .lede {
 .step h5 {
   margin: 0;
   font-size: var(--text-sm);
-  font-weight: 600;
-  line-height: 1.5;
+  line-height: var(--leading);
 }
 
 .alternatives {
@@ -896,8 +1230,8 @@ main.wrap > h1 + .lede {
 .alt {
   font-size: var(--text-md);
   line-height: var(--leading-snug);
-  border: 1px solid var(--rule);
-  border-radius: var(--radius-sm);
+  border: 1px solid var(--rule-muted);
+  border-radius: var(--radius);
   padding: var(--space-2) var(--space-3);
   display: grid;
   gap: 2px;
@@ -914,7 +1248,7 @@ main.wrap > h1 + .lede {
 .alt-rows {
   margin: var(--space-2) 0 0;
   padding-top: var(--space-2);
-  border-top: 1px dashed var(--rule);
+  border-top: 1px dashed var(--rule-muted);
   display: grid;
   gap: var(--space-2);
 }
@@ -963,8 +1297,8 @@ main.wrap > h1 + .lede {
 /* 판정 경로는 CLI 가 남긴 문장이다. 그대로 보인다. */
 .path {
   margin: 0;
-  padding-left: 22px;
-  font-size: var(--text-sm);
+  padding-left: 20px;
+  font-size: var(--text-xs);
   line-height: var(--leading-snug);
   font-family: var(--font-mono);
 }
@@ -972,18 +1306,16 @@ main.wrap > h1 + .lede {
 .ai-decisions {
   display: grid;
   gap: var(--space-3);
-  font-size: var(--text-md);
   line-height: var(--leading-snug);
 }
 
 .ai-decisions summary {
-  cursor: pointer;
   font-weight: 600;
 }
 
 .ai-decisions ul {
   margin: var(--space-2) 0 0;
-  padding-left: 18px;
+  padding-left: var(--space-4);
   display: grid;
   gap: var(--space-2);
 }
@@ -992,7 +1324,7 @@ main.wrap > h1 + .lede {
   font-size: var(--text-sm);
   line-height: var(--leading-snug);
   color: var(--muted);
-  border-top: 1px solid var(--rule);
+  border-top: 1px solid var(--rule-muted);
   padding-top: var(--space-3);
 }
 
@@ -1030,7 +1362,7 @@ main.wrap > h1 + .lede {
 }
 
 .dropzone {
-  border: 1.5px dashed var(--rule);
+  border: 1px dashed var(--control-line);
   border-radius: var(--radius);
   padding: var(--space-4);
   background: var(--surface);
@@ -1062,10 +1394,10 @@ main.wrap > h1 + .lede {
   inset-inline: 12px;
   width: fit-content;
   margin-inline: auto;
-  padding: 3px 14px;
-  border-radius: 999px;
-  background: var(--accent);
-  color: var(--surface);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius);
+  background: var(--accent-emphasis);
+  color: var(--on-accent);
   font-size: var(--text-sm);
   font-weight: 600;
 }
@@ -1113,7 +1445,8 @@ input[type="file"]::file-selector-button {
 
 select {
   max-width: 100%;
-  padding: 5px 8px;
+  height: var(--control-h);
+  padding: 0 var(--space-2);
 }
 
 /* 파일 입력은 기본 최소 너비가 넓어 좁은 화면에서 쪽을 밀어낸다. */
@@ -1125,9 +1458,11 @@ input[type="file"] {
 }
 
 input[type="file"]::file-selector-button {
+  height: var(--control-h);
   margin-right: var(--space-3);
-  padding: 5px var(--space-3);
+  padding: 0 var(--space-3);
   font: inherit;
+  font-weight: 600;
   cursor: pointer;
 }
 
@@ -1138,7 +1473,6 @@ input[type="file"]::file-selector-button {
 
 .viewer-note,
 .demo-note {
-  font-size: var(--text-md);
   line-height: var(--leading-snug);
   color: var(--muted);
 }
@@ -1159,25 +1493,26 @@ input[type="file"]::file-selector-button {
 .segmented {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: var(--space-2);
 }
 
 .segmented button {
+  height: var(--control-h);
   border: 1px solid var(--control-line);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius);
   background: var(--surface);
-  color: var(--muted);
-  padding: 6px 14px;
-  font-size: var(--text-md);
-  line-height: var(--leading-snug);
+  color: var(--ink);
+  padding: 0 var(--space-3);
   white-space: nowrap;
   cursor: pointer;
 }
 
+/* 눌린 것: 본문 색 바탕에 바탕색 글자(강조색은 동작 링크와 주 단추에만 쓴다). */
 .segmented button[aria-pressed="true"] {
   border-color: var(--ink);
   background: var(--ink);
   color: var(--bg);
+  font-weight: 600;
 }
 
 /*
@@ -1207,8 +1542,10 @@ input[type="file"]::file-selector-button {
   background: var(--surface);
 }
 
+/* 코드 상자의 머리: 상자의 회색 띠. */
 .codeblock figcaption {
-  padding: var(--space-2) 14px;
+  padding: var(--space-2) var(--space-4);
+  background: var(--bg-muted);
   border-bottom: 1px solid var(--rule);
   font-size: var(--text-sm);
   line-height: var(--leading-snug);
@@ -1217,10 +1554,10 @@ input[type="file"]::file-selector-button {
 
 .codeblock pre {
   margin: 0;
-  padding: 10px 0;
+  padding: var(--space-2) 0;
   overflow-x: auto;
-  background: var(--code-bg);
-  line-height: 1.75;
+  background: var(--surface);
+  line-height: var(--leading-loose);
 }
 
 /*
@@ -1248,7 +1585,7 @@ input[type="file"]::file-selector-button {
   display: block;
   width: max-content;
   min-width: 100%;
-  padding-right: 14px;
+  padding-right: var(--space-4);
   white-space: pre;
 }
 
@@ -1274,7 +1611,7 @@ input[type="file"]::file-selector-button {
 .codeline[data-sign]::before {
   content: attr(data-sign) " " attr(data-line);
   text-align-last: justify;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--accent);
 }
 
@@ -1306,7 +1643,7 @@ input[type="file"]::file-selector-button {
   position: sticky;
   left: 0;
   /* 왼쪽은 줄 번호 칸만큼 비운다(0.5em + 3em + 1em). 설명이 코드의 글과 같은 자리에서 시작한다. */
-  padding: 0 14px 6px 4.5em;
+  padding: 0 var(--space-4) var(--space-1) 4.5em;
   background: var(--mark);
   font-family: var(--font-body);
   line-height: 1.5;
@@ -1316,8 +1653,8 @@ input[type="file"]::file-selector-button {
 }
 
 .code-legend {
-  padding: var(--space-2) 14px;
-  border-top: 1px solid var(--rule);
+  padding: var(--space-2) var(--space-4);
+  border-top: 1px solid var(--rule-muted);
   font-size: var(--text-sm);
   line-height: var(--leading-snug);
   color: var(--muted);
@@ -1325,7 +1662,7 @@ input[type="file"]::file-selector-button {
 
 .code-sign {
   font-family: var(--font-mono);
-  font-weight: 700;
+  font-weight: 600;
   color: var(--accent);
 }
 
@@ -1355,7 +1692,7 @@ input[type="file"]::file-selector-button {
 
 .compare th,
 .compare td {
-  padding: var(--space-2) 14px var(--space-2) 0;
+  padding: var(--space-2) var(--space-4) var(--space-2) 0;
   text-align: left;
   vertical-align: baseline;
 }
@@ -1369,12 +1706,11 @@ input[type="file"]::file-selector-button {
 
 .compare tbody th,
 .compare tbody td {
-  border-top: 1px solid var(--rule);
+  border-top: 1px solid var(--rule-muted);
 }
 
 .compare tbody th {
-  font-size: var(--text-md);
-  font-weight: 500;
+  font-weight: 400;
 }
 
 /* 상태와 발견 수의 칸은 글자만큼만 차지하고, 나머지는 정책 이름이 쓴다. */
@@ -1416,7 +1752,7 @@ input[type="file"]::file-selector-button {
     display: grid;
     gap: var(--space-1);
     padding: var(--space-2) 0;
-    border-top: 1px solid var(--rule);
+    border-top: 1px solid var(--rule-muted);
   }
 
   .compare tbody tr > th,
@@ -1546,14 +1882,12 @@ input[type="file"]::file-selector-button {
 }
 
 .facts dt {
-  font-size: var(--text-sm);
-  font-weight: 600;
+  font-size: var(--text-xs);
   color: var(--muted);
 }
 
 .facts dd {
   margin: 0;
-  font-size: var(--text-md);
 }
 
 @media (max-width: 480px) {
@@ -1569,20 +1903,24 @@ input[type="file"]::file-selector-button {
 }
 
 .legal + .legal {
-  border-top: 1px solid var(--rule);
+  border-top: 1px solid var(--rule-muted);
   padding-top: var(--space-4);
 }
 
-/* 대표 조문이라는 표시. 상태가 아니므로 상태 칩의 색을 쓰지 않는다. */
+/*
+ * 이름표("합성 예시", "대표 조문"): 테두리만 있는 네모. 상태가 아니므로 상태 칩의 모양(채운 알약)과 색을 쓰지 않는다.
+ */
 .tag {
-  display: inline-block;
-  padding: 1px var(--space-2);
-  border-radius: 999px;
-  background: var(--accent-soft);
-  color: var(--accent);
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 6px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  color: var(--muted);
   font-size: var(--text-xs);
-  font-weight: 500;
-  line-height: var(--leading-snug);
+  font-weight: 400;
+  line-height: 1;
   white-space: nowrap;
   vertical-align: middle;
 }
@@ -1606,13 +1944,13 @@ input[type="file"]::file-selector-button {
   max-width: var(--measure);
   margin: 0;
   font-family: var(--font-body);
-  font-size: var(--text-md);
-  line-height: 1.85;
+  font-size: var(--text-lg);
+  line-height: 1.8;
   white-space: pre-wrap;
-  background: var(--surface);
+  background: var(--bg-muted);
   border: 1px solid var(--rule);
   border-radius: var(--radius);
-  padding: var(--space-4) 18px;
+  padding: var(--space-4);
 }
 
 /* 규칙 하나. 정책 카드와 같은 면에 둔다. */
@@ -1638,7 +1976,7 @@ input[type="file"]::file-selector-button {
 .rule-doc .fold > p {
   font-size: var(--text-sm);
   line-height: var(--leading-snug);
-  border-left: 2px solid var(--rule);
+  border-left: 2px solid var(--rule-muted);
   padding-left: var(--space-3);
 }
 
@@ -1661,7 +1999,7 @@ input[type="file"]::file-selector-button {
 
 .alts th,
 .alts td {
-  padding: var(--space-2) 14px var(--space-2) 0;
+  padding: var(--space-2) var(--space-4) var(--space-2) 0;
   text-align: left;
   vertical-align: baseline;
 }
@@ -1675,7 +2013,7 @@ input[type="file"]::file-selector-button {
 
 .alts tbody th,
 .alts tbody td {
-  border-top: 1px solid var(--rule);
+  border-top: 1px solid var(--rule-muted);
 }
 
 .alts tbody th {
@@ -1772,7 +2110,7 @@ input[type="file"]::file-selector-button {
     align-items: baseline;
     gap: var(--space-1) var(--space-3);
     padding: var(--space-3) 0;
-    border-top: 1px solid var(--rule);
+    border-top: 1px solid var(--rule-muted);
   }
 
   /*
@@ -1808,14 +2146,15 @@ input[type="file"]::file-selector-button {
   align-items: center;
 }
 
+/* 인쇄 단추: 보조 단추(테두리, 흰 바탕). 주 단추(강조색 바탕)는 쪽마다 하나만 둔다. */
 .record-tools button {
-  border: 1px solid var(--ink);
-  border-radius: var(--radius-sm);
-  background: var(--ink);
-  color: var(--bg);
-  padding: 6px 18px;
-  font-size: var(--text-md);
-  line-height: var(--leading-snug);
+  height: var(--control-h);
+  border: 1px solid var(--control-line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  padding: 0 var(--space-3);
+  font-weight: 600;
   white-space: nowrap;
   cursor: pointer;
 }
@@ -1824,7 +2163,7 @@ input[type="file"]::file-selector-button {
   background: var(--surface);
   border: 1px solid var(--rule);
   border-radius: var(--radius);
-  padding: var(--space-4) 20px;
+  padding: var(--space-4) var(--space-5);
   font-size: var(--text-md);
   line-height: var(--leading-snug);
   min-width: 0;
@@ -1843,7 +2182,7 @@ input[type="file"]::file-selector-button {
 }
 
 .record h3 {
-  font-size: 1.3em;
+  font-size: var(--text-xl);
 }
 
 /* 구역의 이름. 표가 든 구역에서는 표의 이름이기도 하다(표가 aria-labelledby 로 가리킨다. 표에 caption 을 따로 두지 않는다). */
@@ -1851,7 +2190,7 @@ input[type="file"]::file-selector-button {
   margin: 0;
   padding: 0 0 0.3em;
   font-size: 1em;
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1.4;
 }
 
@@ -1915,10 +2254,12 @@ input[type="file"]::file-selector-button {
   color: var(--muted);
 }
 
-/* 글자 그대로 옮겨 적는 값(팩 판, 정책·규칙 id, 경로, 해시, 지문). 칠하지 않는다. 긴 값은 칸 안에서 줄을 바꾼다. */
-.record code {
-  background: none;
-  padding: 0;
+/*
+ * 글자 그대로 옮겨 적는 값(팩 판, 정책·규칙 id, 경로, 해시, 지문)의 코드 글꼴은 기록의 바탕 크기를 따른다(인쇄할 때 9pt 의 0.86).
+ * :where() 로 명시도를 0 으로 둬서, 해시와 지문(.record-hex, code 요소에도 붙는다)이 그보다 작게 덮어쓴다.
+ */
+:where(.record) code {
+  font-size: 0.86em;
 }
 
 /* 해시와 지문. 16자마다 둔 줄바꿈 자리에서 줄이 바뀐다. */
@@ -2235,13 +2576,8 @@ input[type="file"]::file-selector-button {
 }
 
 /*
- * 분석 서비스(방향 B, B1)의 쪽: 머리글의 검색창, 첫 화면, 검색, 저장소, 분석. 값은 위의 토큰에서만 가져온다.
- * 저장소·분석 쪽은 넓은 화면에서 본문 칸을 넓힌다(`.page-wide`. 대시보드의 두 칸). 다른 쪽의 너비는 그대로다.
+ * 분석 서비스(방향 B, B1)의 쪽: 첫 화면, 검색, 저장소, 분석. 값은 위의 토큰에서만 가져온다. 머리글의 검색창은 위의 머리글에 있다.
  */
-main.wrap:has(> .page-wide) {
-  max-width: 1180px;
-}
-
 .page-wide {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -2253,39 +2589,23 @@ main.wrap:has(> .page-wide) {
   gap: var(--space-3);
 }
 
-/* 머리글: 이름 · 검색창 · 메뉴. 좁은 화면에서는 검색창이 한 줄을 다 쓴다. */
-.site-header .wrap,
-.site-footer .wrap {
-  max-width: 1180px;
-}
-
-.site-header .search {
-  flex: 1 1 260px;
-  max-width: 440px;
-}
-
-/* 검색 쪽에는 쪽 안의 큰 검색창이 있다. 머리글의 것은 글자까지 모든 쪽에서 같아야 하므로 HTML 은 두고 화면에서만 감춘다. */
-body:has(.search-page) .site-header .search {
-  display: none;
-}
-
+/* 본문의 검색창(첫 화면, 검색): 입력창과 단추를 붙여 한 덩어리로 그린다. */
 .search {
   display: flex;
-  gap: 6px;
   min-width: 0;
 }
 
 .search input {
   flex: 1 1 auto;
   min-width: 0;
+  height: var(--control-h);
   font: inherit;
-  font-size: var(--text-md);
-  line-height: var(--leading-snug);
   color: var(--ink);
   background: var(--surface);
   border: 1px solid var(--control-line);
-  border-radius: var(--radius-sm);
-  padding: 6px 10px;
+  border-right: 0;
+  border-radius: var(--radius) 0 0 var(--radius);
+  padding: 0 var(--space-3);
 }
 
 .search input::placeholder {
@@ -2293,70 +2613,121 @@ body:has(.search-page) .site-header .search {
   opacity: 1;
 }
 
+.search input:focus-visible {
+  outline-offset: -2px;
+}
+
+/* 단추. 검색 단추는 보조 단추(옅은 회색 바탕)이고, 분석 요청 단추는 주 단추(강조색 바탕)다. */
 .search button,
 .request button {
+  height: var(--control-h);
   font: inherit;
-  font-size: var(--text-md);
-  line-height: var(--leading-snug);
-  border: 1px solid var(--ink);
-  border-radius: var(--radius-sm);
-  background: var(--ink);
-  color: var(--bg);
-  padding: 6px 14px;
+  font-weight: 600;
+  border: 1px solid var(--control-line);
+  border-radius: var(--radius);
+  background: var(--bg-muted);
+  color: var(--ink);
+  padding: 0 var(--space-3);
   white-space: nowrap;
   cursor: pointer;
 }
 
-.search-big input,
-.search-big button {
-  font-size: var(--text-lg);
-  padding: 10px 14px;
+.search button {
+  border-radius: 0 var(--radius) var(--radius) 0;
 }
 
-/* 첫 화면 */
+.request button {
+  border-color: var(--accent-emphasis);
+  background: var(--accent-emphasis);
+  color: var(--on-accent);
+}
+
+.search-big input,
+.search-big button {
+  height: 40px;
+}
+
+.search-big input {
+  font-size: var(--text-lg);
+}
+
+/*
+ * 줄 전체가 링크인 목록(첫 화면의 최근 분석): 상자 안의 줄이고, 올리면 바탕이 바뀌며, 오른쪽 끝에 다음 꺾쇠(chevron-right)가 있다.
+ */
 .recent {
   list-style: none;
   margin: 0;
   padding: 0;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
-  gap: var(--space-3);
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+}
+
+.recent:empty {
+  display: none;
+}
+
+.recent li + li {
+  border-top: 1px solid var(--rule-muted);
 }
 
 .recent-card {
   display: grid;
-  gap: 2px;
-  padding: var(--space-3) var(--space-4);
-  background: var(--surface);
-  border: 1px solid var(--rule);
-  border-radius: var(--radius);
+  grid-template-columns: minmax(0, 1fr) 16px;
+  column-gap: var(--space-4);
+  row-gap: 2px;
+  align-items: center;
+  min-height: var(--row-h);
+  padding: 10px var(--space-4);
   color: var(--ink);
-  text-decoration: none;
-  height: 100%;
 }
 
-.recent-card:hover .repo-name {
-  text-decoration: underline;
+.recent li:first-child .recent-card {
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+
+.recent li:last-child .recent-card {
+  border-radius: 0 0 var(--radius) var(--radius);
+}
+
+.recent li:only-child .recent-card {
+  border-radius: var(--radius);
+}
+
+.recent-card > :not(.ic) {
+  grid-column: 1;
+}
+
+.recent-card > .ic {
+  grid-column: 2;
+  grid-row: 1 / span 3;
+  color: var(--muted);
+}
+
+.recent-card:hover {
+  background: var(--bg-muted);
+  text-decoration: none;
 }
 
 .recent-facts {
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   line-height: var(--leading-snug);
   color: var(--muted);
 }
 
-/* 저장소 이름: owner 는 옅게, 이름은 굵게. */
-.repo-owner,
-.repo-slash {
-  color: var(--muted);
+/* 저장소 이름: 모두 본문 색이고 owner 만 보통 굵기, "/ 이름"은 굵게. */
+.repo-owner {
+  color: var(--ink);
   font-weight: 400;
 }
 
-.repo-name {
-  color: var(--accent);
+.repo-slash {
+  color: var(--ink);
+  font-weight: 600;
 }
 
-h1 .repo-name {
+.repo-name {
+  font-weight: 600;
   color: var(--ink);
 }
 
@@ -2368,7 +2739,6 @@ h1 .repo-name {
 }
 
 .search-count {
-  font-size: var(--text-sm);
   color: var(--muted);
 }
 
@@ -2388,12 +2758,13 @@ h1 .repo-name {
 
 .repo-row {
   display: grid;
-  gap: var(--space-1);
-  padding: var(--space-3) var(--space-4);
+  gap: 2px;
+  min-height: var(--row-h);
+  padding: 10px var(--space-4);
 }
 
 .repo-row + .repo-row {
-  border-top: 1px solid var(--rule);
+  border-top: 1px solid var(--rule-muted);
 }
 
 .repo-row-main {
@@ -2403,9 +2774,8 @@ h1 .repo-name {
   gap: var(--space-2);
 }
 
-.repo-link {
+.repo-link:hover {
   text-decoration: none;
-  font-size: var(--text-lg);
 }
 
 .repo-link:hover .repo-name {
@@ -2413,7 +2783,6 @@ h1 .repo-name {
 }
 
 .repo-desc {
-  font-size: var(--text-md);
   line-height: var(--leading-snug);
   color: var(--muted);
 }
@@ -2423,7 +2792,7 @@ h1 .repo-name {
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-1) var(--space-4);
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   line-height: var(--leading-snug);
   color: var(--muted);
 }
@@ -2432,35 +2801,36 @@ h1 .repo-name {
   display: inline-flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-1);
 }
 
-/* 분석의 상태 표. 결과의 판정 칩(둥근 알약)과 모양을 달리한다: 네모, 테두리, 바탕 없음. */
+/*
+ * 분석의 진행 상태(배지): 테두리만 있는 네모. 결과의 판정 칩(채운 알약)과 모양이 다르다. 대기 중과 끝남은 옅은 회색, 분석 중은
+ * 강조색, 멈춤은 빨강이다.
+ */
 .badge {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 6px;
+  border: 1px solid var(--control-line);
+  border-radius: var(--radius);
+  color: var(--muted);
   font-size: var(--text-xs);
-  font-weight: 600;
-  line-height: var(--leading-snug);
-  padding: 1px 8px;
-  border: 1px solid currentColor;
-  border-radius: 6px;
+  font-weight: 400;
+  line-height: 1;
   white-space: nowrap;
-}
-
-.badge-queued {
-  color: var(--st-none);
+  vertical-align: middle;
 }
 
 .badge-running {
+  border-color: var(--accent);
   color: var(--accent);
 }
 
-.badge-succeeded {
-  color: var(--st-ok);
-}
-
 .badge-failed {
-  color: var(--st-review);
+  border-color: var(--fail);
+  color: var(--fail);
 }
 
 /* 저장소·분석 쪽의 머리 */
@@ -2469,16 +2839,11 @@ h1 .repo-name {
   display: grid;
   gap: var(--space-2);
   padding-bottom: var(--space-4);
-  border-bottom: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule-muted);
 }
 
 .repo-head h1 {
-  font-size: var(--text-h2);
-  font-weight: 600;
-}
-
-.repo-head h1 .repo-name {
-  font-weight: 700;
+  font-weight: 400;
 }
 
 .an-crumbs {
@@ -2489,8 +2854,12 @@ h1 .repo-name {
   font-size: var(--text-lg);
 }
 
-.an-crumbs a {
+.an-crumbs a:hover {
   text-decoration: none;
+}
+
+.an-crumbs a:hover .repo-name {
+  text-decoration: underline;
 }
 
 .an-title {
@@ -2500,14 +2869,8 @@ h1 .repo-name {
   gap: var(--space-2) var(--space-3);
 }
 
-.an-title h1 {
-  font-size: var(--text-h2);
-}
-
 .an-title h1 code {
-  font-size: 0.95em;
-  background: none;
-  padding: 0;
+  font-size: var(--text-xl);
 }
 
 .an-facts {
@@ -2605,8 +2968,7 @@ h1 .repo-name {
   grid-template-columns: 16px minmax(0, 1fr) auto;
   column-gap: var(--space-3);
   align-items: baseline;
-  padding: 6px 0 6px;
-  font-size: var(--text-md);
+  padding: var(--space-1) 0;
   line-height: var(--leading-snug);
 }
 
@@ -2615,10 +2977,10 @@ h1 .repo-name {
   content: "";
   position: absolute;
   left: 7px;
-  top: 22px;
-  bottom: -6px;
+  top: 20px;
+  bottom: -4px;
   width: 2px;
-  background: var(--rule);
+  background: var(--rule-muted);
 }
 
 .step-dot {
@@ -2634,8 +2996,8 @@ h1 .repo-name {
 }
 
 .step-done .step-dot {
-  background: var(--st-ok);
-  border-color: var(--st-ok);
+  background: var(--muted);
+  border-color: var(--muted);
 }
 
 .step-active .step-dot {
@@ -2645,8 +3007,8 @@ h1 .repo-name {
 }
 
 .step-failed .step-dot {
-  background: var(--st-review);
-  border-color: var(--st-review);
+  background: var(--fail);
+  border-color: var(--fail);
 }
 
 /* 실패한 분석에서 시작하지 않은 단계: 옅게 그린다. */
@@ -2675,13 +3037,13 @@ h1 .repo-name {
 }
 
 .step-failed .step-state {
-  color: var(--st-review);
+  color: var(--fail);
   font-weight: 600;
 }
 
 .step-time {
   grid-column: 2 / -1;
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   color: var(--muted);
 }
 
@@ -2714,10 +3076,9 @@ h1 .repo-name {
 }
 
 .repo-moving {
-  padding: var(--space-4);
+  padding: var(--space-3) var(--space-4) var(--space-4);
   background: var(--surface);
   border: 1px solid var(--rule);
-  border-left: 3px solid var(--accent);
   border-radius: var(--radius);
 }
 
@@ -2745,23 +3106,17 @@ h1 .repo-name {
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-1) var(--space-4);
-  padding: var(--space-3) var(--space-4);
-  font-size: var(--text-sm);
+  min-height: var(--row-h);
+  padding: var(--space-2) var(--space-4);
   line-height: var(--leading-snug);
 }
 
 .an-row + .an-row {
-  border-top: 1px solid var(--rule);
+  border-top: 1px solid var(--rule-muted);
 }
 
 .an-row-id {
-  font-size: var(--text-md);
   font-weight: 600;
-}
-
-.an-row-id code {
-  background: none;
-  padding: 0;
 }
 
 .an-row-time {
@@ -2774,7 +3129,7 @@ h1 .repo-name {
 }
 
 .an-row-failed .an-row-out {
-  color: var(--st-review);
+  color: var(--fail);
 }
 
 .an-steps > .steps {
@@ -2817,8 +3172,8 @@ h1 .repo-name {
 }
 
 .tile strong {
-  font-size: var(--text-h2);
-  font-weight: 700;
+  font-size: var(--text-xl);
+  font-weight: 600;
   line-height: var(--leading-tight);
   margin-right: 2px;
 }
@@ -2872,12 +3227,12 @@ h1 .repo-name {
 .ov-item {
   display: grid;
   gap: 2px;
-  padding: var(--space-3) var(--space-4);
+  padding: 10px var(--space-4);
   line-height: var(--leading-snug);
 }
 
 .ov-item + .ov-item {
-  border-top: 1px solid var(--rule);
+  border-top: 1px solid var(--rule-muted);
 }
 
 /* 발견이 없는 정책의 표: 한 줄에 제목·조문·상태. 상태의 뜻은 표 아래에 상태마다 한 번 적는다. */
@@ -2888,6 +3243,10 @@ h1 .repo-name {
 .quiet h3 {
   margin: 0 0 var(--space-2);
   font-size: var(--text-md);
+}
+
+.quiet-title a {
+  color: var(--ink);
 }
 
 .quiet-list {
@@ -2905,13 +3264,14 @@ h1 .repo-name {
   align-items: baseline;
   column-gap: var(--space-3);
   row-gap: 2px;
+  min-height: var(--row-h);
   padding: var(--space-2) var(--space-4);
   line-height: var(--leading-snug);
   scroll-margin-top: var(--space-4);
 }
 
 .quiet-row + .quiet-row {
-  border-top: 1px solid var(--rule);
+  border-top: 1px solid var(--rule-muted);
 }
 
 .quiet-title {
@@ -2921,7 +3281,7 @@ h1 .repo-name {
 }
 
 .quiet-law {
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   color: var(--muted);
   flex: 1 1 auto;
 }
@@ -2941,13 +3301,12 @@ h1 .repo-name {
 
 .ov-title {
   font-weight: 600;
-  font-size: var(--text-md);
   color: var(--ink);
   text-decoration-thickness: 1px;
 }
 
 .ov-law {
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
 }
 
 .ov-law a {
@@ -2995,13 +3354,16 @@ h1 .repo-name {
 @media print {
   /* 명시도는 위의 html body 와 같다(Next 의 기본 404 쪽이 싣는 body 의 색보다 높다). */
   html body {
-    background: #fff;
+    background: var(--paper);
   }
 
+  /* 머리글의 검색창과 좁은 화면의 메뉴도 종이에서는 쓸 수 없다. 이름과 메뉴의 글은 찍힌다. */
   .dropzone,
   .samples,
   .demo-pick,
   .search,
+  .hdr-search,
+  .hdr-m,
   .request,
   .report-switch > .segmented {
     display: none;
@@ -3027,7 +3389,7 @@ h1 .repo-name {
 
   :root:has(.record),
   :root:has(.record) body {
-    background: #fff;
+    background: var(--paper);
   }
 
   /*
@@ -3035,19 +3397,20 @@ h1 .repo-name {
    * 토큰보다 뒤에, 더 가까운 요소에 적었다). 상태 색도 쓰지 않는다. 종이에서는 색에 기대지 않고 글자로 읽는다.
    */
   .record {
-    --bg: #fff;
-    --surface: #fff;
-    --ink: #000;
-    --muted: #333;
-    --rule: #888;
-    --accent: #000;
-    --accent-soft: #fff;
-    --code-bg: #fff;
-    --st-review: #000;
-    --st-review-bg: #fff;
+    --bg: var(--paper);
+    --surface: var(--paper);
+    --bg-muted: var(--paper);
+    --ink: var(--paper-ink);
+    --muted: var(--paper-muted);
+    --rule: var(--paper-rule);
+    --rule-muted: var(--paper-rule);
+    --accent: var(--paper-ink);
+    --accent-soft: var(--paper);
+    --st-review: var(--paper-ink);
+    --st-review-bg: var(--paper);
     color-scheme: light;
-    background: #fff;
-    color: #000;
+    background: var(--paper);
+    color: var(--paper-ink);
     border: 0;
     border-radius: 0;
     padding: 0;
@@ -3064,6 +3427,11 @@ h1 .repo-name {
    */
   .record > * + * {
     margin-top: 0.9em;
+  }
+
+  /* 기록의 제목은 종이의 바탕 크기(9pt)에 견준다. 화면에서는 글자 단계의 20px 이다(위). */
+  .record h3 {
+    font-size: 1.3em;
   }
 
   .record th,

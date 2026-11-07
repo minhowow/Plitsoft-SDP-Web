@@ -67,20 +67,23 @@ async function scan(page: Page, where: string, low: string[], chips: Set<string>
 }
 
 describe("두 테마의 명도 대비: 분석 서비스의 쪽", () => {
-  it.each(["light", "dark"] as Scheme[])("%s: 그려진 글자마다 4.5:1 이상", async (scheme) => {
+  // 테마와 너비마다 따로 돈다. 한데 묶으면 쪽이 스물 남짓이라 다른 시험 파일과 함께 돌 때 시험 하나의 한도(30초)를 넘었다
+  // (재디자인 D2 에서 시험 파일이 하나 늘어난 뒤. 혼자 돌리면 두 너비를 합쳐 15초 남짓이다). 재는 쪽과 기준은 그대로다.
+  it.each([
+    ["light", 375],
+    ["light", 1280],
+    ["dark", 375],
+    ["dark", 1280],
+  ] as [Scheme, number][])("%s %ipx: 그려진 글자마다 4.5:1 이상", async (scheme, width) => {
     const low: string[] = [];
     const chips = new Set<string>();
+    const pages = width === 375 ? PAGES : WIDE;
+    const { page } = await openPage(browser, site, pages[0], { viewport: { width, height: 720 }, colorScheme: scheme, contexts, problems });
+    expect(await page.evaluate(() => matchMedia("(prefers-color-scheme: dark)").matches)).toBe(scheme === "dark");
     let measured = 0;
-    for (const [width, pages] of [
-      [375, PAGES],
-      [1280, WIDE],
-    ] as const) {
-      const { page } = await openPage(browser, site, pages[0], { viewport: { width, height: 720 }, colorScheme: scheme, contexts, problems });
-      expect(await page.evaluate(() => matchMedia("(prefers-color-scheme: dark)").matches)).toBe(scheme === "dark");
-      for (const pathname of pages) {
-        if (pathname !== pages[0]) await page.goto(`${site.origin}${pathname}`, { waitUntil: "networkidle" });
-        measured += await scan(page, `${scheme} ${width} ${pathname}`, low, chips);
-      }
+    for (const pathname of pages) {
+      if (pathname !== pages[0]) await page.goto(`${site.origin}${pathname}`, { waitUntil: "networkidle" });
+      measured += await scan(page, `${scheme} ${width} ${pathname}`, low, chips);
     }
     expect(low).toEqual([]);
     expect(measured).toBeGreaterThan(0);

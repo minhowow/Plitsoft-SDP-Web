@@ -22,7 +22,8 @@ export default function PolicyIndexPage() {
   const { pack, policies } = packMeta;
   return (
     <>
-      <h1>조문 도감</h1>
+      {/* data-page: 머리글이 지금 쪽(조문 도감)을 표시하는 데 쓴다(CSS :has. 머리글의 HTML 은 모든 쪽에서 같다). */}
+      <h1 data-page="policy">조문 도감</h1>
       <p className="lede">
         팩 <code>{pack.id}</code> 에 실린 정책 {policies.length}개입니다. 제목 아래에 적은 것은 대표 조문이고, 관련 조문과
         규칙은 정책 페이지에 있습니다.
