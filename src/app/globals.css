@@ -287,11 +287,9 @@ pre {
 }
 
 /* 풀이 문단은 넓은 화면에서도 한 줄이 너무 길어지지 않게 한다. 조문별 검사 기록은 종이 너비를 다 쓴다(아래 .record). */
-.lede,
 .hint,
 .pending,
 .ask,
-.question,
 .reasons li,
 .alt-message,
 .not-seen > li,
@@ -353,15 +351,6 @@ main.wrap > section,
 .policy-page {
   display: grid;
   gap: var(--space-3);
-}
-
-/* 쪽의 머리말은 제목에 붙여 둔다(제목 바로 아래의 한 덩어리). 그 아래 내용과는 쪽의 간격만큼 띄운다. */
-main.wrap > h1 + .lede {
-  margin-top: calc(var(--space-2) - var(--space-5));
-}
-
-.lede {
-  color: var(--muted);
 }
 
 @media (max-width: 599px) {
@@ -571,46 +560,6 @@ body:has(main [role="search"]) :is(.hdr-search, .hdr-m-search) {
   gap: var(--space-1);
 }
 
-/*
- * 상자: 1px 테두리, 모서리 6px, 흰 바탕. 줄 목록은 상자 안의 줄이고 줄 사이는 옅은 선이다(docs/redesign.md 2.1 방향 A).
- * 정책 목록(첫 화면, 조문 도감)도 그렇게 그린다.
- */
-.policy-index {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  background: var(--surface);
-  border: 1px solid var(--rule);
-  border-radius: var(--radius);
-}
-
-.policy-index li {
-  min-height: var(--row-h);
-  padding: 10px var(--space-4);
-  display: grid;
-  gap: 2px;
-  line-height: var(--leading-snug);
-}
-
-.policy-index li + li {
-  border-top: 1px solid var(--rule-muted);
-}
-
-.policy-index li > a {
-  font-weight: 600;
-  color: var(--ink);
-}
-
-.policy-index p {
-  color: var(--muted);
-}
-
-/* 목록에서 정책마다 적는 한 줄(근거 조문과 규칙의 수, 재검토 기한). */
-.policy-counts {
-  font-size: var(--text-xs);
-  color: var(--muted);
-}
-
 .law {
   font-size: var(--text-xs);
   line-height: var(--leading-snug);
@@ -683,12 +632,8 @@ body:has(main [role="search"]) :is(.hdr-search, .hdr-m-search) {
   container-type: inline-size;
 }
 
-/*
- * 이름표 아래에 값을 둔 짧은 항목을 옆으로 늘어놓는다. 결과의 머리(.report-meta)와, 조문 도감의 한눈에 보는 것과
- * 조문마다 적는 것(.meta-row).
- */
-.report-meta,
-.meta-row {
+/* 이름표 아래에 값을 둔 짧은 항목을 옆으로 늘어놓는다(결과의 머리와 검사 정보). */
+.report-meta {
   margin: 0;
   display: flex;
   flex-wrap: wrap;
@@ -696,14 +641,12 @@ body:has(main [role="search"]) :is(.hdr-search, .hdr-m-search) {
   line-height: var(--leading-snug);
 }
 
-.report-meta dt,
-.meta-row dt {
+.report-meta dt {
   color: var(--muted);
   font-size: var(--text-xs);
 }
 
-.report-meta dd,
-.meta-row dd {
+.report-meta dd {
   margin: 0;
 }
 
@@ -1023,21 +966,6 @@ details[open]:not(.menu) > summary::before {
   font-size: var(--text-sm);
   line-height: var(--leading-snug);
   color: var(--muted);
-}
-
-/* 개발자에게 할 질문(조문 도감의 정책 쪽). 가장 먼저 읽을 문장이라 한 단계 크게 적는다. */
-.question {
-  font-size: var(--text-lg);
-  line-height: var(--leading-loose);
-}
-
-/* 조문 도감의 정책 쪽 맨 아래 면책(그 쪽의 부품이 싣는다. D6 에서 다시 본다). */
-.disclaimer {
-  font-size: var(--text-sm);
-  line-height: var(--leading-snug);
-  color: var(--muted);
-  border-top: 1px solid var(--rule-muted);
-  padding-top: var(--space-3);
 }
 
 .findings,
@@ -1491,7 +1419,110 @@ select {
   }
 }
 
-/* 조문 도감: 정책 한 쪽. 머리 → 한눈에 보는 것 → 근거 조문 → 규칙. */
+/* ---------- 조문 도감 목록 /policy (목업 policy-index): 메타 한 줄, 정책 줄, 상태의 뜻(#status), 검사에 들지 않는 것(#scope) ---------- */
+/* 쪽의 메타 줄은 제목에 붙여 둔다(제목 바로 아래의 한 덩어리). */
+main.wrap > h1 + .pi-meta {
+  margin-top: calc(var(--space-2) - var(--space-5));
+}
+
+.pi-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  font-size: var(--text-xs);
+  line-height: var(--leading-snug);
+  color: var(--muted);
+}
+
+.pi-meta code {
+  color: var(--ink);
+}
+
+/* 정책 줄: 상자 안의 줄. 줄 전체가 그 정책 쪽으로 가는 링크이고 오른쪽 끝에 꺾쇠를 둔다(docs/redesign.md 2.1). */
+.policy-index {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+}
+
+.policy-index > li + li {
+  border-top: 1px solid var(--rule-muted);
+}
+
+.pi-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 16px;
+  gap: var(--space-1) var(--space-4);
+  align-items: center;
+  padding: 10px var(--space-4);
+  color: var(--ink);
+  line-height: var(--leading-snug);
+}
+
+.pi-row:hover {
+  background: var(--bg-muted);
+  text-decoration: none;
+}
+
+.pi-title {
+  grid-column: 1;
+  font-weight: 600;
+}
+
+.pi-law {
+  grid-column: 1;
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+
+.pi-n {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  font-size: var(--text-xs);
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.pi-row > .ic {
+  grid-column: 3;
+  grid-row: 1 / span 2;
+  color: var(--muted);
+}
+
+/* 결과 화면이 `/policy/#status`, `/policy/#scope` 로 잇는다. 옮겨 온 자리의 이름이 창의 위쪽에 바짝 붙지 않게 한다. */
+.pi-sec {
+  scroll-margin-top: var(--space-4);
+}
+
+/* 이름 | 뜻의 줄(상태의 뜻). 좁은 화면에서는 위아래로 쌓는다. */
+.defs {
+  margin: 0;
+}
+
+.defs > div {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr);
+  gap: var(--space-1) var(--space-4);
+  align-items: baseline;
+  padding: 10px var(--space-4);
+  line-height: var(--leading-snug);
+}
+
+.defs dd {
+  margin: 0;
+}
+
+@media (max-width: 599px) {
+  .defs > div {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ---------- 조문 도감 정책 쪽 /policy/[id] (목업 policy): 머리 → (근거 조문, 규칙 | 곁칸 `이 정책`) ---------- */
 .policy-page {
   gap: var(--space-5);
 }
@@ -1501,9 +1532,70 @@ select {
   gap: var(--space-2);
 }
 
+.pd-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  font-size: var(--text-xs);
+  line-height: var(--leading-snug);
+  color: var(--muted);
+}
+
+.pd-meta .law {
+  color: var(--ink);
+}
+
+.pd-q {
+  margin-top: var(--space-2);
+  display: grid;
+  gap: 2px;
+}
+
+.pd-q .lbl {
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+
+/* 개발자에게 할 질문. 가장 먼저 읽을 문장이라 한 단계 크게 적는다. */
+.question {
+  max-width: 72ch;
+  font-size: var(--text-lg);
+  line-height: var(--leading-loose);
+}
+
+.jump {
+  margin-top: var(--space-2);
+}
+
+.jump .n {
+  color: var(--muted);
+}
+
+/* 두 단: 본문 | 곁칸(320px). 좁으면 곁칸이 맨 아래로 간다. */
+.policy-cols {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-5);
+  align-items: start;
+}
+
+@media (min-width: 1012px) {
+  .policy-cols {
+    grid-template-columns: minmax(0, 1fr) 320px;
+  }
+}
+
+.policy-main {
+  display: grid;
+  gap: var(--space-5);
+  min-width: 0;
+}
+
 .policy-section {
   display: grid;
-  gap: var(--space-3);
+  gap: var(--space-2);
+  min-width: 0;
+  scroll-margin-top: var(--space-4);
 }
 
 /* 팩에 없는 값의 자리에 적는 말("팩에 실려 있지 않습니다", "팩이 아직 알려 주지 않습니다"). 있는 값보다 옅게 적는다. */
@@ -1511,13 +1603,392 @@ select {
   color: var(--muted);
 }
 
-/* 한눈에 보는 것: 값을 옆으로 늘어놓고, 그 값이 무엇인지는 바로 아래에 옅게 적는다. */
-.policy-facts {
-  display: grid;
-  gap: var(--space-2);
+/*
+ * 판정자 알림(규칙 구역의 첫 줄): 판정자를 켜야 묻는다는 것과 켜면 코드가 밖으로 나간다는 것. 결과 화면의 판정자 권고
+ * (.judge-advice)와 같은 크기·색이다. 옅게 적지 않는다(코드가 밖으로 나간다는 사실이다).
+ */
+.judge-note {
+  max-width: var(--measure);
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
 }
 
-/* 규칙마다 같은 자리에 이름표가 오는 목록(판정 단위, 적용 조건, 적용 질문). 좁은 화면에서는 이름표를 글 위에 둔다. */
+/* 원문 해시가 팩에 적힌 것과 다르거나 견주지 못했을 때. */
+.policy-page dd.warn {
+  color: var(--st-review);
+  font-weight: 600;
+}
+
+/* 근거 조문 하나: 접는 줄(이름, 표시)과 그 오른쪽 끝의 법제처 링크. 링크는 접는 줄 밖의 요소라 자리를 비워 두고 그 위에 놓는다. */
+.lg-item {
+  position: relative;
+  min-width: 0;
+}
+
+.lg-item > details.lg > summary {
+  display: block;
+  padding: 10px var(--space-4) 10px 40px;
+  font-weight: 600;
+  line-height: var(--leading-snug);
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.lg-item.has-ext > details.lg > summary {
+  padding-right: 120px;
+}
+
+.lg-item > details.lg > summary::before {
+  top: calc(10px + 0.75em - 4px);
+}
+
+.lg-item > details.lg[open] > summary::before {
+  top: calc(10px + 0.75em - 5px);
+}
+
+@media (hover: hover) {
+  .lg-item > details.lg > summary:hover {
+    background: var(--bg-muted);
+  }
+}
+
+.lg-item .tag {
+  margin-left: var(--space-1);
+}
+
+/* 같은 원문이라는 말은 한 덩어리로 줄을 바꾼다(이름 줄 끝에 첫 낱말만 남지 않게). 들어갈 너비가 모자라면 그 안에서 바꾼다. */
+.lg-item .fold-note {
+  display: inline-block;
+  font-size: var(--text-xs);
+  font-weight: 400;
+}
+
+.lg-item > .ext {
+  position: absolute;
+  top: 10px;
+  right: var(--space-4);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-xs);
+  line-height: 21px;
+  white-space: nowrap;
+}
+
+.lg-item .lg-body {
+  padding: 0;
+}
+
+/* 조문마다의 사실 줄(조문마다 값이 다를 때의 날짜, 원문 해시). */
+.lg-facts {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  padding: 0 var(--space-4) var(--space-2) 40px;
+  font-size: var(--text-xs);
+  line-height: var(--leading-snug);
+}
+
+.lg-facts > div {
+  display: flex;
+  gap: var(--space-1);
+  align-items: baseline;
+  min-width: 0;
+}
+
+/* 이름표는 줄지 않는다(긴 해시를 펼쳐도 '원문 해시'가 두 줄로 갈리지 않는다). 남는 너비는 값이 쓴다. */
+.lg-facts dt {
+  flex: none;
+  white-space: nowrap;
+  color: var(--muted);
+}
+
+.lg-facts dd {
+  margin: 0;
+  min-width: 0;
+}
+
+.lg-body > .notice {
+  margin: 0 var(--space-4) var(--space-2) 40px;
+}
+
+/* 원문 해시: 앞 16자가 접는 줄이고, 펼치면 전체 값이 글로 보인다(골라 복사할 수 있다). */
+details.hash > summary {
+  width: fit-content;
+}
+
+.hash-full {
+  display: block;
+  margin-top: 2px;
+  word-break: break-all;
+}
+
+/*
+ * 조문 원문: 이 컴퓨터의 명조(바깥 글꼴을 받지 않는다. docs/redesign.md 2.1). 팩에 실린 글자 그대로이고, 줄바꿈과 빈칸을
+ * 그대로 보이며, 긴 줄은 상자 안에서 줄을 바꾼다. 줄의 모양으로 항·호를 가르지 않는다(원문을 해석하지 않는다).
+ */
+.statute {
+  margin: 0;
+  padding: var(--space-4) var(--space-5);
+  background: var(--bg-muted);
+  border-top: 1px solid var(--rule-muted);
+  font-family: var(--font-serif);
+  font-size: var(--text-lg);
+  line-height: 1.8;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* 규칙 읽는 법(접어 둠): 상자의 첫 줄. */
+details.legend-fold > summary {
+  display: block;
+  padding: var(--space-2) var(--space-4) var(--space-2) 40px;
+  font-size: var(--text-xs);
+  color: var(--muted);
+  line-height: var(--leading-snug);
+}
+
+details.legend-fold > summary::before {
+  left: 20px;
+  top: calc(var(--space-2) + 0.75em - 4px);
+}
+
+details.legend-fold[open] > summary::before {
+  top: calc(var(--space-2) + 0.75em - 5px);
+}
+
+details.legend-fold > .legend {
+  padding: 0 var(--space-4) var(--space-3) 40px;
+  list-style: none;
+  font-size: var(--text-xs);
+}
+
+/* 규칙 하나: 첫 줄은 첫 대안의 알리는 말, 둘째 줄은 규칙 id 와 판정 단위, 오른쪽에 대안의 수. 꺾쇠는 줄 왼쪽. */
+details.rule-row {
+  min-width: 0;
+  scroll-margin-top: var(--space-4);
+}
+
+details.rule-row > summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px var(--space-2);
+  align-items: start;
+  padding: 10px var(--space-4) 10px 40px;
+  line-height: var(--leading-snug);
+}
+
+details.rule-row > summary::before {
+  left: 20px;
+  top: calc(10px + 0.75em - 4px);
+}
+
+details.rule-row[open] > summary::before {
+  top: calc(10px + 0.75em - 5px);
+}
+
+@media (hover: hover) {
+  details.rule-row > summary:hover {
+    background: var(--bg-muted);
+  }
+}
+
+.rule-row .msg {
+  grid-column: 1;
+}
+
+.rule-row .n {
+  grid-column: 2;
+  grid-row: 1;
+  font-size: var(--text-xs);
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.rule-row .loc {
+  grid-column: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px var(--space-3);
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+
+.rule-row .loc code,
+.conditions code,
+.alt-h code {
+  color: var(--ink);
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+.rule-body {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: 0 var(--space-4) var(--space-4) 40px;
+}
+
+/* 적용 조건: id 옆이 설명 자리다. */
+.conditions {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+
+/* 접어 둔 판정자에게 묻는 글: 이름은 작고 옅게(목업 policy 의 .prompt). 사람에게 하는 말(알리는 말, 질문)보다 뒤에 읽는다. */
+.rule-body .fold > summary {
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+
+/* 접어 둔 것 안의 글(판정자에게 묻는 글)은 둘레의 글보다 조금 작게, 왼쪽에 선을 두어 인용처럼 보인다. */
+.rule-body .fold > p {
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+  color: var(--muted);
+  border-left: 2px solid var(--rule-muted);
+  padding-left: var(--space-3);
+}
+
+/* 대안들: 대안마다 id 와 종류, 그 아래 사람에게 하는 말. 대안 사이는 옅은 선이다. */
+.alt-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--rule-muted);
+}
+
+.alt-list > li {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-3) 0;
+}
+
+.alt-list > li + li {
+  border-top: 1px solid var(--rule-muted);
+}
+
+.alt-list > li:last-child {
+  padding-bottom: 0;
+}
+
+.alt-h {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px var(--space-3);
+  align-items: baseline;
+}
+
+.alt-kind {
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+
+/* 대안마다 같은 자리에 "알리는 말", "질문", "고치는 법"이 온다. 좁은 화면에서는 이름표를 글 위에 둔다. */
+.says {
+  margin: 0;
+  display: grid;
+  gap: var(--space-1);
+  line-height: var(--leading-snug);
+}
+
+.says > div {
+  display: grid;
+  grid-template-columns: 4.6em minmax(0, 1fr);
+  gap: 0 var(--space-3);
+  align-items: baseline;
+}
+
+.says dt {
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+
+.says dd {
+  margin: 0;
+}
+
+@media (max-width: 480px) {
+  .says > div {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/*
+ * 곁칸 `이 정책`: 이름표 | 값의 줄. 목록 전체가 한 격자이고(이름표의 칸은 가장 긴 이름표만큼), 줄마다의 div 는 그 칸을 이어받는다
+ * (subgrid). 그래서 어느 너비에서나 값이 한 세로줄에서 시작하고, 줄 사이의 선은 줄마다의 div 가 그린다(목업 policy 의 .facts).
+ */
+.side-facts {
+  margin: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: var(--space-3);
+}
+
+.side-facts > div {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: subgrid;
+  align-items: baseline;
+  padding: var(--space-2) var(--space-4);
+  line-height: var(--leading-snug);
+}
+
+.side-facts > div + div {
+  border-top: 1px solid var(--rule-muted);
+}
+
+.side-facts dt {
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+
+.side-facts dd {
+  margin: 0;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 1011px) {
+  .side-facts dd {
+    text-align: left;
+  }
+}
+
+@media (max-width: 599px) {
+  .lg-item > details.lg > summary,
+  details.rule-row > summary,
+  details.legend-fold > summary {
+    padding-left: 32px;
+  }
+
+  .lg-item > details.lg > summary::before,
+  details.rule-row > summary::before,
+  details.legend-fold > summary::before {
+    left: 14px;
+  }
+
+  .lg-facts,
+  .rule-body,
+  details.legend-fold > .legend {
+    padding-left: var(--space-4);
+  }
+
+  .lg-body > .notice {
+    margin-left: var(--space-4);
+  }
+
+  .statute {
+    padding: var(--space-4);
+  }
+}
+
+/* 같은 자리에 이름표가 오는 목록(조문 도감의 적용 조건·적용 질문, 기록과 저장소 쪽의 사실). 좁은 화면에서는 이름표를 글 위에 둔다. */
 .facts {
   margin: 0;
   display: grid;
@@ -1545,17 +2016,6 @@ select {
   .facts > div {
     grid-template-columns: minmax(0, 1fr);
   }
-}
-
-/* 근거 조문 하나. 조문 사이는 선으로 나눈다. */
-.legal {
-  display: grid;
-  gap: var(--space-2);
-}
-
-.legal + .legal {
-  border-top: 1px solid var(--rule-muted);
-  padding-top: var(--space-4);
 }
 
 /*
@@ -1593,213 +2053,6 @@ select {
   line-height: 1;
   white-space: nowrap;
   vertical-align: 1px;
-}
-
-/* 원문 해시가 팩에 적힌 것과 다르거나 견주지 못했을 때. */
-.meta-row dd.warn {
-  color: var(--st-review);
-  font-weight: 600;
-}
-
-/*
- * 조문 원문. 팩에 실린 글자 그대로다. 줄바꿈과 빈칸을 그대로 보이고, 긴 줄은 상자 안에서 줄을 바꾼다. 글꼴은 본문과 같다
- * (위 :root 의 글꼴 풀이). 원문이라는 것은 상자와, 그 위의 "조문 원문"이라는 이름이 말한다.
- *
- * 글이 놓이는 너비를 풀이 문단의 한 줄 길이(--measure)로 묶는다(content-box 라 안쪽 여백과 테두리는 그 밖이다). 넓은 화면에서
- * 쪽에서 가장 길고 촘촘한 글의 한 줄이 풀이와 비슷한 길이에서 끊긴다. 묶지 않으면 고딕으로 바꾼 뒤 한 줄이 빈칸까지 여든 자
- * 안팎이었다. 좁은 화면에는 영향이 없다.
- */
-.statute {
-  box-sizing: content-box;
-  max-width: var(--measure);
-  margin: 0;
-  font-family: var(--font-body);
-  font-size: var(--text-lg);
-  line-height: 1.8;
-  white-space: pre-wrap;
-  background: var(--bg-muted);
-  border: 1px solid var(--rule);
-  border-radius: var(--radius);
-  padding: var(--space-4);
-}
-
-/* 규칙 하나. 정책 카드와 같은 면에 둔다. */
-.rule-doc {
-  background: var(--surface);
-  border: 1px solid var(--rule);
-  border-radius: var(--radius);
-  padding: var(--space-4);
-  display: grid;
-  gap: var(--space-3);
-}
-
-/* 적용 조건: id 옆이 설명 자리다. */
-.conditions {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: 2px;
-}
-
-/* 접어 둔 것 안의 글(판정자에게 묻는 글)은 둘레의 글보다 조금 작게, 왼쪽에 선을 두어 인용처럼 보인다. */
-.rule-doc .fold > p {
-  font-size: var(--text-sm);
-  line-height: var(--leading-snug);
-  border-left: 2px solid var(--rule-muted);
-  padding-left: var(--space-3);
-}
-
-/*
- * 대안 표. 칸은 대안(id) · 종류와 세기 · 확인되지 않았을 때 하는 말이다.
- * id 와 종류의 칸은 글자만큼만 차지하고, 나머지는 하는 말의 칸이 쓴다.
- */
-.alts {
-  width: 100%;
-  border-collapse: collapse;
-  line-height: var(--leading-snug);
-}
-
-.alts caption {
-  padding-bottom: var(--space-1);
-  text-align: left;
-  font-size: var(--text-sm);
-  font-weight: 600;
-}
-
-.alts th,
-.alts td {
-  padding: var(--space-2) var(--space-4) var(--space-2) 0;
-  text-align: left;
-  vertical-align: baseline;
-}
-
-.alts thead th {
-  padding-block: 0 var(--space-1);
-  font-size: var(--text-xs);
-  font-weight: 400;
-  color: var(--muted);
-}
-
-.alts tbody th,
-.alts tbody td {
-  border-top: 1px solid var(--rule-muted);
-}
-
-.alts tbody th {
-  font-weight: 400;
-}
-
-.alts thead th:not(:last-child),
-.alts tbody th,
-.alts .alt-kind {
-  width: 1%;
-  white-space: nowrap;
-}
-
-.alts .alt-kind {
-  font-size: var(--text-xs);
-  color: var(--muted);
-}
-
-.alts thead th:last-child,
-.alts .alt-says {
-  padding-right: 0;
-}
-
-/* 칸 안의 덧붙인 말 · 하는 말 · 접어 둔 것 사이. */
-.alt-says > * + * {
-  margin-top: var(--space-2);
-}
-
-/* 대안마다 같은 자리에 "알리는 말", "질문", "고치는 법"이 온다. 좁은 화면에서는 이름표를 글 위에 둔다. */
-.says {
-  margin: 0;
-  display: grid;
-  gap: var(--space-2);
-}
-
-.says > div {
-  display: grid;
-  grid-template-columns: 4.6em minmax(0, 1fr);
-  gap: 0 var(--space-3);
-  align-items: baseline;
-}
-
-.says dt {
-  font-size: var(--text-xs);
-  font-weight: 600;
-  color: var(--muted);
-}
-
-.says dd {
-  margin: 0;
-  font-size: var(--text-sm);
-}
-
-@media (max-width: 480px) {
-  .says > div {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
-/*
- * 좁은 화면: 대안의 id 와 종류를 한 줄에 두고, 하는 말은 그 아래에 화면 너비를 다 쓴다.
- * 칸 머리는 앞의 둘("대안", "종류와 세기")만 화면에서 가린다. 그 둘은 줄만 봐도 무엇인지 안다. 셋째("확인되지 않았을 때
- * 하는 말")는 표 이름 아래에 그대로 보인다. 가리면 알리는 말·질문·고치는 법이 언제 쓰는 말인지 보이는 글이 없다.
- */
-@media (max-width: 640px) {
-  .alts,
-  .alts caption,
-  .alts thead,
-  .alts thead tr,
-  .alts tbody {
-    display: block;
-  }
-
-  .alts thead th {
-    display: block;
-    width: auto;
-    padding: 0 0 4px;
-    white-space: normal;
-  }
-
-  .alts thead th:not(:last-child) {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
-  }
-
-  .alts tbody tr {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    gap: var(--space-1) var(--space-3);
-    padding: var(--space-3) 0;
-    border-top: 1px solid var(--rule-muted);
-  }
-
-  /*
-   * 종류의 칸(.alt-kind)은 따로 적는다. 넓은 화면의 `.alts .alt-kind`(너비 1%, 줄바꿈 없음)가 td 만 적은 선택자를 이겨서,
-   * 빠뜨리면 칸이 3px 로 남고 글이 칸 밖에 그려진다. id 가 길면 그 글이 규칙 상자와 화면 밖으로 나간다.
-   */
-  .alts tbody tr > th,
-  .alts tbody tr > td,
-  .alts tbody tr > .alt-kind {
-    display: block;
-    width: auto;
-    padding: 0;
-    border: 0;
-    white-space: normal;
-  }
-
-  .alts tbody tr > .alt-says {
-    flex-basis: 100%;
-  }
 }
 
 /*

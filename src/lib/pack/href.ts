@@ -23,3 +23,20 @@ export function policyHref(id: string): string {
 export function policyCardId(id: string): string {
   return `policy-${policySlug(id)}`;
 }
+
+/**
+ * 정책 쪽 안에서 규칙 하나의 자리(닻) 이름. 결과 화면의 규칙 id 가 이 자리로 잇는다(`ruleHref`). 닻은 쪽을 빌드할 때마다
+ * 같아야 하므로 규칙 id 에서만 만든다(차례나 다른 값을 섞지 않는다).
+ *
+ * 영문자·숫자·빼기표는 그대로 두고, 그 밖의 글자(밑줄 포함)는 `_<16진 코드>_` 로 바꾼다. 밑줄도 바꾸므로 서로 다른 id 가
+ * 같은 이름이 되지 않는다(`a_b` → `rule-a_5f_b`, `a.b` → `rule-a_2e_b`). 팩의 규칙 id 는 지금 영문 소문자와 빼기표뿐이라
+ * `rule-` 를 붙인 그대로다. 앞에 `rule-` 를 붙여 쪽의 다른 자리(`legal`, `rules`)와 겹치지 않게 한다.
+ */
+export function ruleAnchor(ruleId: string): string {
+  return `rule-${ruleId.replace(/[^A-Za-z0-9-]/gu, (char) => `_${char.codePointAt(0)!.toString(16)}_`)}`;
+}
+
+/** 조문 도감에서 규칙 하나의 주소: 그 정책 쪽의 그 규칙 자리. */
+export function ruleHref(policyId: string, ruleId: string): string {
+  return `${policyHref(policyId)}#${ruleAnchor(ruleId)}`;
+}

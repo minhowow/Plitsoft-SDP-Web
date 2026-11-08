@@ -19,31 +19,41 @@ export function NotSeen({ view }: { view: ReportView }) {
   return (
     <>
       <p className="hint">{view.findingCount === 0 ? SITE.notSeen.lead : SITE.notSeen.leadWithFindings}</p>
-      {/* 항목마다 한 줄: 무엇(왼쪽) | 왜(오른쪽, 까닭이 여럿이면 한 줄씩). 좁은 화면에서는 위아래로 쌓는다(CSS, 목업 notseen 의 def 줄).
-          쌍점은 화면 낭독기와 글 복사에만 남긴다. */}
-      <ul className="not-seen">
-        {SITE.notSeen.items.map((item) => (
-          <li key={item.what}>
-            <strong>
-              {item.what}
-              <span className="visually-hidden">:</span>
-            </strong>{" "}
-            <div className="ns-why">
-              {item.why}
-              {item.cases && (
-                <ul className="not-seen-cases">
-                  {item.cases.map((text) => (
-                    <li key={text}>{text}</li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </li>
-        ))}
-      </ul>
+      <NotSeenList />
       {/* 대상 언어는 팩이 정한다. 다른 판의 팩으로 만든 결과에서는 위의 "JS/TS"가 맞는지 알 수 없다. */}
       {view.packMatches === false && <p className="hint">{SITE.notSeen.otherPack}</p>}
     </>
+  );
+}
+
+/**
+ * 검사에 들지 않는 파일과 정보의 항목 목록(`SITE.notSeen.items` 그대로). 결과 화면(위 `NotSeen`)과 조문 도감 목록의 `#scope` 가
+ * 함께 쓴다.
+ */
+export function NotSeenList() {
+  // 항목마다 한 줄: 무엇(왼쪽) | 왜(오른쪽, 까닭이 여럿이면 한 줄씩). 좁은 화면에서는 위아래로 쌓는다(CSS, 목업 notseen 의 def 줄).
+  // 쌍점은 화면 낭독기와 글 복사에만 남긴다.
+  return (
+    <ul className="not-seen">
+      {SITE.notSeen.items.map((item) => (
+        <li key={item.what}>
+          <strong>
+            {item.what}
+            <span className="visually-hidden">:</span>
+          </strong>{" "}
+          <div className="ns-why">
+            {item.why}
+            {item.cases && (
+              <ul className="not-seen-cases">
+                {item.cases.map((text) => (
+                  <li key={text}>{text}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </li>
+      ))}
+    </ul>
   );
 }
 

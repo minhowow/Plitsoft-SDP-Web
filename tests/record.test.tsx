@@ -6,7 +6,7 @@ import { RecordRefused, RecordSheet } from "@/components/result/Record";
 import { ReportSummary } from "@/components/result/ReportSummary";
 import { ReportWithRecord } from "@/components/result/ReportWithRecord";
 import { packIndex } from "@/lib/pack";
-import { EFFECTIVE_FROM_NOTE, LEGAL_NOTE } from "@/lib/pack/guide";
+import { EFFECTIVE_FROM_NOTE, EFFECTIVE_VERSION } from "@/lib/pack/guide";
 import type { PackIndex } from "@/lib/pack/types";
 import { coverageSummary, GAPS_NOTE, GAPS_TITLE, SARIF_COUNTS_NOTE } from "@/lib/report/coverage";
 import { parseReport } from "@/lib/report/parse";
@@ -385,9 +385,9 @@ describe("기록에 싣는 것", () => {
       expect(finding.title).toBe(metaOf(finding.policy).title);
     });
 
-    it("시행일의 한계는 조문 도감과 같은 말이다", () => {
+    it("시행일의 한계는 조문 도감과 같은 사실이다 (도감은 곁칸의 사실 줄로 적는다. D6)", () => {
       expect(EFFECTIVE_FROM_NOTE).toBe("시행일이 어느 판본의 날짜인지는 팩이 아직 알려 주지 않습니다.");
-      expect(LEGAL_NOTE.endsWith(` ${EFFECTIVE_FROM_NOTE}`)).toBe(true);
+      expect(EFFECTIVE_VERSION).toEqual({ label: "시행일의 판본", value: "팩이 아직 알려 주지 않음" });
     });
 
     it("대표 조문의 뜻: 근거 조문이 더 있는 정책의 수는 넘긴 팩 정보의 조문 수로 센다. 그런 정책이 없으면 첫 문장만 적는다", () => {

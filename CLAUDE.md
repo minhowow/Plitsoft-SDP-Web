@@ -88,6 +88,7 @@ npm run pack-meta   # 팩에서 data/pack-meta.json 다시 만들기
 | `runner/`, `.github/workflows/analyze.yml` | 분석 실행기(GitHub Actions). `run.mjs`·`tar.mjs` 는 Node 내장 모듈만 쓴다. 대상 코드를 실행하지 않는다 |
 | `src/components/service/` | 검색창(`SearchForm.tsx` 가 셋 모두 `SearchCombobox.tsx` 로 그린다), 최근 분석 줄(`activity.tsx`), 저장소 쪽의 최신 분석(`repository.tsx`), 분석 쪽 부품, 분석 대시보드. 브라우저 부품은 요청 단추(`RequestButton.tsx`), 진행 다시 읽기(`LiveAnalysis.tsx`), 검색창 자동 완성(`SearchCombobox.tsx`) 셋이고 같은 사이트의 `/api/` 만 부른다. 머리글의 브라우저 부품(`src/components/HeaderBehavior.tsx`, 메뉴 닫기·지금 쪽 표시)은 어디에도 요청하지 않는다 |
 | `src/components/result/` | 결과 화면 부품. 모든 페이지가 함께 쓴다 |
+| `src/components/policy/` | 조문 도감의 정책 쪽(`PolicyDetail.tsx`, 서버 부품). 브라우저 부품은 `PolicyNav.tsx` 하나(쪽 안의 자리로 옮기기, 주소의 규칙 자리 펼치기)이고 어디에도 요청하지 않는다. 규칙의 자리 이름은 `ruleAnchor()`, 그 주소는 `ruleHref()`(`src/lib/pack/href.ts`) |
 | `src/lib/report/` | 결과 JSON 타입, 파서, 상태 문구, 화면용 구조 |
 | `src/lib/pack/` | 팩 메타데이터 타입과 읽기 |
 | `contract/` | CLI 와의 이음매: 스키마, 실제 출력 수집본, v1 초안 예시, 합성 데모 코드 |
@@ -104,7 +105,7 @@ npm run pack-meta   # 팩에서 data/pack-meta.json 다시 만들기
 - 커밋은 항목 단위로, 한국어 제목(무엇을 했는지 한 줄)으로 한다. 원격에 올리지 않는다.
 - 화면을 바꿨으면 브라우저에서 실제로 열어 확인한다(좁은 화면과 어두운 테마 포함). 확인할 도구가 없으면 로드맵에
   "브라우저 확인 못 함"이라고 적는다.
-- 조문 도감 주소는 `policyHref()` 로 만든다. 주소에 점을 넣지 않는다.
+- 조문 도감 주소는 `policyHref()` 로, 규칙의 자리는 `ruleHref()` 로 만든다. 주소에 점을 넣지 않는다.
 - 의존성은 꼭 필요할 때만 더한다. 더하면 왜 필요한지 커밋 메시지에 적는다.
 - 판단이 서지 않는 것, 약속과 부딪치는 것은 추측으로 밀고 가지 말고 로드맵의 "사람 결정이 필요한 것"에 적고 다음 항목으로 간다.
 

@@ -6,7 +6,7 @@ import { analysisHref, repoHref } from "@/lib/service/href";
 import { syntheticRepositories, syntheticStore } from "@/lib/service/synthetic";
 import { SITE } from "@/lib/site";
 import { elementAt, elementsOf, readPackFile, root } from "../helpers";
-import { DIGEST_NOTE, expectedPolicyPage, plain, POLICY_FRAME, readAround, readPolicyPage } from "../policy-page";
+import { decodeEntities, expectedPolicyPage, plain, POLICY_FRAME, readAround, readPolicyIndex, readPolicyPage } from "../policy-page";
 import { nextDir, serveSite, type Site } from "./site";
 
 // 빌드된 사이트가 브라우저에 내주는 것을 본다. 브라우저는 쓰지 않지만 빌드 뒤에 돌아야 해서 이 단계(`npm run test:browser`)에 둔다.
@@ -275,7 +275,7 @@ describe("빌드된 사이트의 조문 도감 쪽", () => {
     expect(readPolicyPage(html)).toEqual({ ...expectedPolicyPage(policy, pack), frame: POLICY_FRAME });
   });
 
-  it("조문 원문은 data/pack-meta.json 의 것과 글자 그대로 같다", () => {
+  it("조문 원문은 data/pack-meta.json 의 것과 글자 그대로 같다 (줄바꿈 하나, 빈칸 하나까지)", () => {
     let boxes = 0;
     for (const policy of policies) {
       const html = pageOf(policy.id);
@@ -290,9 +290,8 @@ describe("빌드된 사이트의 조문 도감 쪽", () => {
           expect(shown.missing, legal.label).toBe("원문이 실려 있지 않습니다.");
           continue;
         }
-        // 글자 하나, 줄바꿈 하나, 빈칸 하나까지 같다. 줄이거나 다듬지 않았다.
-        expect(shown.statute?.text === legal.text, `${policy.id} ${legal.label}`).toBe(true);
-        expect(shown.statute?.text.length, legal.label).toBe(legal.text.length);
+        expect(shown.statute === legal.text, `${policy.id} ${legal.label}`).toBe(true);
+        expect(shown.statute?.length, legal.label).toBe(legal.text.length);
         expect(shown.missing, legal.label).toBeNull();
         boxes += 1;
       }
@@ -303,10 +302,10 @@ describe("빌드된 사이트의 조문 도감 쪽", () => {
     expect(boxes).toBeGreaterThan(0);
   });
 
-  it.each(named)("%s: 밖으로 가는 주소는 팩 메타데이터의 법제처 링크뿐이고, 쪽 안의 자리로 가는 링크는 없다", (_, policy) => {
+  it.each(named)("%s: 밖으로 가는 주소는 팩 메타데이터의 법제처 링크뿐이고, 쪽 안의 링크는 근거 조문과 규칙의 자리뿐이다", (_, policy) => {
     const html = pageOf(policy.id);
     const page = readPolicyPage(html);
-    expect(page.hrefs).toEqual(policy.legal.map((legal) => legal.url));
+    expect(page.hrefs).toEqual(["#legal", "#rules", ...policy.legal.flatMap((legal) => legal.url ?? [])]);
     // 쪽의 다른 곳(머리, 바닥, 쪽을 옮겨 올 때 쓰는 내용)에도 그 밖의 바깥 주소는 없다.
     expect(outsideUrls(html)).toEqual([...new Set(policy.legal.flatMap((legal) => legal.url ?? []))].sort());
     expect(outsideUrls(textOf(path.join("policy", policySlug(policy.id), "index.txt")))).toEqual(outsideUrls(html));
@@ -314,21 +313,44 @@ describe("빌드된 사이트의 조문 도감 쪽", () => {
     for (const tag of html.match(/<(?:img|iframe|script|link|source|video|audio|embed|object)\b[^>]*>/g) ?? []) {
       expect(tag, tag).not.toMatch(/https?:/);
     }
-    expect(html).not.toMatch(/href="#/);
+    // 바깥 링크는 모두 새 창이고 rel 이 있다.
+    for (const anchor of html.match(/<a [^>]*href="https?:[^"]*"[^>]*>/g) ?? []) {
+      expect(anchor).toContain('target="_blank"');
+      expect(anchor).toContain('rel="noopener noreferrer"');
+    }
+    // 쪽 안의 링크(#…)가 가리키는 자리가 그 쪽에 있다.
+    for (const [, id] of html.matchAll(/href="#([^"]*)"/g)) expect(html, id).toContain(` id="${id}"`);
   });
 
-  it("목록(/policy/)의 링크가 정책 쪽의 주소이고, 이 도감을 만든 팩 판이 적혀 있다", () => {
+  it("목록(/policy/): 줄마다 정책 쪽의 주소이고, 메타 줄의 팩·판·정책 수가 팩 메타데이터에서 왔다. #status 와 #scope 가 있다", () => {
     const html = textOf(path.join("policy", "index.html"));
-    const items = elementsOf(elementAt(html, html.indexOf('<ul class="policy-index">')), "<li>");
-    expect(items).toHaveLength(policies.length);
-    for (const [i, policy] of policies.entries()) {
-      const link = elementAt(items[i], items[i].indexOf("<a "));
-      // 쪽의 주소는 끝에 빗금이 있다(next.config 의 trailingSlash).
-      expect(/href="([^"]*)"/.exec(link)?.[1], policy.id).toBe(policyHref(policy.id));
-      expect(contents.some(({ file }) => file === pageFile(policyHref(policy.id), "html")), policy.id).toBe(true);
-      expect(plain(link)).toBe(policy.title);
-    }
-    expect(plain(html)).toContain(`이 도감을 만든 팩 판은 ${pack.digest} 입니다. ${DIGEST_NOTE}`);
+    const index = readPolicyIndex(html);
+    expect(index.rows.map((row) => row.href)).toEqual(policies.map((policy) => policyHref(policy.id)));
+    expect(index.rows.map((row) => [row.title, row.rules])).toEqual(policies.map((policy) => [policy.title, `규칙 ${policy.rules.length}`]));
+    for (const policy of policies) expect(contents.some(({ file }) => file === pageFile(policyHref(policy.id), "html")), policy.id).toBe(true);
+    expect(index.meta.replace(/\s+/g, " ")).toBe(`팩 ${pack.id} 판 ${pack.digest} 정책 ${policies.length}`);
+    expect(index.sections.map((section) => section.id)).toEqual(["status", "scope"]);
     expect(outsideUrls(html)).toEqual([]);
+  });
+
+  it("결과 화면들의 `/policy/#status`·`/policy/#scope` 링크와 규칙 id 링크(`/policy/<이름>/#rule-…`)가 가리키는 자리가 빌드된 쪽에 있다", () => {
+    const pages = contents.filter(({ file }) => file.endsWith(".html"));
+    const links = pages.flatMap(({ file, text }) =>
+      [...text.matchAll(/<a [^>]*href="(\/policy\/[^"]*#[^"]*)"/g)].map((match) => ({ file, href: decodeEntities(match[1]) })),
+    );
+    // 결과 화면(분석 쪽, 데모)이 잇는 링크를 봤다: 상태의 뜻, 검사에 들지 않는 것, 규칙의 자리.
+    const hrefs = new Set(links.map((link) => link.href));
+    expect(hrefs.has("/policy/#status")).toBe(true);
+    expect(hrefs.has("/policy/#scope")).toBe(true);
+    const ruleLinks = links.filter((link) => /#rule-/.test(link.href));
+    expect(ruleLinks.length).toBeGreaterThan(0);
+    for (const { file, href } of links) {
+      const [pathname, id] = href.split("#");
+      // 끝에 빗금이 있는 주소다(next.config 의 trailingSlash). 그 주소의 쪽이 빌드돼 있다.
+      expect(pathname, `${file}: ${href}`).toMatch(/\/$/);
+      const target = contents.find((entry) => entry.file === pageFile(pathname, "html"));
+      expect(target, `${file}: ${href}`).toBeDefined();
+      expect(target!.text, `${file}: ${href}`).toContain(` id="${id}"`);
+    }
   });
 });

@@ -1,5 +1,4 @@
 import { STATUS_LABEL } from "@/lib/report/status";
-import { SITE } from "@/lib/site";
 import type { Alternative, LegalRef, PolicyDoc } from "./types";
 
 /**
@@ -10,8 +9,8 @@ import type { Alternative, LegalRef, PolicyDoc } from "./types";
  * 팩의 YAML 주석이나 Semgrep 패턴을 풀어 설명을 만들지 않고, id 를 우리말로 풀어 쓰지도 않는다(`docs/cli-requests.md` 의
  * R5). 팩 작성자 메모와 처분·액수는 싣지 않는다(`docs/commitments.md` 의 1).
  *
- * 화면에 쓰는 팩의 글은 제목, 질문(개발자에게 할 질문, 판정자에게 묻는 글), 알리는 말, 고치는 법이다. 사람에게 하는 말은
- * 펼쳐 두고, 판정자에게 묻는 글(적용 질문, AI 대안의 질문)은 접어 둔다(`components/policy/PolicyDetail.tsx`).
+ * 화면에 쓰는 팩의 글은 제목, 질문(개발자에게 할 질문, 판정자에게 묻는 글), 알리는 말, 고치는 법이다. 규칙 줄을 펼치면 사람에게
+ * 하는 말이 보이고, 판정자에게 묻는 글(적용 질문, AI 대안의 질문)은 한 번 더 접어 둔다(`components/policy/PolicyDetail.tsx`).
  */
 
 /** 팩에 값이 없을 때 그 자리에 적는 말(날짜, 링크, 알리는 말, 질문, 고치는 법). 다른 데서 끌어와 채우지 않는다. */
@@ -26,39 +25,97 @@ export const CONDITION_UNDESCRIBED = "팩이 아직 알려 주지 않습니다."
 /** 원문이 없는 조문(`text` 가 null)에 적는 말. */
 export const NO_STATUTE_TEXT = "원문이 실려 있지 않습니다.";
 
+/** 사실 줄의 이름표와 값. 조문 도감 정책 쪽의 곁칸 `이 정책` 과 조문마다의 줄이 이 모양으로 적는다. */
+export interface Fact {
+  label: string;
+  value: string;
+  /** 눈에 띄게 적을 값(원문 해시가 팩에 적힌 것과 다르거나 견주지 못했을 때). */
+  warn?: boolean;
+}
+
 /**
- * 시행일을 적은 자리에 덧붙이는 말. 조문 도감의 "근거 조문" 구역(`LEGAL_NOTE`)과 조문별 검사 기록(`src/lib/report/record.ts`)이
- * 함께 쓴다. 두 곳 모두 팩의 시행일을 그대로 옮겨 적으므로, 한쪽만 고쳐 서로 어긋나지 않게 한곳에 둔다.
+ * 원문과 날짜가 어디서 왔는지. D5 까지는 "근거 조문" 구역의 첫 줄(LEGAL_NOTE: "원문과 날짜는 팩에 실린 그대로입니다. 시행일이
+ * 어느 판본의 날짜인지는 팩이 아직 알려 주지 않습니다.")이 하던 말이다. 재디자인(D6)에서 곁칸의 사실 줄 둘로 옮겼다. 첫 문장은
+ * 이 줄이, 둘째 문장은 아래 `EFFECTIVE_VERSION` 이 말한다. 원문만이 아니라 날짜도 팩의 것이라 이름표에 둘을 함께 적는다.
  */
+export const SOURCE_FACT: Fact = { label: "원문과 날짜", value: "팩에 실린 그대로" };
+
+/**
+ * 시행일(`effective_from`)이 무엇의 날짜인지. 팩 메타데이터에도 CLI README(`8ae72d8`)에도 없다. 그래서 날짜만 옮기고, 어느
+ * 판본의 날짜인지는 팩이 알려 주지 않는다고 적는다. 원문 파일의 머리에도 '시행' 줄이 있는데, 그 줄은 원문의 글이라 풀어 읽지
+ * 않는다(두 날짜가 다른 조문이 있다. `docs/ROADMAP.md` 의 "CLI 가 나아갔다").
+ *
+ * CLI `e1e46a9` 의 README 는 그 뜻을 적는다(받은 판본의 시행일). 그 판으로 다시 수집한 뒤에 이 말을 README 가 적은 만큼으로
+ * 바꾼다(`docs/ROADMAP.md` 의 "G1 뒤에 할 일"). 조문별 검사 기록은 같은 사실을 문장으로 적는다(`EFFECTIVE_FROM_NOTE`). 둘은
+ * 함께 바꾼다(tests/record.test.tsx).
+ */
+export const EFFECTIVE_VERSION: Fact = { label: "시행일의 판본", value: "팩이 아직 알려 주지 않음" };
+
+/** 시행일을 적은 자리에 덧붙이는 말(조문별 검사 기록, `src/lib/report/record.ts`). 조문 도감은 `EFFECTIVE_VERSION` 으로 적는다. */
 export const EFFECTIVE_FROM_NOTE = "시행일이 어느 판본의 날짜인지는 팩이 아직 알려 주지 않습니다.";
 
+/** 조문마다 값이 다른 날짜를 곁칸에 적는 말. 값은 조문마다의 줄(그 조문을 펼친 안쪽)에 있다. */
+export const DIFFERS_BY_LEGAL = "조문마다 다름";
+
+/** 규칙마다 판정 단위가 다를 때 곁칸에 적는 말. 규칙마다의 판정 단위는 규칙 줄에 있다. */
+export const DIFFERS_BY_RULE = "규칙마다 다름";
+
+/** 해시를 화면에 짧게 적을 때의 자리 수. 팩 판(16자)과 같다. 전체 값은 그 옆에 접어 둔다. */
+export const HASH_SHOWN = 16;
+
+/** 조문들의 그 값이 모두 같은지. 같으면 그 값(없는 값은 null), 다르면 `undefined`. 조문이 없어도 `undefined`. */
+function sharedValue(legal: LegalRef[], pick: (ref: LegalRef) => string | null): string | null | undefined {
+  if (legal.length === 0) return undefined;
+  const values = new Set(legal.map(pick));
+  return values.size === 1 ? [...values][0] : undefined;
+}
+
+/** 곁칸과 조문마다의 줄에서 원문 해시가 팩에 적힌 것과 맞는지 적는 줄의 이름표. 해시의 값을 적는 줄(`원문 해시`)과 가른다. */
+export const HASH_CHECK = "원문 해시 대조";
+
 /**
- * "근거 조문" 구역의 첫 줄. 원문과 날짜가 팩의 것임을 밝힌다.
+ * 원문의 출처에 관한 사실. 조문이 모두 같은 값이면 곁칸에 한 번(`side`), 다르면 곁칸에는 `조문마다 다름` 을 적고 조문마다의
+ * 줄(`perLegal[i]`)에 그 조문의 값을 적는다. 원문 해시의 값은 원문마다의 것이라 늘 조문마다의 줄에 둔다(부품이 그린다). 곁칸에는
+ * 그 해시가 팩에 적힌 것과 맞는지만 모아 적는다(`원문 해시 대조`). 조문이 없는 정책에는 원문의 사실이 없다(곁칸에도 적지 않는다).
  *
- * 시행일(`effective_from`)이 무엇의 날짜인지는 팩 메타데이터에도 CLI README(`8ae72d8`)에도 없다. 그래서 날짜만 옮기고,
- * 어느 판본의 날짜인지는 팩이 알려 주지 않는다고 적는다. 원문 파일의 머리에도 '시행' 줄이 있는데, 그 줄은 원문의 글이라
- * 풀어 읽지 않는다(두 날짜가 다른 조문이 있다. `docs/ROADMAP.md` 의 "CLI 가 나아갔다").
+ * 곁칸의 차례는 docs/redesign.md 3장의 목록대로다: 원문, 원문 받은 날, 해시, (시행일), 시행일의 판본.
  *
- * CLI `e1e46a9` 의 README 는 그 뜻을 적는다(받은 판본의 시행일). 그 판으로 다시 수집한 뒤에 이 말을 README 가 적은
- * 만큼으로 바꾼다(`docs/ROADMAP.md` 의 "G1 뒤에 할 일").
+ * 값은 팩 메타데이터 그대로다. 없는 값은 `NOT_IN_PACK` 이다. 날짜를 고치거나 다시 계산하지 않는다.
  */
-export const LEGAL_NOTE = `원문과 날짜는 팩에 실린 그대로입니다. ${EFFECTIVE_FROM_NOTE}`;
-
-/** 재검토 기한(`review_by`)이 무엇인지. CLI README 의 "재검토 기한"이 적은 만큼이다. */
-export const REVIEW_BY_NOTE = `재검토 기한이 지나면 ${SITE.cli} validate 가 경고합니다.`;
+export function legalFacts(legal: LegalRef[]): { side: Fact[]; perLegal: Fact[][] } {
+  if (legal.length === 0) return { side: [], perLegal: [] };
+  const side: Fact[] = [SOURCE_FACT];
+  const perLegal: Fact[][] = legal.map(() => []);
+  const date = (label: string, pick: (ref: LegalRef) => string | null) => {
+    const shared = sharedValue(legal, pick);
+    side.push({ label, value: shared === undefined ? DIFFERS_BY_LEGAL : (shared ?? NOT_IN_PACK) });
+    if (shared === undefined) legal.forEach((ref, i) => perLegal[i].push({ label, value: pick(ref) ?? NOT_IN_PACK }));
+  };
+  date("원문 받은 날", (ref) => ref.text_retrieved);
+  // 해시가 맞는지: 모두 같은 결과면 한 줄로(조문이 여럿이면 "N개 모두"), 다르면 곁칸에는 맞지 않는 것의 수를 말로 적고(색만으로
+  // 알리지 않는다) 조문마다의 줄에 그 조문의 결과를 적는다.
+  const statuses = legal.map(hashStatus);
+  const shared = sharedValue(legal, (ref) => hashStatus(ref).text);
+  if (shared === undefined || shared === null) {
+    side.push({ label: HASH_CHECK, value: hashTally(statuses), warn: statuses.some((status) => status.warn) });
+    statuses.forEach((status, i) => perLegal[i].push({ label: HASH_CHECK, value: status.text, warn: status.warn }));
+  } else {
+    side.push({ label: HASH_CHECK, value: legal.length > 1 ? `${legal.length}개 모두 ${shared}` : shared, warn: statuses[0].warn });
+  }
+  date("시행일", (ref) => ref.effective_from);
+  side.push(EFFECTIVE_VERSION);
+  return { side, perLegal };
+}
 
 /**
- * 팩 판을 적은 자리에 덧붙이는 말. 팩 판은 CLI 가 결과에 싣는 `run.pack_digest` 와 같은 계산이다
- * (`scripts/export-pack-meta.mjs`). 결과 화면은 그 값을 '팩 판'이라는 이름으로 보인다(`components/result/ReportSummary.tsx`).
+ * 조문마다 해시 대조의 결과가 다를 때 곁칸에 적는 말: 맞지 않거나 견주지 못한 것이 몇 개인지(`3개 가운데 1개 팩에 적힌 것과
+ * 다름`). 결과의 말은 `hashStatus` 그대로이고, 처음 나온 차례로 적는다.
  */
-export const PACK_DIGEST_NOTE = "결과의 ‘팩 판’이 이와 같으면 같은 판의 팩으로 만든 결과입니다.";
-
-/**
- * "대표 조문" 표시가 붙은 조문의 이름 아래에 적는 말. 결과에 적히는 조문 이름(`findings[].law`)은 팩의 첫 조문이다
- * (수집본으로 견준다. `tests/policy.test.tsx`). 보이는 글로 적는다. 마우스를 올려야 뜨는 말은 터치 화면과 키보드로는
- * 읽을 수 없다. 한 줄에 들어가게 짧게 쓴다(375px).
- */
-export const PRIMARY_NOTE = "결과에는 이 조문의 이름이 적힙니다.";
+function hashTally(statuses: { text: string; warn: boolean }[]): string {
+  const counts = new Map<string, number>();
+  for (const status of statuses) if (status.warn) counts.set(status.text, (counts.get(status.text) ?? 0) + 1);
+  return `${statuses.length}개 가운데 ${[...counts].map(([text, n]) => `${n}개 ${text}`).join(", ")}`;
+}
 
 /**
  * 판정 단위. 팩의 `scope` 값을 옮긴다. 뜻은 CLI README 의 "함수 단위 판정"과 "외부 통신"이 적은 만큼이다. 함수 단위
@@ -75,9 +132,14 @@ export function unitLabel(scope: string): string {
   return UNIT.get(scope)?.label ?? scope;
 }
 
-/** 이 정책의 규칙에 나오는 판정 단위(나온 순서, 겹치지 않게). 쪽의 맨 위에 적는다. 규칙마다의 것은 규칙에 적는다. */
-export function policyUnits(policy: PolicyDoc): string[] {
-  return [...new Set(policy.rules.map((rule) => unitLabel(rule.scope)))];
+/**
+ * 곁칸 `이 정책` 의 판정 단위. 규칙이 모두 같은 단위면 그 이름 하나, 다르면 `규칙마다 다름`(규칙마다의 것은 규칙 줄에 있다).
+ * 규칙이 없으면(손으로 만든 자료) null 이다.
+ */
+export function policyUnit(policy: PolicyDoc): string | null {
+  const units = new Set(policy.rules.map((rule) => unitLabel(rule.scope)));
+  if (units.size === 0) return null;
+  return units.size === 1 ? [...units][0] : DIFFERS_BY_RULE;
 }
 
 const STRENGTH = new Map([

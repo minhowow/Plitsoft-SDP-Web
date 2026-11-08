@@ -42,17 +42,18 @@ export const panelText = (app: DemoApp, variant: DemoVariant) =>
   squash(plain(renderToStaticMarkup(<DemoPanel app={app} variant={variant} pack={packIndex} />)));
 
 /**
- * 조문 도감의 정책 쪽 부품(`PolicyDetail`)이 그 정책의 첫 조문을 그리는 HTML(`<div class="legal">` 하나). `legal` 로 첫 조문의
- * 값을 바꿔 그린다. 팩에 없는 모양(원문 해시가 맞지 않는 조문 등)의 꾸밈을 브라우저에서 재려고, 열린 쪽에 이것을 넣는다.
- * 작성자 메모는 넘기지 않는다(부품이 받지 않는다).
+ * 조문 도감의 정책 쪽 부품(`PolicyDetail`)이 그 정책의 첫 조문을 그리는 HTML(`<div class="lg-item …">` 하나)과 곁칸(`<aside>`).
+ * `legal` 로 첫 조문의 값을 바꿔 그린다. 팩에 없는 모양(원문 해시가 맞지 않는 조문 등)의 꾸밈을 브라우저에서 재려고, 열린 쪽에
+ * 이것을 넣는다. 작성자 메모는 넘기지 않는다(부품이 받지 않는다).
  */
-export function legalBlockMarkup(policy: PolicyMeta, pack: PackMeta["pack"], legal: Partial<LegalRef>): string {
+export function legalBlockMarkup(policy: PolicyMeta, pack: PackMeta["pack"], legal: Partial<LegalRef>): { legal: string; side: string } {
   const doc = Object.fromEntries(Object.entries(policy).filter(([key]) => key !== "rationale")) as PolicyDoc;
   const patched: PolicyDoc = { ...doc, legal: doc.legal.map((ref, i) => (i === 0 ? { ...ref, ...legal } : ref)) };
   const html = renderToStaticMarkup(<PolicyDetail policy={patched} pack={pack} />);
-  const [first] = elementsOf(html, '<div class="legal">');
-  if (!first) throw new Error(`${policy.id}: 조문이 그려지지 않았습니다.`);
-  return first;
+  const [first] = elementsOf(html, '<div class="lg-item');
+  const [side] = elementsOf(html, '<aside class="policy-side">');
+  if (!first || !side) throw new Error(`${policy.id}: 조문이나 곁칸이 그려지지 않았습니다.`);
+  return { legal: first, side };
 }
 
 /**

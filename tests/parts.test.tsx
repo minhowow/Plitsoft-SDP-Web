@@ -323,9 +323,10 @@ describe("펼친 발견의 '모름' 문장 (D5 검토 반영)", () => {
 });
 
 describe("규칙 id (RuleId)", () => {
-  it("이 사이트의 팩에 있는 규칙은 조문 도감의 그 정책 쪽으로 잇고, 없는 규칙은 글로만 적는다", () => {
+  it("이 사이트의 팩에 있는 규칙은 조문 도감의 그 정책 쪽, 그 규칙의 자리로 잇고(D6), 없는 규칙은 글로만 적는다", () => {
+    // 부품 시험에는 Next 의 설정(trailingSlash)이 걸리지 않아 Link 가 경로 끝의 빗금을 뗀다. 빌드된 쪽은 브라우저 시험이 본다.
     expect(renderToStaticMarkup(<RuleId policy="kr.pipa.22-2" rule="signup-without-guard" inPack />)).toBe(
-      '<a href="/policy/kr-pipa-22-2"><code translate="no">signup-without-guard</code></a>',
+      '<a href="/policy/kr-pipa-22-2#rule-signup-without-guard"><code translate="no">signup-without-guard</code></a>',
     );
     expect(renderToStaticMarkup(<RuleId policy="kr.other.99" rule="made-up-rule" inPack={false} />)).toBe(
       '<code translate="no">made-up-rule</code>',
@@ -340,7 +341,7 @@ describe("규칙 id (RuleId)", () => {
     expect(ids).toContain('<code translate="no">rule-from-another-pack</code>');
     expect(ids).not.toContain("<a ");
     const known = renderToStaticMarkup(<ReportSummary view={viewOf(data)} />);
-    expect(elementAt(known, known.indexOf('<p class="ids">'))).toContain('<a href="/policy/kr-pipa-22-2"><code translate="no">signup-without-guard</code></a>');
+    expect(elementAt(known, known.indexOf('<p class="ids">'))).toContain('<a href="/policy/kr-pipa-22-2#rule-signup-without-guard"><code translate="no">signup-without-guard</code></a>');
   });
 });
 

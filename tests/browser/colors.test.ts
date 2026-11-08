@@ -295,7 +295,7 @@ describe("두 테마의 명도 대비: 그려진 글자마다 4.5:1 이상", () 
   });
 
   it.each(SCHEMES)("%s: 넓은 화면(1280px)의 결과 보기와 기록, 데모 여섯 판, 정책 쪽. 좁은 화면에서는 가려 두는 표의 칸 머리도 잰다", async (scheme) => {
-    // 위의 시험은 375px 에서 잰다. 표의 칸 머리(기록의 표, 데모의 두 결과의 표, 정책 쪽의 대안 표)는 좁은 화면에서 1px 로 가려
+    // 위의 시험은 375px 에서 잰다. 표의 칸 머리(기록의 표, 데모의 두 결과의 표)는 좁은 화면에서 1px 로 가려
     // 두고 넓은 화면에서만 그린다. 그 글은 여기서만 잰다(9번의 첫 검토에서, 넓은 화면에서만 듣는 규칙으로 칸 머리를 옅게 해도
     // 375px 의 재기가 통과하는 것이 드러났다). "다 보지 못한 것" 표의 칸 머리는 어느 너비에서나 화면 낭독기에만 읽힌다.
     const scans = new Scans();
@@ -335,13 +335,13 @@ describe("두 테마의 명도 대비: 그려진 글자마다 4.5:1 이상", () 
     }
 
     for (const policy of readPackFile().policies) {
+      // 재디자인 D6: 정책 쪽의 대안 표(.alts)는 대안 목록이 되어 좁은 화면에서 가리는 칸 머리가 없다.
       await demo.page.goto(`${site.origin}${policyHref(policy.id)}`, { waitUntil: "networkidle" });
-      await countHeads(demo.page, ".alts thead th");
       await scans.both(demo.page, `${scheme} 1280 ${policyHref(policy.id)}`);
     }
     expectReadable(scans, scheme);
     // 좁은 화면에서는 가려 두는 칸 머리가 넓은 화면에서는 그려져 위에서 재어졌다(가려진 채라 빠진 것이 아니다).
-    for (const selector of [".record-table thead th", ".compare thead th", ".alts thead th"]) {
+    for (const selector of [".record-table thead th", ".compare thead th"]) {
       expect(heads.get(selector), selector).toBeGreaterThan(0);
     }
   });

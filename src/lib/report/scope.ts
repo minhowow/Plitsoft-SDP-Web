@@ -27,13 +27,17 @@ export function judgedScope(finding: Pick<Finding, "scope" | "region" | "top_lev
   return { kind: "unknown" };
 }
 
+/** 함수 구역 판정의 이름표와 설명. 결과 화면(`scopeLabel`, `scopeNote`)과 조문 도감의 풀이(`SCOPE_LEGEND`)가 같은 꼴로 적는다. */
+const functionLabel = (start: number | string, end: number | string) => `함수 ${start}~${end}행 판정`;
+const functionNote = (start: number | string, end: number | string) => `함수 단위로 내린 판정입니다. 판정 구역은 ${start}~${end}행입니다.`;
+
 /** 발견 줄에서 줄 번호 옆에 늘 보이는 짧은 이름. 발견을 펼치지 않아도 줄 번호가 무엇을 가리키는지 알 수 있게 한다. */
 export function scopeLabel(scope: JudgedScope): string {
   switch (scope.kind) {
     case "file":
       return "파일 전체 판정";
     case "function":
-      return `함수 ${scope.startLine}~${scope.endLine}행 판정`;
+      return functionLabel(scope.startLine, scope.endLine);
     case "top-level":
       return "함수 밖 판정";
     case "unknown":
@@ -77,6 +81,11 @@ const FIRST_LINE: Record<NotePlace, string> = {
   code: LINE_IS_FIRST,
 };
 
+/** 구역을 알 수 없는 함수 단위 판정의 문장 조각. 결과 화면(`scopeNote`)과 조문 도감의 풀이(`SCOPE_LEGEND`)가 함께 쓴다. */
+const UNKNOWN_HEAD = "함수 단위 규칙의 판정입니다.";
+/** 구역이 필드로는 실려 있지 않다는 말. 판정 경로의 문장에 구역이 적혀 있을 수 있어 "따로"를 붙인다. */
+const UNKNOWN_NOT_SEPARATE = "판정 구역은 결과에 따로 실려 있지 않습니다.";
+
 /** 판정 경로를 가리키는 문장. */
 const SEE_PATH: Record<NotePlace, string> = {
   finding: "아래 판정 경로의 문장을 보세요.",
@@ -99,14 +108,30 @@ export function scopeNote(scope: JudgedScope, line: LineKnown, hasPath: boolean,
       if (line === "known") return `파일 전체를 보고 내린 판정입니다. ${FIRST_LINE[place]}`;
       return line === "unsure" ? `파일 전체를 보고 내린 판정입니다. ${UNSURE_LINE}` : "파일 전체를 보고 내린 판정입니다.";
     case "function":
-      return `함수 단위로 내린 판정입니다. 판정 구역은 ${scope.startLine}~${scope.endLine}행입니다.`;
+      return functionNote(scope.startLine, scope.endLine);
     case "top-level":
       return "함수 밖(모듈 최상위)의 줄을 보고 내린 판정입니다.";
     case "unknown": {
       const note = hasPath
-        ? `함수 단위 규칙의 판정입니다. 판정 구역은 결과에 따로 실려 있지 않습니다. ${SEE_PATH[place]}`
-        : "함수 단위 규칙의 판정입니다. 판정 구역은 결과에 실려 있지 않습니다.";
+        ? `${UNKNOWN_HEAD} ${UNKNOWN_NOT_SEPARATE} ${SEE_PATH[place]}`
+        : `${UNKNOWN_HEAD} 판정 구역은 결과에 실려 있지 않습니다.`;
       return line === "unsure" ? `${note} ${UNSURE_LINE}` : note;
     }
   }
 }
+
+/**
+ * 조문 도감 `#status` 의 판정 범위 풀이: 결과 화면의 이름표(`scopeLabel`)와 그 설명(`scopeNote`). 결과 화면과 같은 함수로 만든다.
+ * 곁에 조문 이름이 없는 자리라 `code` 자리의 말을 쓰고, 줄 번호가 있는 발견의 말이다. 함수 구역의 행은 결과마다 달라
+ * 자리표(N, M)로 적는다.
+ *
+ * 판정 구역을 알 수 없는 줄은 결과 화면의 두 말(판정 경로가 있을 때와 없을 때) 어느 쪽과도 어긋나지 않는 말이다: 구역이
+ * 결과에 "따로" 실려 있지 않다고만 적고 판정 경로를 가리키지 않는다(곁에 판정 경로가 없다). "실려 있지 않다"고 잘라 적으면
+ * 판정 경로의 문장에 구역이 적힌 결과에서 온 사람에게 틀린 말이 된다(위 `scopeNote`).
+ */
+export const SCOPE_LEGEND: readonly { label: string; note: string }[] = [
+  { label: scopeLabel({ kind: "file" }), note: scopeNote({ kind: "file" }, "known", true, "code") },
+  { label: functionLabel("N", "M"), note: functionNote("N", "M") },
+  { label: scopeLabel({ kind: "top-level" }), note: scopeNote({ kind: "top-level" }, "known", true, "code") },
+  { label: scopeLabel({ kind: "unknown" }), note: `${UNKNOWN_HEAD} ${UNKNOWN_NOT_SEPARATE}` },
+];
