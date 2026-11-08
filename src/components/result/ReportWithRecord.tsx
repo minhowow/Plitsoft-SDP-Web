@@ -64,7 +64,7 @@ export interface ReportSwitch {
  *
  * `children` 을 주면 결과 화면 자리에 `ReportSummary` 대신 그것을 그린다. 분석 쪽이 같은 결과를 코드 링크·근거 조문과 함께
  * 그려 넘긴다(`components/service/AnalysisDashboard.tsx`. 서버 부품이 그려 넘긴 것이다). `recommend` 는 `children` 이 없을 때
- * 결과 화면에 판정자 권고를 둘지다(`/view`).
+ * 결과 화면에 판정자 권고를 둘지다(`/view`). `policyList` 는 곁칸 대신 정책 목록을 지닌 곳의 이름이다(데모. `ReportSummary`).
  */
 export function ReportWithRecord({
   view,
@@ -74,6 +74,7 @@ export function ReportWithRecord({
   heading,
   meta,
   recommend = false,
+  policyList,
   children,
 }: {
   view: ReportView;
@@ -85,6 +86,7 @@ export function ReportWithRecord({
   /** 머리의 둘째 줄(메타 줄). */
   meta?: ReactNode;
   recommend?: boolean;
+  policyList?: string;
   children?: ReactNode;
 }) {
   const [record, setRecord] = useState(false);
@@ -112,7 +114,7 @@ export function ReportWithRecord({
         </div>
         {meta}
       </header>
-      <div hidden={shown}>{children ?? <Summary view={view} recommend={recommend} />}</div>
+      <div hidden={shown}>{children ?? <Summary view={view} recommend={recommend} policyList={policyList} />}</div>
       {shown && <RecordPanel view={view} pack={pack} source={source} />}
     </div>
   );

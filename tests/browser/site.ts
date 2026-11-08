@@ -694,6 +694,14 @@ async function pixelsIn(page: Page, clip: { x: number; y: number; width: number;
 }
 
 /**
+ * 창의 네모 하나(창 기준 CSS px, 점에 맞춘 것)에 실제로 칠해진 점들. 줄마다 왼쪽부터, 위의 줄부터 차례로 [r, g, b] 다. 두 번 찍어
+ * 견줄 때 쓴다(강제 색 모드의 초점 시험).
+ */
+export async function pixelsOf(page: Page, clip: { x: number; y: number; width: number; height: number }): Promise<[number, number, number][]> {
+  return pixelsIn(page, clip);
+}
+
+/**
  * 창의 한 점에 실제로 칠해진 색("rgb(r, g, b)"). 그 점 하나만 찍은 그림(PNG)을 풀어 읽는다. 브라우저가 계산한 꾸밈
  * (`getComputedStyle`)이 아니라 그려진 결과라서, 그림자로 편 칠처럼 꾸밈의 값만으로는 알 수 없는 것을 본다. 좌표는 창
  * 기준(CSS px)이다. 새 의존성 없이 Node 의 zlib 로 푼다.
@@ -998,6 +1006,10 @@ export const focusRingContrast = (page: Page) =>
       // 데모의 코드 상자는 둘레선을 상자 전체(.codeblock)의 바깥에 그린다(globals.css).
       const ringed = getComputedStyle(el).outlineStyle === "none" && el.closest(".codeblock") ? el.closest(".codeblock")! : el;
       const style = getComputedStyle(ringed);
+      // 첫 화면의 큰 검색창(재디자인 D3)은 둘레선 대신 그 상자(.find)의 테두리와 그림자(2px, 강조색)로 초점을 보인다. 초점이 없을
+      // 때도 테두리는 있고 그 색(--control-line)도 바탕과 3:1 을 넘으므로, 테두리가 아니라 초점일 때만 그리는 바깥 그림자(테두리 바로
+      // 바깥의 1px 띠)의 색과 상자 바깥(부모)의 바탕으로 잰다. 그림자가 없으면 0 이다(D7 검토).
+      const field = style.outlineStyle === "none" ? el.closest(".find") : null;
       const parse = (color: string) => (/^rgba?\(([^)]+)\)$/.exec(color)?.[1].split(/[,\s/]+/).filter(Boolean).map(Number) ?? null);
       const backOf = (node: Element | null): number[] => {
         const chain: number[][] = [];
@@ -1018,6 +1030,15 @@ export const focusRingContrast = (page: Page) =>
           .map((v) => v / 255)
           .map((s) => (s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4))
           .reduce((sum, v, i) => sum + v * [0.2126, 0.7152, 0.0722][i], 0);
+      if (field !== null && field.matches(":focus-within")) {
+        const shadow = getComputedStyle(field).boxShadow;
+        const edge = /rgba?\([^)]*\)/.exec(shadow)?.[0] ?? shadow;
+        const color = shadow === "none" ? null : parse(edge);
+        if (color === null) return { what: "form.find", ratio: 0, color: edge, background: "" };
+        const back = backOf(field.parentElement);
+        const [hi, lo] = [lum(color), lum(back)].sort((a, b) => b - a);
+        return { what: "form.find", ratio: Math.round(((hi + 0.05) / (lo + 0.05)) * 100) / 100, color: edge, background: `rgb(${back.map((v) => Math.round(v)).join(", ")})` };
+      }
       const color = parse(style.outlineColor);
       if (style.outlineStyle === "none" || color === null) return { what: ringed.tagName.toLowerCase(), ratio: 0, color: style.outlineColor, background: "" };
       // 필터나 섞어 그리기가 걸리면 그려지는 색을 셈할 수 없다(`textContrast` 와 같다). 재지 못한 것(0)으로 적는다.

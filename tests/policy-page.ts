@@ -706,7 +706,7 @@ export function expectedPolicyPage(policy: PolicyMeta, pack: PackMeta["pack"]): 
         link: legal.url === null ? null : { href: legal.url, target: "_blank", rel: "noopener noreferrer", whose: legal.label, text: "법제처 원문", newWindow: "(새 창)" },
       };
     }),
-    judge: asked === "" ? null : `${asked}은 ${JUDGE_ON} ${CODE_LEAVES} 판정자는 기본으로 꺼져 있습니다.`,
+    judge: asked === "" ? null : `${asked}은 ${JUDGE_ON} ${CODE_LEAVES}`,
     legend: {
       open: false,
       summary: "규칙 읽는 법 판정 단위, 적용 조건, 대안의 종류와 세기",

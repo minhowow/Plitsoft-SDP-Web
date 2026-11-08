@@ -187,6 +187,9 @@ export const ASKED_TO_JUDGE = "판정자에게 묻는 글";
  * 판정자에게 묻는 것이 있는 정책에 적는 말. 판정자를 켜야 묻는다는 것과, 켜면 판정 대상 코드가 외부 API 로 나간다는
  * 것을 함께 적는다(`docs/commitments.md` 의 "CLI 가 이미 약속한 것"). 켜 보라고 권하는 말이 아니다. 이 쪽에는 권할 결과가
  * 없다. 판정자에게 묻는 것이 없는 정책이면 null 이다.
+ *
+ * "판정자는 기본으로 꺼져 있습니다"는 적지 않는다(재디자인 D7). CLI 의 기본값이고, 이 서비스의 분석은 판정자를 늘 켠다
+ * (`docs/direction.md` 1장, `docs/commitments.md` 의 "CLI 가 이미 약속한 것").
  */
 export function judgeNote(policy: PolicyDoc): string | null {
   const asked = [
@@ -196,7 +199,7 @@ export function judgeNote(policy: PolicyDoc): string | null {
   if (asked.length === 0) return null;
   return (
     `${asked.join("과 ")}은 판정자를 켠 검사에서만 묻습니다. ` +
-    "판정자를 켜면 판정 대상 코드가 외부 API 로 나갑니다. 판정자는 기본으로 꺼져 있습니다."
+    "판정자를 켜면 판정 대상 코드가 외부 API 로 나갑니다."
   );
 }
 

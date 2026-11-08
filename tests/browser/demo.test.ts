@@ -166,9 +166,14 @@ async function compareTable(page: Page) {
           cells: [...tr.querySelectorAll("td")].map((td) => {
             const before = getComputedStyle(td, "::before");
             const chip = td.querySelector(".chip")!.getBoundingClientRect();
+            const style = getComputedStyle(td);
+            /** 판 이름의 왼쪽 끝: 칸의 안쪽 왼쪽 끝에서 내어 쓴 만큼(text-indent) 왼쪽이다(첫 줄의 맨 앞에 놓인다). */
+            const labelLeft = td.getBoundingClientRect().left + parseFloat(style.paddingLeft) + parseFloat(style.textIndent);
             return {
               /** 칸 앞에 CSS 가 적는 판 이름. 넓은 화면에서는 적지 않는다("none"). */
               label: before.content,
+              /** (D7) 판 이름이 표 안에 그려지는지: 내어 쓰기가 칸의 여백보다 크면 이름이 표 왼쪽 밖으로 밀려 보이지 않는다. */
+              labelInside: labelLeft >= table.getBoundingClientRect().left - 0.5 && chip.left >= labelLeft + parseFloat(before.minWidth) - 0.5,
               labelWeight: before.fontWeight,
               current: td.classList.contains("compare-current"),
               text: (td as HTMLElement).innerText.replace(/\s+/g, " ").trim(),
@@ -222,27 +227,34 @@ interface Expected {
   compare: string[];
   /** 두 결과의 표의 줄: 정책 이름과, 그 이름이 가리키는 아래 결과의 정책 카드. */
   policies: [name: string, card: string][];
+  /** (D7 검토) 표 아래의 묶음: 두 판 모두 발견 없음인 정책의 이름(결과의 차례). */
+  quiet: string[];
 }
 
 // 고친 뒤에는 강한 정적 대안(under14-branch)으로 풀린 단위가 결과에 실려 있다(CLI 결과 판 1 의 run.static_cleared).
+// (D7) 데모의 결과에는 곁칸 `정책 N` 이 없어 표의 상자가 정책 목록을 지닌다: 발견이 있는 정책은 표의 줄이고, 결과에 실린 나머지
+// 정책은 표 아래에 `두 판 모두 발견 없음 N` 으로 묶어 이름을 결과의 차례대로 적는다(`compareTable`, D7 검토). 세 앱 모두 그
+// 나머지는 두 판 모두 `발견 없음` 이다.
 const KIDS = [`${AI} 발견 1건`, EVIDENCE];
 // 고친 뒤에도 두 발견이 남고, 고치기 전에 없던 정책의 발견이 하나 나온다. 그대로 보인다.
 const PUSH = [`${AI} 발견 2건`, `${AI} 발견 2건`, NONE, `${UNCERTAIN} 발견 1건`];
 const CHAT = [`${AI} 발견 1건`, `${UNCERTAIN} 발견 1건`, `${AI} 발견 1건`, `${AI} 발견 1건`];
 
-const KIDS_POLICIES: Expected["policies"] = [["만 14세 미만 아동의 개인정보 처리", "policy-kr-pipa-22-2"]];
-const PUSH_POLICIES: Expected["policies"] = [
-  ["광고성 정보에 밝혀야 할 사항 — (광고) 표기, 전송자 명칭·연락처, 무료 수신거부 방법", "policy-kr-network-act-50-4"],
-  ["야간(21시~08시) 광고성 정보 전송의 별도 동의", "policy-kr-network-act-50-3"],
-];
-const CHAT_POLICIES: Expected["policies"] = [
-  ["생성형 AI 결과물 표시", "policy-kr-ai-basic-act-31"],
-  ["생성형 AI 기반 서비스 사전 고지", "policy-kr-ai-basic-act-31-1"],
-];
+const PIPA: [string, string] = ["만 14세 미만 아동의 개인정보 처리", "policy-kr-pipa-22-2"];
+const NIGHT: [string, string] = ["야간(21시~08시) 광고성 정보 전송의 별도 동의", "policy-kr-network-act-50-3"];
+const AI_MARK: [string, string] = ["생성형 AI 결과물 표시", "policy-kr-ai-basic-act-31"];
+const AI_NOTICE: [string, string] = ["생성형 AI 기반 서비스 사전 고지", "policy-kr-ai-basic-act-31-1"];
+const AD_LABEL: [string, string] = ["광고성 정보에 밝혀야 할 사항 — (광고) 표기, 전송자 명칭·연락처, 무료 수신거부 방법", "policy-kr-network-act-50-4"];
+const KIDS_POLICIES: Expected["policies"] = [PIPA];
+const PUSH_POLICIES: Expected["policies"] = [AD_LABEL, NIGHT];
+const CHAT_POLICIES: Expected["policies"] = [AI_MARK, AI_NOTICE];
+const KIDS_QUIET = [NIGHT, AI_MARK, AI_NOTICE, AD_LABEL].map(([name]) => name);
+const PUSH_QUIET = [PIPA, AI_MARK, AI_NOTICE].map(([name]) => name);
+const CHAT_QUIET = [PIPA, NIGHT, AD_LABEL].map(([name]) => name);
 
 const EXPECTED: Record<string, Expected> = {
-  "kids-signup.main": { file: "src/auth/signup.ts", lines: [5], differs: [], statuses: [AI], compare: KIDS, policies: KIDS_POLICIES },
-  "kids-signup.fixed": { file: "src/auth/signup.ts", lines: [], differs: [7], statuses: [], compare: KIDS, policies: KIDS_POLICIES },
+  "kids-signup.main": { file: "src/auth/signup.ts", lines: [5], differs: [], statuses: [AI], compare: KIDS, policies: KIDS_POLICIES, quiet: KIDS_QUIET },
+  "kids-signup.fixed": { file: "src/auth/signup.ts", lines: [], differs: [7], statuses: [], compare: KIDS, policies: KIDS_POLICIES, quiet: KIDS_QUIET },
   "night-push.main": {
     file: "src/marketing/campaign.ts",
     lines: [2],
@@ -250,6 +262,7 @@ const EXPECTED: Record<string, Expected> = {
     statuses: [AI, AI],
     compare: PUSH,
     policies: PUSH_POLICIES,
+    quiet: PUSH_QUIET,
   },
   "night-push.fixed": {
     file: "src/marketing/campaign.ts",
@@ -258,8 +271,9 @@ const EXPECTED: Record<string, Expected> = {
     statuses: [AI, AI, UNCERTAIN],
     compare: PUSH,
     policies: PUSH_POLICIES,
+    quiet: PUSH_QUIET,
   },
-  "genai-chat.main": { file: "src/chat/ChatPanel.tsx", lines: [1], differs: [], statuses: [AI, AI], compare: CHAT, policies: CHAT_POLICIES },
+  "genai-chat.main": { file: "src/chat/ChatPanel.tsx", lines: [1], differs: [], statuses: [AI, AI], compare: CHAT, policies: CHAT_POLICIES, quiet: CHAT_QUIET },
   "genai-chat.fixed": {
     file: "src/chat/ChatPanel.tsx",
     lines: [1],
@@ -267,6 +281,7 @@ const EXPECTED: Record<string, Expected> = {
     statuses: [AI, UNCERTAIN],
     compare: CHAT,
     policies: CHAT_POLICIES,
+    quiet: CHAT_QUIET,
   },
 };
 
@@ -359,8 +374,13 @@ describe("세 앱 × 두 판", () => {
         expect(row.cells.map((cell) => cell.left), `${name} ${row.name}`).toEqual(table.head.slice(1).map((th) => th.left));
         // 넓은 화면에서는 칸 앞에 판 이름을 따로 적지 않는다(칸 머리가 있다).
         expect(row.cells.map((cell) => cell.label), `${name} ${row.name}`).toEqual(["none", "none"]);
-        for (const count of row.cells.flatMap((cell) => cell.counts)) expect(count, `${name} ${row.name}`).toEqual({ lines: 1, dropped: false, aligned: true });
+        // (D7 검토) 넓은 화면의 "발견 N건"은 칩 아래 제 줄에 한 줄로 놓이고, 왼쪽 끝이 칩과 맞는다(목업 demo).
+        for (const count of row.cells.flatMap((cell) => cell.counts)) expect(count, `${name} ${row.name}`).toEqual({ lines: 1, dropped: true, aligned: true });
       }
+      // (D7 검토) 표 아래의 묶음: 두 판 모두 발견 없음인 정책의 이름이 이름표 뒤에 결과의 차례대로 보인다.
+      expect(await page.locator(".demo-compare .compare-quiet .lbl").allInnerTexts(), name).toEqual([`두 판 모두 ${NONE} ${want.quiet.length}`]);
+      expect(await page.locator(".demo-compare .compare-quiet li").allInnerTexts(), name).toEqual(want.quiet);
+      for (const li of await page.locator(".demo-compare .compare-quiet li").all()) expect(await li.isVisible(), name).toBe(true);
       // 표 아래: 0의 뜻. 상태의 뜻은 표 머리의 링크(조문 도감)다.
       expect(await footer(page), name).toEqual([SITE.zeroIsNotClearance]);
       expect(await page.locator(".demo-compare .box-hd a").getAttribute("href"), name).toBe("/policy/#status");
@@ -546,16 +566,20 @@ describe("표의 정책 이름으로 아래 결과의 그 정책으로 간다", 
     expect(await overflow(page)).toMatchObject({ page: 0, over: [] });
   });
 
-  it("고치기 전을 볼 때 그 판에 상자가 없는 정책(발견 없음)은 링크가 아니다. 그 정책은 아래 결과의 곁칸 묶음에 있다", async () => {
-    // (D5) 발견도 충족 근거도 없는 정책은 상자로 그리지 않는다(곁칸의 `발견 없음` 묶음). 표의 이름은 갈 곳이 없어 글로만 적는다.
+  it("고치기 전을 볼 때 그 판에 상자가 없는 정책(발견 없음)은 링크가 아니다. 결과에는 곁칸이 없고 표의 상자가 정책 목록이다", async () => {
+    // (D5) 발견도 충족 근거도 없는 정책은 상자로 그리지 않는다. 표의 이름은 갈 곳이 없어 글로만 적는다. (D7) 데모의 결과에는
+    // 곁칸 `정책 N` 이 없다(목업 demo). 두 판 모두 발견 없음인 정책은 표 아래의 묶음에 이름으로 있다(D7 검토).
     const { page } = await openDemo();
     await pick(page, "광고 푸시", "고치기 전");
     const rows = (await compareTable(page)).rows;
-    expect(rows.map((row) => row.href)).toEqual(["#policy-kr-network-act-50-4", null]);
+    expect(rows.slice(0, 2).map((row) => row.href)).toEqual(["#policy-kr-network-act-50-4", null]);
     expect(rows[1].cells.map((cell) => cell.text)).toEqual([NONE, `${UNCERTAIN} 발견 1건`]);
     expect(await page.locator("#policy-kr-network-act-50-3").count()).toBe(0);
-    const group = page.locator(".side-group", { hasText: NONE });
-    expect(await group.locator("li", { hasText: "야간(21시~08시) 광고성 정보 전송의 별도 동의" }).count()).toBe(1);
+    expect(rows).toHaveLength(2);
+    expect(await page.locator(".demo-compare .compare-quiet li").count()).toBe(3);
+    expect(await page.locator(".demo-compare .compare-quiet a").count()).toBe(0);
+    expect(await page.locator(".report-side, .side-pol").count()).toBe(0);
+    expect(await page.locator(".report .info").count()).toBe(1);
   });
 
   it("옮겨 간 뒤에 다른 쪽에 다녀와도 뒤로 가기가 듣는다", async () => {
@@ -647,6 +671,7 @@ describe("좁은 화면", () => {
       for (const th of await page.locator(".compare tbody th").all()) expect(await th.isVisible(), name).toBe(true);
       for (const row of table.rows) {
         expect(row.cells.map((cell) => cell.label), `${name} ${row.name}`).toEqual(['"고치기 전" / ""', '"고친 뒤" / ""']);
+        expect(row.cells.map((cell) => cell.labelInside), `${name} ${row.name} 판 이름이 표 안에 그려진다`).toEqual([true, true]);
         // 지금 보는 판의 이름만 짙게 적는다.
         expect(row.cells.filter((cell) => cell.current).map((cell) => cell.label), `${name} ${row.name}`).toEqual([`"${variant.label}" / ""`]);
         expect(row.cells.map((cell) => cell.labelWeight), `${name} ${row.name}`).toEqual(row.cells.map((cell) => (cell.current ? "600" : "400")));
@@ -987,10 +1012,11 @@ describe("다른 쪽에 다녀오거나 새로 고친 뒤", () => {
     // 조금 뒤에도 그대로다(브라우저가 스크롤 자리를 늦게 되살리는 때가 있다).
     await page.waitForTimeout(700);
     expect(await scrollY(page)).toBe(0);
-    // 지켜보는 동안이 지나면 스크롤을 건드리지 않는다.
-    await page.evaluate(() => window.scrollTo(0, 900));
+    // 지켜보는 동안이 지나면 스크롤을 건드리지 않는다. (D7) 결과에 곁칸이 없어 아동 가입 · 고치기 전의 쪽이 짧아졌다(1280×720 에서
+    // 끝까지 내려도 900px 에 못 미친다). 닿을 수 있는 깊이로 내린다.
+    await page.evaluate(() => window.scrollTo(0, 600));
     await page.waitForTimeout(300);
-    expect(await scrollY(page)).toBe(900);
+    expect(await scrollY(page)).toBe(600);
   });
 
   it("처음 찾아온 쪽에서는 스크롤을 건드리지 않는다", async () => {

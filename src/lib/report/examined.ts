@@ -15,6 +15,7 @@ import { CONTRACT_LABEL, type ReportView } from "./view-model";
  *
  * 정책의 목록은 곁칸 `정책 N`(`ReportSummary` 의 `SidePolicies`)이다. 넓은 화면에서는 오른쪽, 좁은 화면에서는 아래에 있으므로
  * "아래"라고 하지 않고 그 이름(`sideName`)으로 부른다. 발견이나 충족 근거 위치가 있는 정책만 본문의 정책 상자가 된다.
+ * 곁칸이 없는 화면(데모. 고치기 전·후 표가 정책 목록을 지닌다)은 목록을 지닌 곳의 이름(`policyList`)을 넘긴다.
  */
 export interface ExaminedFact {
   label: string;
@@ -85,7 +86,7 @@ function unsummarized(view: ReportView): number {
  * - SARIF 에는 이 수가 실리지 않는다(`sarif.ts`). 그때는 "알 수 없음"이라고만 적는다. 수가 없으니 그 수가 무엇을
  *   합친 것인지, 무엇이 들어 있지 않은지도 적지 않는다. 까닭(SARIF 라서)은 위 커버리지 보기의 줄 아래에 있다.
  */
-function unitsFact(view: ReportView): ExaminedFact {
+function unitsFact(view: ReportView, list: string): ExaminedFact {
   const units = view.coverage.units;
   if (units === null) {
     return { label: "판정 단위", value: "알 수 없음", note: "판정 단위 수가 결과에 실려 있지 않습니다.", warn: false };
@@ -95,8 +96,8 @@ function unitsFact(view: ReportView): ExaminedFact {
 
   if (view.contract === "v1-draft") {
     if (view.policyCount === 0) notes.push("결과의 정책별 요약이 비어 있어 정책별 수가 없습니다.");
-    else if (unsummarized(view) > 0) notes.push(`정책별 수는 ${sideName(view)}에서 요약이 실린 정책에만 적었습니다.`);
-    else notes.push(`정책별 수는 ${sideName(view)}에 정책마다 적었습니다.`);
+    else if (unsummarized(view) > 0) notes.push(`정책별 수는 ${list}에서 요약이 실린 정책에만 적었습니다.`);
+    else notes.push(`정책별 수는 ${list}에 정책마다 적었습니다.`);
   } else {
     // 결과 머리의 "출력 형식"에 적힌 이름과 같게 부른다.
     const format = `이 출력 형식(${CONTRACT_LABEL[view.contract]})`;
@@ -115,7 +116,7 @@ function unitsFact(view: ReportView): ExaminedFact {
       if (view.policies.some((policy) => policy.status === "not-reported")) {
         // 곁칸의 묶음 이름표에 적힌 상태 이름 그대로 부른다.
         const shown = STATUS_LABEL["not-reported"];
-        notes.push(`다만 ${format}에는 정책별 요약이 없어, ${sideName(view)}의 정책은 판정 단위가 있는 결과와 같은 '${shown}'으로 묶입니다.`);
+        notes.push(`다만 ${format}에는 정책별 요약이 없어, ${list}의 정책은 판정 단위가 있는 결과와 같은 '${shown}'으로 묶입니다.`);
       }
     }
   }
@@ -168,7 +169,7 @@ function skippedFact(skipped: number): ExaminedFact {
  * 손으로 만든 결과에서만 생긴다: 요약이 비어 있거나, 요약에 없는 정책이 AI 가 푼 경고에만 나온다. 그때는 그렇다고
  * 적는다.
  */
-function policiesFact(view: ReportView): ExaminedFact {
+function policiesFact(view: ReportView, list: string): ExaminedFact {
   const label = "정책";
   if (view.policyCount === null) {
     return {
@@ -186,30 +187,33 @@ function policiesFact(view: ReportView): ExaminedFact {
     return {
       label,
       value,
-      note: `결과에는 정책 목록이 없어, 팩 판이 같은 이 사이트의 팩에서 가져와 ${sideName(view)}에 적었습니다.`,
+      note: `결과에는 정책 목록이 없어, 팩 판이 같은 이 사이트의 팩에서 가져와 ${list}에 적었습니다.`,
       warn: false,
     };
   }
   const extra = unsummarized(view);
   const others =
-    extra > 0 ? ` 요약에 없는 정책 ${extra}개도 ${sideName(view)}에 있습니다. 결과의 다른 곳에만 나온 정책이라 정책별 수가 없습니다.` : "";
+    extra > 0 ? ` 요약에 없는 정책 ${extra}개도 ${list}에 있습니다. 결과의 다른 곳에만 나온 정책이라 정책별 수가 없습니다.` : "";
   if (view.policyCount === 0) {
     return {
       label,
       value,
-      note: `결과의 정책별 요약이 비어 있습니다.${others || ` ${sideName(view)}에 적을 정책이 없습니다.`}`,
+      note: `결과의 정책별 요약이 비어 있습니다.${others || ` ${list}에 적을 정책이 없습니다.`}`,
       warn: true,
     };
   }
-  return { label, value, note: `결과에 정책별 요약이 실려 있어, ${sideName(view)}에 정책마다 적었습니다.${others}`, warn: false };
+  return { label, value, note: `결과에 정책별 요약이 실려 있어, ${list}에 정책마다 적었습니다.${others}`, warn: false };
 }
 
-/** 파일 수, 판정 단위 수, 검사하지 않은 파일, 정책. 이 순서로 보인다. */
-export function examinedFacts(view: ReportView): ExaminedFact[] {
+/**
+ * 파일 수, 판정 단위 수, 검사하지 않은 파일, 정책. 이 순서로 보인다. `policyList` 는 정책 목록을 지닌 곳의 이름이다(기본은 곁칸
+ * `‘정책 N’`. 데모는 `‘고치기 전과 고친 뒤’ 표`).
+ */
+export function examinedFacts(view: ReportView, policyList: string = sideName(view)): ExaminedFact[] {
   return [
     filesFact(view.coverage.files),
-    unitsFact(view),
+    unitsFact(view, policyList),
     skippedFact(view.coverage.skipped.length),
-    policiesFact(view),
+    policiesFact(view, policyList),
   ];
 }

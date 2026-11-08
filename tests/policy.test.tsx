@@ -799,7 +799,7 @@ describe("대안", () => {
 });
 
 describe("판정자", () => {
-  const rest = `${JUDGE_ON} ${CODE_LEAVES} 판정자는 기본으로 꺼져 있습니다.`;
+  const rest = `${JUDGE_ON} ${CODE_LEAVES}`;
 
   it("묻는 것에 맞춰 적는다: AI 대안만, 적용 질문만, 둘 다. 판정자를 켜야 묻는다는 것과 코드가 외부 API 로 나간다는 것이 한 문단에 함께 있다", () => {
     expect(`${JUDGE_ON} ${CODE_LEAVES}`).toBe("판정자를 켠 검사에서만 묻습니다. 판정자를 켜면 판정 대상 코드가 외부 API 로 나갑니다.");

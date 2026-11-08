@@ -5094,6 +5094,85 @@ details.side-pol[open] > summary.box-hd::before {
   color: var(--ink);
 }
 
+/*
+ * 칸의 수(`발견 N건`)는 넓은 화면에서 칩 아래 제 줄에 둔다(목업 demo). 칩 옆에 두면 상태 칸이 그만큼 넓어져 정책 이름이 두세 줄로
+ * 접혔다(D7 검토). 좁은 화면에서는 칩 옆에 이어 적고, 다 들어가지 않으면 칩 아래로 내려간다(아래 640px 규칙).
+ */
+@media (min-width: 641px) {
+  .demo-compare .compare td .count {
+    display: block;
+  }
+}
+
+/*
+ * 두 판 모두 같은 0의 상태(발견 없음 등)인 정책: 표 아래에 상태마다 이름표(곁칸의 묶음과 같은 꼴)와 이름들을 한 문단으로 작은 점을
+ * 사이에 두고 이어 적는다. 줄마다 적으면 표가 첫 화면을 다 차지했다(D7 검토). 목록이라 낭독기는 이름을 항목으로 읽는다.
+ */
+.compare-quiet {
+  padding: 10px var(--space-4);
+  border-top: 1px solid var(--rule-muted);
+  line-height: var(--leading-snug);
+}
+
+.compare-quiet + .compare-quiet {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.compare-quiet .lbl {
+  display: inline;
+  margin-right: var(--space-2);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.compare-quiet ul {
+  display: inline;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.compare-quiet li {
+  display: inline;
+}
+
+/* 이름 사이의 점은 글이 아니라 테두리로 그린 작은 원이다(CSS 가 글을 그리지 않는다. 강제 색 모드와 인쇄에서도 테두리는 남는다). */
+.compare-quiet li + li::before {
+  content: "";
+  display: inline-block;
+  width: 0;
+  height: 0;
+  margin: 0 var(--space-2);
+  border: 2px solid var(--muted);
+  border-radius: 50%;
+  vertical-align: 0.25em;
+}
+
+/*
+ * 좁은 화면(위 .compare 의 640px 규칙): 위의 칸 여백(10px 16px)이 줄을 쌓는 규칙의 칸 여백(0)과 판 이름의 내어 쓰기(3.75rem)를
+ * 덮어써, 칸 앞의 판 이름이 상자 왼쪽 밖으로 밀려 보이지 않았다(D7 캡처). 상자 안의 좌우 여백은 줄이 지고, 칸은 내어 쓰기만
+ * 둔다. 칸 머리가 가려지므로 상자 머리 띠 바로 아래의 첫 줄에는 위 선을 긋지 않는다(두 줄이 겹쳐 보였다).
+ */
+@media (max-width: 640px) {
+  .demo-compare .compare tbody tr {
+    padding: var(--space-2) var(--space-4);
+  }
+
+  .demo-compare .compare tbody tr:first-child {
+    border-top: 0;
+  }
+
+  .demo-compare .compare tbody tr > th {
+    padding: 0;
+  }
+
+  .demo-compare .compare tbody tr > td {
+    padding: 0 0 0 3.75rem;
+  }
+}
+
 .demo-compare .box-hd .end {
   margin-left: auto;
   font-size: var(--text-xs);
@@ -5169,6 +5248,64 @@ details.side-pol[open] > summary.box-hd::before {
 }
 
 /*
+ * 강제 색 모드(윈도의 고대비 테마 등, 재디자인 D7). 이 모드에서는 바탕색이 쪽의 바탕(Canvas)으로, 그림자는 없음으로 바뀐다.
+ * 바탕이나 그림자로만 그린 것은 그대로 두면 사라진다:
+ * - 상태 칩(채운 알약)은 글만 남아 둘레의 글과 갈리지 않는다. 테두리 대신 안쪽 둘레선을 긋는다(높이가 바뀌지 않게).
+ * - '모름' 이름표(채운 노랑)도 같다.
+ * - 채운 점(칩 앞의 점, 곁칸의 상태 점, 첫 화면의 끝난·멈춘 분석 점과 단계 점, 진행 상자의 끝난·멈춘 단계)은 보이지 않고,
+ *   테두리만 있는 점과 갈리지 않는다. 이 점들만 강제 색을 받지 않게 하고 시스템의 글자색(CanvasText)으로 칠한다.
+ * - 첫 화면 단계 점의 빈 점은 안쪽 그림자로 그린 테두리라 사라진다. 테두리로 바꿔 긋는다.
+ * - 데모 코드 상자의 칠한 줄(발견이 가리키는 줄)은 바탕과 그림자로 칠해 사라진다. 안쪽 둘레선을 긋는다.
+ * - 첫 화면 검색창의 초점(테두리 색과 그림자)도 사라진다. 둘레선을 긋는다.
+ * - 지금 단계(진행 상자의 진행 중 단계, 첫 화면 단계 점의 지금 점)와 분석 중인 분석의 점은 강조색으로만 갈린다. 시스템이 고른
+ *   것에 쓰는 색(Highlight)으로 채워, 끝난 점(CanvasText)과도 기다리는 점(빈 고리)과도 다르게 한다(D7 검토).
+ * 색은 모두 시스템 색이다. 눌린 단추, 자동 완성의 고른 줄, 넓은 화면 머리글의 지금 쪽은 그 부품 곁에서 따로 고쳤다
+ * (tests/browser/colors.test.ts 의 "강제 색 모드").
+ */
+@media (forced-colors: active) {
+  .chip,
+  .unk {
+    outline: 1px solid CanvasText;
+    outline-offset: -1px;
+  }
+
+  .chip::before,
+  .dot,
+  .act-trail i.done,
+  [data-status="succeeded"] > .act-mark::before,
+  [data-status="failed"] > .act-mark::before,
+  .step-done .step-dot,
+  .step-failed .step-dot {
+    forced-color-adjust: none;
+    border-color: CanvasText;
+    background: CanvasText;
+  }
+
+  .act-trail i {
+    border: 1px solid CanvasText;
+  }
+
+  .act-trail i.now,
+  [data-status="running"] > .act-mark::before,
+  .step-active .step-dot {
+    forced-color-adjust: none;
+    border-color: Highlight;
+    background: Highlight;
+  }
+
+  .codeline-marked {
+    outline: 1px solid CanvasText;
+    outline-offset: -1px;
+  }
+
+  /* 첫 화면 검색창의 초점은 상자의 테두리 색과 그림자로 그린다(.find:focus-within). 둘 다 이 모드에서 사라지므로 둘레선을 긋는다. */
+  .find:focus-within {
+    outline: 2px solid Highlight;
+    outline-offset: 0;
+  }
+}
+
+/*
  * 인쇄. 검사 기록이 열려 있으면 기록만 인쇄한다(아래 :has(.record) 의 규칙들).
  *
  * 기록이 열려 있지 않은 쪽(결과 화면, 데모, 조문 도감)은 화면 그대로 찍되, 두 가지만 다르다. 색은 늘 밝은 테마의 것이다
@@ -5181,16 +5318,46 @@ details.side-pol[open] > summary.box-hd::before {
     background: var(--paper);
   }
 
-  /* 머리글의 검색창과 좁은 화면의 메뉴도 종이에서는 쓸 수 없다. 이름과 메뉴의 글은 찍힌다. */
+  /*
+   * 검색창(첫 화면, 검색 쪽, 머리글. 셋 모두 role=search 인 양식이고 펼침 목록은 그 안에 있다)과 좁은 화면의 메뉴도 종이에서는
+   * 쓸 수 없다. 이름과 메뉴의 글은 찍힌다.
+   */
   .dropzone,
   .samples,
   .demo-pick,
-  .search,
-  .hdr-search,
+  form[role="search"],
   .hdr-m,
   .request,
   .record-btn {
     display: none;
+  }
+
+  /*
+   * 브라우저는 바탕색을 찍지 않는 것이 기본이다(재디자인 D7). 바탕으로만 그린 것은 종이에서 사라진다: 상태 칩과 '모름'
+   * 이름표는 글만 남아 둘레의 글과 갈리지 않고, 채운 점(칩 앞의 점, 곁칸의 상태 점, 첫 화면의 끝난·멈춘 분석 점과 단계 점, 진행
+   * 상자의 끝난·멈춘 단계)은 보이지 않는다. 데모 코드 상자의 칠한 줄도 다른 줄과 같아진다. 칩과 이름표와 칠한 줄에는 안쪽
+   * 둘레선(글자색)을 긋고, 점은 바탕을 찍게 한다. 조문별 검사 기록에는 이것들이 없다(기록의 꾸밈은 아래 그대로다).
+   */
+  .chip,
+  .unk,
+  .codeline-marked {
+    outline: 1px solid currentColor;
+    outline-offset: -1px;
+  }
+
+  /* 상자의 머리(조문 줄, 제목, 칩)는 쪽의 끝에서 갈리지 않고, 상자의 첫 내용과도 떨어지지 않는다(D7 검토). */
+  .box-hd,
+  .pbox-hd {
+    break-inside: avoid;
+    break-after: avoid;
+  }
+
+  .chip::before,
+  .dot,
+  .act-trail i,
+  .act-mark::before,
+  .step-dot {
+    print-color-adjust: exact;
   }
 
   /*

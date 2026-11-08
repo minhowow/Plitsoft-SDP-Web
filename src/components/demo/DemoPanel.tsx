@@ -6,10 +6,11 @@ import { JUDGE_ADVICE } from "@/components/result/ReportSummary";
 import { ReportWithRecord, type ReportSwitch } from "@/components/result/ReportWithRecord";
 import { StatusChip } from "@/components/result/StatusChip";
 import type { DemoApp, DemoFile, DemoVariant } from "@/lib/demo/apps";
-import { compareByPolicy } from "@/lib/demo/compare";
+import { compareTable } from "@/lib/demo/compare";
 import { lineMarks } from "@/lib/demo/marks";
 import { policyCardId } from "@/lib/pack/href";
 import type { PackIndex } from "@/lib/pack/types";
+import { STATUS_LABEL } from "@/lib/report/status";
 import { aiReviewRan } from "@/lib/report/view-model";
 import { moveTo } from "@/lib/scroll";
 import { SITE } from "@/lib/site";
@@ -83,18 +84,26 @@ function toCard(event: MouseEvent<HTMLAnchorElement>, id: string, report: RefObj
   if (card) moveTo(card);
 }
 
+/** 표의 이름. 발견이 0인 판의 `검사한 것` 이 정책 목록을 지닌 곳으로 이 이름을 부른다. */
+const COMPARE_TITLE = "고치기 전과 고친 뒤";
+
 /**
  * 고치기 전과 고친 뒤의 결과를 정책별로 나란히 놓은 표. 칸마다 상태 칩과 발견 수(AI 가 푼 경고가 있으면 그 수)다. 표 아래에
  * 0의 뜻을 늘 적고(발견 없음인 칸이 있다), 머리 오른쪽에 `상태의 뜻`(조문 도감)을 둔다. 상태 풀이 문장은 두지 않는다.
+ *
+ * 데모의 결과에는 곁칸 `정책 N` 이 없다(D7, 목업 demo). 이 상자가 정책 목록을 지닌다: 발견이나 AI 가 푼 경고가 있는 정책은
+ * 표의 줄이고, 두 판 모두 같은 0의 상태(발견 없음 등)인 정책은 표 아래에 상태마다 한 덩어리로 이름만 적는다(`compareTable`.
+ * 곁칸의 묶음과 같다. 줄마다 적으면 표가 1280×800 의 첫 화면을 다 차지해 첫 발견이 밀려났다. D7 검토).
  *
  * 고친 뒤에도 남은 발견을 숨기지 않고, 풀렸다고도 여전히 문제라고도 적지 않는다. 결과에 실린 상태를 그대로 옮긴다. 정책
  * 이름은 아래 결과(지금 보는 판)의 그 정책 상자로 가는 링크다(상자가 있는 정책만). `report` 는 아래 결과의 틀이다. 거기서 검사
  * 기록을 보고 있을 때 정책 이름을 누르면 결과 화면으로 돌아가게 한다.
  */
 function Compare({ app, current, report }: { app: DemoApp; current: DemoVariant; report: RefObject<ReportSwitch | null> }) {
-  const rows = compareByPolicy(app.variants.map((variant) => variant.view));
-  // 두 판 모두 발견도 AI 가 푼 경고도 없으면 견줄 줄이 없다.
-  if (rows.length === 0) return null;
+  const { rows, quiet } = compareTable(app.variants.map((variant) => variant.view));
+  // 두 판 모두 결과에 정책이 하나도 없으면 견줄 것이 없다.
+  if (rows.length === 0 && quiet.length === 0) return null;
+  const every = app.variants.length === 2 ? "두 판 모두" : "모든 판";
   /** 지금 보고 있는 판의 칸. 위의 코드와 아래의 결과가 이 칸의 것이다. */
   const here = (variant: DemoVariant) => (variant.key === current.key ? "compare-current" : undefined);
   // 아래 결과에 상자가 있는 정책만 링크로 만든다(발견이나 충족 근거가 있는 정책).
@@ -104,61 +113,75 @@ function Compare({ app, current, report }: { app: DemoApp; current: DemoVariant;
   return (
     <section className="box demo-compare" aria-labelledby="compare-title">
       <div className="box-hd">
-        <h2 id="compare-title">고치기 전과 고친 뒤</h2>
+        <h2 id="compare-title">{COMPARE_TITLE}</h2>
         <Link href="/policy/#status" prefetch={false} className="end">
           상태의 뜻
         </Link>
       </div>
       {/* 좁은 화면에서는 CSS 가 줄을 세로로 쌓는다. display 가 바뀌어도 화면 낭독기가 표로 읽게 role 을 직접 적는다. */}
-      <table className="compare" role="table" aria-labelledby="compare-title">
-        <thead role="rowgroup">
-          <tr role="row">
-            <th scope="col" role="columnheader">
-              정책
-            </th>
-            {app.variants.map((variant) => (
-              <th key={variant.key} scope="col" role="columnheader" className={here(variant)}>
-                {variant.label}
+      {rows.length > 0 && (
+        <table className="compare" role="table" aria-labelledby="compare-title">
+          <thead role="rowgroup">
+            <tr role="row">
+              <th scope="col" role="columnheader">
+                정책
               </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody role="rowgroup">
-          {rows.map((row) => (
-            <tr key={row.id} role="row">
-              <th scope="row" role="rowheader">
-                {cards.has(row.id) ? (
-                  <a
-                    href={`#${encodeURIComponent(policyCardId(row.id))}`}
-                    onClick={(event) => toCard(event, policyCardId(row.id), report)}
-                  >
-                    {row.title}
-                  </a>
-                ) : (
-                  row.title
-                )}
-              </th>
-              {row.cells.map((cell, i) => (
-                <td key={app.variants[i].key} role="cell" className={here(app.variants[i])} data-label={app.variants[i].label}>
-                  <StatusChip status={cell.status} />
-                  {cell.findings > 0 && (
-                    <>
-                      {" "}
-                      <span className="count">발견 {cell.findings}건</span>
-                    </>
-                  )}
-                  {cell.aiCleared > 0 && (
-                    <>
-                      {" "}
-                      <span className="count">AI 가 푼 경고 {cell.aiCleared}건</span>
-                    </>
-                  )}
-                </td>
+              {app.variants.map((variant) => (
+                <th key={variant.key} scope="col" role="columnheader" className={here(variant)}>
+                  {variant.label}
+                </th>
               ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody role="rowgroup">
+            {rows.map((row) => (
+              <tr key={row.id} role="row">
+                <th scope="row" role="rowheader">
+                  {cards.has(row.id) ? (
+                    <a
+                      href={`#${encodeURIComponent(policyCardId(row.id))}`}
+                      onClick={(event) => toCard(event, policyCardId(row.id), report)}
+                    >
+                      {row.title}
+                    </a>
+                  ) : (
+                    row.title
+                  )}
+                </th>
+                {row.cells.map((cell, i) => (
+                  <td key={app.variants[i].key} role="cell" className={here(app.variants[i])} data-label={app.variants[i].label}>
+                    <StatusChip status={cell.status} />
+                    {cell.findings > 0 && (
+                      <>
+                        {" "}
+                        <span className="count">발견 {cell.findings}건</span>
+                      </>
+                    )}
+                    {cell.aiCleared > 0 && (
+                      <>
+                        {" "}
+                        <span className="count">AI 가 푼 경고 {cell.aiCleared}건</span>
+                      </>
+                    )}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      {quiet.map((group) => (
+        <div key={group.status} className="compare-quiet">
+          <p className="lbl">
+            {every} {STATUS_LABEL[group.status]} {group.policies.length}
+          </p>
+          <ul>
+            {group.policies.map((policy) => (
+              <li key={policy.id}>{policy.title}</li>
+            ))}
+          </ul>
+        </div>
+      ))}
       <p className="box-ft">{SITE.zeroIsNotClearance}</p>
     </section>
   );
@@ -167,6 +190,7 @@ function Compare({ app, current, report }: { app: DemoApp; current: DemoVariant;
 /**
  * 데모 앱 하나의 한 판(docs/redesign.md 3장 "데모"). 1100px 이상에서는 둘로 나눈다: 왼쪽은 코드 상자, 오른쪽은 고치기 전·후
  * 표, 판정자 권고 한 줄(외부 API 고지와 함께. 판정자 없이 만든 결과일 때만), 이 판의 결과(CLI 출력 그대로). 좁으면 한 단이다.
+ * 결과에는 곁칸이 없다(표가 정책 목록과 0의 뜻을 지닌다). 다 보지 못한 파일의 약속 자리인 검사 정보는 남는다.
  *
  * 이 판의 결과는 조문별 검사 기록으로도 본다(`ReportWithRecord`). 기록만 인쇄되므로 기록에도 합성 예시라고 적는다.
  */
@@ -190,6 +214,7 @@ export function DemoPanel({ app, variant, pack }: { app: DemoApp; variant: DemoV
           pack={pack}
           source={{ name, synthetic: true }}
           heading={<h2 className="demo-title">{name}</h2>}
+          policyList={`‘${COMPARE_TITLE}’ 표`}
         />
       </div>
     </div>

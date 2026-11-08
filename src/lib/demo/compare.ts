@@ -47,3 +47,58 @@ export function compareByPolicy(views: ReportView[]): CompareRow[] {
     }),
   }));
 }
+
+/**
+ * 데모의 표에 싣는 줄 전부: `compareByPolicy` 의 줄(발견이나 AI 가 푼 경고가 있는 정책) 다음에, 결과에 실린 나머지 정책을 결과의
+ * 차례대로 둔다. 데모의 결과 칸에는 곁칸 `정책 N` 이 없어서(docs/redesign.md 3장 "데모", D7) 이 표가 정책 목록을 지닌다. 발견이
+ * 0인 판의 `검사한 것` 이 이 표를 정책 목록으로 가리킨다. 칸은 위와 같이 그 결과에 실린 상태를 옮긴다.
+ */
+export function compareAllPolicies(views: ReportView[]): CompareRow[] {
+  const rows = compareByPolicy(views);
+  const listed = new Set(rows.map((row) => row.id));
+  const rest = views.flatMap((view) => view.policies).filter((policy) => !listed.has(policy.id));
+  const ids = [...new Set(rest.map((policy) => policy.id))];
+  return [
+    ...rows,
+    ...ids.map((id) => ({
+      id,
+      title: rest.find((policy) => policy.id === id)!.title,
+      cells: views.map((view): CompareCell => {
+        const policy = view.policies.find((p) => p.id === id);
+        if (!policy) return { status: "pack-unknown", findings: 0, aiCleared: 0 };
+        return { status: policy.status, findings: policy.locations.length, aiCleared: policy.aiCleared };
+      }),
+    })),
+  ];
+}
+
+/** 두 판 모두 같은 0의 상태라 표의 줄로 두지 않고 한 덩어리로 적는 정책들. */
+export interface QuietGroup {
+  status: Status;
+  policies: { id: string; title: string }[];
+}
+
+/** 묶는 상태: 발견이 0인 상태. 곁칸의 묶음과 같은 차례다. 충족 근거 발견은 아래 결과에 상자가 있어 줄로 둔다. */
+const QUIET: Status[] = ["no-signal", "not-reported", "pack-unknown"];
+
+/**
+ * 데모의 표(docs/redesign.md D7 의 검토 반영): `compareAllPolicies` 의 줄 가운데 모든 판의 칸이 같은 0의 상태(발견 없음 등)이고
+ * 발견도 AI 가 푼 경고도 없는 줄은 상태마다 한 덩어리(`quiet`)로 묶고, 나머지(`rows`)만 표의 줄로 둔다. 곁칸이 발견 없는 정책을
+ * 상태마다 묶던 것과 같다. 정책은 하나도 빠지지 않는다(줄이거나 묶음에 있다). 표가 첫 화면을 다 차지하지 않게 한다.
+ */
+export function compareTable(views: ReportView[]): { rows: CompareRow[]; quiet: QuietGroup[] } {
+  const all = compareAllPolicies(views);
+  const quietStatus = (row: CompareRow): Status | null => {
+    const [first] = row.cells;
+    if (first === undefined || !QUIET.includes(first.status)) return null;
+    const same = row.cells.every((cell) => cell.status === first.status && cell.findings === 0 && cell.aiCleared === 0);
+    return same ? first.status : null;
+  };
+  return {
+    rows: all.filter((row) => quietStatus(row) === null),
+    quiet: QUIET.map((status) => ({
+      status,
+      policies: all.filter((row) => quietStatus(row) === status).map(({ id, title }) => ({ id, title })),
+    })).filter((group) => group.policies.length > 0),
+  };
+}

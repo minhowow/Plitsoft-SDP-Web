@@ -6,6 +6,7 @@ import { DEMO_APPS, DEMO_VARIANTS } from "@/lib/demo/apps";
 import { primaryLawNote, RECORD_OMITS, RECORD_REFUSED } from "@/lib/report/record";
 import type { Report } from "@/lib/report/types";
 import { SAMPLES } from "@/lib/samples";
+import { analysisHref } from "@/lib/service/href";
 import { SITE } from "@/lib/site";
 import { jsonFiles, readJson, readPackFile, root, sarifFiles } from "../helpers";
 import { withCodeEverywhere } from "../record-data";
@@ -498,6 +499,30 @@ describe("인쇄하면 기록만 나온다", () => {
     await asPrint(policy.page);
     expect(await drawn(policy.page, [".site-header", ".site-footer", "main > h1", ".policy-index"])).toEqual([true, true, true, true]);
   });
+
+  it.each([375, 1280])(
+    "분석 쪽(%ipx)에서도: 기록을 고른 채 인쇄하면 기록의 글만 그려진다. 머리글의 검색창·메뉴, 곁칸, 검사 정보는 나오지 않고 A4 두 쪽 이하다",
+    async (width) => {
+      // (D7) 재디자인으로 분석 쪽에 더해진 것(머리글의 자동 완성 검색창과 좁은 화면의 메뉴, 결과의 곁칸 `정책 N`, 검사 정보와 진행
+      // 기록)이 기록의 인쇄에 섞이지 않는다. 기록의 글은 화면에서 본 그대로다(인쇄 기록은 문구를 바꾸지 않는다).
+      const { page } = await open(analysisHref("example-org", "night-push", "64y4jdtazh"), { viewport: { width, height: 900 } });
+      const chrome = [".site-header", ".site-footer", "main h1", width === 1280 ? ".hdr-search" : ".hdr-m", ".report-head", ".record-btn"];
+      const result = [".report", ".report-side", ".side-pol", ".info"];
+      expect(await drawn(page, result)).toEqual(result.map(() => true));
+      await showRecord(page);
+      const onScreen = await recordText(page);
+      expect(await drawn(page, [...chrome, ".record-tools"])).toEqual([...chrome, ".record-tools"].map(() => true));
+      await asPrint(page);
+      expect(await drawn(page, [...chrome, ".record-tools", ...result, "form[role=search]", ".cbx-pop", "details.menu"])).toEqual(
+        [...chrome, ".record-tools", ...result, "form[role=search]", ".cbx-pop", "details.menu"].map(() => false),
+      );
+      expect(await drawn(page, [".record"])).toEqual([true]);
+      expect(squash(await drawnText(page))).toBe(squash(await recordText(page)));
+      expect(squash(await recordText(page))).toBe(squash(onScreen));
+      await asScreen(page);
+      expect(await printedPages(page)).toBeLessThanOrEqual(2);
+    },
+  );
 
   it.each(["light", "dark"] as const)("%s 테마에서 인쇄해도 흰 바탕에 검은 글이다", async (colorScheme) => {
     const { page } = await open("/view/", { colorScheme });

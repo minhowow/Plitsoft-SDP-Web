@@ -9,7 +9,7 @@ import { DemoSwitcher } from "@/components/demo/DemoSwitcher";
 import { RecordSheet } from "@/components/result/Record";
 import { ReportWithRecord } from "@/components/result/ReportWithRecord";
 import { DEMO_APPS, DEMO_VARIANTS, type DemoApp, type DemoVariant } from "@/lib/demo/apps";
-import { compareByPolicy } from "@/lib/demo/compare";
+import { compareAllPolicies, compareByPolicy, compareTable } from "@/lib/demo/compare";
 import { unmatchedLines } from "@/lib/demo/diff";
 import { loadDemoApps } from "@/lib/demo/load";
 import { lineMarks } from "@/lib/demo/marks";
@@ -115,7 +115,7 @@ function compareBlock(html: string) {
   const at = html.indexOf('<section class="box demo-compare"');
   if (at === -1) return null;
   const block = elementAt(html, at);
-  const table = elementAt(block, block.indexOf("<table"));
+  const table = block.includes("<table") ? elementAt(block, block.indexOf("<table")) : "<table><thead></thead><tbody></tbody></table>";
   const cell = (td: string) => ({
     label: /data-label="([^"]*)"/.exec(td)?.[1],
     status: textOf(elementAt(td, td.indexOf('<span class="chip '))),
@@ -136,6 +136,11 @@ function compareBlock(html: string) {
         cells: elementsOf(tr, "<td ").map(cell),
       };
     }),
+    /** (D7 검토) 표 아래의 묶음: 두 판 모두 같은 0의 상태인 정책들. 이름표와 정책 이름. */
+    quiet: elementsOf(block, '<div class="compare-quiet">').map((group) => ({
+      label: textOf(elementAt(group, group.indexOf('<p class="lbl">'))),
+      names: elementsOf(group, "<li>").map(textOf),
+    })),
     /** 상자 아래 줄(0의 뜻). */
     footer: elementsOf(block, '<p class="box-ft">').map(textOf),
     /** 머리 오른쪽의 `상태의 뜻` 링크. */
@@ -685,10 +690,31 @@ describe("그려 낸 데모 화면", () => {
       const block = compareBlock(html)!;
       expect(block.caption).toBe("고치기 전과 고친 뒤");
       expect(block.columns).toEqual(["정책", "고치기 전", "고친 뒤"]);
-      const expected = compareByPolicy(entry.app.variants.map((variant) => variant.view));
+      const views = entry.app.variants.map((variant) => variant.view);
+      const all = compareAllPolicies(views);
+      // (D7) 데모의 결과에는 곁칸이 없어 이 상자가 정책 목록을 지닌다: 발견이 있는 정책(compareByPolicy) 다음에 결과에 실린 나머지
+      // 정책 모두. 빠지는 정책이 없다.
+      expect(all.slice(0, compareByPolicy(views).length)).toEqual(compareByPolicy(views));
+      expect(all.map((row) => row.id).sort()).toEqual([...new Set(views.flatMap((view) => view.policies.map((policy) => policy.id)))].sort());
+      // (D7 검토) 그 가운데 두 판 모두 같은 0의 상태이고 발견도 AI 가 푼 경고도 없는 정책은 표 아래에 상태마다 묶는다. 나머지가 표의
+      // 줄이다. 둘을 합치면 모든 정책이 한 번씩이다.
+      const expected = compareTable(views);
+      expect([...expected.rows.map((row) => row.id), ...expected.quiet.flatMap((group) => group.policies.map((policy) => policy.id))].sort()).toEqual(
+        all.map((row) => row.id).sort(),
+      );
+      for (const row of all) {
+        const grouped = expected.quiet.find((group) => group.policies.some((policy) => policy.id === row.id));
+        if (grouped) expect(row.cells, row.id).toEqual(row.cells.map(() => ({ status: grouped.status, findings: 0, aiCleared: 0 })));
+      }
+      expect(block.quiet).toEqual(
+        expected.quiet.map((group) => ({
+          label: `두 판 모두 ${STATUS_LABEL[group.status]} ${group.policies.length}`,
+          names: group.policies.map((policy) => policy.title),
+        })),
+      );
       const linked = new Set(boxed(entry.variant.view).map((policy) => policy.id));
       expect(block.rows).toEqual(
-        expected.map((row) => ({
+        expected.rows.map((row) => ({
           title: row.title,
           href: linked.has(row.id) ? `#${policyCardId(row.id)}` : null,
           cells: row.cells.map((cell, i) => ({
@@ -733,17 +759,29 @@ describe("그려 낸 데모 화면", () => {
     });
 
     it("고친 뒤에도 남은 발견을 그대로 보인다", () => {
-      expect(cells("kids-signup.fixed")).toEqual([["만 14세 미만 아동의 개인정보 처리", [PENDING, ["발견 1건"]], [STATUS_LABEL["evidence-found"], []]]]);
-      expect(cells("night-push.fixed")).toEqual([
+      // (D7) 상자가 정책 목록을 지닌다. 발견이 있는 정책은 표의 줄이고, 두 판 모두 발견 없음인 정책은 표 아래의 묶음이다(D7 검토).
+      // 정책은 모두 다섯이다.
+      const quiet = (name: string, from: number) => {
+        const block = compareBlock(panel(find(name)))!;
+        expect(cells(name), name).toHaveLength(from);
+        expect(block.quiet, name).toEqual([{ label: `두 판 모두 ${NONE} ${packMeta.policies.length - from}`, names: expect.any(Array) }]);
+        expect(block.quiet[0].names, name).toHaveLength(packMeta.policies.length - from);
+        return cells(name);
+      };
+      expect(quiet("kids-signup.fixed", 1)).toEqual([["만 14세 미만 아동의 개인정보 처리", [PENDING, ["발견 1건"]], [STATUS_LABEL["evidence-found"], []]]]);
+      expect(quiet("night-push.fixed", 2)).toEqual([
         ["광고성 정보에 밝혀야 할 사항 — (광고) 표기, 전송자 명칭·연락처, 무료 수신거부 방법", [PENDING, ["발견 2건"]], [PENDING, ["발견 2건"]]],
         ["야간(21시~08시) 광고성 정보 전송의 별도 동의", [NONE, []], [UNCERTAIN, ["발견 1건"]]],
       ]);
-      expect(cells("genai-chat.fixed")).toEqual([
+      expect(quiet("genai-chat.fixed", 2)).toEqual([
         ["생성형 AI 결과물 표시", [PENDING, ["발견 1건"]], [UNCERTAIN, ["발견 1건"]]],
         ["생성형 AI 기반 서비스 사전 고지", [PENDING, ["발견 1건"]], [PENDING, ["발견 1건"]]],
       ]);
-      // 어느 판을 보고 있든 표는 같다(지금 보는 판의 표시만 다르다).
-      for (const key of ["kids-signup", "night-push", "genai-chat"]) expect(cells(`${key}.main`)).toEqual(cells(`${key}.fixed`));
+      // 어느 판을 보고 있든 표와 묶음은 같다(지금 보는 판의 표시만 다르다).
+      for (const key of ["kids-signup", "night-push", "genai-chat"]) {
+        expect(cells(`${key}.main`)).toEqual(cells(`${key}.fixed`));
+        expect(compareBlock(panel(find(`${key}.main`)))!.quiet).toEqual(compareBlock(panel(find(`${key}.fixed`)))!.quiet);
+      }
     });
 
     it("칸의 발견 수는 정책의 발견 수다. 규칙 묶음의 수가 아니다", () => {
@@ -758,9 +796,28 @@ describe("그려 낸 데모 화면", () => {
       });
       const html = renderToStaticMarkup(<DemoPanel app={app} variant={app.variants[0]} pack={packIndex} />);
       expect(compareBlock(html)!.rows[0].cells.map((cell) => cell.counts)).toEqual([["발견 25건"], ["발견 2건"]]);
-      // (D5) 바로 아래 결과의 곁칸이 그 정책에 적는 수와 같다.
-      const side = elementsOf(html, '<li class="p">').find((li) => li.includes(`href="#${policyCardId(policy.id)}"`))!;
-      expect(textOf(elementAt(side, side.indexOf('<span class="n">')))).toBe("25건");
+      // (D7) 데모의 결과에는 곁칸이 없다. 그 수는 표에만 있다(곁칸의 같은 수를 견주던 단언은 곁칸과 함께 걷었다).
+      expect(html).not.toContain("side-pol");
+    });
+
+    it.each(named)("%s: 결과에 곁칸 `정책 N` 이 없다. 표가 정책 목록과 0의 뜻을 지니고, 검사 정보는 남는다", (_name, entry) => {
+      // (D7, docs/redesign.md 3장 "데모"와 D5 의 2026-11-07 결정, 목업 demo) 데모만 곁칸을 뺀다. 분석 쪽과 /view 는 그대로다.
+      const html = panel(entry);
+      expect(html).not.toContain('<aside class="report-side">');
+      expect(html).not.toContain("side-pol");
+      expect(html).toContain('<section class="box info" aria-labelledby="info-title">');
+      const block = compareBlock(html)!;
+      // 표의 줄과 표 아래의 묶음을 합치면 이 판의 결과에 실린 정책 모두다.
+      expect([...block.rows.map((row) => row.title), ...block.quiet.flatMap((group) => group.names)].sort()).toEqual(
+        entry.variant.view.policies.map((policy) => policy.title).sort(),
+      );
+      expect(block.footer).toEqual([SITE.zeroIsNotClearance]);
+    });
+
+    it("발견이 0인 판(아동 가입 고친 뒤)의 `검사한 것` 은 정책 목록으로 표를 가리킨다. 없는 곁칸(‘정책 N’)을 가리키지 않는다", () => {
+      const text = textOf(panel(find("kids-signup.fixed")));
+      expect(text).toContain("결과에는 정책 목록이 없어, 팩 판이 같은 이 사이트의 팩에서 가져와 ‘고치기 전과 고친 뒤’ 표에 적었습니다.");
+      expect(text).not.toMatch(/‘정책 \d+’/);
     });
 
     it("상태의 뜻 문장(조문별 검사 기록이 쓴다)은 정책 밖에서 적는 말이다: 곁에 없는 정책·조문을 '이'로 가리키지 않는다. 칩에는 뜻을 숨겨 두지 않는다", () => {
@@ -799,7 +856,7 @@ describe("그려 낸 데모 화면", () => {
       expect(rows.length).toBeGreaterThan(0);
       for (const row of rows) {
         if (row.href === null) {
-          // 이 판에 상자가 없는 정책(발견도 충족 근거도 없다)은 곁칸의 묶음에 있다.
+          // 이 판에 상자가 없는 정책(발견도 충족 근거도 없다)은 표의 줄로만 있다(D7: 데모에는 곁칸이 없다).
           expect(below.map((card) => card.title), row.title).not.toContain(row.title);
           continue;
         }
@@ -901,12 +958,18 @@ describe("그려 낸 데모 화면", () => {
         (_label, variant) => {
           const html = renderToStaticMarkup(<DemoPanel app={judged} variant={variant} pack={packIndex} />);
           const block = compareBlock(html)!;
-          expect(block.rows.map((row) => row.cells.map((cell) => [cell.label, cell.status, cell.counts]))).toEqual([
-            [
-              ["고치기 전", PENDING, ["발견 1건"]],
-              ["고친 뒤", NONE, ["AI 가 푼 경고 1건"]],
-            ],
+          // (D7) 첫 줄 다음은 두 판 모두 발견 없음인 정책들이다(표가 정책 목록을 지닌다).
+          const rows = block.rows.map((row) => row.cells.map((cell) => [cell.label, cell.status, cell.counts]));
+          expect(rows[0]).toEqual([
+            ["고치기 전", PENDING, ["발견 1건"]],
+            ["고친 뒤", NONE, ["AI 가 푼 경고 1건"]],
           ]);
+          for (const row of rows.slice(1)) {
+            expect(row).toEqual([
+              ["고치기 전", NONE, []],
+              ["고친 뒤", NONE, []],
+            ]);
+          }
           for (const [pattern, why] of BANNED_WORDING) expect(pattern.test(html), `${pattern} — ${why}`).toBe(false);
           // 판정자가 켜져 있던 결과다. 켜 보라고 권하지 않는다.
           expect(html).not.toContain("판정자를 켜고");
@@ -914,10 +977,13 @@ describe("그려 낸 데모 화면", () => {
         },
       );
 
-      it("고친 뒤(AI 가 푼 판)를 볼 때: 아래 결과의 곁칸과 목록이 같은 것을 말한다", () => {
+      it("고친 뒤(AI 가 푼 판)를 볼 때: 표의 칸과 아래 결과의 목록이 같은 것을 말한다", () => {
         const html = renderToStaticMarkup(<DemoPanel app={judged} variant={judged.variants[1]} pack={packIndex} />);
-        // (D5) 그 정책은 곁칸에서 `발견 없음, AI 가 푼 경고 1건` 으로 따로 선다. "나누어 적지 않습니다"는 그 정책의 말이 아니다.
-        expect(textOf(report(html))).toContain("발견 없음, AI 가 푼 경고 1건");
+        // (D7) 데모에는 곁칸이 없다. 그 정책은 표의 첫 줄에서 `발견 없음` 과 `AI 가 푼 경고 1건` 으로 따로 선다. "나누어 적지
+        // 않습니다"는 그 정책의 말이 아니다.
+        const first = compareBlock(html)!.rows[0];
+        expect(first.title).toBe("만 14세 미만 아동의 개인정보 처리");
+        expect(first.cells[1]).toMatchObject({ status: NONE, counts: ["AI 가 푼 경고 1건"] });
         expect(textOf(html)).not.toContain("나누어 적지 않습니다");
         expect(html).toContain("<summary>AI 가 푼 경고 1건</summary>");
         // 발견이 0인 판이다. 0의 뜻은 표 아래와 아래 결과(굵게)에 있다.

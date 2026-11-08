@@ -22,7 +22,7 @@ import { Where } from "./Where";
  * 2. 팩 판이 다르다는 알림(그럴 때만).
  * 3. 요약 한 줄: 숫자인 사실만(사람이 볼 곳, 검사한 파일, AI 검토가 돌았으면 AI 가 푼 경고).
  * 4. 판정자를 켜 보라는 권고와 외부 API 고지(`recommend` 일 때, 판정자가 꺼진 결과에만. 쪽마다 한 번).
- * 5. 본문(정책 상자, AI 가 푼 경고, 적용 질문으로 빠진 판정)과 곁칸(`정책 N`).
+ * 5. 본문(정책 상자, AI 가 푼 경고, 적용 질문으로 빠진 판정)과 곁칸(`정책 N`). 데모는 곁칸을 그리지 않는다(`policyList`).
  *    발견이 0이면 본문 맨 위에 0의 뜻(굵게)과 검사한 것을 두고, 맨 아래에 검사에 들지 않는 파일과 정보를 펼쳐 둔다.
  * 6. 검사 정보(쪽 폭 전체): 도구, 팩 판, 엔진, AI 줄, 판정 단위, 출력 형식, 다 보지 못한 파일이 없다는 것, 진행 기록(분석 쪽).
  */
@@ -116,7 +116,7 @@ export function AiDecisions({ cleared, dismissed }: { cleared: ReviewItem[]; dis
  * 검사한 것. 발견이 0인 결과에만 0의 뜻 바로 아래에 둔다. 발견이 없다는 것만으로는 무엇을 봤는지 알 수 없으므로, 결과에 실린
  * 수(파일, 판정 단위, 검사하지 않은 파일, 정책)와 그 수가 무엇이고 무엇이 아닌지를 적는다.
  */
-export function EmptyReport({ view }: { view: ReportView }) {
+export function EmptyReport({ view, policyList }: { view: ReportView; policyList?: string }) {
   return (
     <div className="empty-report">
       <section className="box">
@@ -124,7 +124,7 @@ export function EmptyReport({ view }: { view: ReportView }) {
           <h2>검사한 것</h2>
         </div>
         <dl className="examined">
-          {examinedFacts(view).map((fact) => (
+          {examinedFacts(view, policyList).map((fact) => (
             <div key={fact.label}>
               <dt>{fact.label}</dt>
               <dd className={fact.warn ? "warn" : undefined}>
@@ -338,6 +338,9 @@ function ScanInfo({ view, gaps, progress }: { view: ReportView; gaps: boolean; p
  * 결과 한 건의 전체 화면. `code` 는 GitHub 의 커밋 고정 링크(분석 쪽), `statutes` 는 정책 id → 근거 조문 원문(분석 쪽, 서버가
  * 팩 메타데이터에서 고른다), `recommend` 는 판정자를 켜 보라고 권할지(`/view`. 분석 서비스는 권하지 않는다), `progress` 는 검사
  * 정보 안의 진행 기록(분석 쪽).
+ *
+ * `policyList` 를 주면 곁칸 `정책 N` 을 그리지 않는다. 그 화면에서 정책 목록과 0의 뜻을 지닌 곳의 이름이다(데모의
+ * `‘고치기 전과 고친 뒤’ 표`. docs/redesign.md 3장 "데모", D7). 발견이 0인 결과의 `검사한 것` 이 그 이름으로 가리킨다.
  */
 export function ReportSummary({
   view,
@@ -345,12 +348,14 @@ export function ReportSummary({
   statutes = {},
   recommend = false,
   progress,
+  policyList,
 }: {
   view: ReportView;
   code?: CodeSource | null;
   statutes?: Record<string, Statute | undefined>;
   recommend?: boolean;
   progress?: ReactNode;
+  policyList?: string;
 }) {
   const coverage = coverageSummary(view);
   const gaps = coverage.rows.some((row) => row.count > 0);
@@ -378,7 +383,7 @@ export function ReportSummary({
           {zero && (
             <>
               <p className="zero-line">{SITE.zeroIsNotClearance}</p>
-              <EmptyReport view={view} />
+              <EmptyReport view={view} policyList={policyList} />
             </>
           )}
           {/* 상자가 없을 수 있다(발견도 충족 근거도 없는 결과). 빈 상자가 간격만 차지하지 않게 한다. */}
@@ -417,9 +422,11 @@ export function ReportSummary({
           <AiDecisions cleared={view.cleared} dismissed={view.dismissed} />
           {zero && <NotSeenBox view={view} />}
         </div>
-        <aside className="report-side">
-          <SidePolicies view={view} />
-        </aside>
+        {policyList === undefined && (
+          <aside className="report-side">
+            <SidePolicies view={view} />
+          </aside>
+        )}
       </div>
 
       <ScanInfo view={view} gaps={gaps} progress={progress} />
