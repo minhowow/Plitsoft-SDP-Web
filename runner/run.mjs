@@ -246,7 +246,16 @@ export function childEnv(env, extra = {}) {
   return { ...out, ...extra };
 }
 
-/** uv(고정 판)와 CLI(고정 커밋, extra api)를 설치한다. */
+/** 자식 과정의 표준 오류 끝부분을 워크플로 로그에 남긴다(첫 실패의 까닭을 보려고). 비밀값은 가린다. */
+export function logTail(label, stderr, env, { log = console.error } = {}) {
+  let text = String(stderr ?? "").slice(-2000);
+  for (const key of ["CLI_REPO_TOKEN", "ANTHROPIC_API_KEY", "RUNNER_SECRET"]) {
+    if (env[key]) text = text.split(env[key]).join("***");
+  }
+  if (text.trim() !== "") log(`${label}:\n${text}`);
+}
+
+/** uv(고정 판)와 CLI(고정 커밋)를 설치한다. */
 export function installCli(env, { run = spawnSync } = {}) {
   const uvVersion = env.UV_VERSION ?? "";
   const cliRepo = env.CLI_REPO ?? "";
@@ -261,16 +270,22 @@ export function installCli(env, { run = spawnSync } = {}) {
     throw new StepError("fetch", "실행기의 도구 설정(uv 판, CLI 저장소, 고정 커밋)이 맞지 않아 도구를 설치하지 못했습니다.");
   }
   const uv = run("pipx", ["install", `uv==${uvVersion}`], { env: childEnv(env), encoding: "utf8", timeout: 5 * 60_000 });
-  if (uv.status !== 0) throw new StepError("fetch", "도구(uv)를 설치하지 못했습니다.");
+  if (uv.status !== 0) {
+    logTail("uv 설치", uv.stderr, env);
+    throw new StepError("fetch", "도구(uv)를 설치하지 못했습니다.");
+  }
   // CLI 저장소가 비공개면 읽기 토큰을 git 설정으로만 넘긴다(명령줄과 출력에 싣지 않는다).
   const git = env.CLI_REPO_TOKEN
     ? { GIT_CONFIG_COUNT: "1", GIT_CONFIG_KEY_0: `url.https://x-access-token:${env.CLI_REPO_TOKEN}@github.com/.insteadOf`, GIT_CONFIG_VALUE_0: "https://github.com/" }
     : {};
-  const spec = `policypack[api] @ git+https://github.com/${cliRepo}@${cliCommit}`;
-  // git 의 CLI 를 설치하면 CLI 의 uv.lock 이 쓰이지 않는다. 딸린 꾸러미(pydantic, anthropic, semgrep 등)가 PyPI 의 가장 새 판으로
+  const spec = `policypack @ git+https://github.com/${cliRepo}@${cliCommit}`;
+  // git 의 CLI 를 설치하면 CLI 의 uv.lock 이 쓰이지 않는다. 딸린 꾸러미(pydantic, ruamel.yaml, semgrep 등)가 PyPI 의 가장 새 판으로
   // 풀리지 않게, 고정한 날짜(CLI_EXCLUDE_NEWER) 뒤에 나온 판은 고르지 않는다(이 단계와 검사 단계에서 돌 코드를 그날까지로 묶는다).
   const cli = run("uv", ["tool", "install", "--quiet", "--python", "3.12", "--exclude-newer", excludeNewer, spec], { env: childEnv(env, git), encoding: "utf8", timeout: 10 * 60_000 });
-  if (cli.status !== 0) throw new StepError("fetch", "검사 도구(CLI)를 설치하지 못했습니다.");
+  if (cli.status !== 0) {
+    logTail("CLI 설치", cli.stderr, env);
+    throw new StepError("fetch", "검사 도구(CLI)를 설치하지 못했습니다.");
+  }
 }
 
 /**
@@ -291,6 +306,7 @@ export function runScan({ dir, judge, command = ["policypack"], env, timeoutMs, 
   }
   if (result.error) throw new StepError("scan", "검사 도구(CLI)를 실행하지 못했습니다.");
   if (result.status !== 0 && result.status !== 1) {
+    logTail("검사", result.stderr, env ?? {});
     throw new StepError("scan", `검사 도구가 오류로 끝났습니다(종료 코드 ${result.status ?? "없음"}).`);
   }
   if (!result.stdout || result.stdout.trim() === "") throw new StepError("scan", "검사 도구가 결과를 내지 않았습니다.");
@@ -335,7 +351,8 @@ async function main(argv, env) {
   const ctx = {
     analysisId: inputs.analysisId,
     callbackUrl: inputs.callbackUrl,
-    secret: env.RUNNER_SECRET ?? "",
+    // 사이트처럼 앞뒤 공백을 걷는다(secret 값 끝의 줄바꿈 하나로 모든 서명이 어긋나지 않게).
+    secret: (env.RUNNER_SECRET ?? "").trim(),
     target: { owner: inputs.owner, repo: inputs.repo, commit: inputs.commit },
   };
   const step = (name) => writeState(work, { ...readState(work), step: name, reason: null });
@@ -393,7 +410,8 @@ async function main(argv, env) {
         step("finish");
         await notifyStep(ctx, "finish");
         const output = readFileSync(path.join(work, "output.json"), "utf8");
-        checkResultSize(output, positive(env.RESULT_MAX_KB, DEFAULTS.resultMaxKb));
+        // 사이트는 보낸 본문 전체(결과를 글로 실은 JSON)를 상한과 견준다. 그 본문과 같은 글로 잰다.
+        checkResultSize(JSON.stringify({ event: "result", output, target: ctx.target }), positive(env.RESULT_MAX_KB, DEFAULTS.resultMaxKb));
         await sendResult(ctx, output);
         return;
       }

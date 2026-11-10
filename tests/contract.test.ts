@@ -366,10 +366,13 @@ describe("CLI 결과 판 1 (schema_version: 1)", () => {
     expect(parseReport(old)).toMatchObject({ ok: true, contract: "cli-0.3" });
   });
 
-  it("판정자를 켠 결과에 실리는 키 judge_usage 는 이 판(CLI 7300205)의 출력에 없다. 계약에 넣지 않는다", () => {
-    // CLI 7300205 의 report/json_out.py 는 judge_usage 를 내지 않는다(그 뒤의 8824f27 에서 생겼다). 지어낸 키를 계약에 두지 않는다.
+  it("판정자를 켠 결과에 실리는 키 judge_usage 는 웹이 읽지 않는다. 계약에 두지 않고, 실려 와도 받는다", () => {
+    // CLI 50c70bc 는 `--judge anthropic:` 으로 사용량이 있을 때 run.judge_usage({토큰 이름: 정수})를 낸다. 수집본은 판정자 없이 만들어 없다.
     const schema = readJson("contract", "schema", "report.cli-0.3.schema.json") as { $defs: { run: { properties: object } } };
     expect(Object.keys(schema.$defs.run.properties)).not.toContain("judge_usage");
+    const data = readJson("contract", "cli-current", "genai-chat.main.json") as Report;
+    const judged = { ...data, run: { ...data.run, judge: "anthropic:claude-opus-5-5", judge_usage: { input_tokens: 1200, output_tokens: 80 } } };
+    expect(parseReport(judged)).toMatchObject({ ok: true, contract: "cli-0.3" });
   });
 
   const broken: [string, (r: Record<string, any>) => void][] = [ // eslint-disable-line @typescript-eslint/no-explicit-any

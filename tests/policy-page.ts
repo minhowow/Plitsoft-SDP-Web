@@ -524,7 +524,7 @@ export function readAround(html: string): AroundRead {
   };
 }
 
-/** 정책 다섯이 함께 쓰는 틀. 정책마다 조문과 규칙의 수는 달라도 이 뼈대는 같다. */
+/** 모든 정책이 함께 쓰는 틀. 정책마다 조문과 규칙의 수는 달라도 이 뼈대는 같다. */
 export const POLICY_FRAME = [
   "머리: 제목 · 대표 조문 · 정책 id · 개발자에게 할 질문 · 바로가기",
   "구역: 근거 조문",

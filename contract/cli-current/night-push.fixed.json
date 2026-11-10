@@ -6,7 +6,7 @@
   },
   "run": {
     "judge": null,
-    "pack_digest": "366a3dd4fdae08d8",
+    "pack_digest": "7897fc0f79ce975b",
     "fingerprint_version": "policypack/v1",
     "questions_asked": 0,
     "ai_answered": 0,
@@ -48,7 +48,7 @@
       "ai_pending": [
         "ai-night-guard"
       ],
-      "fingerprint": "46b97268899e5054bd58be5d85ee4f84",
+      "fingerprint": "8b80aa95832a48a7af6dee65317e434d",
       "scope": "anchor",
       "region": {
         "start_line": 9,
@@ -101,7 +101,7 @@
       "ai_pending": [
         "ai-start-block"
       ],
-      "fingerprint": "b51ef22cdcc0f8ae3c1697d3c952d452",
+      "fingerprint": "3b26ebf0758d062eb21a0fdc27014a1d",
       "scope": "file",
       "region": null,
       "top_level": false,
@@ -139,7 +139,7 @@
       "ai_pending": [
         "ai-optout-free"
       ],
-      "fingerprint": "4ca5aa5e8199112c15ad9f22bb74993a",
+      "fingerprint": "36371ab5f85f97ab3c7efff048d5dd93",
       "scope": "file",
       "region": null,
       "top_level": false,

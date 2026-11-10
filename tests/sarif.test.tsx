@@ -389,7 +389,7 @@ describe("SARIF 로는 알 수 없는 것", () => {
       "판정 단위": "알 수 없음. 판정 단위 수가 결과에 실려 있지 않습니다.",
       // 아래 두 줄은 JSON 과 같다. 목록과 팩 판은 SARIF 에도 실려 있다.
       "검사하지 않은 파일": examinedFacts(a)[2].value + ". " + examinedFacts(a)[2].note,
-      정책: "5개. 결과에는 정책 목록이 없어, 팩 판이 같은 이 사이트의 팩에서 가져와 ‘정책 5’에 적었습니다.",
+      정책: `${packMeta.policies.length}개. 결과에는 정책 목록이 없어, 팩 판이 같은 이 사이트의 팩에서 가져와 ‘정책 ${packMeta.policies.length}’에 적었습니다.`,
     });
     expect(examinedFacts(b).every((fact) => !fact.warn)).toBe(true);
     const [json, sarif] = [render(withoutStatic(data)), render(toSarif(data))];

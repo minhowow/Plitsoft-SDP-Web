@@ -18,6 +18,7 @@ import {
   countJsTs,
   fetchRepository,
   installCli,
+  logTail,
   readInputs,
   runScan,
   sign as runnerSign,
@@ -253,6 +254,19 @@ describe("입력·파일 수·결과 크기", () => {
     expect(() => checkResultSize("x".repeat(2048), 2)).not.toThrow();
     expect(() => checkResultSize("x".repeat(2049), 2)).toThrow(StepError);
   });
+
+  it("실패한 자식 과정의 표준 오류는 끝부분만, 비밀값을 가려 로그에 남긴다", () => {
+    const lines: string[] = [];
+    const env = { CLI_REPO_TOKEN: "ghp_secret", ANTHROPIC_API_KEY: "sk-ant-k" };
+    logTail("CLI 설치", `${"a".repeat(3000)}\nfatal: https://x-access-token:ghp_secret@github.com/x sk-ant-k`, env, { log: (text: string) => lines.push(text) });
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).not.toContain("ghp_secret");
+    expect(lines[0]).not.toContain("sk-ant-k");
+    expect(lines[0]).toContain("x-access-token:***@github.com");
+    expect(lines[0].length).toBeLessThan(2100);
+    logTail("검사", "  \n", env, { log: (text: string) => lines.push(text) });
+    expect(lines).toHaveLength(1);
+  });
 });
 
 describe("도구 설치와 검사", () => {
@@ -287,7 +301,7 @@ describe("도구 설치와 검사", () => {
     installCli(env, { run: fake });
     expect(calls.map((c) => [c.bin, ...c.args])).toEqual([
       ["pipx", "install", "uv==0.13.0"],
-      ["uv", "tool", "install", "--quiet", "--python", "3.12", "--exclude-newer", "2026-10-08T00:00:00Z", "policypack[api] @ git+https://github.com/minhowow/Plitsoft-SDP@7300205b7e0db18e171aa2d730120416f2136d3c"],
+      ["uv", "tool", "install", "--quiet", "--python", "3.12", "--exclude-newer", "2026-10-08T00:00:00Z", "policypack @ git+https://github.com/minhowow/Plitsoft-SDP@7300205b7e0db18e171aa2d730120416f2136d3c"],
     ]);
     expect(JSON.stringify(calls.map((c) => c.args))).not.toContain("tok");
     expect(calls[0].env.GIT_CONFIG_COUNT).toBeUndefined();
@@ -326,10 +340,10 @@ describe("워크플로 (.github/workflows/analyze.yml)", () => {
     expect(workflow).toMatch(/CLI_REPO: minhowow\/Plitsoft-SDP\n/);
     expect(workflow).toMatch(/CLI_COMMIT: [0-9a-f]{40}\n/);
     expect(workflow).toMatch(/UV_VERSION: \d+\.\d+\.\d+\n/);
-    // 딸린 꾸러미의 판을 고정한 날짜까지로 묶는다. 그 날짜는 오늘보다 2주 넘게 앞이다(새로 나온 판이 곧바로 돌지 않게).
+    // 딸린 꾸러미의 판을 고정한 날짜까지로 묶는다. 그 날짜는 고정 커밋의 날짜이고(계약 시험), 오늘보다 앞이다.
     const excludeNewer = /CLI_EXCLUDE_NEWER: "(\d{4}-\d{2}-\d{2})T00:00:00Z"\n/.exec(workflow);
     expect(excludeNewer).not.toBeNull();
-    expect(Date.now() - Date.parse(`${excludeNewer![1]}T00:00:00Z`)).toBeGreaterThan(14 * 24 * 60 * 60 * 1000);
+    expect(Date.parse(`${excludeNewer![1]}T00:00:00Z`)).toBeLessThanOrEqual(Date.now());
     // 콜백 받을 사이트는 워크플로 입력이 아니라 Actions 변수에서 온다.
     expect(workflow).toMatch(/SITE_ORIGIN: \$\{\{ vars\.SITE_URL \}\}\n/);
     expect(workflow).toMatch(/permissions:\n {2}contents: read\n/);

@@ -7,7 +7,7 @@
   },
   "run": {
     "judge": null,
-    "pack_digest": "366a3dd4fdae08d8",
+    "pack_digest": "7897fc0f79ce975b",
     "fingerprint_version": "policypack/v1",
     "questions_asked": 0,
     "ai_answered": 0,
@@ -70,6 +70,14 @@
         "uncertain": 0,
         "compliant": 0,
         "evidence": []
+      },
+      {
+        "policy": "kr.pipa.28-8",
+        "units": 0,
+        "needs_review": 0,
+        "uncertain": 0,
+        "compliant": 0,
+        "evidence": []
       }
     ],
     "commit": null,
@@ -93,7 +101,7 @@
       "ai_pending": [
         "ai-guard"
       ],
-      "fingerprint": "d22d4793a52077a6d00766c814ba2f37",
+      "fingerprint": "1c68f43e15a146414054ef792c74a62b",
       "scope": "file",
       "region": null,
       "top_level": false,

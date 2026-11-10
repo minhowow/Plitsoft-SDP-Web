@@ -663,7 +663,9 @@ describe("인쇄하면 기록만 나온다", () => {
     expect(await printedPages(page)).toBe(2);
   });
 
-  it("발견이 두 건인 기록(광고 푸시·생성형 AI 채팅의 고치기 전)은 A4 한 쪽이고, 맨 끝에 두 줄이 더 들어갈 자리가 남는다", async () => {
+  it("발견이 두 건인 기록(광고 푸시·생성형 AI 채팅의 고치기 전)은 A4 한 쪽이다", async () => {
+    // 2026-11-10: 팩에 여섯째 정책이 더해져 정책 표가 한 줄 길어졌다. 한 쪽에 들어가지만 맨 끝에 남는 자리는 한 줄이 안 된다
+    // (인쇄 꾸밈은 그대로 두었다. 오너 결정으로 A4 인쇄는 더 다듬지 않는다).
     // 7번의 첫 검토 뒤에 발견 표 위에 한 줄이 더해져, 이 둘은 아래에 4.5px 만 남는 빠듯한 한 쪽이었다. 한 줄만 더 적혀도 두
     // 쪽이 된다. 9번에서 인쇄할 때의 줄 간격과 구역 사이, 표의 줄 안쪽 여백을 좁혀, 정책 표 아래에 대표 조문의 뜻 한 줄을
     // 더한 뒤에도 50px 쯤(9pt 로 세 줄쯤) 남게 했다. 9번의 첫 검토 뒤 표의 줄 안쪽 여백을 더 좁혀 70px 쯤 남는다. 이 컴퓨터의
@@ -677,16 +679,6 @@ describe("인쇄하면 기록만 나온다", () => {
       await showRecord(page);
       expect(await page.locator(".record-findings tbody tr:not(.record-group)").count(), id).toBe(2);
       expect(await printedPages(page), id).toBe(1);
-      // 기록의 맨 끝에 기록의 줄 간격으로 두 줄 높이(2lh)인 빈 상자를 넣는다. 구역 사이의 여백은 주지 않는다.
-      await page.locator(".record").evaluate((record) => {
-        const room = document.createElement("div");
-        room.className = "room-probe";
-        room.style.cssText = "height: 2lh; margin: 0; padding: 0; border: 0;";
-        record.append(room);
-      });
-      expect(await page.locator(".room-probe").evaluate((el) => el.getBoundingClientRect().height), id).toBeGreaterThan(20);
-      expect(await printedPages(page), `${id}: 두 줄을 더해도`).toBe(1);
-      await page.locator(".room-probe").evaluate((el) => el.remove());
       await showResult(page);
     }
   });

@@ -113,7 +113,7 @@ const ANALYSES: Analysis[] = [
     status: "running",
     steps: steps("2026-10-24T04:58:02Z", { queued: [0, 18], fetch: [18, 37], scan: [37, null] }),
     failure: null,
-    versions: { tool: "0.3.0.dev0", pack: "366a3dd4fdae08d8" },
+    versions: { tool: "0.3.0.dev0", pack: "7897fc0f79ce975b" },
   },
   succeeded("4qqa6fdx2h", "example-studio", "genai-chat", "5d34db91055d0cacd81e5aa655a6ae2a04cc7007", "2026-10-18T11:20:40Z", [12, 33, 84, 90]),
   {

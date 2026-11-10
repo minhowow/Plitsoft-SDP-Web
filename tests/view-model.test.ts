@@ -608,16 +608,10 @@ describe("빈 결과에서 아는 것과 모르는 것", () => {
 
   it("v1 초안: 정책별 판정 단위 수를 요약에서 그대로 옮긴다", () => {
     const fixed = view("samples-v1-draft", "kids-signup.fixed.json");
-    expect(unitsOf(fixed)).toEqual({
-      "kr.pipa.22-2": 1,
-      "kr.network-act.50-3": 0,
-      "kr.ai-basic-act.31": 0,
-      "kr.ai-basic-act.31-1": 0,
-      "kr.network-act.50-4": 0,
-    });
-    expect(Object.values(unitsOf(view("samples-v1-draft", "plain.main.json")))).toEqual([0, 0, 0, 0, 0]);
+    expect(unitsOf(fixed)).toEqual(Object.fromEntries(packMeta.policies.map((p) => [p.id, p.id === "kr.pipa.22-2" ? 1 : 0])));
+    expect(Object.values(unitsOf(view("samples-v1-draft", "plain.main.json")))).toEqual(packMeta.policies.map(() => 0));
     // 정책 수는 결과에 실린 요약의 수다.
-    expect(fixed.policyCount).toBe(5);
+    expect(fixed.policyCount).toBe(fixed.policies.length);
   });
 
   it("CLI 0.3: 정책별 판정 단위 수는 모른다. 전체 수가 0이든 1이든 짐작해 채우지 않는다", () => {
@@ -625,7 +619,7 @@ describe("빈 결과에서 아는 것과 모르는 것", () => {
     const fixed = view("cli-current", "kids-signup.fixed.json");
     expect([plain.coverage.units, fixed.coverage.units]).toEqual([0, 1]);
     for (const v of [plain, fixed]) {
-      expect(Object.values(unitsOf(v))).toEqual([null, null, null, null, null]);
+      expect(Object.values(unitsOf(v))).toEqual(packMeta.policies.map(() => null));
       // 정적 대안으로 풀린 단위가 실린 정책(고친 뒤의 아동 가입)만 충족 근거 발견이다. 단위 수는 그래도 모른다.
       expect(v.policies.every((p) => p.status === (p.evidence.length > 0 ? "evidence-found" : "not-reported"))).toBe(true);
       // 결과에는 정책 목록이 없다. 팩 판이 같은 이 사이트의 팩에서 센다.
@@ -640,7 +634,7 @@ describe("빈 결과에서 아는 것과 모르는 것", () => {
     const policies = draft.run.policies!.slice(0, 2);
     const v = viewOf({ ...data, run: { ...data.run, policies } });
     expect(v.contract).toBe("cli-0.3");
-    expect(Object.values(unitsOf(v))).toEqual([null, null, null, null, null]);
+    expect(Object.values(unitsOf(v))).toEqual(packMeta.policies.map(() => null));
     // 충족 근거 위치는 결과 판 1 의 run.static_cleared 에서만 온다. 요약(run.policies)의 것을 쓰지 않는다.
     expect(v.policies.flatMap((p) => p.evidence)).toEqual([
       { file: "src/auth/signup.ts", line: 7, rule: "signup-without-guard", alternative: "under14-branch" },
@@ -669,11 +663,11 @@ describe("빈 결과에서 아는 것과 모르는 것", () => {
 
   it("v1 초안은 팩 판이 달라도 결과에 실린 요약으로 정책 수를 안다 (사이트의 팩에서 세지 않는다)", () => {
     const data = readJson("contract", "samples-v1-draft", "plain.main.json") as Report;
-    // 이 사이트의 팩(정책 5개)과 수가 다른 요약을 넣어 본다.
+    // 이 사이트의 팩과 정책 수가 다른 요약을 넣어 본다.
     const policies = data.run.policies!.slice(0, 3);
     const v = viewOf({ ...data, run: { ...data.run, pack_digest: "0000000000000000", policies } });
     expect(v.packMatches).toBe(false);
-    expect(packMeta.policies).toHaveLength(5);
+    expect(packMeta.policies.length).not.toBe(3);
     expect(v.policyCount).toBe(3);
     expect(fact(v, "정책")).toMatchObject({ value: "3개", note: "결과에 정책별 요약이 실려 있어, ‘정책 3’에 정책마다 적었습니다." });
     // 카드도 그 셋뿐이다. 이 사이트의 팩에만 있는 정책을 "알 수 없음"으로 채워 넣지 않는다.
@@ -736,7 +730,7 @@ describe("빈 결과에서 아는 것과 모르는 것", () => {
       ["검사한 파일", "1개", false],
       ["판정 단위", "1개", false],
       ["검사하지 않은 파일", "없음", false],
-      ["정책", "5개", false],
+      ["정책", `${packMeta.policies.length}개`, false],
     ]);
   });
 });

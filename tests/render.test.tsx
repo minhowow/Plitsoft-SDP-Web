@@ -13,6 +13,9 @@ import { SITE } from "@/lib/site";
 import { closedDetailsAt, elementAt, elementsOf, jsonFiles, linesOf, readJson, textOf, withoutKeys } from "./helpers";
 import { BANNED_WORDING } from "./wording";
 
+/** 이 사이트의 팩에 실린 정책 수. 시험은 그 수를 박지 않고 팩에서 센다. */
+const N = packMeta.policies.length;
+
 // 결과 화면을 실제로 그려서 글자를 본다. 소스만 보는 시험이 놓치는 것(데이터에서 온 글, 조건에 따라 달라지는 글)을 잡는다.
 
 function viewOf(data: unknown): ReportView {
@@ -868,10 +871,10 @@ describe("빈 결과 화면 (발견이 0인 결과)", () => {
   it("v1 초안: plain.main 과 kids-signup.fixed 가 서로 다른 설명을 보인다", () => {
     const plain = cards(render("contract", "samples-v1-draft", "plain.main.json"));
     const fixed = cards(render("contract", "samples-v1-draft", "kids-signup.fixed.json"));
-    expect(plain).toHaveLength(5);
-    expect(fixed).toHaveLength(5);
+    expect(plain).toHaveLength(N);
+    expect(fixed).toHaveLength(N);
 
-    // plain.main: 다섯 정책 모두 적용 신호 없음이고 판정 단위가 0개다. (D5) 다섯 모두 곁칸의 `적용 신호 없음 5` 묶음에 있다.
+    // plain.main: 모든 정책이 적용 신호 없음이고 판정 단위가 0개다. (D5) 모두 곁칸의 `적용 신호 없음 N` 묶음에 있다.
     // 상태 풀이 문장(STATUS_HINT)은 정책마다 적지 않는다(docs/redesign.md 8장 반박 (2)). 그 묶음 아래에 0의 뜻이 있다.
     for (const card of plain) {
       expect(card, card.title ?? "").toMatchObject({
@@ -904,10 +907,10 @@ describe("빈 결과 화면 (발견이 0인 결과)", () => {
     expect([before.boxed, pipa.boxed]).toEqual([false, true]);
     // 화면의 상태 이름은 상태 문구(src/lib/report/status.ts)에서 온 것이다.
     expect([before.status, pipa.status]).toEqual([STATUS_LABEL["no-signal"], STATUS_LABEL["evidence-found"]]);
-    // 나머지 네 정책은 두 결과에서 같다(적용 신호 없음).
+    // 나머지 정책은 두 결과에서 같다(적용 신호 없음).
     const rest = (list: typeof plain) => list.filter((card) => card.title !== PIPA);
     expect(rest(fixed)).toEqual(rest(plain));
-    expect(rest(fixed)).toHaveLength(4);
+    expect(rest(fixed)).toHaveLength(N - 1);
   });
 
   it("v1 초안: 전체 판정 단위 수 옆에 정책별 수가 정책마다 있다고 적는다", () => {
@@ -917,10 +920,10 @@ describe("빈 결과 화면 (발견이 0인 결과)", () => {
     ] as const) {
       const facts = emptyParts(render("contract", "samples-v1-draft", file))!.facts;
       expect(facts["판정 단위"], file).toEqual({
-        text: `${units}개. 모든 정책을 합친 수입니다. 정책별 수는 ‘정책 5’에 정책마다 적었습니다.`,
+        text: `${units}개. 모든 정책을 합친 수입니다. 정책별 수는 ‘정책 ${N}’에 정책마다 적었습니다.`,
         warn: false,
       });
-      expect(facts["정책"].text, file).toBe("5개. 결과에 정책별 요약이 실려 있어, ‘정책 5’에 정책마다 적었습니다.");
+      expect(facts["정책"].text, file).toBe(`${N}개. 결과에 정책별 요약이 실려 있어, ‘정책 ${N}’에 정책마다 적었습니다.`);
     }
   });
 
@@ -932,7 +935,7 @@ describe("빈 결과 화면 (발견이 0인 결과)", () => {
     expect(texts[0]).toContain(PIPA);
     expect(texts[0]).toContain("이 정책의 판정 단위는 1개입니다.");
     const all = cards(html);
-    expect(all).toHaveLength(5);
+    expect(all).toHaveLength(N);
     for (const card of all.slice(1)) expect(card.units, card.title ?? "").toBe(0);
   });
 
@@ -965,13 +968,13 @@ describe("빈 결과 화면 (발견이 0인 결과)", () => {
     // (D5) "파일 1개 검사 · 판정 단위 N개" 한 줄의 판정 단위 수는 쪽 아래 검사 정보의 값으로 옮겼다.
     expect(a.flatMap((line, i) => (line === b[i] ? [] : [[line, b[i]]]))).toEqual([
       [
-        "0개. 모든 정책을 합친 수입니다. 0이므로 어느 정책에서도 판정한 곳이 없습니다. 다만 이 출력 형식(CLI 0.3)에는 정책별 요약이 없어, ‘정책 5’의 정책은 판정 단위가 있는 결과와 같은 '발견 없음'으로 묶입니다.",
+        `0개. 모든 정책을 합친 수입니다. 0이므로 어느 정책에서도 판정한 곳이 없습니다. 다만 이 출력 형식(CLI 0.3)에는 정책별 요약이 없어, ‘정책 ${N}’의 정책은 판정 단위가 있는 결과와 같은 '발견 없음'으로 묶입니다.`,
         "1개. 모든 정책을 합친 수입니다. 이 출력 형식(CLI 0.3)에는 정책별 수가 없어서, 어느 정책에서 적용 신호를 봤는지 알 수 없습니다.",
       ],
       ["0개", "1개"],
     ]);
     expect(emptyParts(fixed)!.facts["정책"].text).toBe(
-      "5개. 결과에는 정책 목록이 없어, 팩 판이 같은 이 사이트의 팩에서 가져와 ‘정책 5’에 적었습니다.",
+      `${N}개. 결과에는 정책 목록이 없어, 팩 판이 같은 이 사이트의 팩에서 가져와 ‘정책 ${N}’에 적었습니다.`,
     );
   });
 
@@ -1000,13 +1003,13 @@ describe("빈 결과 화면 (발견이 0인 결과)", () => {
     const units = (run: Partial<Report["run"]>) => emptyParts(renderData({ ...data, run }))!.facts["판정 단위"].text;
     const none = "0개. 모든 정책을 합친 수입니다. 0이므로 어느 정책에서도 판정한 곳이 없습니다.";
     const sameCards =
-      " 다만 이 출력 형식(CLI 0.3)에는 정책별 요약이 없어, ‘정책 5’의 정책은 판정 단위가 있는 결과와 같은 '발견 없음'으로 묶입니다.";
+      ` 다만 이 출력 형식(CLI 0.3)에는 정책별 요약이 없어, ‘정책 ${N}’의 정책은 판정 단위가 있는 결과와 같은 '발견 없음'으로 묶입니다.`;
     expect(units(data.run)).toBe(none + sameCards);
 
     // 다른 판의 팩으로 만든 결과: 카드가 "알 수 없음"이라 카드 이야기는 하지 않는다.
     const other = renderData({ ...data, run: { ...data.run, pack_digest: "0000000000000000" } });
     expect(emptyParts(other)!.facts["판정 단위"].text).toBe(none);
-    expect(cards(other).map((card) => card.status)).toEqual(Array(5).fill("알 수 없음"));
+    expect(cards(other).map((card) => card.status)).toEqual(Array(N).fill("알 수 없음"));
 
     // 판정자를 켠 결과인데 빠진 판정의 목록(run.ai_dismissed)이 실려 있지 않다: 빠진 판정이 없었는지 모른다.
     const judged: Partial<Report["run"]> = { ...data.run, judge: "claude-cli:haiku" };
@@ -1023,7 +1026,7 @@ describe("빈 결과 화면 (발견이 0인 결과)", () => {
   it("CLI 0.3: 판 번호 없는 결과에 run.policies 가 있어도 정책별 수로 쓰지 않는다", () => {
     const data = readJson("contract", "cli-current", "kids-signup.fixed.json") as Report;
     const draft = readJson("contract", "samples-v1-draft", "kids-signup.fixed.json") as Report;
-    expect(draft.run.policies).toHaveLength(5);
+    expect(draft.run.policies).toHaveLength(N);
     const html = renderData({ ...data, run: { ...data.run, policies: draft.run.policies } });
     expect(cards(html)).toEqual(cards(render("contract", "cli-current", "kids-signup.fixed.json")));
     expect(html).not.toContain("이 정책의 판정 단위");
@@ -1092,7 +1095,7 @@ describe("빈 결과 화면 (발견이 0인 결과)", () => {
     );
     // v1 초안. run.units 는 같은 필드다(스키마가 같은 정의를 가리킨다).
     expect(units(readJson("contract", "samples-v1-draft", "plain.main.json") as Report)).toBe(
-      `0개. ${total} 정책별 수는 ‘정책 5’에 정책마다 적었습니다. ${notCounted(2)}`,
+      `0개. ${total} 정책별 수는 ‘정책 ${N}’에 정책마다 적었습니다. ${notCounted(2)}`,
     );
   });
 
@@ -1234,7 +1237,7 @@ describe("빈 결과 화면 (발견이 0인 결과)", () => {
       for (const file of jsonFiles("contract", "samples-v1-draft")) {
         const data = readJson("contract", "samples-v1-draft", file) as Report;
         if (data.findings.length > 0) continue;
-        expect(counts(renderData(data)), file).toMatchObject({ stated: 5, cards: 5, withUnits: 5 });
+        expect(counts(renderData(data)), file).toMatchObject({ stated: N, cards: N, withUnits: N });
       }
     });
 
@@ -1296,13 +1299,13 @@ describe("빈 결과 화면 (발견이 0인 결과)", () => {
       const policies = draft.run.policies!.filter((p) => p.policy !== "kr.pipa.22-2");
       const html = withRun(draft, { judge: "claude-cli:haiku", units: 1, ai_cleared: cleared, policies });
       expect(counts(html)).toMatchObject({
-        line: `4개. ${asSummarized(5)} 요약에 없는 정책 1개도 ‘정책 5’에 있습니다. 결과의 다른 곳에만 나온 정책이라 정책별 수가 없습니다.`,
-        stated: 4,
-        cards: 5,
-        withUnits: 4,
+        line: `${N - 1}개. ${asSummarized(N)} 요약에 없는 정책 1개도 ‘정책 ${N}’에 있습니다. 결과의 다른 곳에만 나온 정책이라 정책별 수가 없습니다.`,
+        stated: N - 1,
+        cards: N,
+        withUnits: N - 1,
       });
       expect(emptyParts(html)!.facts["판정 단위"].text).toBe(
-        "1개. 모든 정책을 합친 수입니다. 정책별 수는 ‘정책 5’에서 요약이 실린 정책에만 적었습니다.",
+        `1개. 모든 정책을 합친 수입니다. 정책별 수는 ‘정책 ${N}’에서 요약이 실린 정책에만 적었습니다.`,
       );
       const card = cards(html).find((c) => c.title === PIPA)!;
       expect(card.units).toBeNull();

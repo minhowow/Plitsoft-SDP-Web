@@ -158,7 +158,7 @@ describe("빌드된 사이트가 내주는 것", () => {
         .filter((text): text is string => typeof text === "string" && text.length > 0)
         .map((text) => ({ policy: policy.id, text })),
     );
-    // 정책 다섯에 메모가 둘씩 있다. 메모마다 찾을 조각이 하나는 있어야 한다.
+    // 정책마다 메모가 둘씩 있다. 메모마다 찾을 조각이 하나는 있어야 한다.
     expect(memos).toHaveLength(packFile.policies.length * 2);
     for (const { policy, text } of memos) {
       const pieces = fragments(text);
@@ -168,7 +168,7 @@ describe("빌드된 사이트가 내주는 것", () => {
   });
 
   it("사이트의 머리와 바닥은 모든 쪽에서 글자까지 같다. 결과 보기와 데모의 본문(main)에는 정해 둔 것뿐이다", () => {
-    // 조문 도감의 쪽에만 있던 확인(아래 "정책 5개의 쪽이 같은 틀로 읽힌다"의 틀 둘레)을 모든 쪽으로 넓힌다(ROADMAP 8번).
+    // 조문 도감의 쪽에만 있던 확인(아래 "정책마다 쪽이 같은 틀로 읽힌다"의 틀 둘레)을 모든 쪽으로 넓힌다(ROADMAP 8번).
     // 쪽(page.tsx)이 한 쪽의 머리나 바닥에만 글을 더하거나, 본문에 틀 말고 다른 것을 넣으면 여기서 걸린다.
     const pages = contents.filter(({ file }) => file.endsWith(".html"));
     expect(pages.map(({ file }) => file)).toEqual(expect.arrayContaining(["index.html", path.join("view", "index.html"), path.join("demo", "index.html")]));
@@ -247,8 +247,8 @@ describe("빌드된 사이트의 조문 도감 쪽", () => {
     expect((await fetch(`${site!.origin}/policy/no-such-policy/`)).status).toBe(404);
   });
 
-  // 이름은 ROADMAP 6번의 완료 조건 그대로다. 정책의 수는 여기에 못 박지 않고 팩 메타데이터의 정책을 모두 본다(지금 다섯이다).
-  it("정책 5개의 쪽이 같은 틀로 읽힌다", () => {
+  // 이름은 ROADMAP 6번의 완료 조건 그대로다. 정책의 수는 여기에 못 박지 않고 팩 메타데이터의 정책을 모두 본다(지금 여섯이다).
+  it("정책마다 쪽이 같은 틀로 읽힌다", () => {
     const pages = policies.map((policy) => pageOf(policy.id));
     const frames = pages.map((html) => readPolicyPage(html).frame);
     // 틀은 하나다. 조문과 규칙의 수가 정책마다 달라도 같다.

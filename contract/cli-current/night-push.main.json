@@ -6,7 +6,7 @@
   },
   "run": {
     "judge": null,
-    "pack_digest": "366a3dd4fdae08d8",
+    "pack_digest": "7897fc0f79ce975b",
     "fingerprint_version": "policypack/v1",
     "questions_asked": 0,
     "ai_answered": 0,
@@ -48,7 +48,7 @@
       "ai_pending": [
         "ai-start-block"
       ],
-      "fingerprint": "6183116af9c516889a2d2f06b70d6bef",
+      "fingerprint": "cb2dbb87ad20246c6ef467c8efae5c18",
       "scope": "file",
       "region": null,
       "top_level": false,
@@ -86,7 +86,7 @@
       "ai_pending": [
         "ai-optout-free"
       ],
-      "fingerprint": "2968db31f7f41ac667666ac227a51c76",
+      "fingerprint": "b030fb7b22650d8caa066a264e5ad486",
       "scope": "file",
       "region": null,
       "top_level": false,

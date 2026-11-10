@@ -245,12 +245,13 @@ const NIGHT: [string, string] = ["야간(21시~08시) 광고성 정보 전송의
 const AI_MARK: [string, string] = ["생성형 AI 결과물 표시", "policy-kr-ai-basic-act-31"];
 const AI_NOTICE: [string, string] = ["생성형 AI 기반 서비스 사전 고지", "policy-kr-ai-basic-act-31-1"];
 const AD_LABEL: [string, string] = ["광고성 정보에 밝혀야 할 사항 — (광고) 표기, 전송자 명칭·연락처, 무료 수신거부 방법", "policy-kr-network-act-50-4"];
+const OVERSEAS: [string, string] = ["개인정보를 국외 AI API 로 보내는 국외 이전", "policy-kr-pipa-28-8"];
 const KIDS_POLICIES: Expected["policies"] = [PIPA];
 const PUSH_POLICIES: Expected["policies"] = [AD_LABEL, NIGHT];
 const CHAT_POLICIES: Expected["policies"] = [AI_MARK, AI_NOTICE];
-const KIDS_QUIET = [NIGHT, AI_MARK, AI_NOTICE, AD_LABEL].map(([name]) => name);
-const PUSH_QUIET = [PIPA, AI_MARK, AI_NOTICE].map(([name]) => name);
-const CHAT_QUIET = [PIPA, NIGHT, AD_LABEL].map(([name]) => name);
+const KIDS_QUIET = [NIGHT, AI_MARK, AI_NOTICE, AD_LABEL, OVERSEAS].map(([name]) => name);
+const PUSH_QUIET = [PIPA, AI_MARK, AI_NOTICE, OVERSEAS].map(([name]) => name);
+const CHAT_QUIET = [PIPA, NIGHT, AD_LABEL, OVERSEAS].map(([name]) => name);
 
 const EXPECTED: Record<string, Expected> = {
   "kids-signup.main": { file: "src/auth/signup.ts", lines: [5], differs: [], statuses: [AI], compare: KIDS, policies: KIDS_POLICIES, quiet: KIDS_QUIET },
@@ -576,7 +577,7 @@ describe("표의 정책 이름으로 아래 결과의 그 정책으로 간다", 
     expect(rows[1].cells.map((cell) => cell.text)).toEqual([NONE, `${UNCERTAIN} 발견 1건`]);
     expect(await page.locator("#policy-kr-network-act-50-3").count()).toBe(0);
     expect(rows).toHaveLength(2);
-    expect(await page.locator(".demo-compare .compare-quiet li").count()).toBe(3);
+    expect(await page.locator(".demo-compare .compare-quiet li").count()).toBe(PUSH_QUIET.length);
     expect(await page.locator(".demo-compare .compare-quiet a").count()).toBe(0);
     expect(await page.locator(".report-side, .side-pol").count()).toBe(0);
     expect(await page.locator(".report .info").count()).toBe(1);

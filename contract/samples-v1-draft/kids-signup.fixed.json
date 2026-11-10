@@ -7,7 +7,7 @@
   },
   "run": {
     "judge": null,
-    "pack_digest": "366a3dd4fdae08d8",
+    "pack_digest": "7897fc0f79ce975b",
     "fingerprint_version": "policypack/v1",
     "questions_asked": 0,
     "ai_answered": 0,
@@ -87,6 +87,14 @@
       },
       {
         "policy": "kr.network-act.50-4",
+        "units": 0,
+        "needs_review": 0,
+        "uncertain": 0,
+        "compliant": 0,
+        "evidence": []
+      },
+      {
+        "policy": "kr.pipa.28-8",
         "units": 0,
         "needs_review": 0,
         "uncertain": 0,

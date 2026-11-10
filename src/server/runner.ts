@@ -41,6 +41,7 @@ export async function wakeRunner(
     return { ok: false, reason: "실행기 설정이 갖춰지지 않아 분석을 시작하지 못했습니다." };
   }
   let status = 0;
+  let detail = "";
   try {
     const response = await fetcher(
       `${config.github.apiBase}/repos/${runner.repo}/actions/workflows/${runner.workflow}/dispatches`,
@@ -68,9 +69,12 @@ export async function wakeRunner(
       },
     );
     status = response.status;
+    // GitHub 의 거절 까닭(message)을 서버 로그에만 남긴다(화면에는 응답 번호만). 토큰이 섞여 있으면 가린다.
+    if (status !== 204 && status !== 200) detail = (await response.text().catch(() => "")).slice(0, 300).split(runner.token).join("***");
   } catch {
     return { ok: false, reason: "실행기(GitHub Actions)에 닿지 못해 분석을 시작하지 못했습니다." };
   }
   if (status === 204 || status === 200) return { ok: true };
+  console.error(`[runner] workflow_dispatch 응답 ${status}: ${detail}`);
   return { ok: false, reason: `실행기(GitHub Actions)가 분석을 받지 않았습니다(응답 ${status}).` };
 }

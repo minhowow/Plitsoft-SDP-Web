@@ -1,17 +1,17 @@
 {
-  "captured_on": "2026-11-03",
+  "captured_on": "2026-11-10",
   "cli": {
     "version": "0.3.0.dev0",
     "from": "Plitsoft-SDP",
-    "commit": "7300205",
-    "committed_on": "2026-10-08",
+    "commit": "50c70bc",
+    "committed_on": "2026-11-10",
     "dirty": false
   },
   "engine": {
     "name": "semgrep",
     "version": "1.176.1"
   },
-  "pack_digest": "366a3dd4fdae08d8",
+  "pack_digest": "7897fc0f79ce975b",
   "command": "policypack scan src/ --output-format json   (판정자 없음, 기본값)",
   "normalized": [
     "run.static_seconds",
