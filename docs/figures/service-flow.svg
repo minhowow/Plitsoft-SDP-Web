@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="490" viewBox="0 0 1600 490" font-family="'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#59636e"/>
+    </marker>
+    <style>
+      .box { fill: #ffffff; stroke: #d1d9e0; stroke-width: 2; }
+      .run { fill: #f6f8fa; stroke: #0969da; stroke-width: 2.5; }
+      .src { fill: #f6f8fa; stroke: #d1d9e0; stroke-width: 2; stroke-dasharray: 8 6; }
+      .num { fill: #0969da; }
+      .numtext { fill: #ffffff; font-size: 20px; font-weight: 700; }
+      .title { fill: #1f2328; font-size: 30px; font-weight: 700; }
+      .line { fill: #59636e; font-size: 19px; }
+      .mono { fill: #59636e; font-size: 17px; font-family: 'SF Mono', Menlo, Consolas, monospace; }
+      .edge { stroke: #59636e; stroke-width: 2.5; fill: none; }
+      .label { fill: #59636e; font-size: 16px; font-family: 'SF Mono', Menlo, Consolas, monospace; }
+    </style>
+  </defs>
+  <rect width="1600" height="490" fill="#ffffff"/>
+
+  <!-- 6. GitHub 공개 저장소 (실행기로 들어가는 곁 상자) -->
+  <rect class="src" x="664" y="28" width="272" height="104" rx="12"/>
+  <text class="title" x="800" y="72" text-anchor="middle" style="font-size:24px">GitHub 공개 저장소</text>
+  <text class="line" x="800" y="106" text-anchor="middle">고정한 커밋의 압축본</text>
+  <path class="edge" d="M800 132 L800 196" marker-end="url(#arrow)"/>
+  <text class="label" x="814" y="170">읽기만</text>
+
+  <!-- 1. 요청 -->
+  <rect class="box" x="40" y="200" width="272" height="250" rx="12"/>
+  <circle class="num" cx="74" cy="236" r="17"/><text class="numtext" x="74" y="243" text-anchor="middle">1</text>
+  <text class="title" x="102" y="247">요청</text>
+  <text class="line" x="64" y="300">저장소 쪽에서</text>
+  <text class="line" x="64" y="328">"분석 요청"</text>
+  <text class="mono" x="64" y="400">브라우저</text>
+
+  <!-- 2. 대기열 -->
+  <rect class="box" x="352" y="200" width="272" height="250" rx="12"/>
+  <circle class="num" cx="386" cy="236" r="17"/><text class="numtext" x="386" y="243" text-anchor="middle">2</text>
+  <text class="title" x="414" y="247">대기열</text>
+  <text class="line" x="376" y="300">같은 커밋은 한 번</text>
+  <text class="line" x="376" y="328">하루 상한</text>
+  <text class="line" x="376" y="356">실행 자리 수만큼 출발</text>
+  <text class="mono" x="376" y="400">Next.js · Postgres</text>
+
+  <!-- 3. 실행기 -->
+  <rect class="run" x="664" y="200" width="272" height="250" rx="12"/>
+  <circle class="num" cx="698" cy="236" r="17"/><text class="numtext" x="698" y="243" text-anchor="middle">3</text>
+  <text class="title" x="726" y="247">실행기</text>
+  <text class="line" x="688" y="300">policypack CLI</text>
+  <text class="line" x="688" y="328">정적 검사 + AI 판정</text>
+  <text class="line" x="688" y="356">대상 코드는 실행 안 함</text>
+  <text class="mono" x="688" y="400">GitHub Actions</text>
+  <text class="mono" x="688" y="424">Claude API</text>
+
+  <!-- 4. 결과 저장 -->
+  <rect class="box" x="976" y="200" width="272" height="250" rx="12"/>
+  <circle class="num" cx="1010" cy="236" r="17"/><text class="numtext" x="1010" y="243" text-anchor="middle">4</text>
+  <text class="title" x="1038" y="247">결과 저장</text>
+  <text class="line" x="1000" y="300">서명한 콜백</text>
+  <text class="line" x="1000" y="328">CLI 결과 JSON 그대로</text>
+  <text class="mono" x="1000" y="400">Postgres</text>
+
+  <!-- 5. 화면 -->
+  <rect class="box" x="1288" y="200" width="272" height="250" rx="12"/>
+  <circle class="num" cx="1322" cy="236" r="17"/><text class="numtext" x="1322" y="243" text-anchor="middle">5</text>
+  <text class="title" x="1350" y="247">화면</text>
+  <text class="line" x="1312" y="300">정책별 상태</text>
+  <text class="line" x="1312" y="328">조문 원문 · 코드 줄</text>
+  <text class="mono" x="1312" y="400">분석 쪽</text>
+
+  <!-- 흐름 -->
+  <path class="edge" d="M312 325 L348 325" marker-end="url(#arrow)"/>
+  <path class="edge" d="M624 325 L660 325" marker-end="url(#arrow)"/>
+  <path class="edge" d="M936 325 L972 325" marker-end="url(#arrow)"/>
+  <path class="edge" d="M1248 325 L1284 325" marker-end="url(#arrow)"/>
+
+</svg>
