@@ -5,7 +5,6 @@ import { AnalysisHeader, AnalysisMeta, AnalysisTitle, Failed, InProgress, PROGRE
 import { LiveAnalysis } from "@/components/service/LiveAnalysis";
 import { AnalysisDashboard, type Statute } from "@/components/service/AnalysisDashboard";
 import { packIndex, packMeta } from "@/lib/pack";
-import { SYNTHETIC_PROFILES } from "@/lib/profile/example";
 import { parseReport } from "@/lib/report/parse";
 import { buildReportView } from "@/lib/report/view-model";
 import { orUnavailable } from "@/lib/service/errors";
@@ -36,9 +35,11 @@ export default async function AnalysisPage({ params }: PageProps<"/r/[owner]/[re
       const analysis = repository && (await store.getAnalysis(repository.owner, repository.name, id));
       if (!repository || !analysis) return null;
       const result = analysis.status === "succeeded" ? await store.getResult(analysis.id) : null;
+      // 저장소 프로필(1·2단). 프로필을 내지 않던 판으로 돌린 분석에는 없다(null).
+      const profile = analysis.status === "succeeded" ? await store.getProfile(analysis.id) : null;
       // 대기 중이면 대기열의 몇 번째인지(DB 에서 센 것). 합성은 대기열이 없다(null).
       const place = analysis.status === "queued" ? placeOf(await store.queue(), analysis.id) : null;
-      return { repository, analysis, result, place };
+      return { repository, analysis, result, place, profile };
     })(),
   );
   if (!found.ok) {
@@ -50,7 +51,7 @@ export default async function AnalysisPage({ params }: PageProps<"/r/[owner]/[re
     );
   }
   if (!found.value) notFound();
-  const { repository, analysis, result, place } = found.value;
+  const { repository, analysis, result, place, profile } = found.value;
 
   // 합성 예시 이름표: 합성 미리보기이거나 가짜 GitHub 일 때(서버 설정. 저장소 기록의 synthetic 이 아니다. 가짜 GitHub 의 저장소는
   // DB 에 실제 저장소처럼 적힌다).
@@ -124,8 +125,7 @@ export default async function AnalysisPage({ params }: PageProps<"/r/[owner]/[re
           view={view}
           code={code}
           statutes={statutes}
-          // 1·2단의 예시는 합성 예시 이름표가 붙는 화면의 합성 저장소에만 쓴다. 실제 저장소의 프로필을 꾸며 내지 않는다.
-          profile={tagged ? (SYNTHETIC_PROFILES[`${repository.owner}/${repository.name}`.toLowerCase()] ?? null) : null}
+          profile={profile}
           progress={
             <details className="lg an-steps">
               <summary>

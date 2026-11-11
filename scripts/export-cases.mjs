@@ -2,7 +2,11 @@
 // 사례 쪽(/cases)의 데이터를 만든다: CLI 세션이 미리 돌린 공개 저장소 결과(--agent combined)와 규칙만 돌린 결과에서
 // 쪽이 쓰는 필드만 옮겨 data/cases.json 에 쓴다. Node 내장 모듈만 쓴다.
 //
-//   node scripts/export-cases.mjs [사례 폴더]   (기본 ~/.cache/policypack-eval/cases-2026-11-10)
+//   node scripts/export-cases.mjs [사례 폴더] [프로필 폴더]
+//     (기본 ~/.cache/policypack-eval/cases-2026-11-10, ~/.cache/policypack-eval/profile-2026-11-11/repos)
+//
+// 저장소 프로필(`policypack profile`, CLI fe98fb7, 같은 커밋의 사본에서 돌린 것)도 사례마다 함께 옮긴다. 의무 항목은 화면이 쓰는
+// 필드(id, 법, 조문, 의무 한 줄, 법제처 링크)만 남긴다.
 //
 // 필드는 그대로 옮기기만 한다. 서로 견주는 것(규칙만 본 발견 가운데 AI 가 푼 것, AI 가 새로 찾은 것)은 쪽이 한다
 // (src/lib/cases/). 결과 판 1 의 `run.agent` 는 서비스의 결과 계약에 없다. 여기서만 읽는다.
@@ -14,6 +18,20 @@ import { fileURLToPath } from "node:url";
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const dir = process.argv[2] ?? path.join(os.homedir(), ".cache/policypack-eval/cases-2026-11-10");
+const profileDir = process.argv[3] ?? path.join(os.homedir(), ".cache/policypack-eval/profile-2026-11-11/repos");
+/** 프로필을 돌린 CLI 와 날(profile-41.md). */
+const PROFILE_CLI = { commit: "fe98fb7", ranOn: "2026-11-11" };
+
+/** 의무 묶음에서 화면이 쓰는 필드만. */
+const duties = (d) => ({ ...d, items: d.items.map(({ id, law, article, duty, url }) => ({ id, law, article, duty, url })) });
+const readProfile = (file) => {
+  const profile = JSON.parse(readFileSync(path.join(profileDir, `${file}.json`), "utf8"));
+  return {
+    ...profile,
+    features: profile.features.map((feature) => ({ ...feature, duties: duties(feature.duties) })),
+    ...(profile.common ? { common: { ...profile.common, duties: duties(profile.common.duties) } } : {}),
+  };
+};
 
 /** 2026-11-11 에 돌린 것(agent/LOG, agent/cases.md). 결과 JSON 에는 날짜와 CLI 커밋이 실려 있지 않다. */
 const RAN_ON = "2026-11-11";
@@ -65,6 +83,7 @@ const cases = CASES.map(({ file, commit }) => {
         review: review ? { action: review.action, citations: citations(review.citations) } : null,
       };
     }),
+    profile: readProfile(file),
     final: agent.findings.map((f) => ({
       policy: f.policy,
       rule: f.rule,
@@ -85,6 +104,7 @@ const out = {
   ranOn: RAN_ON,
   cli: { commit: CLI_COMMIT, version: [...tools].join(", ") },
   packDigest: [...digests].join(", "),
+  profileCli: PROFILE_CLI,
   cases,
 };
 writeFileSync(path.join(root, "data/cases.json"), `${JSON.stringify(out, null, 2)}\n`);

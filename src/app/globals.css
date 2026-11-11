@@ -4639,15 +4639,18 @@ details.aside-box[open] > summary::before {
   font-weight: 600;
 }
 
-.ft-files {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 2px var(--space-4);
+/* 기능의 근거: 줄마다 파일·줄(링크)과 무엇을 봤나. */
+.ft-ev {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
   font-size: var(--text-xs);
   min-width: 0;
 }
 
-.ft-files a.gh,
+.ft-ev a.gh,
 .ob-ext {
   display: inline-flex;
   align-items: center;
@@ -4655,8 +4658,38 @@ details.aside-box[open] > summary::before {
   min-width: 0;
 }
 
-.ft-files a.gh code {
+.ft-ev a.gh code {
   color: inherit;
+}
+
+.ft-what,
+.ft-more {
+  color: var(--muted);
+}
+
+details.ob-test {
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+}
+
+details.ob-test > .features {
+  border: 0;
+  border-top: 1px solid var(--rule-muted);
+  border-radius: 0;
+}
+
+/* 맨 위 한 문장 요약: 감지된 기능 · 걸릴 수 있는 의무 · 확인할 것. */
+.overview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-5);
+  font-size: var(--text-lg);
+  line-height: var(--leading-snug);
+}
+
+.overview b {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 
 @media (max-width: 599px) {
@@ -4719,6 +4752,10 @@ details.ob[open] > summary::before {
   flex-basis: 100%;
   font-size: var(--text-xs);
   color: var(--muted);
+}
+
+.ob-duty {
+  min-width: 0;
 }
 
 .ob-ext {

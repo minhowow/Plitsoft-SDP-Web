@@ -49,12 +49,16 @@ export interface CaseData {
   rechecker: string;
   ruleOnly: RuleOnlyFinding[];
   final: FinalFinding[];
+  /** 저장소 프로필(`policypack profile` 의 JSON 그대로. 의무 항목은 화면이 쓰는 필드만). 읽는 것은 `lib/profile` 이 한다. */
+  profile: unknown;
 }
 
 export interface CasesFile {
   ranOn: string;
   cli: { commit: string; version: string };
   packDigest: string;
+  /** 프로필을 돌린 CLI 커밋과 날(검토 결과와 다른 판이다). */
+  profileCli: { commit: string; ranOn: string };
   cases: CaseData[];
 }
 

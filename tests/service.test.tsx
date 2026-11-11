@@ -11,7 +11,8 @@ import { SearchHome, SearchResults } from "@/components/service/SearchResults";
 import { keepArticle } from "@/components/text";
 import { packMeta, policyHref } from "@/lib/pack";
 import { paragraphOf } from "@/lib/pack/legal";
-import { SYNTHETIC_PROFILES } from "@/lib/profile/example";
+import { parseProfile } from "@/lib/profile";
+import { CHECKLIST_LABEL } from "@/lib/report/status";
 import { NO_FEATURES, NO_JUDGEMENT } from "@/components/result/Tiers";
 import { parseReport } from "@/lib/report/parse";
 import type { Report } from "@/lib/report/types";
@@ -26,7 +27,7 @@ import { activeStep, duration, finishedAt, formatKst, STEP_ORDER, stepState } fr
 import { SYNTHETIC_RESULT_SOURCES, syntheticRepositories, syntheticStore as store } from "@/lib/service/synthetic";
 import type { Analysis, Repository } from "@/lib/service/types";
 import { SITE } from "@/lib/site";
-import { elementsOf, readJson, textOf } from "./helpers";
+import { closedDetailsAt, elementsOf, readJson, textOf } from "./helpers";
 import { BANNED_WORDING } from "./wording";
 
 // 분석 서비스(방향 B): 데이터 모델, 합성 저장소(SERVICE_STORE=synthetic 의 미리보기), 주소, 그리고 쪽의 부품. 운영 구현
@@ -530,18 +531,32 @@ describe("대시보드", () => {
     }
   });
 
-  it("세 단으로 그린다: 1·2단은 예시 자료가 있을 때만 '예시'로 채우고, 없으면 '아직 없음'이다. 기능이 없는 예시는 걸리는 의무가 없다고 답한다", () => {
+  it("세 단으로 그린다: 1·2단은 CLI 의 저장소 프로필이고, 없으면 '아직 없음'이다. 서비스 기능이 없으면 걸리는 의무가 없다고 답한다", () => {
     const view = viewOf("64y4jdtazh");
+    const profileOf = (name: string) => parseProfile(readJson("contract", "cli-current", "profile", `${name}.json`))!;
     const heads = (html: string) => elementsOf(html, '<h2 class="tier-hd"').map(textOf);
-    const real = renderToStaticMarkup(<AnalysisDashboard view={view} code={null} />);
-    expect(heads(real)).toEqual(["1프로필", "2걸리는 의무", "3검토 결과"]);
-    expect(elementsOf(real, '<p class="tier-none">').map(textOf)).toEqual(["아직 없음", "아직 없음"]);
-    const example = renderToStaticMarkup(<AnalysisDashboard view={view} code={null} profile={SYNTHETIC_PROFILES["example-org/night-push"]} />);
-    expect(heads(example)).toEqual(["1프로필예시", "2걸리는 의무예시", "3검토 결과"]);
-    expect(textOf(example)).toContain(NO_JUDGEMENT);
-    expect(textOf(example)).toContain("걸릴 수 있는 의무 2개");
-    const none = renderToStaticMarkup(<AnalysisDashboard view={view} code={null} profile={SYNTHETIC_PROFILES["example-labs/plain-utils"]} />);
-    expect(textOf(none)).toContain(NO_FEATURES);
+    const none = renderToStaticMarkup(<AnalysisDashboard view={view} code={null} />);
+    expect(heads(none)).toEqual(["1프로필", "2걸리는 의무", "3검토 결과"]);
+    expect(elementsOf(none, '<p class="tier-none">').map(textOf)).toEqual(["아직 없음", "아직 없음"]);
+    // 맨 위 한 문장 요약: 프로필이 없으면 셋째 단의 수만.
+    expect(textOf(elementsOf(none, '<p class="overview">')[0])).toBe(`${CHECKLIST_LABEL.check} 2건`);
+
+    const push = profileOf("night-push.main");
+    const html = renderToStaticMarkup(<AnalysisDashboard view={view} code={null} profile={push} />);
+    expect(textOf(elementsOf(html, '<p class="overview">')[0])).toBe(
+      `감지된 기능 ${push.features.length}가지 걸릴 수 있는 의무 ${push.totals.duties}개 ${CHECKLIST_LABEL.check} 2건`,
+    );
+    expect(textOf(html)).toContain(NO_JUDGEMENT);
+    // 기능마다 의무의 수만 보이고, 목록은 접혀 있다.
+    for (const feature of push.features) expect(textOf(html)).toContain(`${feature.name} 걸릴 수 있는 의무 ${feature.duties.count}개`);
+    const at = html.indexOf('<ul class="ob-list">');
+    expect(closedDetailsAt(html, at)).toEqual(['<details class="ob">']);
+    // 처분의 말이 든 의무 한 줄은 싣지 않는다(법·조문·링크만).
+    expect(textOf(html)).not.toMatch(/\u{ACFC}\u{C9D5}\u{AE08}|\u{ACFC}\u{D0DC}\u{B8CC}/u);
+
+    const plain = renderToStaticMarkup(<AnalysisDashboard view={view} code={null} profile={profileOf("plain.main")} />);
+    expect(textOf(plain)).toContain(NO_FEATURES);
+    expect(elementsOf(plain, '<p class="tier-none">').map(textOf)).toEqual(["없음"]);
   });
 
   it("저장소 주소가 있으면 발견 줄마다 커밋 고정 링크를 새 창으로 걸고, 새 창과 고정한 커밋을 화면 낭독기에 알린다", () => {

@@ -5,13 +5,14 @@ import { CaseFacts } from "@/components/cases/CaseFacts";
 import { CaseCites, CaseWhere, Prose } from "@/components/cases/CaseParts";
 import { CheckHead } from "@/components/result/PolicyCard";
 import { ObligationTier, ProfileTier, Tier } from "@/components/result/Tiers";
+import { OverviewLine } from "@/components/service/AnalysisDashboard";
 import { Icon } from "@/components/Icon";
 import { StatusChip } from "@/components/result/StatusChip";
 import { keepArticle } from "@/components/text";
 import { caseStatus, casePolicies, casesFile, casesHref, clearedByAi, findCase, isNewByAi } from "@/lib/cases";
 import { CASE_STORIES } from "@/lib/cases/stories";
 import { findPolicy, policyHref, primaryLaw } from "@/lib/pack";
-import { CASE_PROFILES } from "@/lib/profile/example";
+import { parseProfile } from "@/lib/profile";
 import { SITE } from "@/lib/site";
 
 type Params = { params: Promise<{ slug: string }> };
@@ -50,7 +51,7 @@ export default async function CasePage({ params }: Params) {
   if (!c || !story) notFound();
   const cleared = clearedByAi(c);
   const added = c.final.filter((f) => isNewByAi(c, f));
-  const profile = CASE_PROFILES[slug] ?? null;
+  const profile = parseProfile(c.profile);
   const code = { htmlUrl: c.htmlUrl, commit: c.commit };
   // 체크리스트의 의무: AI 를 켠 뒤의 발견과 AI 가 푼 것에 나온 정책(발견이 있는 정책 차례, 그다음 푼 것만 있는 정책).
   const policyIds = [...new Set([...casePolicies(c), ...cleared.map((r) => r.policy)])];
@@ -72,6 +73,11 @@ export default async function CasePage({ params }: Params) {
       </div>
 
       <div className="tiers">
+        <OverviewLine
+          profile={profile}
+          check={c.final.filter((f) => caseStatus(f.outcome) !== "uncertain").length}
+          unknown={c.final.filter((f) => caseStatus(f.outcome) === "uncertain").length}
+        />
         <ProfileTier
           profile={profile}
           code={code}
