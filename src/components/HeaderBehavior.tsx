@@ -10,12 +10,13 @@ function closeMenus() {
 }
 
 /**
- * 머리글 메뉴의 링크 가운데 지금 쪽의 것. 조문 도감은 정책 하나의 쪽(/policy/<id>/)에서도 지금 쪽이다. 최근 분석(/search/)은
- * 질의 없는 검색 쪽에서만이다. 주소의 질의는 이 부품이 읽지 않고, 그 쪽이 본문에 남긴 표시(`data-page="search-home"`)로 가린다.
+ * 머리글 메뉴의 링크 가운데 지금 쪽의 것. 조문 도감은 정책 하나의 쪽(/policy/<id>/)에서도, 사례는 사례 하나의 쪽(/cases/<이름>/)
+ * 에서도 지금 쪽이다. 최근 분석(/search/)은 질의 없는 검색 쪽에서만이다. 주소의 질의는 이 부품이 읽지 않고, 그 쪽이 본문에 남긴
+ * 표시(`data-page="search-home"`)로 가린다.
  */
 function isCurrent(href: string, pathname: string) {
   const path = pathname.endsWith("/") ? pathname : `${pathname}/`;
-  if (href === "/policy/") return path.startsWith("/policy/");
+  if (href === "/policy/" || href === "/cases/") return path.startsWith(href);
   if (href === "/search/") return path === href && document.querySelector('main [data-page="search-home"]') !== null;
   return path === href;
 }

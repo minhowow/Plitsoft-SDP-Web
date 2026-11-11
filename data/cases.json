@@ -1,0 +1,612 @@
+{
+  "ranOn": "2026-11-11",
+  "cli": {
+    "commit": "0be0c07",
+    "version": "0.3.0.dev0"
+  },
+  "packDigest": "7897fc0f79ce975b",
+  "cases": [
+    {
+      "slug": "starthub-app",
+      "owner": "JinInSaDaeCheonMyeong",
+      "name": "starthub-app",
+      "htmlUrl": "https://github.com/JinInSaDaeCheonMyeong/starthub-app",
+      "commit": "0ab1c2b70b5d79fb9f80519044760cdd0fd8a30b",
+      "files": 175,
+      "finder": "agent:anthropic:claude-haiku-5-5",
+      "rechecker": "agent:anthropic:claude-sonnet-5-5",
+      "ruleOnly": [
+        {
+          "policy": "kr.pipa.22-2",
+          "rule": "signup-without-guard",
+          "file": "hooks/auth/signup/input/useSignupInputScreen.ts",
+          "line": 7,
+          "outcome": "needs-review",
+          "review": {
+            "action": "cleared",
+            "citations": [
+              {
+                "file": "component/auth/signup/SignupStepFields.tsx",
+                "line": 60,
+                "text": "{ key: 1, value: checked.ONE, title: \"[필수] 만 14세 이상입니다\", checkedKey: \"ONE\", link: \"\" },"
+              },
+              {
+                "file": "hooks/auth/signup/useSignupScreen.ts",
+                "line": 150,
+                "text": "const result = validSignupForm(email, verifyCode, password, password, checked.ONE, checked.SECOND, checked.THIRD);"
+              },
+              {
+                "file": "hooks/util/auth/useAuthValid.ts",
+                "line": 43,
+                "text": "if(!one || !second || !third){"
+              }
+            ]
+          }
+        },
+        {
+          "policy": "kr.pipa.22-2",
+          "rule": "signup-without-guard",
+          "file": "navigation/AuthStack.tsx",
+          "line": 5,
+          "outcome": "needs-review",
+          "review": {
+            "action": "cleared",
+            "citations": [
+              {
+                "file": "navigation/AuthStack.tsx",
+                "line": 50,
+                "text": "<Stack.Screen name=\"SignupInput\" component={SignupInputScreen} />"
+              }
+            ]
+          }
+        },
+        {
+          "policy": "kr.ai-basic-act.31",
+          "rule": "ai-output-without-label",
+          "file": "component/home/chatbot/ChatMessageList.tsx",
+          "line": 64,
+          "outcome": "needs-review",
+          "review": {
+            "action": "kept",
+            "citations": [
+              {
+                "file": "component/home/chatbot/ChatMessageList.tsx",
+                "line": 117,
+                "text": "<Markdown key={idx} style={markdownStyles}>{seg.content}</Markdown>"
+              },
+              {
+                "file": "screens/Home/ChatBotScreen.tsx",
+                "line": 153,
+                "text": "title=\"Hub AI 챗봇\""
+              }
+            ]
+          }
+        }
+      ],
+      "final": [
+        {
+          "policy": "kr.ai-basic-act.31",
+          "rule": "ai-output-without-label",
+          "title": "생성형 AI 결과물 표시",
+          "law": "인공지능 발전과 신뢰 기반 조성 등에 관한 기본법 제31조 제2항",
+          "file": "component/home/chatbot/ChatMessageList.tsx",
+          "line": 64,
+          "outcome": "needs-review",
+          "action": "kept",
+          "citations": [
+            {
+              "file": "component/home/chatbot/ChatMessageList.tsx",
+              "line": 117,
+              "text": "<Markdown key={idx} style={markdownStyles}>{seg.content}</Markdown>"
+            },
+            {
+              "file": "screens/Home/ChatBotScreen.tsx",
+              "line": 153,
+              "text": "title=\"Hub AI 챗봇\""
+            }
+          ]
+        },
+        {
+          "policy": "kr.pipa.22-2",
+          "rule": "agent-discovered",
+          "title": "만 14세 미만 아동의 개인정보 처리",
+          "law": "개인정보 보호법 제22조의2 제1항",
+          "file": "hooks/auth/signup/input/useCompanyInputScreen.ts",
+          "line": 182,
+          "outcome": "needs-review",
+          "action": "confirmed",
+          "citations": [
+            {
+              "file": "hooks/auth/signup/input/useCompanyInputScreen.ts",
+              "line": 21,
+              "text": "params: { username, birth, gender, startupType }"
+            },
+            {
+              "file": "hooks/auth/signup/input/useCompanyInputScreen.ts",
+              "line": 182,
+              "text": "await setProfile({"
+            },
+            {
+              "file": "hooks/auth/signup/input/useCompanyInputScreen.ts",
+              "line": 184,
+              "text": "birth,"
+            }
+          ]
+        },
+        {
+          "policy": "kr.ai-basic-act.31",
+          "rule": "agent-discovered",
+          "title": "생성형 AI 결과물 표시",
+          "law": "인공지능 발전과 신뢰 기반 조성 등에 관한 기본법 제31조 제2항",
+          "file": "screens/competitor/ResultScreen.tsx",
+          "line": 45,
+          "outcome": "needs-review",
+          "action": "confirmed",
+          "citations": [
+            {
+              "file": "screens/competitor/ResultScreen.tsx",
+              "line": 45,
+              "text": "const response = (await recompetitorAnalysis(params.bmcId)).data;"
+            },
+            {
+              "file": "screens/competitor/ResultScreen.tsx",
+              "line": 88,
+              "text": "renderItem={({ item }: { item: CompetitorResultSection }) => item.render()}"
+            }
+          ]
+        },
+        {
+          "policy": "kr.pipa.28-8",
+          "rule": "agent-discovered",
+          "title": "개인정보를 국외 AI API 로 보내는 국외 이전",
+          "law": "개인정보 보호법 제28조의8 제1항",
+          "file": "api/chatbot.ts",
+          "line": 68,
+          "outcome": "needs-review-uncertain",
+          "action": "kept",
+          "citations": [
+            {
+              "file": "api/chatbot.ts",
+              "line": 68,
+              "text": "                `${API_URL}chatbot/sessions/${sessionId}/messages/stream`,"
+            }
+          ]
+        },
+        {
+          "policy": "kr.pipa.28-8",
+          "rule": "agent-discovered",
+          "title": "개인정보를 국외 AI API 로 보내는 국외 이전",
+          "law": "개인정보 보호법 제28조의8 제1항",
+          "file": "api/competitor.ts",
+          "line": 11,
+          "outcome": "needs-review-uncertain",
+          "action": "kept",
+          "citations": [
+            {
+              "file": "api/competitor.ts",
+              "line": 11,
+              "text": "    (await axios.post(COMPETITOR_API_URL + COMPETITOR_ENDPOINT, data)).data;"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "excelerate",
+      "owner": "Malbolo",
+      "name": "Excelerate",
+      "htmlUrl": "https://github.com/Malbolo/Excelerate",
+      "commit": "53bf78a586bc2e3f04d38ebd6281b90c293deb64",
+      "files": 141,
+      "finder": "agent:anthropic:claude-haiku-5-5",
+      "rechecker": "agent:anthropic:claude-sonnet-5-5",
+      "ruleOnly": [
+        {
+          "policy": "kr.ai-basic-act.31",
+          "rule": "ai-output-without-label",
+          "file": "frontend/src/components/AgentCall/index.tsx",
+          "line": 20,
+          "outcome": "needs-review",
+          "review": {
+            "action": "kept",
+            "citations": [
+              {
+                "file": "frontend/src/components/AgentCall/index.tsx",
+                "line": 31,
+                "text": "<RunPanel input={selectedLog.input} output={selectedLog.output} />"
+              }
+            ]
+          }
+        },
+        {
+          "policy": "kr.ai-basic-act.31",
+          "rule": "ai-output-without-label",
+          "file": "frontend/src/pages/playGround/index.tsx",
+          "line": 84,
+          "outcome": "needs-review",
+          "review": {
+            "action": "cleared",
+            "citations": [
+              {
+                "file": "frontend/src/pages/playGround/components/OutputDisplay.tsx",
+                "line": 26,
+                "text": "<CardTitle className='text-sm font-bold'>AI Output (Test Result)</CardTitle>"
+              }
+            ]
+          }
+        },
+        {
+          "policy": "kr.ai-basic-act.31",
+          "rule": "ai-output-without-label",
+          "file": "frontend/src/pages/ragStudio/components/ChatInterface.tsx",
+          "line": 32,
+          "outcome": "needs-review",
+          "review": {
+            "action": "confirmed",
+            "citations": [
+              {
+                "file": "frontend/src/pages/ragStudio/components/ChatInterface.tsx",
+                "line": 122,
+                "text": "<p className='whitespace-pre-wrap'>{message.content}</p>"
+              }
+            ]
+          }
+        },
+        {
+          "policy": "kr.ai-basic-act.31",
+          "rule": "ai-output-without-label",
+          "file": "frontend/src/pages/ragStudio/index.tsx",
+          "line": 5,
+          "outcome": "needs-review",
+          "review": {
+            "action": "cleared",
+            "citations": [
+              {
+                "file": "frontend/src/pages/ragStudio/index.tsx",
+                "line": 7,
+                "text": "<ChatInterface />"
+              }
+            ]
+          }
+        }
+      ],
+      "final": [
+        {
+          "policy": "kr.ai-basic-act.31",
+          "rule": "ai-output-without-label",
+          "title": "생성형 AI 결과물 표시",
+          "law": "인공지능 발전과 신뢰 기반 조성 등에 관한 기본법 제31조 제2항",
+          "file": "frontend/src/components/AgentCall/index.tsx",
+          "line": 20,
+          "outcome": "needs-review",
+          "action": "kept",
+          "citations": [
+            {
+              "file": "frontend/src/components/AgentCall/index.tsx",
+              "line": 31,
+              "text": "<RunPanel input={selectedLog.input} output={selectedLog.output} />"
+            }
+          ]
+        },
+        {
+          "policy": "kr.ai-basic-act.31",
+          "rule": "ai-output-without-label",
+          "title": "생성형 AI 결과물 표시",
+          "law": "인공지능 발전과 신뢰 기반 조성 등에 관한 기본법 제31조 제2항",
+          "file": "frontend/src/pages/ragStudio/components/ChatInterface.tsx",
+          "line": 32,
+          "outcome": "needs-review",
+          "action": "confirmed",
+          "citations": [
+            {
+              "file": "frontend/src/pages/ragStudio/components/ChatInterface.tsx",
+              "line": 122,
+              "text": "<p className='whitespace-pre-wrap'>{message.content}</p>"
+            }
+          ]
+        },
+        {
+          "policy": "kr.ai-basic-act.31-1",
+          "rule": "agent-discovered",
+          "title": "생성형 AI 기반 서비스 사전 고지",
+          "law": "인공지능 발전과 신뢰 기반 조성 등에 관한 기본법 제31조 제1항",
+          "file": "frontend/src/pages/ragStudio/components/ChatInterface.tsx",
+          "line": 60,
+          "outcome": "needs-review",
+          "action": "confirmed",
+          "citations": [
+            {
+              "file": "frontend/src/pages/ragStudio/components/ChatInterface.tsx",
+              "line": 60,
+              "text": "    const response = await ragSearchMutate(request);"
+            }
+          ]
+        },
+        {
+          "policy": "kr.ai-basic-act.31-1",
+          "rule": "agent-discovered",
+          "title": "생성형 AI 기반 서비스 사전 고지",
+          "law": "인공지능 발전과 신뢰 기반 조성 등에 관한 기본법 제31조 제1항",
+          "file": "frontend/src/pages/main/index.tsx",
+          "line": 41,
+          "outcome": "needs-review",
+          "action": "confirmed",
+          "citations": [
+            {
+              "file": "frontend/src/pages/main/index.tsx",
+              "line": 41,
+              "text": "    const response = await sourceDataMutation({"
+            },
+            {
+              "file": "frontend/src/apis/job.ts",
+              "line": 64,
+              "text": "  const { data, error, success } = await api<SourceDataResponse>('/api/agent/data/load', {"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "jobtalk",
+      "owner": "Vactor0911",
+      "name": "jobtalk",
+      "htmlUrl": "https://github.com/Vactor0911/jobtalk",
+      "commit": "bbfb3ab14534907ff4618c563ff92a6354da97a1",
+      "files": 68,
+      "finder": "agent:anthropic:claude-haiku-5-5",
+      "rechecker": "agent:anthropic:claude-sonnet-5-5",
+      "ruleOnly": [],
+      "final": [
+        {
+          "policy": "kr.ai-basic-act.31",
+          "rule": "agent-discovered",
+          "title": "생성형 AI 결과물 표시",
+          "law": "인공지능 발전과 신뢰 기반 조성 등에 관한 기본법 제31조 제2항",
+          "file": "frontend/src/components/workspace/RoadMapDetails.tsx",
+          "line": 72,
+          "outcome": "needs-review",
+          "action": "confirmed",
+          "citations": [
+            {
+              "file": "frontend/src/components/workspace/RoadMapDetails.tsx",
+              "line": 72,
+              "text": "<Typography variant=\"body2\">{nodeDetail.overview}</Typography>"
+            },
+            {
+              "file": "frontend/src/components/workspace/RoadMapViewer.tsx",
+              "line": 336,
+              "text": "const response = await axiosInstance.post(\"/chat/roadmap/node/detail\", {"
+            }
+          ]
+        },
+        {
+          "policy": "kr.ai-basic-act.31-1",
+          "rule": "agent-discovered",
+          "title": "생성형 AI 기반 서비스 사전 고지",
+          "law": "인공지능 발전과 신뢰 기반 조성 등에 관한 기본법 제31조 제1항",
+          "file": "backend/src/controllers/chatController.ts",
+          "line": 135,
+          "outcome": "needs-review",
+          "action": "confirmed",
+          "citations": [
+            {
+              "file": "backend/src/controllers/chatController.ts",
+              "line": 135,
+              "text": "    const response = await openai.responses.create({"
+            }
+          ]
+        },
+        {
+          "policy": "kr.pipa.28-8",
+          "rule": "agent-discovered",
+          "title": "개인정보를 국외 AI API 로 보내는 국외 이전",
+          "law": "개인정보 보호법 제28조의8 제1항",
+          "file": "backend/src/controllers/chatController.ts",
+          "line": 135,
+          "outcome": "needs-review",
+          "action": "confirmed",
+          "citations": [
+            {
+              "file": "backend/src/controllers/chatController.ts",
+              "line": 135,
+              "text": "    const response = await openai.responses.create({"
+            }
+          ]
+        },
+        {
+          "policy": "kr.pipa.28-8",
+          "rule": "agent-discovered",
+          "title": "개인정보를 국외 AI API 로 보내는 국외 이전",
+          "law": "개인정보 보호법 제28조의8 제1항",
+          "file": "backend/src/utils/chatUtils.ts",
+          "line": 10,
+          "outcome": "needs-review",
+          "action": "confirmed",
+          "citations": [
+            {
+              "file": "backend/src/utils/chatUtils.ts",
+              "line": 10,
+              "text": "    const response = await openai.chat.completions.create({"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "medeasy-frontend",
+      "owner": "team-medeasy",
+      "name": "medeasy-frontend",
+      "htmlUrl": "https://github.com/team-medeasy/medeasy-frontend",
+      "commit": "95fd35fd20a23ff3057b613b02922f4a8f4be2b7",
+      "files": 144,
+      "finder": "agent:anthropic:claude-haiku-5-5",
+      "rechecker": "agent:anthropic:claude-sonnet-5-5",
+      "ruleOnly": [
+        {
+          "policy": "kr.pipa.22-2",
+          "rule": "signup-without-guard",
+          "file": "app/api/context/SignUpContext.js",
+          "line": 3,
+          "outcome": "needs-review",
+          "review": {
+            "action": "confirmed",
+            "citations": [
+              {
+                "file": "app/api/context/SignUpContext.js",
+                "line": 7,
+                "text": "birthday: '',"
+              }
+            ]
+          }
+        },
+        {
+          "policy": "kr.pipa.22-2",
+          "rule": "signup-without-guard",
+          "file": "app/api/services/authService.js",
+          "line": 1,
+          "outcome": "needs-review",
+          "review": {
+            "action": "confirmed",
+            "citations": [
+              {
+                "file": "app/api/services/authService.js",
+                "line": 191,
+                "text": "birthday: data.birthday || null,"
+              }
+            ]
+          }
+        },
+        {
+          "policy": "kr.pipa.22-2",
+          "rule": "signup-without-guard",
+          "file": "app/screens/SignUp/SignIn.js",
+          "line": 12,
+          "outcome": "needs-review",
+          "review": {
+            "action": "cleared",
+            "citations": [
+              {
+                "file": "app/screens/SignUp/SignIn.js",
+                "line": 77,
+                "text": "const userData = await handleLogin({email, password});"
+              }
+            ]
+          }
+        },
+        {
+          "policy": "kr.pipa.22-2",
+          "rule": "signup-without-guard",
+          "file": "app/screens/SignUp/SignUpDOBGender.js",
+          "line": 13,
+          "outcome": "needs-review",
+          "review": {
+            "action": "confirmed",
+            "citations": [
+              {
+                "file": "app/screens/SignUp/SignUpDOBGender.js",
+                "line": 164,
+                "text": "updateSignUpData({birthday: birthday, gender});"
+              },
+              {
+                "file": "app/screens/SignUp/SignUpDOBGender.js",
+                "line": 166,
+                "text": "await handleSignUp(signUpData, navigation); // API 호출"
+              }
+            ]
+          }
+        }
+      ],
+      "final": [
+        {
+          "policy": "kr.pipa.22-2",
+          "rule": "signup-without-guard",
+          "title": "만 14세 미만 아동의 개인정보 처리",
+          "law": "개인정보 보호법 제22조의2 제1항",
+          "file": "app/api/context/SignUpContext.js",
+          "line": 3,
+          "outcome": "needs-review",
+          "action": "confirmed",
+          "citations": [
+            {
+              "file": "app/api/context/SignUpContext.js",
+              "line": 7,
+              "text": "birthday: '',"
+            }
+          ]
+        },
+        {
+          "policy": "kr.pipa.22-2",
+          "rule": "signup-without-guard",
+          "title": "만 14세 미만 아동의 개인정보 처리",
+          "law": "개인정보 보호법 제22조의2 제1항",
+          "file": "app/api/services/authService.js",
+          "line": 1,
+          "outcome": "needs-review",
+          "action": "confirmed",
+          "citations": [
+            {
+              "file": "app/api/services/authService.js",
+              "line": 191,
+              "text": "birthday: data.birthday || null,"
+            }
+          ]
+        },
+        {
+          "policy": "kr.pipa.22-2",
+          "rule": "signup-without-guard",
+          "title": "만 14세 미만 아동의 개인정보 처리",
+          "law": "개인정보 보호법 제22조의2 제1항",
+          "file": "app/screens/SignUp/SignUpDOBGender.js",
+          "line": 13,
+          "outcome": "needs-review",
+          "action": "confirmed",
+          "citations": [
+            {
+              "file": "app/screens/SignUp/SignUpDOBGender.js",
+              "line": 164,
+              "text": "updateSignUpData({birthday: birthday, gender});"
+            },
+            {
+              "file": "app/screens/SignUp/SignUpDOBGender.js",
+              "line": 166,
+              "text": "await handleSignUp(signUpData, navigation); // API 호출"
+            }
+          ]
+        },
+        {
+          "policy": "kr.pipa.22-2",
+          "rule": "agent-discovered",
+          "title": "만 14세 미만 아동의 개인정보 처리",
+          "law": "개인정보 보호법 제22조의2 제1항",
+          "file": "app/api/auth.js",
+          "line": 25,
+          "outcome": "needs-review",
+          "action": "confirmed",
+          "citations": [
+            {
+              "file": "app/api/auth.js",
+              "line": 25,
+              "text": "  const response = await api.post('/open-api/auth/sign_up', requestData, {"
+            },
+            {
+              "file": "app/screens/SignUp/SignUpDOBGender.js",
+              "line": 164,
+              "text": "      updateSignUpData({birthday: birthday, gender});"
+            }
+          ]
+        },
+        {
+          "policy": "kr.pipa.28-8",
+          "rule": "agent-discovered",
+          "title": "개인정보를 국외 AI API 로 보내는 국외 이전",
+          "law": "개인정보 보호법 제28조의8 제1항",
+          "file": "app/api/WebSocketManager.js",
+          "line": 330,
+          "outcome": "needs-review-uncertain",
+          "action": "kept",
+          "citations": []
+        }
+      ]
+    }
+  ]
+}
