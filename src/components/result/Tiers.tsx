@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { Icon } from "@/components/Icon";
 import { packMeta, policyHref } from "@/lib/pack";
-import type { ExampleProfile } from "@/lib/profile";
+import type { ExampleProfile } from "@/lib/profile/example";
 import { fileLink, shortCommit } from "@/lib/service/href";
 import type { CodeSource } from "./PolicyCard";
 import { Where } from "./Where";

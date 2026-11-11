@@ -1,0 +1,696 @@
+{
+  "profile_version": 1,
+  "tool": {
+    "name": "policypack",
+    "version": "0.3.0.dev0"
+  },
+  "files": {
+    "source": 1,
+    "service": 1,
+    "test_or_config": 0,
+    "package_json": 0
+  },
+  "service_features": 2,
+  "features": [
+    {
+      "id": "signup",
+      "name": "회원 가입·개인정보 수집",
+      "evidence": [
+        {
+          "file": "src/auth/signup.ts",
+          "line": null,
+          "signal": "path",
+          "value": "signup",
+          "what": "경로 낱말 'signup'"
+        }
+      ],
+      "evidence_total": 1,
+      "duties": {
+        "count": 21,
+        "review_candidates": 5,
+        "items": [
+          {
+            "id": "disc-22-1",
+            "law": "장애인차별금지 및 권리구제 등에 관한 법률",
+            "article": "제22조제1항",
+            "title": "장애인 개인정보는 본인 동의로 수집·안전 관리",
+            "duty": "장애인 개인정보는 본인 동의로 수집하고 무단접근·오남용으로부터 안전하게 관리",
+            "url": "https://www.law.go.kr/법령/장애인차별금지및권리구제등에관한법률/제22조",
+            "review_candidate": false,
+            "quote_check": "pass"
+          },
+          {
+            "id": "pipa-15-1",
+            "law": "개인정보 보호법",
+            "article": "제15조제1항",
+            "title": "수집·이용은 동의·법령·계약 이행 등 근거가 있을 때만 [과징금 매출 3%]",
+            "duty": "동의·법령·계약 이행 등 제1항 각 호 근거가 있을 때만 수집하고 그 목적 범위에서만 이용",
+            "url": "https://www.law.go.kr/법령/개인정보보호법/제15조",
+            "review_candidate": false,
+            "quote_check": "pass"
+          },
+          {
+            "id": "pipa-15-2",
+            "law": "개인정보 보호법",
+            "article": "제15조제2항",
+            "title": "수집·이용 동의 때 목적·항목·보유기간·거부권 고지 [위반 시 동의 무효 → 제15조제1항]",
+            "duty": "동의 받을 때 목적·항목·보유·이용기간·거부권과 불이익을 알리고, 바꾸면 다시 알리고 동의",
+            "url": "https://www.law.go.kr/법령/개인정보보호법/제15조",
+            "review_candidate": true,
+            "quote_check": "pass"
+          },
+          {
+            "id": "pipa-16-1",
+            "law": "개인정보 보호법",
+            "article": "제16조제1항(제3조제1항)",
+            "title": "목적에 필요한 최소한만 수집, 입증책임은 처리자",
+            "duty": "목적에 필요한 최소한의 개인정보만 수집하고, 최소라는 입증책임은 처리자가 짐",
+            "url": "https://www.law.go.kr/법령/개인정보보호법/제16조",
+            "review_candidate": false,
+            "quote_check": "pass"
+          },
+          {
+            "id": "pipa-16-2",
+            "law": "개인정보 보호법",
+            "article": "제16조제2항",
+            "title": "최소 외 항목은 동의하지 않아도 된다는 사실을 구체적으로 알림",
+            "duty": "동의로 수집할 때 최소 외 항목은 동의하지 않아도 된다는 사실을 구체적으로 알림",
+            "url": "https://www.law.go.kr/법령/개인정보보호법/제16조",
+            "review_candidate": false,
+            "quote_check": "pass"
+          },
+          {
+            "id": "pipa-16-3",
+            "law": "개인정보 보호법",
+            "article": "제16조제3항",
+            "title": "최소 외 정보 미동의를 이유로 서비스 거부 금지 [과태료 3천만]",
+            "duty": "최소 정보 외 수집에 동의하지 않는다는 이유로 재화·서비스 제공을 거부하지 않음",
+            "url": "https://www.law.go.kr/법령/개인정보보호법/제16조",
+            "review_candidate": false,
+            "quote_check": "pass"
+          },
+          {
+            "id": "pipa-22-1",
+            "law": "개인정보 보호법",
+            "article": "제22조제1항(제1~6·8호, 시행령 제17조제1항·제4항)",
+            "title": "동의는 사항마다 구분해 명확히 알리고 받기 — 간주·묶음·미리 체크 금지 [과태료 1천만]",
+            "duty": "동의는 사항마다 구분해 명확히 알리고 받음(수집·제공·목적 외·민감·고유식별 동의는 각각)",
+            "url": "https://www.law.go.kr/법령/개인정보보호법/제22조",
+            "review_candidate": false,
+            "quote_check": "pass"
+          },
+          {
+            "id": "pipa-22-1-h7",
+            "law": "개인정보 보호법",
+            "article": "제22조제1항제7호",
+            "title": "홍보·판매 권유 동의는 다른 동의와 따로 [과태료 1천만]",
+            "duty": "재화·서비스 홍보나 판매 권유를 위한 처리 동의는 다른 동의와 구분해 따로 받음",
+            "url": "https://www.law.go.kr/법령/개인정보보호법/제22조",
+            "review_candidate": false,
+            "quote_check": "pass"
+          },
+          {
+            "id": "pipa-22-2",
+            "law": "개인정보 보호법",
+            "article": "제22조제2항(시행령 제17조제3항, 개인정보 처리 방법에 관한 고시 제4조)",
+            "title": "화면(전자문서) 동의도 중요한 내용은 크기·색·굵기·밑줄로 명확히 [과태료 1천만]",
+            "duty": "서면·전자문서(컴퓨터 표시화면 포함) 동의 때 중요 내용을 크기·색·굵기·밑줄 등으로 명확히 표시",
+            "url": "https://www.law.go.kr/법령/개인정보보호법/제22조",
+            "review_candidate": false,
+            "quote_check": "pass"
+          },
+          {
+            "id": "pipa-22-2-1",
+            "law": "개인정보 보호법",
+            "article": "제22조의2제1항(시행령 제17조의2제1항)",
+            "title": "만 14세 미만 아동은 법정대리인 동의를 받고 확인 [과징금 매출 3%·형벌 5년]",
+            "duty": "만 14세 미만 아동 개인정보 처리에 동의가 필요하면 법정대리인 동의를 받고 동의했는지 확인",
+            "url": "https://www.law.go.kr/법령/개인정보보호법/제22조의2",
+            "review_candidate": true,
+            "quote_check": "pass"
+          },
+          {
+            "id": "pipa-22-2-3",
+            "law": "개인정보 보호법",
+            "article": "제22조의2제3항",
+            "title": "아동에게 고지할 때 이해하기 쉬운 양식·언어",
+            "duty": "만 14세 미만 아동에게 개인정보 처리 관련 고지를 할 때 이해하기 쉬운 양식과 명확하고 쉬운 언어 사용",
+            "url": "https://www.law.go.kr/법령/개인정보보호법/제22조의2",
+            "review_candidate": false,
+            "quote_check": "pass"
+          },
+          {
+            "id": "pipa-22-3",
+            "law": "개인정보 보호법",
+            "article": "제22조제3항",
+            "title": "동의 없이 처리하는 항목은 항목·법적 근거를 동의 대상과 구분해 공개 [과태료 1천만]",
+            "duty": "동의 없이 처리할 수 있는 개인정보는 항목·법적 근거를 동의 대상과 구분해 공개하거나 알림",
+            "url": "https://www.law.go.kr/법령/개인정보보호법/제22조",
+            "review_candidate": false,
+            "quote_check": "pass"
+          },
+          {
+            "id": "pipa-22-5",
+            "law": "개인정보 보호법",
+            "article": "제22조제5항",
+            "title": "선택·목적 외·홍보 동의 거부를 이유로 서비스 거부 금지 [과태료 3천만]",
+            "duty": "선택 동의나 목적 외 이용(제1항제3호)·홍보(제7호) 동의를 안 했다고 재화·서비스 제공을 거부하지 않음",
+            "url": "https://www.law.go.kr/법령/개인정보보호법/제22조",
+            "review_candidate": true,
+            "quote_check": "pass"
+          },
+          {
+            "id": "pipa-23-1",
+            "law": "개인정보 보호법",
+            "article": "제23조제1항(시행령 제18조)",
+            "title": "민감정보는 별도 동의나 법령 근거가 있을 때만 [과징금 매출 3%·형벌 5년]",
+            "duty": "사상·건강·성생활·정치적 견해·유전·범죄경력·생체인식·인종 정보는 별도 동의나 법령 근거 있을 때만",
+            "url": "https://www.law.go.kr/법령/개인정보보호법/제23조",
+            "review_candidate": true,
+            "quote_check": "pass"
+          },
+          {
+            "id": "pipa-23-2",
+            "law": "개인정보 보호법",
+            "article": "제23조제2항",
+            "title": "민감정보는 유출등이 없게 제29조 안전조치 [과태료 3천만]",
+            "duty": "처리하는 민감정보가 유출등이 되지 않도록 제29조의 안전성 확보조치를 함",
+            "url": "https://www.law.go.kr/법령/개인정보보호법/제23조",
+            "review_candidate": false,
+            "quote_check": "pass"
+          },
+          {
+            "id": "pipa-23-3",
+            "law": "개인정보 보호법",
+            "article": "제23조제3항",
+            "title": "공개되는 정보에 민감정보가 들어가면 공개 가능성·비공개 방법을 미리 알림 [과태료 3천만]",
+            "duty": "공개되는 정보에 민감정보가 들어 사생활 침해 위험이 있으면 서비스 제공 전에 공개 가능성·비공개 방법을 알림",
+            "url": "https://www.law.go.kr/법령/개인정보보호법/제23조",
+            "review_candidate": false,
+            "quote_check": "pass"
+          },
+          {
+            "id": "pipa-59-1-h1",
+            "law": "개인정보 보호법",
+            "article": "제59조제1호",
+            "title": "거짓·부정한 수단으로 개인정보를 얻거나 동의 받기 금지 [형벌 3년]",
+            "duty": "거짓이나 그 밖의 부정한 수단·방법으로 개인정보를 취득하거나 처리 동의를 받지 않음",
+            "url": "https://www.law.go.kr/법령/개인정보보호법/제59조",
+            "review_candidate": false,
+            "quote_check": "pass"
+          },
+          {
+            "id": "pipa-decree-17-2",
+            "law": "개인정보 보호법 시행령",
+            "article": "제17조제2항제4호",
+            "title": "웹·앱 동의는 동의 내용을 화면에 게재하고 직접 표시하게 [법 제22조 위반이면 과태료 1천만]",
+            "duty": "법정 방법 중 하나로 동의 — 웹·앱은 동의 내용을 게재하고 정보주체가 동의 여부를 직접 표시하게 함",
+            "url": "https://www.law.go.kr/법령/개인정보보호법시행령/제17조",
+            "review_candidate": false,
+            "quote_check": "pass"
+          },
+          {
+            "id": "pipa-stdguide-13-1",
+            "law": "표준 개인정보 보호지침",
+            "article": "제13조제1항",
+            "title": "아동에게 법정대리인 정보를 받을 때 처리자 신분·연락처와 수집 이유를 알림",
+            "duty": "법정대리인 성명·연락처를 아동에게서 받을 때 자신(처리자)의 신분·연락처와 수집 이유를 아동에게 알림",
+            "url": "https://www.law.go.kr/행정규칙/표준개인정보보호지침",
+            "review_candidate": false,
+            "quote_check": "pass"
+          },
+          {
+            "id": "pipa-stdguide-13-2",
+            "law": "표준 개인정보 보호지침",
+            "article": "제13조제2항",
+            "title": "법정대리인 정보는 동의 목적으로만, 동의가 안 되면 5일 안에 파기",
+            "duty": "아동에게서 받은 법정대리인 정보는 동의를 얻는 목적으로만 이용하고, 거부·미확인이면 수집일부터 5일 이내 파기",
+            "url": "https://www.law.go.kr/행정규칙/표준개인정보보호지침",
+            "review_candidate": false,
+            "quote_check": "pass"
+          },
+          {
+            "id": "tcra-3-2",
+            "law": "약관의 규제에 관한 법률",
+            "article": "제3조제2항",
+            "title": "계약 때 약관을 분명히 보여주고 사본 제공 [과태료 500만·약관 주장 불가]",
+            "duty": "계약 체결 때 약관 내용을 계약 종류에 맞게 일반적으로 예상되는 방법으로 분명히 밝히고, 요구하면 사본 교부",
+            "url": "https://www.law.go.kr/법령/약관의규제에관한법률/제3조",
+            "review_candidate": true,
+            "quote_check": "pass"
+          }
+        ]
+      }
+    },
+    {
+      "id": "auth",
+      "name": "로그인·본인인증",
+      "evidence": [
+        {
+          "file": "src/auth/signup.ts",
+          "line": null,
+          "signal": "path",
+          "value": "auth",
+          "what": "경로 낱말 'auth'"
+        }
+      ],
+      "evidence_total": 1,
+      "duties": {
+        "count": 23,
+        "review_candidates": 9,
+        "items": [
+          {
+            "id": "cistd-annex4-4",
+            "law": "연계정보의 생성ㆍ처리 등에 관한 기준",
+            "article": "별표 4 제4호 (제11조제2항, 영 제13조제2항제4호)",
+            "title": "CI 전송은 암호화, 대규모 보유 시 저장도 암호화 [과태료 3천만(법 제23조의6)]",
+            "duty": "CI를 인터넷 구간으로 주고받을 때 안전한 알고리즘으로 암호화; 10만명(대기업·중견·공공)·100만명(중소) 이상 보유 시 저장도 암호화",
+            "url": "https://www.law.go.kr/행정규칙/연계정보의생성ㆍ처리등에관한기준",
+            "review_candidate": true,
+            "quote_check": "pass"
+          },
+          {
+            "id": "ecom-5-2",
+            "law": "전자상거래 등에서의 소비자보호에 관한 법률",
+            "article": "제5조제2항",
+            "title": "전자서명 문서의 효력·출력 방법 고지 [시정조치]",
+            "duty": "전자서명한 전자문서를 쓰면 그 효력·출력방법을 이메일 본문에 표시하거나 미리 고지(시행령 제5조)",
+            "url": "https://www.law.go.kr/법령/전자상거래등에서의소비자보호에관한법률/제5조",
+            "review_candidate": false,
+            "quote_check": "pass"
+          },
+          {
+            "id": "ecom-5-3",
+            "law": "전자상거래 등에서의 소비자보호에 관한 법률",
+            "article": "제5조제3항",
+            "title": "특정 전자서명 방법 강요 금지 [시정조치]",
+            "duty": "전자문서 거래에서 특정 전자서명 방법을 강요(특수 표준으로 사실상 강제 포함)하거나 소비자가 고른 방법을 부당하게 막지 않기",
+            "url": "https://www.law.go.kr/법령/전자상거래등에서의소비자보호에관한법률/제5조",
+            "review_candidate": false,
+            "quote_check": "pass"
+          },
+          {
+            "id": "egov-27-1",
+            "law": "전자정부법",
+            "article": "제27조제1항",
+            "title": "본인확인 필요한 전자문서는 전자서명 등으로 송신",
+            "duty": "본인확인이 필요한 전자문서는 전자서명 등 인정 수단으로 송신, 공공기관↔행정기관 유통은 행정전자서명",
+            "url": "https://www.law.go.kr/법령/전자정부법/제27조",
+            "review_candidate": false,
+            "quote_check": "pass"
+          },
+          {
+            "id": "esign-19-1",
+            "law": "전자서명법",
+            "article": "제19조제1항",
+            "title": "타인 전자서명생성정보(인증서 개인키) 도용·누설 금지",
+            "duty": "타인의 전자서명생성정보(인증서 개인키 등)를 도용하거나 누설 금지",
+            "url": "https://www.law.go.kr/법령/전자서명법/제19조",
+            "review_candidate": false,
+            "quote_check": "pass"
+          },
+          {
+            "id": "netact-23-2-1",
+            "law": "정보통신망 이용촉진 및 정보보호 등에 관한 법률",
+            "article": "제23조의2제1항",
+            "title": "정보통신서비스 제공자의 주민등록번호 수집·이용 금지 [과태료 3천만]",
+            "duty": "본인확인기관으로 지정받은 경우 등을 빼고 이용자의 주민등록번호를 수집·이용하지 않음",
+            "url": "https://www.law.go.kr/법령/정보통신망이용촉진및정보보호등에관한법률/제23조의2",
+            "review_candidate": true,
+            "quote_check": "pass"
+          },
+          {
+            "id": "netact-23-5-4",
+            "law": "정보통신망 이용촉진 및 정보보호 등에 관한 법률",
+            "article": "제23조의5제4항",
+            "title": "본인인증으로 받은 연계정보(CI)는 받은 목적 범위에서만 [벌칙 5년]",
+            "duty": "본인확인기관에서 받은 CI는 제공받은 목적(본인 식별·인증 등)이나 별도 동의받은 목적 범위에서만 처리",
+            "url": "https://www.law.go.kr/법령/정보통신망이용촉진및정보보호등에관한법률/제23조의5",
+            "review_candidate": false,
+            "quote_check": "pass"
+          },
+          {
+            "id": "netact-23-6-2",
+            "law": "정보통신망 이용촉진 및 정보보호 등에 관한 법률",
+            "article": "제23조의6제2항 (영 제13조제2항)",
+            "title": "연계정보(CI) 안전조치 — 주민번호와 분리·암호화·기록 [과태료 3천만]",
+            "duty": "CI를 주민번호와 분리 보관하고 분실·유출·위변조를 막는 안전조치(암호화 저장·전송, 제공기관·시기 기록 등 영 제13조제2항 7개 호)",
+            "url": "https://www.law.go.kr/법령/정보통신망이용촉진및정보보호등에관한법률/제23조의6",
+            "review_candidate": false,
+            "quote_check": "pass"
+          },
+          {
+            "id": "netact-48-4",
+            "law": "정보통신망 이용촉진 및 정보보호 등에 관한 법률",
+            "article": "제48조제4항",
+            "title": "보호·인증 절차를 우회하는 백도어 설치·유포 금지 [벌칙 5년]",
+            "duty": "정당한 사유 없이 정상적인 보호·인증 절차를 우회해 접근하게 하는 프로그램·장치를 시스템에 설치하거나 유포하지 않음",
+            "url": "https://www.law.go.kr/법령/정보통신망이용촉진및정보보호등에관한법률/제48조",
+            "review_candidate": false,
+            "quote_check": "pass"
+          },
+          {
+            "id": "netact-49-2-1",
+            "law": "정보통신망 이용촉진 및 정보보호 등에 관한 법률",
+            "article": "제49조의2제1항",
+            "title": "속이는 행위로 정보 수집·제공 유인 금지(피싱) [벌칙 3년]",
+            "duty": "망을 통해 속이는 행위로 남의 정보를 수집하거나 정보를 제공하도록 유인하지 않음",
+            "url": "https://www.law.go.kr/법령/정보통신망이용촉진및정보보호등에관한법률/제49조의2",
+            "review_candidate": false,
+            "quote_check": "pass"
+          },
+          {
+            "id": "pipa-19-1",
+            "law": "개인정보 보호법",
+            "article": "제19조",
+            "title": "제공받은 개인정보를 받은 목적 밖으로 쓰거나 다시 넘기기 금지 [과징금 매출 3%·형벌 5년]",
+            "duty": "제공받은 목적 외로 이용하거나 다시 제3자에게 주지 않음(별도 동의·다른 법률 특례 제외)",
+            "url": "https://www.law.go.kr/법령/개인정보보호법/제19조",
+            "review_candidate": false,
+            "quote_check": "mismatch"
+          },
+          {
+            "id": "pipa-24-1",
+            "law": "개인정보 보호법",
+            "article": "제24조제1항(시행령 제19조)",
+            "title": "여권·운전면허·외국인등록번호는 별도 동의나 법령 근거가 있을 때만 [과징금 매출 3%·형벌 5년]",
+            "duty": "고유식별정보(여권·운전면허·외국인등록번호 등)는 별도 동의나 법령의 구체적 근거 있을 때만 처리",
+            "url": "https://www.law.go.kr/법령/개인정보보호법/제24조",
+            "review_candidate": true,
+            "quote_check": "pass"
+          },
+          {
+            "id": "pipa-24-2-1",
+            "law": "개인정보 보호법",
+            "article": "제24조의2제1항",
+            "title": "주민등록번호는 법령 근거 등이 없으면 처리 금지(동의로도 안 됨) [과징금 매출 3%·과태료 3천만]",
+            "duty": "법률·대통령령 등의 구체적 요구·허용, 급박한 이익, 고시 사유가 아니면 주민번호 처리 금지",
+            "url": "https://www.law.go.kr/법령/개인정보보호법/제24조의2",
+            "review_candidate": true,
+            "quote_check": "pass"
+          },
+          {
+            "id": "pipa-24-2-2",
+            "law": "개인정보 보호법",
+            "article": "제24조의2제2항(시행령 제21조의2)",
+            "title": "주민등록번호는 암호화해 보관 [과태료 3천만]",
+            "duty": "주민번호는 유출등이 되지 않게 암호화해 안전하게 보관(전자적으로 보관하는 모든 처리자)",
+            "url": "https://www.law.go.kr/법령/개인정보보호법/제24조의2",
+            "review_candidate": false,
+            "quote_check": "pass"
+          },
+          {
+            "id": "pipa-24-2-3",
+            "law": "개인정보 보호법",
+            "article": "제24조의2제3항",
+            "title": "홈페이지 회원가입 단계에서는 주민번호 없이 가입할 방법 제공 [과태료 3천만]",
+            "duty": "주민번호를 처리할 수 있는 경우에도 홈페이지 회원가입 단계에선 주민번호 없이 가입할 방법을 제공",
+            "url": "https://www.law.go.kr/법령/개인정보보호법/제24조의2",
+            "review_candidate": true,
+            "quote_check": "pass"
+          },
+          {
+            "id": "pipa-24-3",
+            "law": "개인정보 보호법",
+            "article": "제24조제3항(시행령 제21조, 안전성 확보조치 기준 제7조제2항)",
+            "title": "고유식별정보는 암호화 등 안전조치 [과태료 3천만]",
+            "duty": "처리하는 고유식별정보가 유출등이 되지 않게 암호화 등 안전성 확보조치",
+            "url": "https://www.law.go.kr/법령/개인정보보호법/제24조",
+            "review_candidate": false,
+            "quote_check": "pass"
+          },
+          {
+            "id": "resreg-37-1-h4",
+            "law": "주민등록법",
+            "article": "제37조제1항제1호·제4호",
+            "title": "거짓 주민번호 생성 프로그램 유포·사용 금지",
+            "duty": "주민번호 부여방법으로 거짓 번호를 만들어 이익 위해 사용하거나, 생성 프로그램을 전달·유포 금지",
+            "url": "https://www.law.go.kr/법령/주민등록법/제37조",
+            "review_candidate": true,
+            "quote_check": "pass"
+          },
+          {
+            "id": "resreg-37-1-h9",
+            "law": "주민등록법",
+            "article": "제37조제1항제9호·제10호",
+            "title": "타인 주민번호 영리 제공·부정 사용 금지",
+            "duty": "법률 근거 없이 영리 목적으로 타인 주민번호 정보를 알려주거나 부정 사용 금지",
+            "url": "https://www.law.go.kr/법령/주민등록법/제37조",
+            "review_candidate": false,
+            "quote_check": "pass"
+          },
+          {
+            "id": "safety-std-5-5",
+            "law": "개인정보의 안전성 확보조치 기준",
+            "article": "제5조제5항",
+            "title": "취급자·정보주체의 인증수단을 안전하게 적용·관리 [과태료 3천만·유출 시 과징금]",
+            "duty": "개인정보취급자와 정보주체의 인증수단(비밀번호·토큰·세션·인증서)을 안전하게 적용·관리",
+            "url": "https://www.law.go.kr/행정규칙/개인정보의안전성확보조치기준",
+            "review_candidate": false,
+            "quote_check": "pass"
+          },
+          {
+            "id": "safety-std-5-6",
+            "law": "개인정보의 안전성 확보조치 기준",
+            "article": "제5조제6항",
+            "title": "일정 횟수 이상 인증 실패 시 접근 제한 [과태료 3천만·유출 시 과징금]",
+            "duty": "정당한 권한자만 접근하도록 일정 횟수 이상 인증에 실패하면 접근을 제한하는 등 조치(회원 로그인 포함)",
+            "url": "https://www.law.go.kr/행정규칙/개인정보의안전성확보조치기준",
+            "review_candidate": true,
+            "quote_check": "pass"
+          },
+          {
+            "id": "safety-std-7-1",
+            "law": "개인정보의 안전성 확보조치 기준",
+            "article": "제7조제1항(영 제30조제1항제4호가목)",
+            "title": "비밀번호는 일방향 암호화 저장, 인증정보는 저장·송수신 시 암호화 [과태료 3천만·유출 시 과징금]",
+            "duty": "비밀번호·생체인식정보 등 인증정보를 저장·송수신할 때 안전한 암호 알고리즘으로 암호화, 비밀번호는 복호화 안 되게 일방향 저장",
+            "url": "https://www.law.go.kr/행정규칙/개인정보의안전성확보조치기준",
+            "review_candidate": true,
+            "quote_check": "pass"
+          },
+          {
+            "id": "safety-std-7-2",
+            "law": "개인정보의 안전성 확보조치 기준",
+            "article": "제7조제2항·제3항(법 제24조의2제2항·영 제21조의2)",
+            "title": "주민번호·여권·면허·외국인등록·카드·계좌번호·생체인식정보는 암호화 저장 [과태료 3천만]",
+            "duty": "이용자의 주민·여권·면허·외국인등록번호, 카드·계좌번호, 생체인식정보를 암호화해 저장(③ 비이용자 고유식별정보도 경우별)",
+            "url": "https://www.law.go.kr/행정규칙/개인정보의안전성확보조치기준",
+            "review_candidate": true,
+            "quote_check": "pass"
+          },
+          {
+            "id": "secguide-annex1-2-2-13",
+            "law": "정보보호조치에 관한 지침",
+            "article": "별표 1 2.2.13 (제3조, 법 제45조제2항)",
+            "title": "비밀번호 일방향 암호화, 주민번호·카드·계좌번호 암호화 저장 [권고 기준]",
+            "duty": "비밀번호는 복호화되지 않게 일방향 암호화해 저장하고 주민번호·카드번호·계좌번호 등은 안전한 알고리즘으로 암호화 저장",
+            "url": "https://www.law.go.kr/행정규칙/정보보호조치에관한지침",
+            "review_candidate": false,
+            "quote_check": "pass"
+          }
+        ]
+      }
+    }
+  ],
+  "common": {
+    "name": "거의 모든 서비스",
+    "duties": {
+      "count": 18,
+      "review_candidates": 4,
+      "items": [
+        {
+          "id": "cloudact-27-1",
+          "law": "클라우드컴퓨팅 발전 및 이용자 보호에 관한 법률",
+          "article": "제27조제1항",
+          "title": "이용자 정보 무동의 제3자 제공·목적 외 이용 금지",
+          "duty": "법원 제출명령·영장이 아니면 이용자 동의 없이 이용자 정보를 제3자 제공·서비스 목적 외 이용 금지",
+          "url": "https://www.law.go.kr/법령/클라우드컴퓨팅발전및이용자보호에관한법률/제27조",
+          "review_candidate": false,
+          "quote_check": "pass"
+        },
+        {
+          "id": "cloudact-27-2",
+          "law": "클라우드컴퓨팅 발전 및 이용자 보호에 관한 법률",
+          "article": "제27조제2항",
+          "title": "이용자 정보 제공·목적 외 이용 시 5개 사항 고지·동의",
+          "duty": "이용자 정보 제3자 제공·목적 외 이용 때 받는 자·목적·항목·보유기간·거부권과 불이익을 알리고 동의(변경 시 재동의)",
+          "url": "https://www.law.go.kr/법령/클라우드컴퓨팅발전및이용자보호에관한법률/제27조",
+          "review_candidate": false,
+          "quote_check": "pass"
+        },
+        {
+          "id": "cloudact-27-3",
+          "law": "클라우드컴퓨팅 발전 및 이용자 보호에 관한 법률",
+          "article": "제27조제3항(영 제19조제4항)",
+          "title": "계약 종료 시 이용자 정보 반환·파기",
+          "duty": "이용 계약이 끝나면 이용자 정보를 활용 가능한 상태로 반환하고 보유분은 파기(계약으로 달리 정할 수 있음, 제5항)",
+          "url": "https://www.law.go.kr/법령/클라우드컴퓨팅발전및이용자보호에관한법률/제27조",
+          "review_candidate": false,
+          "quote_check": "pass"
+        },
+        {
+          "id": "cloudact-decree-19-1",
+          "law": "클라우드컴퓨팅 발전 및 이용자 보호에 관한 법률 시행령",
+          "article": "제19조제1항",
+          "title": "계약 종료 30일 전 반환·파기 안내 통지",
+          "duty": "계약 종료 30일 전까지 종료 일시·반환 요구권·미반환 시 파기·반환 방법·담당 연락처를 이용자에게 통지",
+          "url": "https://www.law.go.kr/법령/클라우드컴퓨팅발전및이용자보호에관한법률시행령/제19조",
+          "review_candidate": false,
+          "quote_check": "pass"
+        },
+        {
+          "id": "cloudact-decree-19-5",
+          "law": "클라우드컴퓨팅 발전 및 이용자 보호에 관한 법률 시행령",
+          "article": "제19조제5항",
+          "title": "이용자 정보 파기는 복원 불가능한 영구 삭제",
+          "duty": "계약·사업 종료로 이용자 정보를 파기할 때 복원이 불가능한 방법으로 영구 삭제",
+          "url": "https://www.law.go.kr/법령/클라우드컴퓨팅발전및이용자보호에관한법률시행령/제19조",
+          "review_candidate": false,
+          "quote_check": "pass"
+        },
+        {
+          "id": "commsecret-decree-41-2",
+          "law": "통신비밀보호법 시행령",
+          "article": "시행령 제41조제2항(법 제15조의2제2항)",
+          "title": "통신사실확인자료(로그·접속지) 보관기간",
+          "duty": "인터넷 로그기록·접속지 추적자료는 3개월 이상, 통신일시 등은 12개월 이상 보관",
+          "url": "https://www.law.go.kr/법령/통신비밀보호법시행령/제41조",
+          "review_candidate": false,
+          "quote_check": "pass"
+        },
+        {
+          "id": "netact-48-2",
+          "law": "정보통신망 이용촉진 및 정보보호 등에 관한 법률",
+          "article": "제48조제2항",
+          "title": "악성프로그램 전달·유포 금지 [벌칙 7년]",
+          "duty": "정당한 사유 없이 시스템·데이터·프로그램을 훼손·변경하거나 운용을 방해할 수 있는 프로그램을 전달·유포하지 않음",
+          "url": "https://www.law.go.kr/법령/정보통신망이용촉진및정보보호등에관한법률/제48조",
+          "review_candidate": false,
+          "quote_check": "pass"
+        },
+        {
+          "id": "pipa-26-5",
+          "law": "개인정보 보호법",
+          "article": "제26조제5항",
+          "title": "수탁자는 위탁받은 업무 범위를 넘어 이용·제공 금지 [형벌 5년]",
+          "duty": "위탁받은 업무 범위를 넘어 개인정보를 이용하거나 제3자에게 제공하지 않음",
+          "url": "https://www.law.go.kr/법령/개인정보보호법/제26조",
+          "review_candidate": false,
+          "quote_check": "pass"
+        },
+        {
+          "id": "pipa-29-1",
+          "law": "개인정보 보호법",
+          "article": "제29조(시행령 제30조제1항, 안전성 확보조치 기준)",
+          "title": "유출등이 없게 접근권한·접근통제·암호화·접속기록 등 안전조치 [과태료 3천만, 유출 시 과징금 연동]",
+          "duty": "유출등이 되지 않도록 내부 관리계획·접근권한·접근통제·암호화·접속기록 등 시행령 제30조 안전조치",
+          "url": "https://www.law.go.kr/법령/개인정보보호법/제29조",
+          "review_candidate": true,
+          "quote_check": "pass"
+        },
+        {
+          "id": "pipa-30-1",
+          "law": "개인정보 보호법",
+          "article": "제30조제1항(시행령 제31조제1항)",
+          "title": "필수 기재 사항을 담은 개인정보 처리방침 수립 [과태료 1천만]",
+          "duty": "목적·보유기간·제3자 제공·파기·위탁·권리 행사·보호책임자·쿠키 등 자동수집장치를 담은 처리방침 수립",
+          "url": "https://www.law.go.kr/법령/개인정보보호법/제30조",
+          "review_candidate": false,
+          "quote_check": "pass"
+        },
+        {
+          "id": "pipa-30-2",
+          "law": "개인정보 보호법",
+          "article": "제30조제2항(시행령 제31조제2항)",
+          "title": "처리방침을 홈페이지에 지속 게재 [과태료 1천만]",
+          "duty": "처리방침을 수립·변경하면 정보주체가 쉽게 확인하도록 공개(인터넷 홈페이지에 지속 게재)",
+          "url": "https://www.law.go.kr/법령/개인정보보호법/제30조",
+          "review_candidate": false,
+          "quote_check": "pass"
+        },
+        {
+          "id": "pipa-34-2-1",
+          "law": "개인정보 보호법",
+          "article": "제34조의2제1항",
+          "title": "고유식별·계좌·카드정보 등이 정보통신망으로 공중에 노출되지 않게",
+          "duty": "고유식별정보·계좌정보·신용카드정보 등이 정보통신망을 통해 공중에 노출되지 않도록 함",
+          "url": "https://www.law.go.kr/법령/개인정보보호법/제34조의2",
+          "review_candidate": true,
+          "quote_check": "pass"
+        },
+        {
+          "id": "pipa-stdguide-20-1",
+          "law": "표준 개인정보 보호지침",
+          "article": "제20조제1항",
+          "title": "처리방침은 \"개인정보 처리방침\" 이름으로, 글자 크기·색으로 다른 고지와 구분해 게재",
+          "duty": "홈페이지에 지속 게재하며 \"개인정보 처리방침\" 명칭을 쓰고 글자 크기·색상 등으로 다른 고지사항과 구분",
+          "url": "https://www.law.go.kr/행정규칙/표준개인정보보호지침",
+          "review_candidate": false,
+          "quote_check": "pass"
+        },
+        {
+          "id": "pipa-stdguide-21-1",
+          "law": "표준 개인정보 보호지침",
+          "article": "제21조",
+          "title": "처리방침을 바꾸면 시행 시기·변경 내용을 공개하고 변경 전·후를 비교",
+          "duty": "처리방침 변경 시 변경·시행 시기와 변경 내용을 지속 공개하고 변경 전·후를 비교해 보여줌",
+          "url": "https://www.law.go.kr/행정규칙/표준개인정보보호지침",
+          "review_candidate": false,
+          "quote_check": "pass"
+        },
+        {
+          "id": "safety-std-6-3",
+          "law": "개인정보의 안전성 확보조치 기준",
+          "article": "제6조제3항",
+          "title": "홈페이지·공유설정 등으로 권한 없는 자에게 공개·유출되지 않게 [과태료 3천만·유출 시 과징금]",
+          "duty": "처리하는 개인정보가 홈페이지·P2P·공유설정 등으로 권한 없는 자에게 공개·유출되지 않도록 시스템·PC·모바일에 조치",
+          "url": "https://www.law.go.kr/행정규칙/개인정보의안전성확보조치기준",
+          "review_candidate": true,
+          "quote_check": "pass"
+        },
+        {
+          "id": "safety-std-7-4",
+          "law": "개인정보의 안전성 확보조치 기준",
+          "article": "제7조제4항(영 제30조제1항제4호다목)",
+          "title": "인터넷 구간으로 개인정보를 주고받을 땐 암호화(TLS) [과태료 3천만·유출 시 과징금]",
+          "duty": "개인정보를 정보통신망을 통해 인터넷망 구간으로 송·수신할 때 안전한 암호 알고리즘으로 암호화",
+          "url": "https://www.law.go.kr/행정규칙/개인정보의안전성확보조치기준",
+          "review_candidate": true,
+          "quote_check": "pass"
+        },
+        {
+          "id": "safety-std-7-6",
+          "law": "개인정보의 안전성 확보조치 기준",
+          "article": "제7조제6항",
+          "title": "암호 키 생성·이용·보관·배포·파기 절차 수립·시행(대기업 10만명·중소 100만명 이상) [과태료 3천만·유출 시 과징금]",
+          "duty": "암호화된 개인정보를 안전하게 보관하도록 암호 키의 생성·이용·보관·배포·파기 절차를 수립·시행",
+          "url": "https://www.law.go.kr/행정규칙/개인정보의안전성확보조치기준",
+          "review_candidate": false,
+          "quote_check": "pass"
+        },
+        {
+          "id": "secguide-annex1-2-2-10",
+          "law": "정보보호조치에 관한 지침",
+          "article": "별표 1 2.2.10 (제3조, 법 제45조제2항)",
+          "title": "로그 최소 1개월 보관(정보보호시스템 3개월) [권고 기준]",
+          "duty": "웹서버·DB서버 등 설비의 로그 기록을 최소 1개월(정보보호시스템 3개월) 이상 유지·관리",
+          "url": "https://www.law.go.kr/행정규칙/정보보호조치에관한지침",
+          "review_candidate": false,
+          "quote_check": "pass"
+        }
+      ]
+    }
+  },
+  "status": {
+    "name": "지위에 따라 걸리는 의무",
+    "count": 257,
+    "note": "공공기관·금융회사 등 운영 주체의 지위로 걸리는 의무입니다. 코드로 가리지 않아 목록에 싣지 않습니다."
+  },
+  "test_only": [],
+  "totals": {
+    "features": 2,
+    "duties": 62,
+    "review_candidates": 18
+  }
+}

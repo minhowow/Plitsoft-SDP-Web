@@ -11,7 +11,7 @@ import { SearchHome, SearchResults } from "@/components/service/SearchResults";
 import { keepArticle } from "@/components/text";
 import { packMeta, policyHref } from "@/lib/pack";
 import { paragraphOf } from "@/lib/pack/legal";
-import { SYNTHETIC_PROFILES } from "@/lib/profile";
+import { SYNTHETIC_PROFILES } from "@/lib/profile/example";
 import { NO_FEATURES, NO_JUDGEMENT } from "@/components/result/Tiers";
 import { parseReport } from "@/lib/report/parse";
 import type { Report } from "@/lib/report/types";

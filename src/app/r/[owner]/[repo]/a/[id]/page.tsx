@@ -5,7 +5,7 @@ import { AnalysisHeader, AnalysisMeta, AnalysisTitle, Failed, InProgress, PROGRE
 import { LiveAnalysis } from "@/components/service/LiveAnalysis";
 import { AnalysisDashboard, type Statute } from "@/components/service/AnalysisDashboard";
 import { packIndex, packMeta } from "@/lib/pack";
-import { SYNTHETIC_PROFILES } from "@/lib/profile";
+import { SYNTHETIC_PROFILES } from "@/lib/profile/example";
 import { parseReport } from "@/lib/report/parse";
 import { buildReportView } from "@/lib/report/view-model";
 import { orUnavailable } from "@/lib/service/errors";

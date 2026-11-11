@@ -1,0 +1,27 @@
+{
+  "profile_version": 1,
+  "tool": {
+    "name": "policypack",
+    "version": "0.3.0.dev0"
+  },
+  "files": {
+    "source": 1,
+    "service": 1,
+    "test_or_config": 0,
+    "package_json": 0
+  },
+  "service_features": 0,
+  "features": [],
+  "note": "서비스 기능(가입·결제·위치·AI 호출 등)을 하나도 찾지 못했습니다. 라이브러리·예제·문서 저장소이거나, 이 도구가 아직 알아보지 못하는 모양일 수 있습니다.",
+  "status": {
+    "name": "지위에 따라 걸리는 의무",
+    "count": 257,
+    "note": "공공기관·금융회사 등 운영 주체의 지위로 걸리는 의무입니다. 코드로 가리지 않아 목록에 싣지 않습니다."
+  },
+  "test_only": [],
+  "totals": {
+    "features": 0,
+    "duties": 0,
+    "review_candidates": 0
+  }
+}

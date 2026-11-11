@@ -3,7 +3,7 @@
   "cli": {
     "version": "0.3.0.dev0",
     "from": "Plitsoft-SDP",
-    "commit": "54e048a",
+    "commit": "fe98fb7",
     "committed_on": "2026-11-11",
     "dirty": false
   },
@@ -66,6 +66,62 @@
       "exit_code": 0,
       "units": 0,
       "findings": 0
+    }
+  ],
+  "profile_command": "policypack profile .",
+  "profiles": [
+    {
+      "name": "genai-chat.fixed",
+      "file": "profile/genai-chat.fixed.json",
+      "features": [
+        "genai",
+        "external-transfer",
+        "web-ui"
+      ]
+    },
+    {
+      "name": "genai-chat.main",
+      "file": "profile/genai-chat.main.json",
+      "features": [
+        "genai",
+        "external-transfer",
+        "web-ui"
+      ]
+    },
+    {
+      "name": "kids-signup.fixed",
+      "file": "profile/kids-signup.fixed.json",
+      "features": [
+        "signup",
+        "auth"
+      ]
+    },
+    {
+      "name": "kids-signup.main",
+      "file": "profile/kids-signup.main.json",
+      "features": [
+        "signup",
+        "auth"
+      ]
+    },
+    {
+      "name": "night-push.fixed",
+      "file": "profile/night-push.fixed.json",
+      "features": [
+        "ad-send"
+      ]
+    },
+    {
+      "name": "night-push.main",
+      "file": "profile/night-push.main.json",
+      "features": [
+        "ad-send"
+      ]
+    },
+    {
+      "name": "plain.main",
+      "file": "profile/plain.main.json",
+      "features": []
     }
   ]
 }

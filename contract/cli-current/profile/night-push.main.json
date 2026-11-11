@@ -1,0 +1,420 @@
+{
+  "profile_version": 1,
+  "tool": {
+    "name": "policypack",
+    "version": "0.3.0.dev0"
+  },
+  "files": {
+    "source": 1,
+    "service": 1,
+    "test_or_config": 0,
+    "package_json": 0
+  },
+  "service_features": 1,
+  "features": [
+    {
+      "id": "ad-send",
+      "name": "광고성 정보 발송(문자·푸시·메일)",
+      "evidence": [
+        {
+          "file": "src/marketing/campaign.ts",
+          "line": 6,
+          "signal": "call",
+          "value": "sendEachForMulticast",
+          "what": "sendEachForMulticast 호출·주소"
+        },
+        {
+          "file": "src/marketing/campaign.ts",
+          "line": null,
+          "signal": "path",
+          "value": "campaign",
+          "what": "경로 낱말 'campaign'"
+        },
+        {
+          "file": "src/marketing/campaign.ts",
+          "line": null,
+          "signal": "path",
+          "value": "marketing",
+          "what": "경로 낱말 'marketing'"
+        }
+      ],
+      "evidence_total": 3,
+      "duties": {
+        "count": 17,
+        "review_candidates": 9,
+        "items": [
+          {
+            "id": "ecom-24-2-1",
+            "law": "전자상거래 등에서의 소비자보호에 관한 법률",
+            "article": "제24조의2제1항",
+            "title": "구매권유광고는 정보통신망법 광고 규정 준수 [시정조치]",
+            "duty": "전화·문자·이메일 등으로 구매를 권유할 때 이 법과 정보통신망법(사전 동의, 야간 별도 동의, (광고) 표기·수신거부 방법 등)을 지킴",
+            "url": "https://www.law.go.kr/법령/전자상거래등에서의소비자보호에관한법률/제24조의2",
+            "review_candidate": true,
+            "quote_check": "pass"
+          },
+          {
+            "id": "edoc-18-6-1",
+            "law": "전자문서 및 전자거래 기본법",
+            "article": "제18조의6제1항·제18조의7",
+            "title": "공인전자주소 자동수집·광고 송신 금지",
+            "duty": "공인전자주소를 자동 수집 프로그램으로 수집하거나, 공인전자주소로 광고 송신 금지",
+            "url": "https://www.law.go.kr/법령/전자문서및전자거래기본법/제18조의6",
+            "review_candidate": false,
+            "quote_check": "pass"
+          },
+          {
+            "id": "election-82-5-1",
+            "law": "공직선거법",
+            "article": "제82조의5제1항·제5항",
+            "title": "수신거부 의사에 반한 선거운동정보 전송 금지·수신거부 무료",
+            "duty": "명시적 수신거부자에게 선거운동정보 전송 금지, 수신거부 비용을 수신자가 내지 않게 조치",
+            "url": "https://www.law.go.kr/법령/공직선거법/제82조의5",
+            "review_candidate": false,
+            "quote_check": "pass"
+          },
+          {
+            "id": "election-82-5-2",
+            "law": "공직선거법",
+            "article": "제82조의5제2항·제4항·제6항",
+            "title": "선거운동 문자·메일 명시사항·수신거부, 번호 자동생성 전송 금지",
+            "duty": "선거운동정보임, 발신번호, 불법수집정보 신고번호, 수신거부 방법을 명시; 수신거부 회피·번호 자동생성 전송 금지",
+            "url": "https://www.law.go.kr/법령/공직선거법/제82조의5",
+            "review_candidate": false,
+            "quote_check": "pass"
+          },
+          {
+            "id": "netact-50-1",
+            "law": "정보통신망 이용촉진 및 정보보호 등에 관한 법률",
+            "article": "제50조제1항 (영 제61조제1항)",
+            "title": "광고성 정보는 수신자의 명시적 사전 동의 뒤 전송 [과태료 3천만·과징금]",
+            "duty": "문자·이메일·푸시 등으로 광고를 보내려면 수신자의 명시적 사전 동의(예외: 거래 종료 후 6개월 내 같은 종류 재화 광고 등)",
+            "url": "https://www.law.go.kr/법령/정보통신망이용촉진및정보보호등에관한법률/제50조",
+            "review_candidate": true,
+            "quote_check": "pass"
+          },
+          {
+            "id": "netact-50-2",
+            "law": "정보통신망 이용촉진 및 정보보호 등에 관한 법률",
+            "article": "제50조제2항",
+            "title": "수신거부·동의철회한 사람에게 광고 전송 금지 [과태료 3천만·과징금]",
+            "duty": "수신거부 의사를 표시하거나 동의를 철회한 수신자에게는 광고를 보내지 않음(거래 기반 예외 대상자 포함)",
+            "url": "https://www.law.go.kr/법령/정보통신망이용촉진및정보보호등에관한법률/제50조",
+            "review_candidate": true,
+            "quote_check": "pass"
+          },
+          {
+            "id": "netact-50-3",
+            "law": "정보통신망 이용촉진 및 정보보호 등에 관한 법률",
+            "article": "제50조제3항 (영 제61조제2항)",
+            "title": "야간(21시~08시) 광고 전송은 별도 사전 동의(전자우편 제외) [과태료 3천만·과징금]",
+            "duty": "오후 9시~다음 날 오전 8시에 광고를 보내려면 별도 사전 동의(전자우편은 예외)",
+            "url": "https://www.law.go.kr/법령/정보통신망이용촉진및정보보호등에관한법률/제50조",
+            "review_candidate": true,
+            "quote_check": "pass"
+          },
+          {
+            "id": "netact-50-4",
+            "law": "정보통신망 이용촉진 및 정보보호 등에 관한 법률",
+            "article": "제50조제4항 (영 제61조제3항·별표 6)",
+            "title": "광고에 (광고) 표기·전송자 명칭·연락처·수신거부 방법 [과태료 3천만·과징금]",
+            "duty": "광고에 전송자 명칭·연락처와 수신거부·철회 방법을 별표 6이 정한 자리(문자 시작·끝, 이메일 제목·본문)에 밝힘",
+            "url": "https://www.law.go.kr/법령/정보통신망이용촉진및정보보호등에관한법률/제50조",
+            "review_candidate": true,
+            "quote_check": "pass"
+          },
+          {
+            "id": "netact-50-4-3",
+            "law": "정보통신망 이용촉진 및 정보보호 등에 관한 법률",
+            "article": "제50조의4제3항",
+            "title": "광고성 정보를 이유로 역무 제공을 거부하면 이용자에게 알림 [과징금(제50조의9)]",
+            "duty": "광고성 정보 때문에 역무 제공을 거부(계정 정지·해지)하면 그 사실을 이용자 등 이해관계인에게 미리, 곤란하면 거부 뒤 지체 없이 알림",
+            "url": "https://www.law.go.kr/법령/정보통신망이용촉진및정보보호등에관한법률/제50조의4",
+            "review_candidate": false,
+            "quote_check": "pass"
+          },
+          {
+            "id": "netact-50-5-h1",
+            "law": "정보통신망 이용촉진 및 정보보호 등에 관한 법률",
+            "article": "제50조제5항제1호 (관련: 영 제61조제3항 별표 6 공통 1·2 — 별표 6은 법 제50조제4항 위임)",
+            "title": "수신거부·철회를 피하거나 방해하는 행위 금지 [벌칙 1년·과징금]",
+            "duty": "수신거부·동의철회를 회피·방해하지 않음 — (광고) 표시 조작 금지, 거부 시 연락처 외 정보 요구 금지(별표 6 공통)",
+            "url": "https://www.law.go.kr/법령/정보통신망이용촉진및정보보호등에관한법률/제50조",
+            "review_candidate": false,
+            "quote_check": "pass"
+          },
+          {
+            "id": "netact-50-5-h2",
+            "law": "정보통신망 이용촉진 및 정보보호 등에 관한 법률",
+            "article": "제50조제5항제2호·제3호",
+            "title": "연락처 자동 생성·자동 등록 금지 [벌칙 1년·과징금]",
+            "duty": "숫자·문자 조합으로 전화번호·이메일을 자동 생성하거나 광고 목적으로 연락처를 자동 등록하지 않음",
+            "url": "https://www.law.go.kr/법령/정보통신망이용촉진및정보보호등에관한법률/제50조",
+            "review_candidate": false,
+            "quote_check": "pass"
+          },
+          {
+            "id": "netact-50-5-h4",
+            "law": "정보통신망 이용촉진 및 정보보호 등에 관한 법률",
+            "article": "제50조제5항제4호·제5호",
+            "title": "전송자 신원·출처 은폐와 기망 회신 유도 금지 [벌칙 1년·과징금]",
+            "duty": "전송자 신원이나 광고 전송 출처를 감추지 않고, 수신자를 속여 회신을 유도하지 않음",
+            "url": "https://www.law.go.kr/법령/정보통신망이용촉진및정보보호등에관한법률/제50조",
+            "review_candidate": false,
+            "quote_check": "pass"
+          },
+          {
+            "id": "netact-50-6",
+            "law": "정보통신망 이용촉진 및 정보보호 등에 관한 법률",
+            "article": "제50조제6항 (영 제62조·별표 6)",
+            "title": "수신거부·철회 비용을 수신자가 내지 않게(무료 수신거부) [과태료 3천만·과징금]",
+            "duty": "수신거부·철회에 전화요금 등 비용이 들지 않게 무료 수신거부 수단을 명시해 제공",
+            "url": "https://www.law.go.kr/법령/정보통신망이용촉진및정보보호등에관한법률/제50조",
+            "review_candidate": true,
+            "quote_check": "pass"
+          },
+          {
+            "id": "netact-50-7",
+            "law": "정보통신망 이용촉진 및 정보보호 등에 관한 법률",
+            "article": "제50조제7항 (영 제62조의2)",
+            "title": "수신동의·거부·철회 처리 결과를 14일 안에 알림 [과태료 1천만·과징금]",
+            "duty": "수신동의·거부·철회 의사를 받으면 14일 안에 전송자 명칭, 의사 표시 사실과 날짜, 처리 결과를 수신자에게 알림",
+            "url": "https://www.law.go.kr/법령/정보통신망이용촉진및정보보호등에관한법률/제50조",
+            "review_candidate": true,
+            "quote_check": "pass"
+          },
+          {
+            "id": "netact-50-8",
+            "law": "정보통신망 이용촉진 및 정보보호 등에 관한 법률",
+            "article": "제50조제8항 (영 제62조의3)",
+            "title": "광고 수신동의는 2년마다 재확인 [과태료 3천만·과징금]",
+            "duty": "동의받은 날부터 2년마다 전송자 명칭, 동의 사실·날짜, 유지·철회 방법을 밝혀 수신동의 여부를 확인",
+            "url": "https://www.law.go.kr/법령/정보통신망이용촉진및정보보호등에관한법률/제50조",
+            "review_candidate": true,
+            "quote_check": "pass"
+          },
+          {
+            "id": "pipa-26-3",
+            "law": "개인정보 보호법",
+            "article": "제26조제3항(시행령 제28조제4항)",
+            "title": "홍보·판매 권유 업무를 위탁하면 서면등으로 정보주체에게 알림 [과태료 3천만]",
+            "duty": "홍보·판매 권유 업무를 위탁하면 업무 내용과 수탁자를 서면등의 방법으로 알림(바뀔 때도)",
+            "url": "https://www.law.go.kr/법령/개인정보보호법/제26조",
+            "review_candidate": false,
+            "quote_check": "pass"
+          },
+          {
+            "id": "telecom-84-2-2",
+            "law": "전기통신사업법",
+            "article": "제84조의2제2항(제1항)",
+            "title": "영리 목적 발신번호 변작 가능 서비스 제공 금지 [3년]",
+            "duty": "송신인 전화번호를 변작하는 등 거짓 표시할 수 있는 서비스를 영리 목적으로 제공하지 않기(공익·수신인 편의 등 정당한 사유 예외)",
+            "url": "https://www.law.go.kr/법령/전기통신사업법/제84조의2",
+            "review_candidate": true,
+            "quote_check": "pass"
+          }
+        ]
+      }
+    }
+  ],
+  "common": {
+    "name": "거의 모든 서비스",
+    "duties": {
+      "count": 18,
+      "review_candidates": 4,
+      "items": [
+        {
+          "id": "cloudact-27-1",
+          "law": "클라우드컴퓨팅 발전 및 이용자 보호에 관한 법률",
+          "article": "제27조제1항",
+          "title": "이용자 정보 무동의 제3자 제공·목적 외 이용 금지",
+          "duty": "법원 제출명령·영장이 아니면 이용자 동의 없이 이용자 정보를 제3자 제공·서비스 목적 외 이용 금지",
+          "url": "https://www.law.go.kr/법령/클라우드컴퓨팅발전및이용자보호에관한법률/제27조",
+          "review_candidate": false,
+          "quote_check": "pass"
+        },
+        {
+          "id": "cloudact-27-2",
+          "law": "클라우드컴퓨팅 발전 및 이용자 보호에 관한 법률",
+          "article": "제27조제2항",
+          "title": "이용자 정보 제공·목적 외 이용 시 5개 사항 고지·동의",
+          "duty": "이용자 정보 제3자 제공·목적 외 이용 때 받는 자·목적·항목·보유기간·거부권과 불이익을 알리고 동의(변경 시 재동의)",
+          "url": "https://www.law.go.kr/법령/클라우드컴퓨팅발전및이용자보호에관한법률/제27조",
+          "review_candidate": false,
+          "quote_check": "pass"
+        },
+        {
+          "id": "cloudact-27-3",
+          "law": "클라우드컴퓨팅 발전 및 이용자 보호에 관한 법률",
+          "article": "제27조제3항(영 제19조제4항)",
+          "title": "계약 종료 시 이용자 정보 반환·파기",
+          "duty": "이용 계약이 끝나면 이용자 정보를 활용 가능한 상태로 반환하고 보유분은 파기(계약으로 달리 정할 수 있음, 제5항)",
+          "url": "https://www.law.go.kr/법령/클라우드컴퓨팅발전및이용자보호에관한법률/제27조",
+          "review_candidate": false,
+          "quote_check": "pass"
+        },
+        {
+          "id": "cloudact-decree-19-1",
+          "law": "클라우드컴퓨팅 발전 및 이용자 보호에 관한 법률 시행령",
+          "article": "제19조제1항",
+          "title": "계약 종료 30일 전 반환·파기 안내 통지",
+          "duty": "계약 종료 30일 전까지 종료 일시·반환 요구권·미반환 시 파기·반환 방법·담당 연락처를 이용자에게 통지",
+          "url": "https://www.law.go.kr/법령/클라우드컴퓨팅발전및이용자보호에관한법률시행령/제19조",
+          "review_candidate": false,
+          "quote_check": "pass"
+        },
+        {
+          "id": "cloudact-decree-19-5",
+          "law": "클라우드컴퓨팅 발전 및 이용자 보호에 관한 법률 시행령",
+          "article": "제19조제5항",
+          "title": "이용자 정보 파기는 복원 불가능한 영구 삭제",
+          "duty": "계약·사업 종료로 이용자 정보를 파기할 때 복원이 불가능한 방법으로 영구 삭제",
+          "url": "https://www.law.go.kr/법령/클라우드컴퓨팅발전및이용자보호에관한법률시행령/제19조",
+          "review_candidate": false,
+          "quote_check": "pass"
+        },
+        {
+          "id": "commsecret-decree-41-2",
+          "law": "통신비밀보호법 시행령",
+          "article": "시행령 제41조제2항(법 제15조의2제2항)",
+          "title": "통신사실확인자료(로그·접속지) 보관기간",
+          "duty": "인터넷 로그기록·접속지 추적자료는 3개월 이상, 통신일시 등은 12개월 이상 보관",
+          "url": "https://www.law.go.kr/법령/통신비밀보호법시행령/제41조",
+          "review_candidate": false,
+          "quote_check": "pass"
+        },
+        {
+          "id": "netact-48-2",
+          "law": "정보통신망 이용촉진 및 정보보호 등에 관한 법률",
+          "article": "제48조제2항",
+          "title": "악성프로그램 전달·유포 금지 [벌칙 7년]",
+          "duty": "정당한 사유 없이 시스템·데이터·프로그램을 훼손·변경하거나 운용을 방해할 수 있는 프로그램을 전달·유포하지 않음",
+          "url": "https://www.law.go.kr/법령/정보통신망이용촉진및정보보호등에관한법률/제48조",
+          "review_candidate": false,
+          "quote_check": "pass"
+        },
+        {
+          "id": "pipa-26-5",
+          "law": "개인정보 보호법",
+          "article": "제26조제5항",
+          "title": "수탁자는 위탁받은 업무 범위를 넘어 이용·제공 금지 [형벌 5년]",
+          "duty": "위탁받은 업무 범위를 넘어 개인정보를 이용하거나 제3자에게 제공하지 않음",
+          "url": "https://www.law.go.kr/법령/개인정보보호법/제26조",
+          "review_candidate": false,
+          "quote_check": "pass"
+        },
+        {
+          "id": "pipa-29-1",
+          "law": "개인정보 보호법",
+          "article": "제29조(시행령 제30조제1항, 안전성 확보조치 기준)",
+          "title": "유출등이 없게 접근권한·접근통제·암호화·접속기록 등 안전조치 [과태료 3천만, 유출 시 과징금 연동]",
+          "duty": "유출등이 되지 않도록 내부 관리계획·접근권한·접근통제·암호화·접속기록 등 시행령 제30조 안전조치",
+          "url": "https://www.law.go.kr/법령/개인정보보호법/제29조",
+          "review_candidate": true,
+          "quote_check": "pass"
+        },
+        {
+          "id": "pipa-30-1",
+          "law": "개인정보 보호법",
+          "article": "제30조제1항(시행령 제31조제1항)",
+          "title": "필수 기재 사항을 담은 개인정보 처리방침 수립 [과태료 1천만]",
+          "duty": "목적·보유기간·제3자 제공·파기·위탁·권리 행사·보호책임자·쿠키 등 자동수집장치를 담은 처리방침 수립",
+          "url": "https://www.law.go.kr/법령/개인정보보호법/제30조",
+          "review_candidate": false,
+          "quote_check": "pass"
+        },
+        {
+          "id": "pipa-30-2",
+          "law": "개인정보 보호법",
+          "article": "제30조제2항(시행령 제31조제2항)",
+          "title": "처리방침을 홈페이지에 지속 게재 [과태료 1천만]",
+          "duty": "처리방침을 수립·변경하면 정보주체가 쉽게 확인하도록 공개(인터넷 홈페이지에 지속 게재)",
+          "url": "https://www.law.go.kr/법령/개인정보보호법/제30조",
+          "review_candidate": false,
+          "quote_check": "pass"
+        },
+        {
+          "id": "pipa-34-2-1",
+          "law": "개인정보 보호법",
+          "article": "제34조의2제1항",
+          "title": "고유식별·계좌·카드정보 등이 정보통신망으로 공중에 노출되지 않게",
+          "duty": "고유식별정보·계좌정보·신용카드정보 등이 정보통신망을 통해 공중에 노출되지 않도록 함",
+          "url": "https://www.law.go.kr/법령/개인정보보호법/제34조의2",
+          "review_candidate": true,
+          "quote_check": "pass"
+        },
+        {
+          "id": "pipa-stdguide-20-1",
+          "law": "표준 개인정보 보호지침",
+          "article": "제20조제1항",
+          "title": "처리방침은 \"개인정보 처리방침\" 이름으로, 글자 크기·색으로 다른 고지와 구분해 게재",
+          "duty": "홈페이지에 지속 게재하며 \"개인정보 처리방침\" 명칭을 쓰고 글자 크기·색상 등으로 다른 고지사항과 구분",
+          "url": "https://www.law.go.kr/행정규칙/표준개인정보보호지침",
+          "review_candidate": false,
+          "quote_check": "pass"
+        },
+        {
+          "id": "pipa-stdguide-21-1",
+          "law": "표준 개인정보 보호지침",
+          "article": "제21조",
+          "title": "처리방침을 바꾸면 시행 시기·변경 내용을 공개하고 변경 전·후를 비교",
+          "duty": "처리방침 변경 시 변경·시행 시기와 변경 내용을 지속 공개하고 변경 전·후를 비교해 보여줌",
+          "url": "https://www.law.go.kr/행정규칙/표준개인정보보호지침",
+          "review_candidate": false,
+          "quote_check": "pass"
+        },
+        {
+          "id": "safety-std-6-3",
+          "law": "개인정보의 안전성 확보조치 기준",
+          "article": "제6조제3항",
+          "title": "홈페이지·공유설정 등으로 권한 없는 자에게 공개·유출되지 않게 [과태료 3천만·유출 시 과징금]",
+          "duty": "처리하는 개인정보가 홈페이지·P2P·공유설정 등으로 권한 없는 자에게 공개·유출되지 않도록 시스템·PC·모바일에 조치",
+          "url": "https://www.law.go.kr/행정규칙/개인정보의안전성확보조치기준",
+          "review_candidate": true,
+          "quote_check": "pass"
+        },
+        {
+          "id": "safety-std-7-4",
+          "law": "개인정보의 안전성 확보조치 기준",
+          "article": "제7조제4항(영 제30조제1항제4호다목)",
+          "title": "인터넷 구간으로 개인정보를 주고받을 땐 암호화(TLS) [과태료 3천만·유출 시 과징금]",
+          "duty": "개인정보를 정보통신망을 통해 인터넷망 구간으로 송·수신할 때 안전한 암호 알고리즘으로 암호화",
+          "url": "https://www.law.go.kr/행정규칙/개인정보의안전성확보조치기준",
+          "review_candidate": true,
+          "quote_check": "pass"
+        },
+        {
+          "id": "safety-std-7-6",
+          "law": "개인정보의 안전성 확보조치 기준",
+          "article": "제7조제6항",
+          "title": "암호 키 생성·이용·보관·배포·파기 절차 수립·시행(대기업 10만명·중소 100만명 이상) [과태료 3천만·유출 시 과징금]",
+          "duty": "암호화된 개인정보를 안전하게 보관하도록 암호 키의 생성·이용·보관·배포·파기 절차를 수립·시행",
+          "url": "https://www.law.go.kr/행정규칙/개인정보의안전성확보조치기준",
+          "review_candidate": false,
+          "quote_check": "pass"
+        },
+        {
+          "id": "secguide-annex1-2-2-10",
+          "law": "정보보호조치에 관한 지침",
+          "article": "별표 1 2.2.10 (제3조, 법 제45조제2항)",
+          "title": "로그 최소 1개월 보관(정보보호시스템 3개월) [권고 기준]",
+          "duty": "웹서버·DB서버 등 설비의 로그 기록을 최소 1개월(정보보호시스템 3개월) 이상 유지·관리",
+          "url": "https://www.law.go.kr/행정규칙/정보보호조치에관한지침",
+          "review_candidate": false,
+          "quote_check": "pass"
+        }
+      ]
+    }
+  },
+  "status": {
+    "name": "지위에 따라 걸리는 의무",
+    "count": 257,
+    "note": "공공기관·금융회사 등 운영 주체의 지위로 걸리는 의무입니다. 코드로 가리지 않아 목록에 싣지 않습니다."
+  },
+  "test_only": [],
+  "totals": {
+    "features": 1,
+    "duties": 35,
+    "review_candidates": 13
+  }
+}

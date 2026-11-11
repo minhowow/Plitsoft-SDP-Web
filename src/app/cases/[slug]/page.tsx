@@ -11,7 +11,7 @@ import { keepArticle } from "@/components/text";
 import { caseStatus, casePolicies, casesFile, casesHref, clearedByAi, findCase, isNewByAi } from "@/lib/cases";
 import { CASE_STORIES } from "@/lib/cases/stories";
 import { findPolicy, policyHref, primaryLaw } from "@/lib/pack";
-import { CASE_PROFILES } from "@/lib/profile";
+import { CASE_PROFILES } from "@/lib/profile/example";
 import { SITE } from "@/lib/site";
 
 type Params = { params: Promise<{ slug: string }> };

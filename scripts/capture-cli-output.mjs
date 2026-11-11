@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// 합성 데모 코드(contract/fixtures)를 설치된 policypack CLI 로 검사해 contract/cli-current/ 를 다시 만든다.
+// 합성 데모 코드(contract/fixtures)를 설치된 policypack CLI 로 검사해 contract/cli-current/ 를 다시 만든다. 저장소 프로필
+// (`policypack profile`, CLI fe98fb7 부터)도 표본마다 contract/cli-current/profile/<표본>.json 에 함께 남긴다.
 //
 // CLI 소스를 가져다 쓰지 않는다. 격리된 환경에 설치한 `policypack` 명령만 부른다.
 //   POLICYPACK_FROM  설치 출처. 기본값은 옆 폴더의 CLI 저장소(../Plitsoft-SDP).
@@ -99,9 +100,10 @@ function main() {
   cpSync(fixturesDir, fixtures, { recursive: true });
 
   rmSync(stagingDir, { recursive: true, force: true });
-  mkdirSync(stagingDir, { recursive: true });
+  mkdirSync(path.join(stagingDir, "profile"), { recursive: true });
 
   const files = [];
+  const profiles = [];
   let packDigest = null;
   let engine = null;
 
@@ -130,7 +132,13 @@ function main() {
         const sarif = parseOutput(policypack(["scan", "src/", "--output-format", "sarif"], cwd), name, "SARIF 출력");
         writeFileSync(path.join(stagingDir, `${name}.sarif`), JSON.stringify(sarif, null, 2) + "\n");
       }
-      console.log(`${name}: 종료 코드 ${scan.status}, 판정 단위 ${report.run.units}, 발견 ${report.findings.length}`);
+      // 저장소 프로필. 모델을 부르지 않는다. 검사와 달리 폴더 전체를 본다(package.json 등).
+      const profiled = policypack(["profile", "."], cwd);
+      if (profiled.status !== 0) throw new Error(`${name}: policypack profile 이 종료 코드 ${profiled.status} 로 끝났습니다.\n${profiled.stderr}`);
+      const profile = parseOutput(profiled, name, "policypack profile");
+      writeFileSync(path.join(stagingDir, "profile", `${name}.json`), JSON.stringify(profile, null, 2) + "\n");
+      profiles.push({ name, file: `profile/${name}.json`, features: profile.features.map((feature) => feature.id) });
+      console.log(`${name}: 종료 코드 ${scan.status}, 판정 단위 ${report.run.units}, 발견 ${report.findings.length}, 기능 ${profile.features.length}`);
     }
   }
 
@@ -165,6 +173,8 @@ function main() {
     command: "policypack scan src/ --output-format json   (판정자 없음, 기본값)",
     normalized: ["run.static_seconds", "run.ai_seconds"],
     files,
+    profile_command: "policypack profile .",
+    profiles,
   };
   writeFileSync(path.join(stagingDir, "MANIFEST.json"), JSON.stringify(manifest, null, 2) + "\n");
 

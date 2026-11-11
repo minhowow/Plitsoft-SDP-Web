@@ -1,0 +1,616 @@
+{
+  "profile_version": 1,
+  "tool": {
+    "name": "policypack",
+    "version": "0.3.0.dev0"
+  },
+  "files": {
+    "source": 1,
+    "service": 1,
+    "test_or_config": 0,
+    "package_json": 0
+  },
+  "service_features": 2,
+  "features": [
+    {
+      "id": "genai",
+      "name": "AI 기능(생성형 AI·자동화 결정)",
+      "evidence": [
+        {
+          "file": "src/chat/ChatPanel.tsx",
+          "line": 1,
+          "signal": "import",
+          "value": "@ai-sdk/react",
+          "what": "@ai-sdk/react 를 불러옴"
+        }
+      ],
+      "evidence_total": 1,
+      "duties": {
+        "count": 13,
+        "review_candidates": 5,
+        "items": [
+          {
+            "id": "aiact-31-1",
+            "law": "인공지능 발전과 신뢰 기반 조성 등에 관한 기본법",
+            "article": "제31조제1항(시행령 제23조제1항·제4항)",
+            "title": "고영향·생성형 AI 기반 서비스 사전 고지 [과태료 3천만]",
+            "duty": "생성형·고영향 AI로 운용되는 제품·서비스임을 이용자에게 사전에 고지(화면 표시·약관 기재·게시 등)",
+            "url": "https://www.law.go.kr/법령/인공지능발전과신뢰기반조성등에관한기본법/제31조",
+            "review_candidate": true,
+            "quote_check": "pass"
+          },
+          {
+            "id": "aiact-31-2",
+            "law": "인공지능 발전과 신뢰 기반 조성 등에 관한 기본법",
+            "article": "제31조제2항(시행령 제23조제2항·제4항)",
+            "title": "생성형 AI 결과물 표시",
+            "duty": "생성형 AI 결과물에 AI 생성 사실을 표시(사람이 인식하는 방법, 또는 기계판독 표시 + 1회 이상 안내 문구·음성)",
+            "url": "https://www.law.go.kr/법령/인공지능발전과신뢰기반조성등에관한기본법/제31조",
+            "review_candidate": true,
+            "quote_check": "pass"
+          },
+          {
+            "id": "aiact-31-3",
+            "law": "인공지능 발전과 신뢰 기반 조성 등에 관한 기본법",
+            "article": "제31조제3항(시행령 제23조제3항)",
+            "title": "실제와 구분 어려운 AI 음향·이미지·영상의 명확한 고지·표시",
+            "duty": "딥페이크류 결과물은 AI 생성임을 이용자가 명확히 알게 고지·표시(이용자 나이 고려, 예술물은 감상 방해 않게)",
+            "url": "https://www.law.go.kr/법령/인공지능발전과신뢰기반조성등에관한기본법/제31조",
+            "review_candidate": true,
+            "quote_check": "pass"
+          },
+          {
+            "id": "aiact-34-1-h2",
+            "law": "인공지능 발전과 신뢰 기반 조성 등에 관한 기본법",
+            "article": "제34조제1항제2호(시행령 제27조제1항제2호·제3항)",
+            "title": "고영향 AI 결과 설명 방안 수립·시행",
+            "duty": "고영향 AI의 최종결과·주요 판단 기준·학습데이터 개요를 기술적으로 가능한 범위에서 설명하는 방안을 수립·시행",
+            "url": "https://www.law.go.kr/법령/인공지능발전과신뢰기반조성등에관한기본법/제34조",
+            "review_candidate": false,
+            "quote_check": "pass"
+          },
+          {
+            "id": "aiact-34-1-h4",
+            "law": "인공지능 발전과 신뢰 기반 조성 등에 관한 기본법",
+            "article": "제34조제1항제4호(시행령 제27조제1항제4호)",
+            "title": "고영향 AI에 대한 사람의 관리·감독",
+            "duty": "고영향 AI 판단에 사람의 관리·감독을 두기(관리·감독자 성명·연락처 게시는 시행령 제27조제1항)",
+            "url": "https://www.law.go.kr/법령/인공지능발전과신뢰기반조성등에관한기본법/제34조",
+            "review_candidate": false,
+            "quote_check": "pass"
+          },
+          {
+            "id": "aiact-decree-27-1",
+            "law": "인공지능 발전과 신뢰 기반 조성 등에 관한 기본법 시행령",
+            "article": "시행령 제27조제1항(법 제34조제1항)",
+            "title": "고영향 AI 조치 내용 홈페이지 게시",
+            "duty": "위험관리·설명 방안 주요 내용, 이용자 보호 방안, 관리·감독자 성명·연락처를 사업장·홈페이지에 게시",
+            "url": "https://www.law.go.kr/법령/인공지능발전과신뢰기반조성등에관한기본법시행령/제27조",
+            "review_candidate": true,
+            "quote_check": "pass"
+          },
+          {
+            "id": "election-82-8-1",
+            "law": "공직선거법",
+            "article": "제82조의8제1항·제2항",
+            "title": "선거운동 딥페이크 90일 전부터 금지·그 외 기간 AI 표시",
+            "duty": "선거일 전 90일~선거일 선거운동용 딥페이크 제작·유포 금지, 그 외 기간은 AI 가상정보임을 표시",
+            "url": "https://www.law.go.kr/법령/공직선거법/제82조의8",
+            "review_candidate": false,
+            "quote_check": "pass"
+          },
+          {
+            "id": "fla-endorse-5-5",
+            "law": "추천ㆍ보증 등에 관한 표시ㆍ광고 심사지침",
+            "article": "Ⅴ.5.가·나",
+            "title": "AI 가상인물 추천·보증은 가상인물임을 공개 [법 제3조 위반 판단 기준]",
+            "duty": "인공지능 등으로 만든 실제와 구분 어려운 가상인물이 추천·보증하면 가상인물임을 제목·첫 부분이나 등장 위치 근처에 명확히 표시",
+            "url": "https://www.law.go.kr/행정규칙/추천ㆍ보증등에관한표시ㆍ광고심사지침",
+            "review_candidate": true,
+            "quote_check": "pass"
+          },
+          {
+            "id": "netact-44-8-1",
+            "law": "정보통신망 이용촉진 및 정보보호 등에 관한 법률",
+            "article": "제44조의8",
+            "title": "만 14세 미만 대상 대화형 서비스(챗봇)의 부적절 정보 차단 [노력 의무]",
+            "duty": "만 14세 미만 아동에게 문자·음성 대화형 시스템(챗봇 등) 기반 서비스를 제공하면 부적절한 정보가 제공되지 않도록 노력",
+            "url": "https://www.law.go.kr/법령/정보통신망이용촉진및정보보호등에관한법률/제44조의8",
+            "review_candidate": false,
+            "quote_check": "pass"
+          },
+          {
+            "id": "pipa-37-2-3",
+            "law": "개인정보 보호법",
+            "article": "제37조의2제3항(시행령 제44조의2·제44조의3)",
+            "title": "자동화된 결정의 거부·설명 요구에 적용 중지·사람 재처리·설명 [과태료 3천만]",
+            "duty": "자동화된 결정을 거부하거나 설명을 요구하면 정당한 사유가 없는 한 적용 중지·인적 재처리·설명 등 조치",
+            "url": "https://www.law.go.kr/법령/개인정보보호법/제37조의2",
+            "review_candidate": false,
+            "quote_check": "pass"
+          },
+          {
+            "id": "pipa-37-2-4",
+            "law": "개인정보 보호법",
+            "article": "제37조의2제4항(시행령 제44조의4)",
+            "title": "자동화된 결정의 기준·절차·처리 방식을 쉽게 확인하게 공개",
+            "duty": "자동화된 결정의 기준과 절차, 개인정보가 처리되는 방식을 정보주체가 쉽게 확인하게 공개",
+            "url": "https://www.law.go.kr/법령/개인정보보호법/제37조의2",
+            "review_candidate": false,
+            "quote_check": "pass"
+          },
+          {
+            "id": "sexcrime-14-2-1",
+            "law": "성폭력범죄의 처벌 등에 관한 특례법",
+            "article": "제14조의2제1항·제2항",
+            "title": "실존 인물 성적 허위영상물(딥페이크) 편집·합성·반포 금지",
+            "duty": "대상자 의사에 반해 성적 수치심 유발 형태로 얼굴·신체·음성을 편집·합성하거나 반포 금지",
+            "url": "https://www.law.go.kr/법령/성폭력범죄의처벌등에관한특례법/제14조의2",
+            "review_candidate": false,
+            "quote_check": "pass"
+          },
+          {
+            "id": "unfair-2-1-ta",
+            "law": "부정경쟁방지 및 영업비밀보호에 관한 법률",
+            "article": "제2조제1호타목",
+            "title": "유명인 성명·초상·음성 무단 상업 사용(AI 음성·얼굴 합성)",
+            "duty": "널리 알려진 타인의 성명·초상·음성 등을 무단으로 자기 영업에 사용 금지",
+            "url": "https://www.law.go.kr/법령/부정경쟁방지및영업비밀보호에관한법률/제2조",
+            "review_candidate": false,
+            "quote_check": "pass"
+          }
+        ]
+      }
+    },
+    {
+      "id": "external-transfer",
+      "name": "외부 업체·국외로 개인정보 전송(외부 AI 포함)",
+      "evidence": [
+        {
+          "file": "src/chat/ChatPanel.tsx",
+          "line": 1,
+          "signal": "import",
+          "value": "@ai-sdk/react",
+          "what": "@ai-sdk/react 를 불러옴"
+        }
+      ],
+      "evidence_total": 1,
+      "duties": {
+        "count": 6,
+        "review_candidates": 2,
+        "items": [
+          {
+            "id": "pipa-17-1",
+            "law": "개인정보 보호법",
+            "article": "제17조제1항",
+            "title": "제3자 제공은 동의 또는 법정 수집 목적 범위에서만 [과징금 매출 3%·형벌 5년]",
+            "duty": "동의나 제15조제1항제2·3·5~7호 수집 목적 범위가 아니면 제3자 제공(공유 포함) 금지",
+            "url": "https://www.law.go.kr/법령/개인정보보호법/제17조",
+            "review_candidate": false,
+            "quote_check": "pass"
+          },
+          {
+            "id": "pipa-17-2",
+            "law": "개인정보 보호법",
+            "article": "제17조제2항",
+            "title": "제3자 제공 동의 때 받는 자·목적·항목·보유기간·거부권 고지 [위반 시 동의 무효 → 제17조제1항]",
+            "duty": "제공 동의 때 받는 자·목적·항목·보유기간·거부권(불이익) 알리고, 바꾸면 다시 동의",
+            "url": "https://www.law.go.kr/법령/개인정보보호법/제17조",
+            "review_candidate": true,
+            "quote_check": "pass"
+          },
+          {
+            "id": "pipa-26-2",
+            "law": "개인정보 보호법",
+            "article": "제26조제2항(시행령 제28조제2항)",
+            "title": "위탁 업무와 수탁자(재수탁자 포함)를 홈페이지에 공개 [과태료 1천만]",
+            "duty": "위탁 업무 내용과 수탁자(재수탁자 포함)를 정보주체가 언제든 쉽게 확인하게 공개(홈페이지 지속 게재)",
+            "url": "https://www.law.go.kr/법령/개인정보보호법/제26조",
+            "review_candidate": false,
+            "quote_check": "pass"
+          },
+          {
+            "id": "pipa-28-8-1",
+            "law": "개인정보 보호법",
+            "article": "제28조의8제1항(시행령 제29조의7)",
+            "title": "국외 제공·처리위탁·보관은 별도 동의·처리방침 공개 등 근거가 있을 때만 [과징금 매출 3%]",
+            "duty": "국외 제공(조회 포함)·처리위탁·보관은 별도 동의·법률·계약상 위탁+공개·인증·적정성 인정 중 하나일 때만",
+            "url": "https://www.law.go.kr/법령/개인정보보호법/제28조의8",
+            "review_candidate": false,
+            "quote_check": "pass"
+          },
+          {
+            "id": "pipa-28-8-2",
+            "law": "개인정보 보호법",
+            "article": "제28조의8제2항·제3항",
+            "title": "국외 이전 동의 때 항목·국가·시기·방법·받는 자·목적·보유기간·거부 방법 미리 고지 [위반 시 동의 무효 → 제1항]",
+            "duty": "국외 이전 동의 전에 항목·국가·시기·방법·받는 자·목적·보유기간·거부 방법과 효과를 알림(바뀌면 재동의)",
+            "url": "https://www.law.go.kr/법령/개인정보보호법/제28조의8",
+            "review_candidate": true,
+            "quote_check": "pass"
+          },
+          {
+            "id": "pipa-stdguide-7-3",
+            "law": "표준 개인정보 보호지침",
+            "article": "제7조제3항·제8조제3항",
+            "title": "제3자 제공을 알릴 때 제공받는 자의 명칭과 연락처를 함께",
+            "duty": "제3자 제공 동의(법 제17조②1)·목적 외 제공 고지(법 제18조③1)에서 제공받는 자의 성명(명칭)과 연락처를 함께 알림",
+            "url": "https://www.law.go.kr/행정규칙/표준개인정보보호지침",
+            "review_candidate": false,
+            "quote_check": "pass"
+          }
+        ]
+      }
+    },
+    {
+      "id": "web-ui",
+      "name": "웹 화면(접근성)",
+      "evidence": [
+        {
+          "file": "src/chat/ChatPanel.tsx",
+          "line": null,
+          "signal": "screens",
+          "value": "screen",
+          "what": "화면 파일(JSX·TSX)"
+        }
+      ],
+      "evidence_total": 1,
+      "duties": {
+        "count": 15,
+        "review_candidates": 3,
+        "items": [
+          {
+            "id": "dincl-19-2",
+            "law": "디지털포용법",
+            "article": "제19조제2항",
+            "title": "지능정보사업자의 접근성 노력",
+            "duty": "서비스·제품을 디지털취약계층이 쉽게 접근·이용하도록 설계·제공 노력(노력 의무, 벌칙 없음)",
+            "url": "https://www.law.go.kr/법령/디지털포용법/제19조",
+            "review_candidate": true,
+            "quote_check": "pass"
+          },
+          {
+            "id": "disc-decree-14-2-h1",
+            "law": "장애인차별금지 및 권리구제 등에 관한 법률 시행령",
+            "article": "제14조제2항제1호(별표 3)",
+            "title": "접근성이 보장되는 웹사이트",
+            "duty": "신체적·기술적 여건과 관계없이 쓸 수 있도록 접근성이 보장되는 웹사이트 제공",
+            "url": "https://www.law.go.kr/법령/장애인차별금지및권리구제등에관한법률시행령/제14조",
+            "review_candidate": true,
+            "quote_check": "pass"
+          },
+          {
+            "id": "dvnotice-10-1",
+            "law": "디지털취약계층의 정보 접근 및 이용 편의 증진을 위한 고시",
+            "article": "제10조(별표 2 제10조)",
+            "title": "화면 확대 등 시력 보완 수단",
+            "duty": "시각 입출력에 청각·촉각 대체나 확대 기능 같은 보완 수단 제공(확대 막지 않기)",
+            "url": "https://www.law.go.kr/행정규칙/디지털취약계층의정보접근및이용편의증진을위한고시",
+            "review_candidate": false,
+            "quote_check": "pass"
+          },
+          {
+            "id": "dvnotice-12-1",
+            "law": "디지털취약계층의 정보 접근 및 이용 편의 증진을 위한 고시",
+            "article": "제12조제1항·제2항(별표 2 제12조)",
+            "title": "소리로만 알리는 상태·출력에 시각·촉각 대체",
+            "duty": "결과·상태를 소리로만 전하지 말고 화면 글자·진동 등 대체와 음량 조절 수단 제공",
+            "url": "https://www.law.go.kr/행정규칙/디지털취약계층의정보접근및이용편의증진을위한고시",
+            "review_candidate": false,
+            "quote_check": "pass"
+          },
+          {
+            "id": "dvnotice-13-1",
+            "law": "디지털취약계층의 정보 접근 및 이용 편의 증진을 위한 고시",
+            "article": "제13조",
+            "title": "음성 입력만 받지 말고 대체 입력 제공",
+            "duty": "음성입력을 요구하는 서비스는 손·팔 동작 등 대체 입력·제어 기능 제공",
+            "url": "https://www.law.go.kr/행정규칙/디지털취약계층의정보접근및이용편의증진을위한고시",
+            "review_candidate": true,
+            "quote_check": "pass"
+          },
+          {
+            "id": "dvnotice-16-2-web-alt",
+            "law": "디지털취약계층의 정보 접근 및 이용 편의 증진을 위한 고시",
+            "article": "제16조제2항 별표 3(웹 1.1·2.14)",
+            "title": "웹: 텍스트 아닌 콘텐츠의 대체 텍스트",
+            "duty": "이미지·아이콘 등 텍스트 아닌 콘텐츠에 뜻·용도를 알 수 있는 대체 텍스트 제공",
+            "url": "https://www.law.go.kr/행정규칙/디지털취약계층의정보접근및이용편의증진을위한고시",
+            "review_candidate": false,
+            "quote_check": "mismatch"
+          },
+          {
+            "id": "dvnotice-16-2-web-forms",
+            "law": "디지털취약계층의 정보 접근 및 이용 편의 증진을 위한 고시",
+            "article": "제16조제2항 별표 3(웹 3.4·3.5·3.6·3.7)",
+            "title": "웹: 입력 레이블·오류 정정·접근 가능한 인증·자동 입력",
+            "duty": "입력마다 레이블, 오류 정정 방법, 인지 테스트에 기대지 않는 인증, 반복 입력 자동 입력 제공",
+            "url": "https://www.law.go.kr/행정규칙/디지털취약계층의정보접근및이용편의증진을위한고시",
+            "review_candidate": false,
+            "quote_check": "mismatch"
+          },
+          {
+            "id": "dvnotice-16-2-web-input",
+            "law": "디지털취약계층의 정보 접근 및 이용 편의 증진을 위한 고시",
+            "article": "제16조제2항 별표 3(웹 2.4·2.15)",
+            "title": "웹: 한 글자 단축키 오동작 방지·동작기반 기능 대체",
+            "duty": "한 글자 단축키는 끄거나 바꿀 수 있게, 흔들기·기울이기 기능은 화면 컨트롤 대체·끄기 제공",
+            "url": "https://www.law.go.kr/행정규칙/디지털취약계층의정보접근및이용편의증진을위한고시",
+            "review_candidate": false,
+            "quote_check": "mismatch"
+          },
+          {
+            "id": "dvnotice-16-2-web-keyboard",
+            "law": "디지털취약계층의 정보 접근 및 이용 편의 증진을 위한 고시",
+            "article": "제16조제2항 별표 3(웹 2.1·2.2·2.12·2.13)",
+            "title": "웹: 키보드만으로 사용·보이는 초점",
+            "duty": "모든 기능을 키보드만으로 쓰고 초점이 논리적으로, 눈에 보이게 이동",
+            "url": "https://www.law.go.kr/행정규칙/디지털취약계층의정보접근및이용편의증진을위한고시",
+            "review_candidate": false,
+            "quote_check": "mismatch"
+          },
+          {
+            "id": "dvnotice-16-2-web-media",
+            "law": "디지털취약계층의 정보 접근 및 이용 편의 증진을 위한 고시",
+            "article": "제16조제2항 별표 3(웹 1.2·1.7)",
+            "title": "웹: 자막 제공·소리 자동 재생 금지",
+            "duty": "멀티미디어에 자막·대본·수어 제공, 소리 자동 재생 금지",
+            "url": "https://www.law.go.kr/행정규칙/디지털취약계층의정보접근및이용편의증진을위한고시",
+            "review_candidate": false,
+            "quote_check": "mismatch"
+          },
+          {
+            "id": "dvnotice-16-2-web-motion",
+            "law": "디지털취약계층의 정보 접근 및 이용 편의 증진을 위한 고시",
+            "article": "제16조제2항 별표 3(웹 2.6·2.7·3.2)",
+            "title": "웹: 자동 변경 콘텐츠 정지·깜빡임 제한·예상 못 한 새 창 금지",
+            "duty": "자동 변경 콘텐츠는 멈출 수 있게, 초당 3~50회 깜빡임 금지, 예상 못 한 새 창·맥락 변화 금지",
+            "url": "https://www.law.go.kr/행정규칙/디지털취약계층의정보접근및이용편의증진을위한고시",
+            "review_candidate": false,
+            "quote_check": "mismatch"
+          },
+          {
+            "id": "dvnotice-16-2-web-robust",
+            "law": "디지털취약계층의 정보 접근 및 이용 편의 증진을 위한 고시",
+            "article": "제16조제2항 별표 3(웹 1.5·1.6·1.8·4.1·4.2)",
+            "title": "웹: 색 무관 인식·명도 대비·웹 애플리케이션 접근성",
+            "duty": "색·모양에만 기대지 않는 정보, 글자 명도 대비 4.5:1 이상, 직접 만든 위젯의 접근성",
+            "url": "https://www.law.go.kr/행정규칙/디지털취약계층의정보접근및이용편의증진을위한고시",
+            "review_candidate": false,
+            "quote_check": "mismatch"
+          },
+          {
+            "id": "dvnotice-16-2-web-structure",
+            "law": "디지털취약계층의 정보 접근 및 이용 편의 증진을 위한 고시",
+            "article": "제16조제2항 별표 3(웹 2.8·2.9·3.1·1.3·2.10)",
+            "title": "웹: 건너뛰기·제목·기본 언어·표·링크 텍스트",
+            "duty": "반복 영역 건너뛰기, 페이지·프레임 제목, 기본 언어, 이해하기 쉬운 표·링크 텍스트 제공",
+            "url": "https://www.law.go.kr/행정규칙/디지털취약계층의정보접근및이용편의증진을위한고시",
+            "review_candidate": false,
+            "quote_check": "mismatch"
+          },
+          {
+            "id": "dvnotice-9-1",
+            "law": "디지털취약계층의 정보 접근 및 이용 편의 증진을 위한 고시",
+            "article": "제9조제1항",
+            "title": "시간 제한이 있는 입력은 반응시간 조정 수단",
+            "duty": "일정 시간 안에 반응을 요구하는 입력·제어 기능에 반응시간 조정 수단 제공",
+            "url": "https://www.law.go.kr/행정규칙/디지털취약계층의정보접근및이용편의증진을위한고시",
+            "review_candidate": false,
+            "quote_check": "pass"
+          },
+          {
+            "id": "dvnotice-9-2",
+            "law": "디지털취약계층의 정보 접근 및 이용 편의 증진을 위한 고시",
+            "article": "제9조제2항(별표 2 제9조)",
+            "title": "일정 시간만 보이는 출력은 시간·속도 조정 수단",
+            "duty": "자동으로 사라지거나 흐르는 출력(알림·티커)에 출력시간·속도 조정 수단 제공",
+            "url": "https://www.law.go.kr/행정규칙/디지털취약계층의정보접근및이용편의증진을위한고시",
+            "review_candidate": false,
+            "quote_check": "mismatch"
+          }
+        ]
+      }
+    }
+  ],
+  "common": {
+    "name": "거의 모든 서비스",
+    "duties": {
+      "count": 18,
+      "review_candidates": 4,
+      "items": [
+        {
+          "id": "cloudact-27-1",
+          "law": "클라우드컴퓨팅 발전 및 이용자 보호에 관한 법률",
+          "article": "제27조제1항",
+          "title": "이용자 정보 무동의 제3자 제공·목적 외 이용 금지",
+          "duty": "법원 제출명령·영장이 아니면 이용자 동의 없이 이용자 정보를 제3자 제공·서비스 목적 외 이용 금지",
+          "url": "https://www.law.go.kr/법령/클라우드컴퓨팅발전및이용자보호에관한법률/제27조",
+          "review_candidate": false,
+          "quote_check": "pass"
+        },
+        {
+          "id": "cloudact-27-2",
+          "law": "클라우드컴퓨팅 발전 및 이용자 보호에 관한 법률",
+          "article": "제27조제2항",
+          "title": "이용자 정보 제공·목적 외 이용 시 5개 사항 고지·동의",
+          "duty": "이용자 정보 제3자 제공·목적 외 이용 때 받는 자·목적·항목·보유기간·거부권과 불이익을 알리고 동의(변경 시 재동의)",
+          "url": "https://www.law.go.kr/법령/클라우드컴퓨팅발전및이용자보호에관한법률/제27조",
+          "review_candidate": false,
+          "quote_check": "pass"
+        },
+        {
+          "id": "cloudact-27-3",
+          "law": "클라우드컴퓨팅 발전 및 이용자 보호에 관한 법률",
+          "article": "제27조제3항(영 제19조제4항)",
+          "title": "계약 종료 시 이용자 정보 반환·파기",
+          "duty": "이용 계약이 끝나면 이용자 정보를 활용 가능한 상태로 반환하고 보유분은 파기(계약으로 달리 정할 수 있음, 제5항)",
+          "url": "https://www.law.go.kr/법령/클라우드컴퓨팅발전및이용자보호에관한법률/제27조",
+          "review_candidate": false,
+          "quote_check": "pass"
+        },
+        {
+          "id": "cloudact-decree-19-1",
+          "law": "클라우드컴퓨팅 발전 및 이용자 보호에 관한 법률 시행령",
+          "article": "제19조제1항",
+          "title": "계약 종료 30일 전 반환·파기 안내 통지",
+          "duty": "계약 종료 30일 전까지 종료 일시·반환 요구권·미반환 시 파기·반환 방법·담당 연락처를 이용자에게 통지",
+          "url": "https://www.law.go.kr/법령/클라우드컴퓨팅발전및이용자보호에관한법률시행령/제19조",
+          "review_candidate": false,
+          "quote_check": "pass"
+        },
+        {
+          "id": "cloudact-decree-19-5",
+          "law": "클라우드컴퓨팅 발전 및 이용자 보호에 관한 법률 시행령",
+          "article": "제19조제5항",
+          "title": "이용자 정보 파기는 복원 불가능한 영구 삭제",
+          "duty": "계약·사업 종료로 이용자 정보를 파기할 때 복원이 불가능한 방법으로 영구 삭제",
+          "url": "https://www.law.go.kr/법령/클라우드컴퓨팅발전및이용자보호에관한법률시행령/제19조",
+          "review_candidate": false,
+          "quote_check": "pass"
+        },
+        {
+          "id": "commsecret-decree-41-2",
+          "law": "통신비밀보호법 시행령",
+          "article": "시행령 제41조제2항(법 제15조의2제2항)",
+          "title": "통신사실확인자료(로그·접속지) 보관기간",
+          "duty": "인터넷 로그기록·접속지 추적자료는 3개월 이상, 통신일시 등은 12개월 이상 보관",
+          "url": "https://www.law.go.kr/법령/통신비밀보호법시행령/제41조",
+          "review_candidate": false,
+          "quote_check": "pass"
+        },
+        {
+          "id": "netact-48-2",
+          "law": "정보통신망 이용촉진 및 정보보호 등에 관한 법률",
+          "article": "제48조제2항",
+          "title": "악성프로그램 전달·유포 금지 [벌칙 7년]",
+          "duty": "정당한 사유 없이 시스템·데이터·프로그램을 훼손·변경하거나 운용을 방해할 수 있는 프로그램을 전달·유포하지 않음",
+          "url": "https://www.law.go.kr/법령/정보통신망이용촉진및정보보호등에관한법률/제48조",
+          "review_candidate": false,
+          "quote_check": "pass"
+        },
+        {
+          "id": "pipa-26-5",
+          "law": "개인정보 보호법",
+          "article": "제26조제5항",
+          "title": "수탁자는 위탁받은 업무 범위를 넘어 이용·제공 금지 [형벌 5년]",
+          "duty": "위탁받은 업무 범위를 넘어 개인정보를 이용하거나 제3자에게 제공하지 않음",
+          "url": "https://www.law.go.kr/법령/개인정보보호법/제26조",
+          "review_candidate": false,
+          "quote_check": "pass"
+        },
+        {
+          "id": "pipa-29-1",
+          "law": "개인정보 보호법",
+          "article": "제29조(시행령 제30조제1항, 안전성 확보조치 기준)",
+          "title": "유출등이 없게 접근권한·접근통제·암호화·접속기록 등 안전조치 [과태료 3천만, 유출 시 과징금 연동]",
+          "duty": "유출등이 되지 않도록 내부 관리계획·접근권한·접근통제·암호화·접속기록 등 시행령 제30조 안전조치",
+          "url": "https://www.law.go.kr/법령/개인정보보호법/제29조",
+          "review_candidate": true,
+          "quote_check": "pass"
+        },
+        {
+          "id": "pipa-30-1",
+          "law": "개인정보 보호법",
+          "article": "제30조제1항(시행령 제31조제1항)",
+          "title": "필수 기재 사항을 담은 개인정보 처리방침 수립 [과태료 1천만]",
+          "duty": "목적·보유기간·제3자 제공·파기·위탁·권리 행사·보호책임자·쿠키 등 자동수집장치를 담은 처리방침 수립",
+          "url": "https://www.law.go.kr/법령/개인정보보호법/제30조",
+          "review_candidate": false,
+          "quote_check": "pass"
+        },
+        {
+          "id": "pipa-30-2",
+          "law": "개인정보 보호법",
+          "article": "제30조제2항(시행령 제31조제2항)",
+          "title": "처리방침을 홈페이지에 지속 게재 [과태료 1천만]",
+          "duty": "처리방침을 수립·변경하면 정보주체가 쉽게 확인하도록 공개(인터넷 홈페이지에 지속 게재)",
+          "url": "https://www.law.go.kr/법령/개인정보보호법/제30조",
+          "review_candidate": false,
+          "quote_check": "pass"
+        },
+        {
+          "id": "pipa-34-2-1",
+          "law": "개인정보 보호법",
+          "article": "제34조의2제1항",
+          "title": "고유식별·계좌·카드정보 등이 정보통신망으로 공중에 노출되지 않게",
+          "duty": "고유식별정보·계좌정보·신용카드정보 등이 정보통신망을 통해 공중에 노출되지 않도록 함",
+          "url": "https://www.law.go.kr/법령/개인정보보호법/제34조의2",
+          "review_candidate": true,
+          "quote_check": "pass"
+        },
+        {
+          "id": "pipa-stdguide-20-1",
+          "law": "표준 개인정보 보호지침",
+          "article": "제20조제1항",
+          "title": "처리방침은 \"개인정보 처리방침\" 이름으로, 글자 크기·색으로 다른 고지와 구분해 게재",
+          "duty": "홈페이지에 지속 게재하며 \"개인정보 처리방침\" 명칭을 쓰고 글자 크기·색상 등으로 다른 고지사항과 구분",
+          "url": "https://www.law.go.kr/행정규칙/표준개인정보보호지침",
+          "review_candidate": false,
+          "quote_check": "pass"
+        },
+        {
+          "id": "pipa-stdguide-21-1",
+          "law": "표준 개인정보 보호지침",
+          "article": "제21조",
+          "title": "처리방침을 바꾸면 시행 시기·변경 내용을 공개하고 변경 전·후를 비교",
+          "duty": "처리방침 변경 시 변경·시행 시기와 변경 내용을 지속 공개하고 변경 전·후를 비교해 보여줌",
+          "url": "https://www.law.go.kr/행정규칙/표준개인정보보호지침",
+          "review_candidate": false,
+          "quote_check": "pass"
+        },
+        {
+          "id": "safety-std-6-3",
+          "law": "개인정보의 안전성 확보조치 기준",
+          "article": "제6조제3항",
+          "title": "홈페이지·공유설정 등으로 권한 없는 자에게 공개·유출되지 않게 [과태료 3천만·유출 시 과징금]",
+          "duty": "처리하는 개인정보가 홈페이지·P2P·공유설정 등으로 권한 없는 자에게 공개·유출되지 않도록 시스템·PC·모바일에 조치",
+          "url": "https://www.law.go.kr/행정규칙/개인정보의안전성확보조치기준",
+          "review_candidate": true,
+          "quote_check": "pass"
+        },
+        {
+          "id": "safety-std-7-4",
+          "law": "개인정보의 안전성 확보조치 기준",
+          "article": "제7조제4항(영 제30조제1항제4호다목)",
+          "title": "인터넷 구간으로 개인정보를 주고받을 땐 암호화(TLS) [과태료 3천만·유출 시 과징금]",
+          "duty": "개인정보를 정보통신망을 통해 인터넷망 구간으로 송·수신할 때 안전한 암호 알고리즘으로 암호화",
+          "url": "https://www.law.go.kr/행정규칙/개인정보의안전성확보조치기준",
+          "review_candidate": true,
+          "quote_check": "pass"
+        },
+        {
+          "id": "safety-std-7-6",
+          "law": "개인정보의 안전성 확보조치 기준",
+          "article": "제7조제6항",
+          "title": "암호 키 생성·이용·보관·배포·파기 절차 수립·시행(대기업 10만명·중소 100만명 이상) [과태료 3천만·유출 시 과징금]",
+          "duty": "암호화된 개인정보를 안전하게 보관하도록 암호 키의 생성·이용·보관·배포·파기 절차를 수립·시행",
+          "url": "https://www.law.go.kr/행정규칙/개인정보의안전성확보조치기준",
+          "review_candidate": false,
+          "quote_check": "pass"
+        },
+        {
+          "id": "secguide-annex1-2-2-10",
+          "law": "정보보호조치에 관한 지침",
+          "article": "별표 1 2.2.10 (제3조, 법 제45조제2항)",
+          "title": "로그 최소 1개월 보관(정보보호시스템 3개월) [권고 기준]",
+          "duty": "웹서버·DB서버 등 설비의 로그 기록을 최소 1개월(정보보호시스템 3개월) 이상 유지·관리",
+          "url": "https://www.law.go.kr/행정규칙/정보보호조치에관한지침",
+          "review_candidate": false,
+          "quote_check": "pass"
+        }
+      ]
+    }
+  },
+  "status": {
+    "name": "지위에 따라 걸리는 의무",
+    "count": 257,
+    "note": "공공기관·금융회사 등 운영 주체의 지위로 걸리는 의무입니다. 코드로 가리지 않아 목록에 싣지 않습니다."
+  },
+  "test_only": [],
+  "totals": {
+    "features": 3,
+    "duties": 52,
+    "review_candidates": 14
+  }
+}

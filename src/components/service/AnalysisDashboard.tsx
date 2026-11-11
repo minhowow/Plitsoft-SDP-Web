@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import type { CodeSource } from "@/components/result/PolicyCard";
 import { ReportSummary, type Statute } from "@/components/result/ReportSummary";
 import { ObligationTier, ProfileTier, Tier } from "@/components/result/Tiers";
-import type { ExampleProfile } from "@/lib/profile";
+import type { ExampleProfile } from "@/lib/profile/example";
 import type { ReportView } from "@/lib/report/view-model";
 
 export type { Statute } from "@/components/result/ReportSummary";

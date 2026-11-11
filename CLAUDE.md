@@ -72,7 +72,7 @@ npm run pack-meta   # 팩에서 data/pack-meta.json 다시 만들기
 - 새 수집본이 계약 시험을 깨면(예: CLI 출력 모양이 바뀜) 파서를 서둘러 고치지 말고 수집본을 되돌린 뒤
   `docs/ROADMAP.md` 의 "사람 결정이 필요한 것"에 적는다. 출력 계약을 바꾸는 것(새 결과 판, `--agent` 처럼 뜻이 다른 출력을
   받기)은 관문 G1 의 일이다. 2026-11-03 에 고정 CLI(`7300205`)의 결과 판 1(`schema_version: 1`)은 받았고,
-  2026-11-10 에 고정 판을 `handoff-w11`(`50c70bc`)로, 2026-11-11 에 `handoff-w11-2`(`54e048a`, 발견마다 파일 역할)로 옮겼다.
+  2026-11-10 에 고정 판을 `handoff-w11`(`50c70bc`)로, 2026-11-11 에 `handoff-w11-2`(`54e048a`, 발견마다 파일 역할), 같은 날 `handoff-w11-3`(`fe98fb7`, 저장소 프로필)으로 옮겼다.
 - 수집본, `data/pack-meta.json`, 실행기의 `CLI_COMMIT`·`CLI_EXCLUDE_NEWER` 는 같은 CLI 커밋이어야 한다(시험이 본다).
   CLI 를 따라가는 때와 순서는 `docs/cli-followup.md` 에 있다. 원격에 없는 CLI 커밋은 고정하지 않는다.
 - `scripts/export-pack-meta.mjs` 는 팩의 필드를 그대로 옮기기만 한다. 읽는 필드를 더하는 것은 된다. Semgrep 패턴이나
