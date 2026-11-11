@@ -4125,7 +4125,7 @@ table.tbl {
   color: inherit;
 }
 
-/* 맨 위 경고: 다 보지 못한 검사. 노란 머리 띠와 그 아래 "다 보지 못한 것" 표. */
+/* 다 보지 못한 검사(요약 아래, 접어 둔다). 노란 머리 띠와 펼치면 그 아래 "다 보지 못한 것" 표. */
 .warn {
   min-width: 0;
   border: 1px solid var(--warn-border);
@@ -4145,14 +4145,58 @@ table.tbl {
   padding: var(--space-3) var(--space-4);
 }
 
-/* 요약 한 줄: 숫자인 사실만. 위아래 옅은 줄. */
+details.coverage-warning > summary.warn-hd {
+  padding-left: 40px;
+}
+
+details.coverage-warning > summary.warn-hd::before {
+  left: 20px;
+  top: calc(10px + 0.75em - 4px);
+}
+
+details.coverage-warning[open] > summary.warn-hd::before {
+  top: calc(10px + 0.75em - 5px);
+}
+
+details.coverage-warning:not([open]) > summary.warn-hd {
+  border-bottom: 0;
+}
+
+/* 요약: 사람이 볼 곳 N건과 정책마다의 수(정책 상자로 가는 링크). 정책은 한 줄에 이어 두고 넘치면 다음 줄로. */
+.headline {
+  display: grid;
+  gap: var(--space-1);
+  line-height: var(--leading-snug);
+}
+
+.headline strong {
+  font-size: var(--text-xl);
+  font-weight: 600;
+}
+
+.hl-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hl-list b {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 요약 아래의 옅은 줄: 숫자인 사실만. 아래 옅은 줄. */
 .sumline {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-1) var(--space-5);
-  padding: var(--space-3) 0;
-  border-top: 1px solid var(--rule-muted);
+  margin-top: calc(var(--space-3) - var(--space-5));
+  padding-bottom: var(--space-3);
   border-bottom: 1px solid var(--rule-muted);
+  font-size: var(--text-sm);
 }
 
 .sumline .lbl {
@@ -4325,7 +4369,7 @@ table.tbl {
   color: var(--muted);
 }
 
-/* 같은 규칙이 여러 곳일 때의 묶음 머리: 메시지, 규칙 id · N곳, 접힌 곳의 상태 수. */
+/* 같은 규칙이 여러 곳일 때의 묶음 머리: 메시지와 N곳, 질문, 접힌 곳의 상태 수. */
 .rule-group {
   min-width: 0;
 }
@@ -4341,20 +4385,24 @@ table.tbl {
   color: var(--muted);
 }
 
-.rule-head .msg {
+.rule-head h3,
+.rule-head > .ask-line {
   flex-basis: 100%;
-  font-size: var(--text-md);
-  color: var(--ink);
 }
 
 .rule-head h3 {
-  font-size: var(--text-xs);
+  font-size: var(--text-md);
   font-weight: 400;
   line-height: var(--leading-snug);
-  color: var(--muted);
+  color: var(--ink);
 }
 
-.rule-head h3 code,
+.rule-n {
+  font-size: var(--text-xs);
+  color: var(--muted);
+  white-space: nowrap;
+}
+
 .rule-count {
   font-size: var(--text-xs);
 }
@@ -4368,44 +4416,46 @@ table.tbl {
   border-top: 1px solid var(--rule-muted);
 }
 
-.finding,
-.finding > details {
+.finding {
   min-width: 0;
 }
 
-/* 발견 줄: 첫 줄은 CLI 가 낸 대안 메시지(원문), 둘째 줄은 위치와 판정 범위. 꺾쇠는 줄 왼쪽(위의 details 규칙). */
-.finding > details > summary {
-  display: block;
-  padding: 10px var(--space-4) 10px 40px;
-}
-
-.finding > details > summary::before {
-  left: 20px;
-  top: calc(10px + 0.75em - 4px);
-}
-
-.finding > details[open] > summary::before {
-  top: calc(10px + 0.75em - 5px);
-}
-
-@media (hover: hover) {
-  .finding > details > summary:hover {
-    background: var(--bg-muted);
-  }
-}
-
+/* 발견 하나: 메시지(CLI 가 낸 대안 메시지 원문), 위치와 판정 범위, 질문. 그 아래 접힌 `자세히`. */
 .finding-head {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 2px var(--space-2);
   align-items: start;
   min-width: 0;
+  padding: 10px var(--space-4) var(--space-1);
   line-height: var(--leading-snug);
 }
 
 .finding-head > .msg,
-.finding-head > .loc {
+.finding-head > .loc,
+.finding-head > .ask-line {
   grid-column: 1;
+}
+
+/* 확인 질문 한 줄: 이름표(12px) | 질문. */
+.ask-line {
+  display: block;
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+  color: var(--ink);
+}
+
+.ask-line > .lbl {
+  margin-right: var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+
+details.f-more > summary {
+  width: fit-content;
+  margin: 0 var(--space-4) var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--muted);
 }
 
 .finding-head > .chip {
@@ -4426,6 +4476,18 @@ table.tbl {
   min-width: 0;
 }
 
+/* 분석 쪽의 위치는 GitHub 의 커밋 고정 링크다. */
+.loc a.gh {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.loc a.gh code {
+  color: inherit;
+}
+
 /* 판정이 본 범위(파일 전체·함수). 닫힌 줄에서도 줄 번호 옆에 늘 보인다. */
 .finding-scope {
   white-space: nowrap;
@@ -4435,9 +4497,9 @@ table.tbl {
   font-size: var(--text-sm);
 }
 
-/* 펼친 안쪽: 줄의 글과 같은 자리(꺾쇠 다음)에서 시작한다. */
+/* `자세히` 의 안쪽: 그 이름의 글과 같은 자리(꺾쇠 다음)에서 시작한다. */
 .finding-body {
-  padding: 0 var(--space-4) var(--space-4) 40px;
+  padding: 0 var(--space-4) var(--space-4) calc(var(--space-4) + 20px);
   display: grid;
   gap: 10px;
   min-width: 0;
@@ -4500,20 +4562,9 @@ table.tbl {
   color: inherit;
 }
 
-.fd-more {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  gap: var(--space-2) var(--space-5);
-}
-
 details.path-fold > summary {
   width: fit-content;
   color: var(--ink);
-}
-
-.path-fold[open] {
-  flex-basis: 100%;
 }
 
 /* 판정 경로는 CLI 가 남긴 문장이다. 그대로 보인다. */
@@ -4523,13 +4574,6 @@ details.path-fold > summary {
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   line-height: var(--leading-snug);
-}
-
-.gh {
-  margin-left: auto;
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
 }
 
 /* 같은 규칙의 나머지(접힌 곳). */
@@ -4590,7 +4634,7 @@ details.lg[open] > summary::before {
   white-space: pre-wrap;
 }
 
-/* AI 가 푼 경고, 적용 질문으로 빠진 판정. 펼친 채로 둔다. */
+/* AI 가 푼 경고(펼친 채), 적용 질문으로 빠진 판정(접어 둔다). */
 details.ai-box > summary {
   padding: var(--space-2) var(--space-4) var(--space-2) 40px;
   min-height: var(--row-h);
@@ -5205,12 +5249,14 @@ details.side-pol[open] > summary.box-hd::before {
     line-height: var(--leading-loose);
   }
 
-  .finding > details > summary {
-    padding: 10px var(--space-3) 10px 36px;
+  .finding-head {
+    padding-right: var(--space-3);
+    padding-left: var(--space-3);
   }
 
-  .finding > details > summary::before {
-    left: 16px;
+  details.f-more > summary {
+    margin-right: var(--space-3);
+    margin-left: var(--space-3);
   }
 
   .finding-body,

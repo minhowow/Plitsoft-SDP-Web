@@ -10,6 +10,7 @@ import { LATEST_FINDINGS, LatestAnalysis } from "@/components/service/repository
 import { SearchHome, SearchResults } from "@/components/service/SearchResults";
 import { keepArticle } from "@/components/text";
 import { packMeta, policyHref } from "@/lib/pack";
+import { paragraphOf } from "@/lib/pack/legal";
 import { parseReport } from "@/lib/report/parse";
 import type { Report } from "@/lib/report/types";
 import { buildReportView, type ReportView } from "@/lib/report/view-model";
@@ -494,8 +495,16 @@ describe("대시보드", () => {
     }
     // 접힌 채로 둔다(details, open 없음). 이름은 "근거 조문 원문"이다. 조문 이름은 상자 머리의 조문 링크와 다를 때만 덧붙인다
     // (같은 사실을 한 상자에 두 번 적지 않는다).
-    const folds = html.match(/<details class="lg"><summary>근거 조문 원문(?: <span class="lg-name">[^<]*<\/span>)?<\/summary>/g) ?? [];
+    const folds = html.match(/<details class="lg statute"><summary>근거 조문 원문(?: <span class="lg-name">[^<]*<\/span>)?<\/summary>/g) ?? [];
     expect(folds).toHaveLength(withFindings.filter((p) => statutes[p.id]).length);
+    // (2026-11-11 오너 지시) 펼치면 조문 이름의 항만 먼저 보이고(원문에서 그대로 잘라 낸 것), 조문 전체는 그 안에서 다시 펼친다.
+    for (const policy of withFindings.filter((p) => statutes[p.id])) {
+      const statute = statutes[policy.id]!;
+      const part = paragraphOf(statute.label, statute.text);
+      if (part === null) continue;
+      expect(statute.text).toContain(part);
+      expect(html).toContain(`<div class="legal-text">${textOf(renderToStaticMarkup(<pre>{part}</pre>))}</div><details class="lg legal-all"><summary>조문 전체</summary>`);
+    }
     for (const policy of withFindings.filter((p) => statutes[p.id])) {
       const named = html.includes(`근거 조문 원문 <span class="lg-name">${statutes[policy.id]!.label}</span>`);
       if (statutes[policy.id]!.label === policy.law) expect(named).toBe(false);
@@ -526,7 +535,7 @@ describe("대시보드", () => {
     const html = renderToStaticMarkup(<AnalysisDashboard view={view} code={{ htmlUrl: base, commit }} />);
     const links = [
       ...html.matchAll(
-        /<a class="gh" href="([^"]+)" target="_blank" rel="noopener noreferrer">GitHub 에서 이 줄 보기<svg[^]*?<\/svg><span class="visually-hidden">\(새 창, 커밋 bbbbbbb 에 고정\)<\/span><\/a>/g,
+        /<a class="gh" href="([^"]+)" target="_blank" rel="noopener noreferrer"><code>[^]*?<\/code><svg[^]*?<\/svg><span class="visually-hidden">\(GitHub, 새 창, 커밋 bbbbbbb 에 고정\)<\/span><\/a>/g,
       ),
     ].map((m) => m[1]);
     expect(links).toHaveLength(view.findingCount);

@@ -593,7 +593,7 @@ describe("커버리지 보기 (다 보지 못한 것)", () => {
     expect(warning({ incomplete: ["src/auth/signup.ts"] })?.lead).toBe("다 보지 못한 검사입니다.");
     expect(warning({ engine_errors: ["[Fatal error] x"] })?.lead).toBe("다 보지 못한 검사입니다.");
     // 검사한 파일이 없으면 CLI 는 coverage_complete: true 로 낸다. 그래도 알린다.
-    expect(warning({ files: 0 })).toEqual({ lead: "검사한 파일이 없습니다.", detail: null });
+    expect(warning({ files: 0 })).toEqual({ lead: "검사한 파일이 없습니다.", detail: null, counts: null });
     // 파일 수가 실려 있지 않은 것은 0과 다르다.
     const noCount: Partial<Report["run"]> = { ...base.run };
     delete noCount.files;

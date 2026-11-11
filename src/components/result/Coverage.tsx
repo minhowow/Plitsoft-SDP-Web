@@ -135,8 +135,8 @@ function GapDetail({ row }: { row: GapRow }) {
 }
 
 /**
- * 맨 위 경고(docs/redesign.md 3장 "분석"). 다 보지 못했거나, 검사한 파일이 없거나, 엔진을 돌리지 않은 결과에만 있다. 결과 화면의
- * 첫 상자다. 머리에 굵은 첫 문장과 나머지를 적고, 그 아래에 "다 보지 못한 것" 표를 둔다.
+ * 다 보지 못했다는 경고(2026-11-11 오너 지시). 다 보지 못했거나, 검사한 파일이 없거나, 엔진을 돌리지 않은 결과에만 있다. 결과
+ * 화면의 요약 바로 아래에 접어 둔다. 접힌 머리에도 굵은 첫 문장과 목록에 든 것의 수가 늘 보이고, 펼치면 "다 보지 못한 것" 표다.
  *
  * 표는 세 목록(검사하지 않은 파일, 일부를 읽지 못한 파일, 엔진이 끝내지 못한 파일)을 늘 같은 순서로 보인다. 든 것이 없는 줄은
  * 이름과 "없음"만 보이고, 든 것이 있는 줄에만 뜻과 파일이 붙는다. 엔진 오류는 있을 때만 넷째 줄이다. 경고가 없는 결과에는 표도
@@ -147,14 +147,15 @@ function GapDetail({ row }: { row: GapRow }) {
  */
 export function CoverageWarning({ summary }: { summary: CoverageSummary }) {
   if (!summary.warning) return null;
+  const rest = summary.warning.counts ?? summary.warning.detail;
   return (
-    <section className="warn coverage-warning" aria-labelledby="coverage-warning-title">
-      <p className="warn-hd" id="coverage-warning-title">
+    <details className="warn coverage-warning">
+      <summary className="warn-hd">
         <strong>{summary.warning.lead}</strong>
-        {summary.warning.detail && ` ${summary.warning.detail}`}
-      </p>
+        {rest && ` ${rest}`}
+      </summary>
       <GapTable summary={summary} />
-    </section>
+    </details>
   );
 }
 

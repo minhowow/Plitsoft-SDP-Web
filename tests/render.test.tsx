@@ -1,7 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { ReportSummary } from "@/components/result/ReportSummary";
-import { blocksToggle } from "@/components/result/selection";
 import { packMeta } from "@/lib/pack";
 import { SHOWN_PER_LIST } from "@/lib/report/coverage";
 import { parseReport } from "@/lib/report/parse";
@@ -50,26 +49,32 @@ function ruleGroup(html: string, rule: string): string {
 }
 
 /**
- * 발견 줄 하나를 뜯어 본 것. `summary` 는 줄이 닫혀 있어도 보이는 부분이고, 나머지는 펼쳐야 보인다.
+ * 발견 줄 하나를 뜯어 본 것. `summary` 는 늘 보이는 부분(메시지, 위치, 질문)이고, 나머지는 `자세히` 를 펼쳐야 보인다
+ * (2026-11-11 오너 지시. 그 전에는 줄 전체가 펼침 단추였다).
  * (D5) 줄의 상태는 정책과 다를 때만 칩으로 보이고, 같으면 화면 낭독기에만 읽힌다(docs/redesign.md 3장). 둘 가운데 있는 것을 읽는다.
  * 대안 id 는 대안마다가 아니라 펼친 안쪽의 id 줄(`<p class="ids">`)에 모여 있다.
  */
 function rowParts(row: string) {
-  const summary = elementAt(row, row.indexOf("<summary>"));
+  const summary = elementAt(row, row.indexOf('<div class="finding-head">'));
   const part = (open: string) => {
     const at = summary.indexOf(open);
     return at === -1 ? null : textOf(elementAt(summary, at));
   };
-  const hidden = elementsOf(summary, '<span class="visually-hidden">').map(textOf);
+  // 위치 링크 안의 화면 낭독기용 글(새 창, 고정한 커밋)은 상태·규칙이 아니다.
+  const hidden = elementsOf(summary, '<span class="visually-hidden">')
+    .map(textOf)
+    .filter((text) => !text.startsWith("(GitHub"));
   const bodies = elementsOf(row, '<div class="finding-body">');
   const paths = elementsOf(row, '<ol class="path"');
   const ids = elementsOf(row, '<p class="ids">');
   return {
-    /** 처음부터 펼쳐져 있는지. */
-    open: row.startsWith(`${ROW}<details open="">`),
+    /** `자세히` 가 처음부터 펼쳐져 있는지. */
+    open: row.includes('<details class="f-more" open="">'),
     summary,
     /** 줄의 첫 줄(첫 미확인 대안의 메시지). 묶음 머리가 같은 메시지를 적었으면 없다. */
     message: part('<span class="msg">'),
+    /** 줄의 질문(첫 미확인 대안의 질문). 묶음 머리가 같은 질문을 적었으면 없다. 이름표("질문")를 뺀 글. */
+    question: part('<span class="ask-line">')?.replace(/^질문 /, "") ?? null,
     where: part("<code>"),
     scope: part('<span class="finding-scope">'),
     /** 칩이 있으면 칩의 글, 없으면 화면 낭독기에만 읽히는 상태. */
@@ -134,7 +139,7 @@ function notSeenItems(html: string) {
 }
 
 const COVERAGE = '<div class="coverage">';
-const WARNING = '<section class="warn coverage-warning"';
+const WARNING = '<details class="warn coverage-warning"';
 const GAPS = '<table class="gaps';
 const FOLDED = '<details class="fold">';
 
@@ -196,8 +201,8 @@ function coverageParts(html: string) {
     warnAt,
     boxAt,
     tableAt,
-    /** 맨 위 경고의 글(머리 띠). 없으면 null. */
-    warning: warnAt === -1 ? null : textOf(inside(elementAt(html, warnAt), '<p class="warn-hd"')),
+    /** 다 보지 못했다는 경고의 글(접힌 머리 띠). 없으면 null. */
+    warning: warnAt === -1 ? null : textOf(inside(elementAt(html, warnAt), '<summary class="warn-hd"')),
     /** 요약 줄의 검사한 파일 수. */
     files: textOf(elementAt(sumline, sumline.indexOf("<b>", sumline.indexOf("검사한 파일")))),
     /** 검사 정보의 판정 단위 수. */
@@ -320,11 +325,19 @@ describe("커버리지 보기 (다 보지 못한 것)", () => {
   const SKIPPED_NOTE =
     "건너뛴 까닭(1MB 초과, 축소·번들 파일, 읽을 권한 없음, .mts 같은 확장자, UTF-8 아님)은 결과에 실려 있지 않습니다.";
   const CAPTION = "다 보지 못한 것 결과에 실린 목록입니다";
-  /** 맨 위 경고가 가리키는 곳. 그 이름의 표가 경고 아래에 있다. */
-  const POINTER = "아래 '다 보지 못한 것' 표에서 확인하세요.";
-  const TOP = `<section class="report">${WARNING}`;
-  /** 경고가 없는 결과의 첫 줄: 요약 한 줄(docs/redesign.md 3장). */
-  const SUMMARY_FIRST = '<section class="report"><p class="sumline">';
+  /**
+   * 결과의 첫 줄은 경고가 있든 없든 요약(사람이 볼 곳 N건)이다(2026-11-11 오너 지시). 다 보지 못했다는 경고는 요약과 그 아래 옅은
+   * 줄 바로 다음에 접혀 있다. 접힌 머리에는 첫 문장과 목록의 수만 적는다(펼치면 표가 그 아래에 있다).
+   */
+  const SUMMARY_FIRST = '<section class="report"><div class="headline">';
+  const TOP = SUMMARY_FIRST;
+  /** 경고가 요약 바로 아래(옅은 줄 다음)에 있는지. */
+  const warningUnderSummary = (html: string) => {
+    const sumline = html.indexOf('<p class="sumline">');
+    return html.indexOf(WARNING) === sumline + elementAt(html, sumline).length;
+  };
+  /** 표를 가리는 것: 접힌 경고 하나뿐이다. */
+  const WARNING_FOLD = ['<details class="warn coverage-warning">'];
   const NONE = LABELS.map((label) => ({ label, count: "없음", on: false, meaning: null, note: null, shown: [], folded: [], texts: [] }));
 
   const named = (list: string[][]) => list.map((parts) => [parts.join("/"), parts] as const);
@@ -350,15 +363,17 @@ describe("커버리지 보기 (다 보지 못한 것)", () => {
     const html = renderData(data);
     const coverage = coverageParts(html);
 
-    // 경고는 결과 화면의 첫 줄이다. 요약 줄과 발견, 정책 상자보다 앞에 있고, 접혀 있지 않고, 하나뿐이다.
+    // 경고는 요약 바로 아래에 있고 하나뿐이다. 발견과 정책 상자보다 앞이다. 머리(첫 문장과 수)는 접혀 있어도 보인다.
     expect(coverage.warning).toBe(
-      `다 보지 못한 검사입니다. 검사하지 않은 파일 1개 · 일부를 읽지 못한 파일 1개 · 엔진이 끝내지 못한 파일 1개. ${POINTER}`,
+      `다 보지 못한 검사입니다. 검사하지 않은 파일 1개 · 일부를 읽지 못한 파일 1개 · 엔진이 끝내지 못한 파일 1개`,
     );
     expect(html.startsWith(TOP)).toBe(true);
+    expect(warningUnderSummary(html)).toBe(true);
     expect(closedDetailsAt(html, coverage.warnAt)).toEqual([]);
     expect(count(html, WARNING)).toBe(1);
+    expect(coverage.warnAt).toBeLessThan(html.indexOf('<article class="box policy'));
 
-    // "아래 '…' 표"라고 했으니 그 이름의 표가 경고 뒤에 있다. 표는 하나이고, 세 목록이 그 표의 줄이다.
+    // 표는 경고 안에서 머리 뒤에 있다. 표는 하나이고, 세 목록이 그 표의 줄이다.
     expect(count(html, "<table")).toBe(1);
     expect(coverage.tableAt).toBeGreaterThan(coverage.warnAt);
     expect(coverage.caption).toBe(CAPTION);
@@ -371,8 +386,8 @@ describe("커버리지 보기 (다 보지 못한 것)", () => {
       { ...filled, label: LABELS[1], meaning: MEANING.unparsed, note: null, shown: ["src/auth/signup.ts 발견 1건"] },
       { ...filled, label: LABELS[2], meaning: MEANING.incomplete, note: null, shown: ["src/marketing/campaign.ts 발견 3건"] },
     ]);
-    // 표와 그 안의 뜻·파일은 아무것도 펼치지 않아도 보인다.
-    expect(closedDetailsAt(html, coverage.tableAt)).toEqual([]);
+    // 표는 경고를 펼치면 보인다. 그 안의 뜻·파일은 더 펼치지 않아도 보인다.
+    expect(closedDetailsAt(html, coverage.tableAt)).toEqual(WARNING_FOLD);
     expect(elementAt(html, coverage.tableAt)).not.toContain("<details");
     // 경로는 발견 줄과 같은 부품으로 그린다. "/" 뒤마다 줄바꿈 자리가 있어 좁은 화면에서 거기서 줄이 바뀐다.
     expect(pathCells(elementAt(html, coverage.tableAt))).toEqual([
@@ -454,7 +469,7 @@ describe("커버리지 보기 (다 보지 못한 것)", () => {
     const skippedOnly = coverageParts(
       withRun(plain(), { files: 0, engine: null, skipped: ["src/lib/chart.min.js"], coverage_complete: false }),
     );
-    expect(skippedOnly.warning).toBe(`검사한 파일이 없습니다. 검사하지 않은 파일 1개. ${POINTER}`);
+    expect(skippedOnly.warning).toBe(`검사한 파일이 없습니다. 검사하지 않은 파일 1개`);
     expect(skippedOnly.rows![0]).toMatchObject({ count: "1개", on: true, shown: ["src/lib/chart.min.js"] });
   });
 
@@ -503,7 +518,7 @@ describe("커버리지 보기 (다 보지 못한 것)", () => {
     const table = elementAt(html, coverageParts(html).tableAt);
     expect(count(table, FOLDED)).toBe(1);
     expect(table).not.toContain("<details open");
-    expect(coverageParts(html).warning).toBe(`다 보지 못한 검사입니다. 검사하지 않은 파일 5개. ${POINTER}`);
+    expect(coverageParts(html).warning).toBe(`다 보지 못한 검사입니다. 검사하지 않은 파일 5개`);
     // 접어 둔 곳의 경로도 같은 부품으로 그린다.
     expect(pathCells(table)).toEqual(skipped.map((file) => `<code>src/<wbr aria-hidden="true"/>${file.slice(4)}</code>`));
     // 3곳이면 접지 않는다.
@@ -524,10 +539,10 @@ describe("커버리지 보기 (다 보지 못한 것)", () => {
     expect(row.folded).toEqual([
       { summary: `나머지 2개 ${NOTE} 2개`, files: ["src/auth/signup.ts 발견 1건", "src/marketing/campaign.ts 발견 3건"] },
     ]);
-    // 그 수는 접힌 채로 보인다(펼침 단추 안에 있다). 파일마다의 수는 펼쳐야 보인다.
+    // 그 수는 경고를 펼치면 접힌 채로 보인다(펼침 단추 안에 있다). 파일마다의 수는 그것까지 펼쳐야 보인다.
     expect(count(html, NOTE)).toBe(1);
-    expect(closedDetailsAt(html, html.indexOf(NOTE))).toEqual([]);
-    expect(closedDetailsAt(html, html.indexOf("발견 3건"))).toEqual([FOLDED]);
+    expect(closedDetailsAt(html, html.indexOf(NOTE))).toEqual(WARNING_FOLD);
+    expect(closedDetailsAt(html, html.indexOf("발견 3건"))).toEqual([...WARNING_FOLD, FOLDED]);
 
     // 파일의 수를 센다. 발견의 수(1건 + 3건)를 더하지 않는다. 발견이 없는 파일은 세지 않는다.
     expect(rowOf(["src/a.ts", "src/b.ts", "src/c.ts", "src/d.ts", "src/marketing/campaign.ts"]).row.folded).toEqual([
@@ -552,7 +567,7 @@ describe("커버리지 보기 (다 보지 못한 것)", () => {
     const coverage = coverageParts(html);
     // 세 수를 더한 "다 보지 못한 파일 N개"는 없다. 같은 파일을 두 번 세게 된다.
     expect(coverage.warning).toBe(
-      `다 보지 못한 검사입니다. 검사하지 않은 파일 1개 · 일부를 읽지 못한 파일 1개 · 엔진이 끝내지 못한 파일 3개 · 엔진 오류 1건. ${POINTER}`,
+      `다 보지 못한 검사입니다. 검사하지 않은 파일 1개 · 일부를 읽지 못한 파일 1개 · 엔진이 끝내지 못한 파일 3개 · 엔진 오류 1건`,
     );
     expect(coverage.rows!.map((row) => [row.label, row.count])).toEqual([
       [LABELS[0], "1개"],
@@ -615,7 +630,7 @@ describe("커버리지 보기 (다 보지 못한 것)", () => {
     expect(flagOnly.rows).toEqual(NONE);
     // 목록이 비어 있지 않은데 다 봤다고 실린 결과. CLI 는 이렇게 내지 않지만, 연 파일이 그렇다면 목록을 믿는다.
     const listOnly = coverageParts(withRun(kids(), { unparsed: ["src/auth/signup.ts"], coverage_complete: true }));
-    expect(listOnly.warning).toBe(`다 보지 못한 검사입니다. 일부를 읽지 못한 파일 1개. ${POINTER}`);
+    expect(listOnly.warning).toBe(`다 보지 못한 검사입니다. 일부를 읽지 못한 파일 1개`);
     expect(listOnly.rows![1]).toMatchObject({ count: "1개", on: true, shown: ["src/auth/signup.ts 발견 1건"] });
     expect(listOnly.none).toBe(false);
   });
@@ -893,7 +908,7 @@ describe("빈 결과 화면 (발견이 0인 결과)", () => {
       title: PIPA,
       status: "충족 근거 발견",
       units: 1,
-      evidence: ["src/auth/signup.ts:7 에서 대안 under14-branch 확인"],
+      evidence: ["src/auth/signup.ts:7 에서 충족 근거 확인"],
       cleared: null,
     });
     // 가장 먼저 봐야 할 것이 위에 온다.
@@ -987,7 +1002,7 @@ describe("빈 결과 화면 (발견이 0인 결과)", () => {
       title: PIPA,
       status: "충족 근거 발견",
       // 결과의 run.static_cleared 에 실린 파일, 대안이 맞은 줄, 대안 id 그대로다.
-      evidence: ["src/auth/signup.ts:7 에서 대안 under14-branch 확인"],
+      evidence: ["src/auth/signup.ts:7 에서 충족 근거 확인"],
       // 정책별 수는 여전히 결과에 없다. 짐작해 적지 않는다.
       units: null,
     });
@@ -1059,11 +1074,13 @@ describe("빈 결과 화면 (발견이 0인 결과)", () => {
     });
     // 수가 0이어도 판정한 곳이 없다고 하지 않는다. 빠진 곳이 있었다.
     expect(empty.text).not.toContain("판정한 곳이 없습니다");
-    // "아래 '…'"라고 했으니 그 이름의 목록이 빈 결과 구역 뒤에 있고, 처음부터 펼쳐져 있다.
+    // "아래 '…'"라고 했으니 그 이름의 목록이 빈 결과 구역 뒤에 있다. (2026-11-11 오너 지시) 목록은 접혀 있고, 그 이름과
+    // 수는 접힌 채로 보인다. 줄에는 정책 이름이 적힌다(결과에 있는 정책이면 id 대신 이름).
     const list = html.indexOf(`<summary>${DISMISSED_LIST} 1건</summary>`);
     expect(list).toBeGreaterThan(html.indexOf(EMPTY) + elementAt(html, html.indexOf(EMPTY)).length);
-    expect(closedDetailsAt(html, list)).toEqual([]);
-    expect(textOf(elementAt(html, html.lastIndexOf("<details", list)))).toContain("src/auth/signup.ts:5 kr.pipa.22-2");
+    expect(closedDetailsAt(html, list + "<summary>".length)).toEqual([]);
+    expect(html.slice(html.lastIndexOf("<details", list), list)).toBe('<details class="box ai-box">');
+    expect(textOf(elementAt(html, html.lastIndexOf("<details", list)))).toContain("src/auth/signup.ts:5 만 14세 미만 아동의 개인정보 처리");
   });
 
   it("빠진 판정은 판정 단위가 있는 결과와 v1 초안에서도 같은 말로 덧붙인다", () => {
@@ -1133,7 +1150,7 @@ describe("빈 결과 화면 (발견이 0인 결과)", () => {
     // 데모는 검사한 파일을 코드 상자로 보여 주고, v1 초안의 충족 근거 위치에는 파일 이름이 나온다. 그 화면에
     // "어느 파일인지는 결과에 없다"고 적으면 모순으로 읽힌다. 결과에 없는 것은 목록과 범위다.
     const html = render("contract", "samples-v1-draft", "kids-signup.fixed.json");
-    expect(cards(html)[0].evidence).toEqual(["src/auth/signup.ts:7 에서 대안 under14-branch 확인"]);
+    expect(cards(html)[0].evidence).toEqual(["src/auth/signup.ts:7 에서 충족 근거 확인"]);
     expect(emptyParts(html)!.facts["검사한 파일"].text).toBe(`1개. ${FILES_NOTE}`);
     for (const parts of empties) expect(render(...parts), parts.join("/")).not.toContain("어느 파일인지");
   });
@@ -1178,11 +1195,11 @@ describe("빈 결과 화면 (발견이 0인 결과)", () => {
       warn: true,
     });
     // "위 '…' 표에 목록이 있다"고 했으니 그 이름의 표가 빈 결과 구역보다 앞에 있고, 그 표의 '검사하지 않은 파일' 줄에
-    // 파일 이름이 처음부터 보인다(이 둘은 접히지 않는다. 3곳보다 많을 때만 나머지를 접는다).
+    // 파일 이름이 경고를 펼치면 보인다(이 둘은 더 접히지 않는다. 3곳보다 많을 때만 나머지를 접는다).
     const coverage = coverageParts(html);
     expect(coverage.caption!.startsWith("다 보지 못한 것")).toBe(true);
     expect(coverage.tableAt).toBeLessThan(html.indexOf(EMPTY));
-    expect(closedDetailsAt(html, coverage.tableAt)).toEqual([]);
+    expect(closedDetailsAt(html, coverage.tableAt)).toEqual(['<details class="warn coverage-warning">']);
     expect(coverage.rows![0]).toMatchObject({ label: "검사하지 않은 파일", count: "2개", on: true, shown: skipped, folded: [] });
     // 발견이 0인 결과에서는 검사에 들지 않는 파일과 정보를 본문이 한 번만 펼쳐 보인다.
     expect(count(html, '<ul class="not-seen">')).toBe(1);
@@ -1329,20 +1346,23 @@ describe("발견의 단위", () => {
     expect(new Set(messages).size).toBe(2);
   });
 
-  it("규칙마다 묶음이 따로 있고, 정책 상자의 첫 발견만 펼쳐 둔다. 다른 규칙의 발견도 줄은 늘 보인다", () => {
-    // (D5) 규칙마다 첫 발견을 펼치던 것을 정책마다 첫 발견으로 바꿨다(docs/redesign.md 3장, 7장 2 오너 승인, 4장 :1216-1237).
+  it("규칙마다 묶음이 따로 있고, 발견마다 메시지·위치·질문은 늘 보이고 나머지(`자세히`)는 접혀 있다", () => {
+    // (2026-11-11 오너 지시) 정책 상자의 첫 발견을 펼쳐 두던 것을 걷었다. 발견 하나는 한 묶음(메시지, 위치, 질문)이다.
     const html = render("contract", "cli-current", "night-push.main.json");
-    for (const [rule, alternative, open] of [
-      ["nonemail-start-block", "label-name-phone", 1],
-      ["nonemail-end-optout", "optout-080-free", 0],
+    for (const [rule, alternative] of [
+      ["nonemail-start-block", "label-name-phone"],
+      ["nonemail-end-optout", "optout-080-free"],
     ] as const) {
       const group = ruleGroup(html, rule);
       expect(count(group, '<li class="finding">')).toBe(1);
-      expect(count(group, '<details open="">')).toBe(open);
+      expect(count(group, " open=")).toBe(0);
       expect(group).toContain(alternative);
       expect(textOf(group)).toContain("src/marketing/campaign.ts:2");
-      // 닫힌 줄도 메시지와 위치는 보인다(접힌 곳 안이 아니다).
-      expect(closedDetailsAt(html, html.indexOf('<span class="msg">', html.indexOf(group)))).toEqual([]);
+      // 메시지와 질문은 접힌 곳 안이 아니다. 대안 id 는 `자세히` 안에 있다.
+      const at = html.indexOf(group);
+      expect(closedDetailsAt(html, html.indexOf('<span class="msg">', at))).toEqual([]);
+      expect(closedDetailsAt(html, html.indexOf('<span class="ask-line">', at))).toEqual([]);
+      expect(closedDetailsAt(html, html.indexOf(alternative, at))).toEqual(['<details class="f-more">']);
     }
   });
 });
@@ -1356,7 +1376,7 @@ describe("발견 줄마다 제 발견이 그려진다", () => {
       const { location } = row;
       const finding = location.finding;
       const name = `${location.rule} ${where(location.file, location.line)}`;
-      // 닫혀 있어도 보이는 부분: 메시지(첫 미확인 대안의 것), 경로·줄, 판정이 본 범위, 상태. 화면 낭독기에는 규칙 이름도.
+      // 늘 보이는 부분: 메시지와 질문(첫 미확인 대안의 것), 경로·줄, 판정이 본 범위, 상태. 화면 낭독기에는 규칙 이름도.
       expect(row.where, name).toBe(where(location.file, location.line));
       expect(row.scope, name).toBe(scopeLabel(location.scope));
       expect(row.status, name).toBe(STATUS_LABEL[location.status]);
@@ -1371,8 +1391,14 @@ describe("발견 줄마다 제 발견이 그려진다", () => {
       } else {
         expect(textOf(html.slice(html.lastIndexOf(GROUP, row.at), row.at)), name).toContain(first?.message ?? "");
       }
-      // (D5) 정책 상자의 첫 발견만 펼쳐 둔다(규칙마다 첫 발견이 아니다).
-      expect(row.open, name).toBe(row.first);
+      // 질문도 같다. 묶음 머리가 같은 질문을 이미 적었으면 줄에서는 되풀이하지 않는다. 질문이 없는 대안이면 줄에 질문이 없다.
+      if (row.question !== null) {
+        expect(row.question, name).toBe(first?.ask_developer);
+      } else if (first?.ask_developer) {
+        expect(textOf(html.slice(html.lastIndexOf(GROUP, row.at), row.at)), name).toContain(first.ask_developer);
+      }
+      // (2026-11-11 오너 지시) `자세히` 는 처음에 모두 접혀 있다.
+      expect(row.open, name).toBe(false);
       // 접힌 곳의 발견만 닫힌 details(같은 규칙의 나머지) 하나에 가려 있다. 그 밖의 줄을 가리는 것은 없다.
       const hiddenBy = row.folded ? [FOLD] : [];
       expect(closedDetailsAt(html, row.at), name).toEqual(hiddenBy);
@@ -1381,14 +1407,19 @@ describe("발견 줄마다 제 발견이 그려진다", () => {
       for (const piece of ["<code>", '<span class="finding-scope">', statusPiece]) {
         expect(closedDetailsAt(html, html.indexOf(piece, row.at)), `${name} ${piece}`).toEqual(hiddenBy);
       }
-      // 안쪽은 펼쳐 둔 줄에서만 처음부터 보인다.
+      // 나머지는 `자세히` 를 펼쳐야 보인다.
       const bodyAt = html.indexOf('<div class="finding-body">', row.at);
-      expect(closedDetailsAt(html, bodyAt), `${name} 안쪽`).toEqual(row.first ? hiddenBy : [...hiddenBy, "<details>"]);
+      expect(closedDetailsAt(html, bodyAt), `${name} 안쪽`).toEqual([...hiddenBy, '<details class="f-more">']);
       // 펼친 안쪽은 그 발견의 것이다.
       expect(row.bodies, name).toHaveLength(1);
       // (D5) 대안 id 는 펼친 안쪽의 id 줄(12px)에 실린 차례로 모여 있다. 대안마다의 칸은 대안 수만큼 있다.
       expect(row.alternativeIds, name).toEqual(finding.unsatisfied_alternatives.map((alt) => alt.id));
-      expect(row.alternatives, name).toHaveLength(finding.unsatisfied_alternatives.length);
+      // 대안마다의 칸은 그 안에 적을 것이 있는 대안만이다. 첫 대안의 메시지와 질문은 줄(또는 묶음 머리)에 있으므로, 고치는 법도
+      // 값도 없고 질문이 실려 있는 첫 대안은 칸이 없다.
+      const cells = finding.unsatisfied_alternatives.filter(
+        (alt, i) => i > 0 || alt.ask_developer === null || alt.remediation || alt.value !== "false",
+      );
+      expect(row.alternatives, name).toHaveLength(cells.length);
       expect(row.pathLists, name).toBe(finding.decision_path.length > 0 ? 1 : 0);
       expect(row.path, name).toEqual(finding.decision_path.length > 0 ? finding.decision_path : null);
     }
@@ -1466,10 +1497,12 @@ describe("규칙 묶음은 가려지지 않는다", () => {
       const msg = html.indexOf('<span class="msg">', html.indexOf(group));
       expect(closedDetailsAt(html, msg)).toEqual([]);
     }
-    // 여러 곳인 묶음의 머리는 규칙 id 와 곳의 수다.
+    // 여러 곳인 묶음의 머리는 메시지와 곳의 수다(2026-11-11 오너 지시: 규칙 id 는 줄마다 `자세히` 안에 있다).
+    const data = readJson("tests", "fixtures", "repeated-rule.json") as Report;
+    const messageOf = (rule: string) => data.findings.find((f) => f.rule === rule)!.unsatisfied_alternatives[0].message;
     expect(elementsOf(html, '<div class="rule-head">').map((head) => textOf(elementAt(head, head.indexOf("<h3>"))))).toEqual([
-      "규칙 nonemail-start-block · 20곳",
-      "규칙 nonemail-end-optout · 2곳",
+      `${messageOf("nonemail-start-block")} 20곳`,
+      `${messageOf("nonemail-end-optout")} 2곳`,
     ]);
   });
 });
@@ -1499,22 +1532,22 @@ describe("같은 규칙이 여러 파일에 반복되는 결과 (손으로 만�
     expect(textOf(folded)).toContain("src/features/marketing/sms/restock/sendRestockPromotionMessage.ts:4");
   });
 
-  it("대표 3곳 가운데 첫 곳만 펼쳐 두고 나머지는 한 줄로 둔다", () => {
+  it("대표 3곳은 위치만 줄로 둔다(메시지와 질문은 묶음 머리에 한 번). `자세히` 는 모두 접혀 있다", () => {
     const group = ruleGroup(html, "nonemail-start-block");
     const shown = elementsOf(group.slice(0, group.indexOf(FOLD)), ROW).map(rowParts);
-    expect(shown.map((row) => [row.where, row.open])).toEqual([
-      ["src/campaigns/black-friday.ts:2", true],
-      ["src/campaigns/chuseok-gift.ts:2", false],
-      ["src/campaigns/coupon-reminder.ts:3", false],
+    expect(shown.map((row) => [row.where, row.message, row.question, row.open])).toEqual([
+      ["src/campaigns/black-friday.ts:2", null, null, false],
+      ["src/campaigns/chuseok-gift.ts:2", null, null, false],
+      ["src/campaigns/coupon-reminder.ts:3", null, null, false],
     ]);
+    expect(count(group.slice(0, group.indexOf("<ul")), '<span class="ask-line">')).toBe(1);
   });
 
   it("닫힌 발견 줄에서도 줄 번호 옆에 판정이 본 범위가 보인다", () => {
     // 파일 단위 판정의 줄 번호는 조문이 닿는다고 본 첫 줄일 뿐이다. 펼치지 않은 줄이 그 줄을 문제의 줄처럼 보이면 안 된다.
     const rows = elementsOf(html, ROW).map(rowParts);
     expect(rows).toHaveLength(25);
-    // (D5) 다섯 규칙이 모두 한 정책의 것이라 펼쳐 둔 것은 정책 상자의 첫 발견 하나다.
-    expect(rows.filter((row) => !row.open)).toHaveLength(24);
+    expect(rows.filter((row) => !row.open)).toHaveLength(25);
     for (const row of rows) {
       expect(row.where, row.where ?? "").toMatch(/:\d+$/);
       expect(row.scope, row.where ?? "").toBe("파일 전체 판정");
@@ -1538,8 +1571,7 @@ describe("같은 규칙이 여러 파일에 반복되는 결과 (손으로 만�
       expect(group).not.toContain(FOLD);
       expect(count(group, '<li class="finding">')).toBe(places);
     }
-    // 한 파일·한 줄에 함께 나온 서로 다른 세 규칙이 저마다 줄로 보인다(메시지가 서로 다르다). (D5) 펼친 것은 정책 상자의 첫
-    // 발견뿐이라 이 셋은 닫힌 줄이다(docs/redesign.md 4장 :1394-1414). 줄은 접힌 곳 밖이다.
+    // 한 파일·한 줄에 함께 나온 서로 다른 세 규칙이 저마다 줄로 보인다(메시지가 서로 다르다). 줄은 접힌 곳 밖이다.
     const messages = new Set<string>();
     for (const rule of ["email-subject-label", "email-body-sender", "email-body-optout"]) {
       const group = ruleGroup(html, rule);
@@ -1554,10 +1586,10 @@ describe("같은 규칙이 여러 파일에 반복되는 결과 (손으로 만�
   it("접힌 곳에만 있는 상태는 묶음 머리에 개수로 보인다", () => {
     const data = readJson("tests", "fixtures", "repeated-rule.json") as Report;
     const uniform = textOf(ruleGroup(html, "nonemail-start-block").split("<ul")[0]);
-    // (D5) 묶음 머리에는 메시지(첫 미확인 대안의 것)와 `규칙 id · N곳` 이 있다(docs/redesign.md 3장).
-    const message = (readJson("tests", "fixtures", "repeated-rule.json") as Report).findings.find((f) => f.rule === "nonemail-start-block")!
-      .unsatisfied_alternatives[0].message;
-    expect(uniform).toBe(`${message}규칙 nonemail-start-block · 20곳`);
+    // 묶음 머리에는 메시지와 질문(첫 미확인 대안의 것)과 `N곳` 이 있다(2026-11-11 오너 지시).
+    const first = (readJson("tests", "fixtures", "repeated-rule.json") as Report).findings.find((f) => f.rule === "nonemail-start-block")!
+      .unsatisfied_alternatives[0];
+    expect(uniform).toBe(`${first.message} 20곳질문 ${first.ask_developer}`);
 
     // 파일 순서대로라면 접힌 곳에 들어가는 한 곳을 판단 보류로 바꾼다.
     const findings = data.findings.map((f) =>
@@ -1576,17 +1608,16 @@ describe("같은 규칙이 여러 파일에 반복되는 결과 (손으로 만�
 describe("발견을 펼친 안쪽", () => {
   const body = (html: string) => elementAt(html, html.indexOf('<div class="finding-body">'));
 
-  it("메시지(줄의 첫 줄) → 질문 → 고치는 법 → 나머지 대안 → AI 에게 묻지 않은 조건 → 규칙·대안 id → 판정 경로 순서로 읽힌다", () => {
-    // (D5) "확인되지 않은 적법한 대안 N개" 제목과 대안마다의 id 를 걷었다. 첫 대안의 메시지는 발견 줄의 첫 줄이고, 규칙·대안 id 는
-    // 펼친 안쪽의 12px 줄이다(docs/redesign.md 2.3 낱말 표). 판정 경로는 "판정 경로(CLI 원문)"로 접어 둔다.
+  it("줄의 메시지·질문 → (`자세히`) 고치는 법 → 나머지 대안 → AI 에게 묻지 않은 조건 → 규칙·대안 id → 판정 경로 순서로 읽힌다", () => {
+    // (D5) "확인되지 않은 적법한 대안 N개" 제목과 대안마다의 id 를 걷었다. (2026-11-11 오너 지시) 첫 대안의 메시지와 질문은 발견
+    // 줄에 늘 보이고, 나머지는 `자세히` 안이다. 규칙·대안 id 는 그 안의 12px 줄이다. 판정 경로는 "판정 경로(CLI 원문)"로 접어 둔다.
     const html = render("contract", "cli-current", "kids-signup.main.json");
     const row = elementAt(html, html.indexOf(ROW));
     expect(rowParts(row).message).toBe("만 14세 미만을 가르는 연령 분기가 보이지 않습니다.");
+    expect(rowParts(row).question).toBe("이 가입 흐름에서 만 14세 미만 사용자를 어떻게 가려내나요?");
     const text = textOf(body(html));
     expect(
       inOrder(text, [
-        "질문",
-        "이 가입 흐름에서 만 14세 미만 사용자를 어떻게 가려내나요?",
         "고치는 법",
         "생년월일로 만 나이를 계산해 14세 미만 분기를 두세요.",
         "보호자 동의를 확인하는 것으로 보이는 함수 호출이 없습니다.",
@@ -1610,8 +1641,9 @@ describe("발견을 펼친 안쪽", () => {
       ]),
       text,
     ).toBe(true);
-    // 첫 대안의 메시지는 줄에만 있다(안쪽에서 되풀이하지 않는다).
+    // 첫 대안의 메시지와 질문은 줄에만 있다(안쪽에서 되풀이하지 않는다).
     expect(text).not.toContain("만 14세 미만을 가르는 연령 분기가 보이지 않습니다.");
+    expect(text).not.toContain("이 가입 흐름에서 만 14세 미만 사용자를 어떻게 가려내나요?");
   });
 
   it("고치는 법이 실려 있지 않은 대안은 지어내지 않고 그 줄을 그리지 않는다", () => {
@@ -1927,48 +1959,3 @@ describe("경로와 줄을 적는 법", () => {
   });
 });
 
-describe("발견 줄을 누를 때 (펼침과 글 고르기)", () => {
-  // 줄 전체가 펼침 단추다. 경로를 끌어 골라 복사하는 동안에는 줄이 여닫히지 않아야 한다.
-  // 여기서는 판단 규칙(selection.ts)만 본다. 브라우저에서 실제로 그렇게 되는지는 tests/browser/view.test.ts 의 "발견 줄의 경로를
-  // 끌어 고르거나 두 번·세 번 눌러 골라도 …"가 본다(8번에서 넣었다).
-  const click = { detail: 1, selecting: false, extending: false, toggles: 0 };
-
-  it("그냥 누르면 여닫힌다", () => {
-    expect(blocksToggle(click)).toBe(false);
-    // 끌었어도 골라진 글이 없으면 누른 것이다.
-    expect(blocksToggle({ ...click, extending: true })).toBe(false);
-  });
-
-  it("끌거나 Shift 를 누른 채 눌러 글을 골랐으면 여닫히지 않는다", () => {
-    expect(blocksToggle({ ...click, selecting: true, extending: true })).toBe(true);
-  });
-
-  it("이미 골라져 있던 글 위를 그냥 누르면 여닫힌다", () => {
-    expect(blocksToggle({ ...click, selecting: true })).toBe(false);
-  });
-
-  it("키보드로 누르면 글이 골라져 있어도 여닫힌다", () => {
-    expect(blocksToggle({ detail: 0, selecting: true, extending: false, toggles: 0 })).toBe(false);
-    expect(blocksToggle({ detail: 0, selecting: true, extending: true, toggles: 0 })).toBe(false);
-  });
-
-  it("두 번·세 번 이어 눌러 글을 골라도 처음 상태로 돌아온다", () => {
-    // 브라우저가 차례로 보내는 클릭을 그대로 흉내 낸다. 첫 클릭 때는 아직 골라진 글이 없다.
-    const run = (clicks: number) => {
-      let open = false;
-      let toggles = 0;
-      for (let detail = 1; detail <= clicks; detail++) {
-        if (detail === 1) toggles = 0;
-        if (!blocksToggle({ detail, selecting: detail > 1, extending: false, toggles })) {
-          open = !open;
-          toggles += 1;
-        }
-      }
-      return open;
-    };
-    expect(run(1)).toBe(true);
-    expect(run(2)).toBe(false);
-    expect(run(3)).toBe(false);
-    expect(run(4)).toBe(false);
-  });
-});

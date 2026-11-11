@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { keepParticles } from "@/components/text";
 import { policyCardId, policyHref } from "@/lib/pack/href";
+import { paragraphOf } from "@/lib/pack/legal";
 import { coverageSummary } from "@/lib/report/coverage";
 import { examinedFacts, UNIT_GLOSS } from "@/lib/report/examined";
 import { AI_CLEARED, AI_DISMISSED } from "@/lib/report/record";
@@ -11,18 +12,18 @@ import { SITE } from "@/lib/site";
 import { Citation } from "./Citation";
 import { CoverageWarning, NotSeen } from "./Coverage";
 import { isBoxed, PolicyCard, type CodeSource } from "./PolicyCard";
-import { RuleId } from "./RuleId";
 import { Where } from "./Where";
 
 /**
  * 결과 한 건의 화면. 분석 쪽(`/r/…/a/[id]`), 결과 파일 열기(`/view`), 데모가 모두 이 부품을 같은 차례로 쓴다(docs/redesign.md
- * 3장). 위에서부터:
+ * 3장). 처음 보는 사람이 "무엇이 몇 곳, 어디"를 먼저 읽게 한다(2026-11-11 오너 지시). 위에서부터:
  *
- * 1. 다 보지 못한 검사라는 경고와 그 목록(있을 때만). 아래의 발견과 "발견 없음"을 읽기 전에 알아야 한다.
- * 2. 팩 판이 다르다는 알림(그럴 때만).
- * 3. 요약 한 줄: 숫자인 사실만(사람이 볼 곳, 검사한 파일, AI 검토가 돌았으면 AI 가 푼 경고).
+ * 1. 요약 한 문장: 사람이 볼 곳 N건과 정책마다의 수(정책 상자로 가는 링크). 그 아래 옅은 줄에 숫자인 사실(검사한 파일, AI 검토가
+ *    돌았으면 AI 가 푼 경고와 빠진 판정).
+ * 2. 다 보지 못한 검사라는 경고(있을 때만). 머리(첫 문장과 수)는 늘 보이고, "다 보지 못한 것" 표는 접어 둔다.
+ * 3. 팩 판이 다르다는 알림(그럴 때만).
  * 4. 판정자를 켜 보라는 권고와 외부 API 고지(`recommend` 일 때, 판정자가 꺼진 결과에만. 쪽마다 한 번).
- * 5. 본문(정책 상자, AI 가 푼 경고, 적용 질문으로 빠진 판정)과 곁칸(`정책 N`). 데모는 곁칸을 그리지 않는다(`policyList`).
+ * 5. 본문(정책 상자, AI 가 푼 경고, 접어 둔 적용 질문으로 빠진 판정)과 곁칸(`정책 N`). 데모는 곁칸을 그리지 않는다(`policyList`).
  *    발견이 0이면 본문 맨 위에 0의 뜻(굵게)과 검사한 것을 두고, 맨 아래에 검사에 들지 않는 파일과 정보를 펼쳐 둔다.
  * 6. 검사 정보(쪽 폭 전체): 도구, 팩 판, 엔진, AI 줄, 판정 단위, 출력 형식, 다 보지 못한 파일이 없다는 것, 진행 기록(분석 쪽).
  */
@@ -31,6 +32,41 @@ import { Where } from "./Where";
 export interface Statute {
   label: string;
   text: string;
+}
+
+/**
+ * 정책 상자 맨 아래에 접어 두는 근거 조문 원문. 펼치면 조문 이름이 가리키는 항만 먼저 보이고(원문에서 그 항을 그대로 잘라 낸다),
+ * 조문 전체는 그 안에서 다시 펼친다(2026-11-11 오너 지시). 이름에 항이 없거나 원문에서 그 항을 찾지 못하면 원문 전체를 보인다.
+ *
+ * 조문 이름이 상자 머리의 조문 링크와 같으면 접힌 줄에 되풀이하지 않는다(docs/redesign.md 2.2 "한 사실은 한 번"). 원문이 실린
+ * 조문이 머리의 조문과 다를 때만 그 이름을 적는다.
+ */
+function StatuteFold({ statute, law }: { statute: Statute; law: string | null }) {
+  const part = paragraphOf(statute.label, statute.text);
+  return (
+    <details className="lg statute">
+      <summary>
+        근거 조문 원문
+        {statute.label !== law && (
+          <>
+            {" "}
+            <span className="lg-name">{statute.label}</span>
+          </>
+        )}
+      </summary>
+      {part === null ? (
+        <div className="legal-text">{statute.text}</div>
+      ) : (
+        <>
+          <div className="legal-text">{part}</div>
+          <details className="lg legal-all">
+            <summary>조문 전체</summary>
+            <div className="legal-text">{statute.text}</div>
+          </details>
+        </>
+      )}
+    </details>
+  );
 }
 
 /** 판정자를 켜 보라는 권고(쪽마다 한 번). 외부 API 로 나간다는 사실을 함께 적는다(docs/commitments.md 의 "CLI 가 이미 약속한 것"). */
@@ -44,20 +80,24 @@ export const CLEARED_NOTE =
 /** 적용 질문으로 빠진 판정 상자의 문장. */
 export const DISMISSED_NOTE = "적용 여부를 묻는 질문에 AI 가 ‘아니오’라고 답했습니다. 인용 없이 빠진 판정입니다.";
 
-/** AI 의 답으로 풀리거나 빠진 판정 하나: 위치와 정책, 규칙·대안 id, 인용한 줄(또는 묻는 말과 답). */
-function ReviewRow({ item }: { item: ReviewItem }) {
+/**
+ * AI 의 답으로 풀리거나 빠진 판정 하나: 위치와 정책, 인용한 줄(또는 묻는 말과 답). 정책은 이 결과에 있는 정책이면 그 이름으로,
+ * 아니면 결과에 실린 id 그대로 적는다. 규칙 id 는 화면 낭독기에만 읽힌다(2026-11-11 오너 지시: 내부 이름은 화면에 드러내지 않는다.
+ * 조문별 검사 기록에는 그대로 실린다).
+ */
+function ReviewRow({ item, policyTitle }: { item: ReviewItem; policyTitle: string | undefined }) {
   return (
     <li className="ai-row">
       <p className="ai-at">
         <Where file={item.file} line={item.line} />{" "}
-        <code className="ai-policy" translate="no">
-          {item.policy}
-        </code>
-      </p>
-      <p className="ids">
-        <span>
-          규칙 <RuleId policy={item.policy} rule={item.rule} inPack={item.ruleInPack} />
-        </span>
+        {policyTitle === undefined ? (
+          <code className="ai-policy" translate="no">
+            {item.policy}
+          </code>
+        ) : (
+          <span className="ai-policy">{policyTitle}</span>
+        )}
+        <span className="visually-hidden"> 규칙 {item.rule}</span>
       </p>
       {/* 대안의 id 는 인용마다 그 앞에 적는다(어느 인용이 어느 대안을 받치는지). 인용이 없는 대안은 아래 "인용 없음"에 적는다. */}
       <Citation quotes={item.quotes} />
@@ -79,10 +119,20 @@ function ReviewRow({ item }: { item: ReviewItem }) {
 }
 
 /**
- * AI 가 푼 경고와 적용 질문으로 빠진 판정. CLI 가 사람이 검토하라고 남긴 것이라 숨기지 않고 펼쳐 둔다. 어떤 기록에서 왔는지
- * 모르는 줄의 목록(`ReviewItem`)을 받는다.
+ * AI 가 푼 경고와 적용 질문으로 빠진 판정. CLI 가 사람이 검토하라고 남긴 것이라 숨기지 않는다. AI 가 푼 경고는 펼쳐 두고, 빠진
+ * 판정은 접어 둔다(2026-11-11 오너 지시. 머리의 수는 늘 보이고 요약 줄에도 있다). 어떤 기록에서 왔는지 모르는 줄의
+ * 목록(`ReviewItem`)을 받는다.
  */
-export function AiDecisions({ cleared, dismissed }: { cleared: ReviewItem[]; dismissed: ReviewItem[] }) {
+export function AiDecisions({
+  cleared,
+  dismissed,
+  titles = {},
+}: {
+  cleared: ReviewItem[];
+  dismissed: ReviewItem[];
+  /** 정책 id → 정책 이름(이 결과의 정책). */
+  titles?: Record<string, string>;
+}) {
   if (cleared.length === 0 && dismissed.length === 0) return null;
   return (
     <div className="ai-decisions">
@@ -92,18 +142,18 @@ export function AiDecisions({ cleared, dismissed }: { cleared: ReviewItem[]; dis
           <p className="ai-note">{CLEARED_NOTE}</p>
           <ul className="ai-rows">
             {cleared.map((item, i) => (
-              <ReviewRow key={i} item={item} />
+              <ReviewRow key={i} item={item} policyTitle={titles[item.policy]} />
             ))}
           </ul>
         </details>
       )}
       {dismissed.length > 0 && (
-        <details className="box ai-box" open>
+        <details className="box ai-box">
           <summary>AI 가 적용되지 않는다고 답해 빠진 판정 {dismissed.length}건</summary>
           <p className="ai-note">{DISMISSED_NOTE}</p>
           <ul className="ai-rows">
             {dismissed.map((item, i) => (
-              <ReviewRow key={i} item={item} />
+              <ReviewRow key={i} item={item} policyTitle={titles[item.policy]} />
             ))}
           </ul>
         </details>
@@ -152,16 +202,38 @@ function NotSeenBox({ view }: { view: ReportView }) {
 }
 
 /**
- * 요약 한 줄: 숫자인 사실만. 점수·등급·비율이 아니다. AI 검토가 돌았으면 AI 가 푼 경고와 적용 질문으로 빠진 판정의 수를 함께
- * 적는다(docs/redesign.md 4장 "AI 가 푼 것"). 빠진 판정이 결과에 실려 있지 않으면 그 수는 "알 수 없음"이다(저장소 쪽 최신 분석과 같다).
+ * 요약(맨 위): 사람이 볼 곳 N건과, 발견이 있는 정책마다 그 수. 정책 이름은 아래 정책 상자로 가는 링크다. 차례는 정책 상자의
+ * 차례와 같다. 정책 이름에 쉼표·줄표가 들어 있어 글로 잇지 않고 목록으로 둔다. 개수만 센다(점수·등급·비율이 아니다).
+ */
+function Headline({ view }: { view: ReportView }) {
+  const found = view.policies.filter((policy) => policy.locations.length > 0);
+  return (
+    <div className="headline">
+      <p>
+        <strong>사람이 볼 곳 {view.findingCount}건</strong>
+      </p>
+      {found.length > 0 && (
+        <ul className="hl-list">
+          {found.map((policy) => (
+            <li key={policy.id}>
+              <a href={`#${policyCardId(policy.id)}`}>{policy.title}</a> <b>{policy.locations.length}건</b>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/**
+ * 요약 아래의 옅은 줄: 숫자인 사실만. 점수·등급·비율이 아니다. AI 검토가 돌았으면 AI 가 푼 경고와 적용 질문으로 빠진 판정의 수를
+ * 함께 적는다(docs/redesign.md 4장 "AI 가 푼 것"). 빠진 판정이 결과에 실려 있지 않으면 그 수는 "알 수 없음"이다(저장소 쪽 최신
+ * 분석과 같다).
  */
 function SummaryLine({ view }: { view: ReportView }) {
   const files = view.coverage.files;
   return (
     <p className="sumline">
-      <span>
-        <span className="lbl">사람이 볼 곳</span> <b>{view.findingCount}건</b>
-      </span>{" "}
       <span>
         <span className="lbl">검사한 파일</span> <b>{files === null ? STATUS_LABEL["pack-unknown"] : `${files}개`}</b>
       </span>
@@ -363,6 +435,9 @@ export function ReportSummary({
   const zero = view.findingCount === 0;
   return (
     <section className="report">
+      <Headline view={view} />
+      <SummaryLine view={view} />
+      {coverage.lineNote && <p className="hint sum-note">{coverage.lineNote}</p>}
       <CoverageWarning summary={coverage} />
 
       {view.packMatches === false && (
@@ -374,8 +449,6 @@ export function ReportSummary({
         </p>
       )}
 
-      <SummaryLine view={view} />
-      {coverage.lineNote && <p className="hint sum-note">{coverage.lineNote}</p>}
       {recommend && !aiReviewRan(view) && <p className="judge-advice">{JUDGE_ADVICE}</p>}
 
       <div className="cols">
@@ -396,30 +469,17 @@ export function ReportSummary({
                     key={policy.id}
                     policy={policy}
                     code={code}
-                    statute={
-                      statute && (
-                        // 조문 이름이 상자 머리의 조문 링크와 같으면 접힌 줄에 되풀이하지 않는다(docs/redesign.md 2.2 "한 사실은 한 번").
-                        // 원문이 실린 조문이 머리의 조문과 다를 때만 그 이름을 적는다.
-                        <details className="lg">
-                          <summary>
-                            근거 조문 원문
-                            {statute.label !== policy.law && (
-                              <>
-                                {" "}
-                                <span className="lg-name">{statute.label}</span>
-                              </>
-                            )}
-                          </summary>
-                          <div className="legal-text">{statute.text}</div>
-                        </details>
-                      )
-                    }
+                    statute={statute && <StatuteFold statute={statute} law={policy.law} />}
                   />
                 );
               })}
             </div>
           )}
-          <AiDecisions cleared={view.cleared} dismissed={view.dismissed} />
+          <AiDecisions
+            cleared={view.cleared}
+            dismissed={view.dismissed}
+            titles={Object.fromEntries(view.policies.map((policy) => [policy.id, policy.title]))}
+          />
           {zero && <NotSeenBox view={view} />}
         </div>
         {policyList === undefined && (

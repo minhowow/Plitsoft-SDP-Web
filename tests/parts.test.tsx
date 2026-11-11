@@ -2,7 +2,6 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { CoverageWarning, GapTable, NotSeen } from "@/components/result/Coverage";
 import { Citation } from "@/components/result/Citation";
-import { FindingSummary } from "@/components/result/FindingSummary";
 import { RuleId } from "@/components/result/RuleId";
 import { ReportSummary } from "@/components/result/ReportSummary";
 import { StatusChip } from "@/components/result/StatusChip";
@@ -62,32 +61,6 @@ describe("상태 칩 (StatusChip)", () => {
   });
 });
 
-describe("발견 줄의 머리 (FindingSummary)", () => {
-  it("줄 전체가 펼침 단추(summary) 하나다. 받은 것만 그 안에 그리고, 글·속성·감싸는 요소를 더하지 않는다", () => {
-    // 펼침 단추가 아닌 것(div 등)으로 바꾸거나 role·tabindex 를 붙이면, 키보드와 화면 낭독기에서 details 의 단추로
-    // 읽히지 않는다. 누르는 것이 어떻게 듣는지(끌어 고르기, Enter·Space)는 브라우저 시험이 본다.
-    const html = renderToStaticMarkup(
-      <details>
-        <FindingSummary>
-          <span className="finding-head">
-            <code>src/a.ts:3</code> <span className="finding-scope">파일 전체 판정</span>
-          </span>
-        </FindingSummary>
-      </details>,
-    );
-    expect(html).toBe(
-      '<details><summary><span class="finding-head"><code>src/a.ts:3</code> <span class="finding-scope">파일 전체 판정</span></span></summary></details>',
-    );
-  });
-
-  it("결과 화면의 발견 줄마다 그 머리가 details 의 첫 자식이다", () => {
-    const html = renderToStaticMarkup(<ReportSummary view={viewOf(readJson("tests", "fixtures", "repeated-rule.json"))} />);
-    const rows = elementsOf(html, '<li class="finding">');
-    expect(rows).toHaveLength(25);
-    for (const row of rows) expect(row).toMatch(/^<li class="finding"><details(?: open="")?><summary><span class="finding-head">/);
-  });
-});
-
 describe("다 보지 못한 것 (CoverageWarning, GapTable, NotSeen)", () => {
   // (D5) 늘 있던 커버리지 보기(검사한 파일 수 줄 + 세 줄 표 + 접어 둔 "이 도구가 보지 못하는 것")를 걷었다. 표는 맨 위 경고 안에서만
   // 보이고(docs/redesign.md 3장), 없으면 검사 정보가 "결과에 실린 ‘다 보지 못한 파일’ 없음"을 적는다.
@@ -102,7 +75,10 @@ describe("다 보지 못한 것 (CoverageWarning, GapTable, NotSeen)", () => {
     const { view, html, summary } = render(readJson(...parts));
     const page = renderToStaticMarkup(<ReportSummary view={view} />);
     if (summary.warning) {
-      expect(page.startsWith(`<section class="report">${html}`)).toBe(true);
+      // (2026-11-11 오너 지시) 경고는 요약과 그 아래 옅은 줄 바로 다음이다.
+      const sumline = page.indexOf('<p class="sumline">');
+      expect(page.startsWith('<section class="report"><div class="headline">')).toBe(true);
+      expect(page.indexOf(html)).toBe(sumline + elementAt(page, sumline).length);
     } else {
       expect(html).toBe("");
       expect(page).not.toContain("<table");
@@ -147,20 +123,24 @@ describe("다 보지 못한 것 (CoverageWarning, GapTable, NotSeen)", () => {
     expect(elementsOf(partial.table, '<tr class="gap gap-on" role="row">')).toHaveLength(3);
   });
 
-  it("맨 위 경고(CoverageWarning): 경고할 것이 없으면 아무것도 그리지 않고, 있으면 굵은 첫 문장 뒤에 나머지를 잇고 그 아래에 표를 둔다", () => {
+  it("다 보지 못했다는 경고(CoverageWarning): 경고할 것이 없으면 아무것도 그리지 않고, 있으면 접힌 머리에 굵은 첫 문장과 목록의 수를 잇고 펼치면 표다", () => {
     const quiet = viewOf(readJson("contract", "cli-current", "kids-signup.main.json"));
     expect(renderToStaticMarkup(<CoverageWarning summary={coverageSummary(quiet)} />)).toBe("");
     const summary = coverageSummary(viewOf(incomplete()));
     expect(summary.warning).not.toBeNull();
     const html = renderToStaticMarkup(<CoverageWarning summary={summary} />);
-    expect(html.startsWith('<section class="warn coverage-warning" aria-labelledby="coverage-warning-title"><p class="warn-hd" id="coverage-warning-title"><strong>')).toBe(true);
-    const head = elementAt(html, html.indexOf('<p class="warn-hd"'));
+    // (2026-11-11 오너 지시) 표는 접어 둔다. 머리(첫 문장과 수)는 접혀 있어도 보인다.
+    expect(html.startsWith('<details class="warn coverage-warning"><summary class="warn-hd"><strong>')).toBe(true);
+    const head = elementAt(html, html.indexOf('<summary class="warn-hd"'));
     expect(textOf(elementAt(head, head.indexOf("<strong>")))).toBe(summary.warning!.lead);
-    expect(textOf(head)).toBe(`${summary.warning!.lead} ${summary.warning!.detail}`);
+    expect(textOf(head)).toBe(`${summary.warning!.lead} ${summary.warning!.counts}`);
+    expect(summary.warning!.detail!.startsWith(`${summary.warning!.counts}.`)).toBe(true);
     expect(html).toContain(renderToStaticMarkup(<GapTable summary={summary} />));
-    // 첫 문장만 있는 경고에는 뒤에 빈칸을 붙이지 않는다.
-    const leadOnly = renderToStaticMarkup(<CoverageWarning summary={{ ...summary, warning: { lead: "다 보지 못한 검사입니다.", detail: null } }} />);
-    expect(textOf(elementAt(leadOnly, leadOnly.indexOf('<p class="warn-hd"')))).toBe("다 보지 못한 검사입니다.");
+    // 목록이 비었으면 수 대신 나머지 문장을 잇는다. 첫 문장만 있는 경고에는 뒤에 빈칸을 붙이지 않는다.
+    const detailOnly = renderToStaticMarkup(<CoverageWarning summary={{ ...summary, warning: { lead: "다 보지 못한 검사입니다.", detail: "까닭.", counts: null } }} />);
+    expect(textOf(elementAt(detailOnly, detailOnly.indexOf('<summary class="warn-hd"')))).toBe("다 보지 못한 검사입니다. 까닭.");
+    const leadOnly = renderToStaticMarkup(<CoverageWarning summary={{ ...summary, warning: { lead: "다 보지 못한 검사입니다.", detail: null, counts: null } }} />);
+    expect(textOf(elementAt(leadOnly, leadOnly.indexOf('<summary class="warn-hd"')))).toBe("다 보지 못한 검사입니다.");
   });
 
   it("검사에 들지 않는 파일과 정보(NotSeen): 목록은 늘 같고 첫 문단만 발견 수에 따라 다르다. 다른 판의 팩이면 대상 언어를 알 수 없다고 덧붙인다", () => {

@@ -81,8 +81,9 @@ describe("같은 검사의 SARIF 와 JSON (contract/cli-current 의 수집본 �
     expect(findingsPart(sarif)).toBe(findingsPart(json));
     // 빈 것끼리 견주고 통과하지 않게, 견준 부분에 무엇이 들어 있는지 본다.
     const found = findingsPart(json);
-    // (D5) 발견 수는 요약 줄에 있고 두 형식에서 같다. 정책 상자는 발견이 있는 정책 하나이고, 곁칸이 정책 전부를 센다.
-    for (const html of [json, sarif]) expect(textOf(part(html, '<p class="sumline">'))).toContain("사람이 볼 곳 1건");
+    // 발견 수는 맨 위 요약에 있고 두 형식에서 같다. 정책 상자는 발견이 있는 정책 하나이고, 곁칸이 정책 전부를 센다.
+    for (const html of [json, sarif]) expect(textOf(part(html, '<div class="headline">'))).toBe(textOf(part(json, '<div class="headline">')));
+    expect(textOf(part(json, '<div class="headline">'))).toBe("사람이 볼 곳 1건만 14세 미만 아동의 개인정보 처리 1건");
     expect(elementsOf(found, '<article class="box policy ')).toHaveLength(1);
     expect(found).toContain(`정책 <span class="count">${packMeta.policies.length}</span>`);
     expect(elementsOf(found, '<li class="finding">')).toHaveLength(1);
@@ -107,9 +108,9 @@ describe("같은 검사의 SARIF 와 JSON (contract/cli-current 의 수집본 �
 
   it("화면 전체에서 다른 줄은 SARIF 에 없는 두 수와 출력 형식뿐이다", () => {
     const [a, b] = [linesOf(json), linesOf(sarif)];
-    // (D5) 두 수는 요약 줄(검사한 파일)과 쪽 아래 검사 정보(판정 단위)에 있다. SARIF 의 수·줄 안내는 요약 줄 바로 아래다.
-    expect(onlyIn(a, b)).toEqual(["사람이 볼 곳 1건 검사한 파일 1개", "1개", "CLI 0.3"]);
-    expect(onlyIn(b, a)).toEqual(["사람이 볼 곳 1건 검사한 파일 알 수 없음", SARIF_COUNTS_NOTE, "알 수 없음", "SARIF"]);
+    // (D5) 두 수는 요약 아래 옅은 줄(검사한 파일)과 쪽 아래 검사 정보(판정 단위)에 있다. SARIF 의 수·줄 안내는 그 줄 바로 아래다.
+    expect(onlyIn(a, b)).toEqual(["검사한 파일 1개", "1개", "CLI 0.3"]);
+    expect(onlyIn(b, a)).toEqual(["검사한 파일 알 수 없음", SARIF_COUNTS_NOTE, "알 수 없음", "SARIF"]);
     expect(SARIF_COUNTS_NOTE).toBe(
       "SARIF 에는 검사한 파일 수와 판정 단위 수가 실려 있지 않습니다. JSON 출력(--output-format json)에는 있습니다.",
     );
@@ -302,10 +303,10 @@ describe("JSON 결과를 SARIF 로 옮겨 열어 본다 (시험용 흉내)", () 
 });
 
 describe("SARIF 로는 알 수 없는 것", () => {
-  /** 발견 줄 하나의 글: 닫혀 있어도 보이는 줄과, 펼친 안쪽의 첫 문단. */
+  /** 발견 줄 하나의 글: 늘 보이는 줄과, `자세히` 안쪽의 첫 문단. */
   function rows(html: string) {
     return elementsOf(html, '<li class="finding">').map((row) => {
-      const summary = elementAt(row, row.indexOf("<summary>"));
+      const summary = elementAt(row, row.indexOf('<div class="finding-head">'));
       const body = elementAt(row, row.indexOf('<div class="finding-body">'));
       return {
         where: textOf(elementAt(summary, summary.indexOf("<code>"))),
@@ -397,8 +398,8 @@ describe("SARIF 로는 알 수 없는 것", () => {
     // 정적 대안으로 풀린 단위는 SARIF 에 없다. JSON 으로는 충족 근거 발견이고 그 자리가 보이지만, SARIF 로는 발견 없음이다.
     expect(a.policies.find((p) => p.id === "kr.pipa.22-2")!.status).toBe("evidence-found");
     expect(b.policies.find((p) => p.id === "kr.pipa.22-2")!.status).toBe("not-reported");
-    expect(render(data)).toContain("under14-branch");
-    expect(sarif).not.toContain("under14-branch");
+    expect(textOf(render(data))).toContain("src/auth/signup.ts:7 에서 충족 근거 확인");
+    expect(textOf(sarif)).not.toContain("충족 근거 확인");
     expect(textOf(sarif)).toContain("검토 필요 신호가 0이어도 법적 문제가 없다는 뜻은 아닙니다.");
     // 수가 없으니 그 수가 0이라는 풀이("어느 정책에서도 판정한 곳이 없습니다")도 없다.
     const plain = render(toSarif(readJson("contract", "cli-current", "plain.main.json") as Report));
@@ -412,7 +413,10 @@ describe("SARIF 로는 알 수 없는 것", () => {
     // 없음"으로 보이면 깨끗한 결과처럼 읽힌다. `--diff` 로 돌려 바뀐 파일이 없을 때 CI 에 올라가는 빈 SARIF 가 이 모양이다.
     const data = readJson("contract", "cli-current", "plain.main.json") as Report;
     const empty = { ...data, run: { ...data.run, files: 0, engine: null } };
-    expect(linesOf(render(empty))[0]).toBe("검사한 파일이 없습니다.");
+    // (2026-11-11 오너 지시) 결과의 첫 줄은 요약이고, 경고는 요약과 그 아래 옅은 줄 바로 다음이다.
+    const firstAfterSummary = (html: string) => linesOf(html.slice(html.indexOf('<details class="warn coverage-warning">')))[0];
+    expect(linesOf(render(empty))[0]).toBe("사람이 볼 곳 0건");
+    expect(firstAfterSummary(render(empty))).toBe("검사한 파일이 없습니다.");
     const sarif = toSarif(empty);
     expect("extensions" in (sarif.runs as { tool: object }[])[0].tool).toBe(false);
     const view = viewOf(sarif);
@@ -420,10 +424,11 @@ describe("SARIF 로는 알 수 없는 것", () => {
     expect(coverageSummary(view).warning).toEqual({
       lead: "엔진을 돌리지 않은 결과입니다.",
       detail: "CLI 는 검사할 파일이 없을 때 엔진을 돌리지 않습니다.",
+      counts: null,
     });
     const html = render(sarif);
-    // 결과 화면의 첫 줄이다.
-    expect(linesOf(html)[0]).toBe("엔진을 돌리지 않은 결과입니다. CLI 는 검사할 파일이 없을 때 엔진을 돌리지 않습니다.");
+    // 요약 바로 아래의 경고다.
+    expect(firstAfterSummary(html)).toBe("엔진을 돌리지 않은 결과입니다. CLI 는 검사할 파일이 없을 때 엔진을 돌리지 않습니다.");
     const text = textOf(html);
     expect(text).toContain("실행 안 함");
     // (D5) 두 수는 요약 줄과 검사 정보에 있다. 둘 다 0이 아니라 알 수 없음이다.
@@ -436,10 +441,8 @@ describe("SARIF 로는 알 수 없는 것", () => {
     // 축소 파일만 든 폴더: JSON 은 files: 0, skipped: […], coverage_complete: false 다(합성 폴더로 확인). SARIF 에서는
     // 든 것이 있는 목록을 함께 적는다. CLI 가 언제 엔진을 돌리지 않는지는 덧붙이지 않는다(목록이 까닭을 말한다).
     const skippedOnly = { ...empty, run: { ...empty.run, skipped: ["src/lib/chart.min.js"], coverage_complete: false } };
-    expect(linesOf(render(skippedOnly))[0]).toBe("검사한 파일이 없습니다. 검사하지 않은 파일 1개. 아래 '다 보지 못한 것' 표에서 확인하세요.");
-    expect(linesOf(render(toSarif(skippedOnly)))[0]).toBe(
-      "엔진을 돌리지 않은 결과입니다. 검사하지 않은 파일 1개. 아래 '다 보지 못한 것' 표에서 확인하세요.",
-    );
+    expect(firstAfterSummary(render(skippedOnly))).toBe("검사한 파일이 없습니다. 검사하지 않은 파일 1개");
+    expect(firstAfterSummary(render(toSarif(skippedOnly)))).toBe("엔진을 돌리지 않은 결과입니다. 검사하지 않은 파일 1개");
   });
 
   it("함수 단위 판정의 구역: 알 수 없다고 잘라 적지 않고, CLI 가 구역을 적은 판정 경로의 문장을 가리킨다", () => {
@@ -506,6 +509,7 @@ describe("SARIF 에서 옮겨 오는 것 (수집본을 고쳐 본다)", () => {
       lead: "다 보지 못한 검사입니다.",
       detail:
         "검사하지 않은 파일 2개 · 일부를 읽지 못한 파일 1개 · 엔진이 끝내지 못한 파일 1개 · 엔진 오류 1건. 아래 '다 보지 못한 것' 표에서 확인하세요.",
+      counts: "검사하지 않은 파일 2개 · 일부를 읽지 못한 파일 1개 · 엔진이 끝내지 못한 파일 1개 · 엔진 오류 1건",
     });
     // 일부를 읽지 못한 파일 옆에는 그 파일의 발견 수가 붙는다. 경로는 발견의 경로와 글자 그대로 견준다.
     expect(summary.rows[1].files).toEqual([{ file: "src/auth/signup.ts", findings: 1 }]);

@@ -73,8 +73,11 @@ export interface GapRow {
 }
 
 export interface CoverageSummary {
-  /** 맨 위 경고. 다 보지 못했거나, 검사한 파일이 없거나, 엔진을 돌리지 않았을 때만 있다. */
-  warning: { lead: string; detail: string | null } | null;
+  /**
+   * 맨 위 경고. 다 보지 못했거나, 검사한 파일이 없거나, 엔진을 돌리지 않았을 때만 있다. `counts` 는 목록에 든 것의 수만 적은
+   * 말이다(든 것이 있을 때만). 결과 화면은 표를 접어 두고 그 머리에 `lead` 와 이것을 적는다. 기록은 `detail` 을 적는다.
+   */
+  warning: { lead: string; detail: string | null; counts: string | null } | null;
   /** 검사한 파일 수와 판정 단위 수. 결과에 없는 수는 "알 수 없음"이다. */
   line: string;
   /** 그 줄 아래에 옅게 덧붙이는 말. 출력 형식 때문에 수를 알 수 없을 때(SARIF)만 있다. */
@@ -157,13 +160,13 @@ function warning(view: ReportView, rows: GapRow[]): CoverageSummary["warning"] {
   const lead = noFiles ? "검사한 파일이 없습니다." : noEngine ? NO_ENGINE.lead : "다 보지 못한 검사입니다.";
   if (listed.length > 0) {
     const counts = listed.map((r) => `${r.label} ${r.countText}`).join(" · ");
-    return { lead, detail: `${counts}. 아래 '${GAPS_TITLE}' 표에서 확인하세요.` };
+    return { lead, detail: `${counts}. 아래 '${GAPS_TITLE}' 표에서 확인하세요.`, counts };
   }
   if (!view.coverage.complete) {
-    return { lead, detail: "결과에는 다 보지 못했다고만 실려 있고, 무엇을 보지 못했는지는 실려 있지 않습니다." };
+    return { lead, detail: "결과에는 다 보지 못했다고만 실려 있고, 무엇을 보지 못했는지는 실려 있지 않습니다.", counts: null };
   }
   // 목록이 비어 있으면 왜 엔진을 돌리지 않았는지 짐작할 것이 없다. CLI 가 언제 그렇게 하는지를 적는다.
-  return { lead, detail: noEngine && !noFiles ? NO_ENGINE.why : null };
+  return { lead, detail: noEngine && !noFiles ? NO_ENGINE.why : null, counts: null };
 }
 
 export function coverageSummary(view: ReportView): CoverageSummary {
