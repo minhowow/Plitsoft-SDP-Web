@@ -86,7 +86,12 @@ export function ProfileTier({
         <p className="tier-none">아직 없음</p>
       ) : (
         <>
-          {profile.serviceFeatures === 0 && <p className="tier-zero">{NO_FEATURES}</p>}
+          {/* 기능이 하나도 없으면 걸리는 의무가 없다는 답이다. 화면·앱 기능만 있으면 그 의무(접근성 등)는 있으므로 CLI 가 적은 말을 적는다. */}
+          {profile.features.length === 0 ? (
+            <p className="tier-zero">{NO_FEATURES}</p>
+          ) : (
+            profile.serviceFeatures === 0 && profile.note && <p className="hint tier-note">{keepParticles(profile.note)}</p>
+          )}
           {profile.features.length > 0 && (
             <ul className="features">
               {profile.features.map((feature) => (
