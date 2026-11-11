@@ -10,6 +10,9 @@
     "test_or_config": 0,
     "package_json": 0
   },
+  "platforms": [
+    "web"
+  ],
   "service_features": 2,
   "features": [
     {

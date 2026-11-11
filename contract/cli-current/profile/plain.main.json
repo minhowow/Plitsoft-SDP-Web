@@ -10,6 +10,7 @@
     "test_or_config": 0,
     "package_json": 0
   },
+  "platforms": [],
   "service_features": 0,
   "features": [],
   "note": "서비스 기능(가입·결제·위치·AI 호출 등)을 하나도 찾지 못했습니다. 라이브러리·예제·문서 저장소이거나, 이 도구가 아직 알아보지 못하는 모양일 수 있습니다.",

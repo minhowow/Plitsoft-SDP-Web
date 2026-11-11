@@ -6,6 +6,8 @@ const REASON_LABEL: Record<string, string> = {
   "citation-rejected": "AI 가 '예'라고 했지만 인용한 코드가 확인되지 않았습니다",
   "weak-unconfirmed": "이름·문자열만 본 약한 근거라 혼자서는 풀지 않았습니다",
   timeout: "판정자가 시간 안에 답하지 않았습니다",
+  // CLI e12e6ba 부터: 시험·예제 파일의 발견은 판정자에게 묻지 않는다.
+  "test-file": "시험·예제 파일이라 판정자에게 묻지 않았습니다",
   "parse-error": "파일 일부를 읽지 못했습니다",
   "engine-incomplete": "엔진이 이 파일을 끝까지 돌리지 못했거나 함수 경계를 얻지 못했습니다",
 };

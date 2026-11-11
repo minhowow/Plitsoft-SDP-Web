@@ -1,0 +1,1266 @@
+{
+  "review_version": 2,
+  "summary": {
+    "counts": {
+      "seen-in-code": 6,
+      "check-outside": 1,
+      "check-applicability": 1,
+      "unknown": 1,
+      "evidence-found": 1,
+      "likely-not-applicable": 1,
+      "not-applicable": 1
+    },
+    "labels": {
+      "seen-in-code": "확인할 것 · 코드에서 본 것",
+      "check-outside": "확인할 것 · 저장소 밖에서 확인할 것",
+      "check-applicability": "확인할 것 · 해당 여부부터 확인할 것",
+      "unknown": "모름",
+      "evidence-found": "지킨 근거 있음",
+      "likely-not-applicable": "걸리지 않는 것으로 보임(확인 안 됨)",
+      "not-applicable": "해당 없음"
+    },
+    "top": [
+      "pipa-22-2-1",
+      "pipa-28-8-1",
+      "aibasic-31-2",
+      "aibasic-31-1",
+      "pipa-21-1"
+    ]
+  },
+  "tool": {
+    "name": "policypack",
+    "version": "0.3.0.dev0"
+  },
+  "profile": {
+    "commit": "5d34db91055d0cacd81e5aa655a6ae2a04cc7007",
+    "platforms": [
+      "web"
+    ],
+    "summary": "가상의 생성형 AI 채팅 웹 서비스입니다(합성 예시). 이용자는 이메일과 생년월일로 가입한 뒤 AI 와 대화하고, 대화는 서버의 데이터베이스에 쌓입니다. 채팅 답은 OpenAI API 로 만들고, 가입 환영 메일은 메일 발송 업체로 보냅니다.",
+    "features": [
+      {
+        "id": "signup",
+        "name": "회원 가입·개인정보 수집",
+        "sources": [
+          "signal"
+        ],
+        "evidence": [
+          {
+            "file": "src/auth/SignupForm.tsx",
+            "line": null,
+            "signal": "path",
+            "value": "signup",
+            "what": "경로 낱말 'signup'"
+          }
+        ],
+        "evidence_total": 1,
+        "model_citations": []
+      },
+      {
+        "id": "genai",
+        "name": "AI 기능(생성형 AI·자동화 결정)",
+        "sources": [
+          "signal"
+        ],
+        "evidence": [
+          {
+            "file": "src/app/api/chat/route.ts",
+            "line": 18,
+            "signal": "call",
+            "value": "streamText",
+            "what": "streamText 호출"
+          }
+        ],
+        "evidence_total": 1,
+        "model_citations": []
+      },
+      {
+        "id": "external-transfer",
+        "name": "외부 업체·국외로 개인정보 전송(외부 AI 포함)",
+        "sources": [
+          "signal",
+          "model"
+        ],
+        "evidence": [
+          {
+            "file": "src/app/api/chat/route.ts",
+            "line": 3,
+            "signal": "import",
+            "value": "@ai-sdk/openai",
+            "what": "@ai-sdk/openai 를 불러옴"
+          }
+        ],
+        "evidence_total": 1,
+        "model_citations": [
+          {
+            "file": "src/app/api/chat/route.ts",
+            "line": 18,
+            "text": "const result = await streamText({ model: openai(\"gpt-4o-mini\"), messages });",
+            "ok": true,
+            "why": "grounded"
+          },
+          {
+            "file": "src/app/api/signup/route.ts",
+            "line": 16,
+            "text": "await resend.emails.send({ to: email, subject: \"가입을 환영합니다\" });",
+            "ok": true,
+            "why": "grounded"
+          }
+        ],
+        "model_reason": "채팅 메시지를 OpenAI 로, 가입 이메일을 메일 발송 업체(Resend)로 보냅니다."
+      },
+      {
+        "id": "ad-send",
+        "name": "광고성 정보 발송(문자·푸시·메일)",
+        "sources": [
+          "signal"
+        ],
+        "evidence": [
+          {
+            "file": "package.json",
+            "line": 14,
+            "signal": "package",
+            "value": "resend",
+            "what": "package.json 의 dependencies 에 resend"
+          }
+        ],
+        "evidence_total": 1,
+        "model_citations": [],
+        "removed": {
+          "reason": "resend 는 가입 환영 메일에만 쓰이고, 메일에 광고 문구는 없습니다.",
+          "citations": [
+            {
+              "file": "src/app/api/signup/route.ts",
+              "line": 16,
+              "text": "await resend.emails.send({ to: email, subject: \"가입을 환영합니다\" });",
+              "ok": true,
+              "why": "grounded"
+            }
+          ]
+        }
+      },
+      {
+        "id": "web-ui",
+        "name": "웹 화면(접근성)",
+        "sources": [
+          "signal"
+        ],
+        "evidence": [
+          {
+            "file": "src/chat/ChatPanel.tsx",
+            "line": null,
+            "signal": "screens",
+            "value": "screen",
+            "what": "화면 파일(JSX·TSX)"
+          }
+        ],
+        "evidence_total": 6,
+        "model_citations": []
+      }
+    ],
+    "test_only": [],
+    "files": {
+      "source": 14,
+      "service": 12,
+      "test_or_config": 2,
+      "package_json": 1
+    }
+  },
+  "data_flow": {
+    "nodes": [
+      {
+        "id": "n1",
+        "kind": "input",
+        "label": "회원 가입 폼",
+        "data": [
+          "이메일",
+          "비밀번호",
+          "생년월일"
+        ],
+        "citations": [
+          {
+            "file": "src/auth/SignupForm.tsx",
+            "line": 21,
+            "text": "<input name=\"birthDate\" type=\"date\" required />",
+            "ok": true,
+            "why": "grounded"
+          }
+        ]
+      },
+      {
+        "id": "n2",
+        "kind": "input",
+        "label": "채팅 입력창",
+        "data": [
+          "메시지"
+        ],
+        "citations": [
+          {
+            "file": "src/chat/ChatPanel.tsx",
+            "line": 4,
+            "text": "const { messages, input, handleSubmit } = useChat({ api: \"/api/chat\" });",
+            "ok": true,
+            "why": "grounded"
+          }
+        ]
+      },
+      {
+        "id": "n3",
+        "kind": "server",
+        "label": "가입 처리 API",
+        "data": [
+          "이메일",
+          "비밀번호(해시)",
+          "생년월일"
+        ],
+        "citations": [
+          {
+            "file": "src/app/api/signup/route.ts",
+            "line": 9,
+            "text": "const { email, password, birthDate } = await req.json();",
+            "ok": true,
+            "why": "grounded"
+          },
+          {
+            "file": "src/app/api/signup/route.ts",
+            "line": 12,
+            "text": "const passwordHash = await bcrypt.hash(password, 12);",
+            "ok": true,
+            "why": "grounded"
+          }
+        ]
+      },
+      {
+        "id": "n4",
+        "kind": "server",
+        "label": "채팅 API",
+        "data": [
+          "메시지",
+          "회원 id"
+        ],
+        "citations": [
+          {
+            "file": "src/app/api/chat/route.ts",
+            "line": 11,
+            "text": "export async function POST(req: Request) {",
+            "ok": true,
+            "why": "grounded"
+          }
+        ]
+      },
+      {
+        "id": "n5",
+        "kind": "store",
+        "label": "users 테이블",
+        "data": [
+          "이메일",
+          "비밀번호(해시)",
+          "생년월일"
+        ],
+        "citations": [
+          {
+            "file": "src/db/schema.ts",
+            "line": 5,
+            "text": "export const users = pgTable(\"users\", {",
+            "ok": true,
+            "why": "grounded"
+          },
+          {
+            "file": "src/app/api/signup/route.ts",
+            "line": 14,
+            "text": "await db.insert(users).values({ email, passwordHash, birthDate });",
+            "ok": true,
+            "why": "grounded"
+          }
+        ]
+      },
+      {
+        "id": "n6",
+        "kind": "store",
+        "label": "chat_logs 테이블",
+        "data": [
+          "회원 id",
+          "메시지",
+          "AI 답"
+        ],
+        "citations": [
+          {
+            "file": "src/db/schema.ts",
+            "line": 17,
+            "text": "export const chatLogs = pgTable(\"chat_logs\", {",
+            "ok": true,
+            "why": "grounded"
+          },
+          {
+            "file": "src/app/api/chat/route.ts",
+            "line": 24,
+            "text": "await db.insert(chatLogs).values({ userId, message, reply: text });",
+            "ok": true,
+            "why": "grounded"
+          }
+        ]
+      },
+      {
+        "id": "n7",
+        "kind": "external",
+        "label": "OpenAI API(국외)",
+        "data": [
+          "메시지"
+        ],
+        "citations": [
+          {
+            "file": "src/app/api/chat/route.ts",
+            "line": 18,
+            "text": "const result = await streamText({ model: openai(\"gpt-4o-mini\"), messages });",
+            "ok": true,
+            "why": "grounded"
+          }
+        ]
+      },
+      {
+        "id": "n8",
+        "kind": "external",
+        "label": "Resend 메일 발송",
+        "data": [
+          "이메일"
+        ],
+        "citations": [
+          {
+            "file": "src/app/api/signup/route.ts",
+            "line": 16,
+            "text": "await resend.emails.send({ to: email, subject: \"가입을 환영합니다\" });",
+            "ok": true,
+            "why": "grounded"
+          }
+        ]
+      }
+    ],
+    "edges": [
+      {
+        "from": "n1",
+        "to": "n3",
+        "data": [
+          "이메일",
+          "비밀번호",
+          "생년월일"
+        ],
+        "citations": [
+          {
+            "file": "src/app/api/signup/route.ts",
+            "line": 9,
+            "text": "const { email, password, birthDate } = await req.json();",
+            "ok": true,
+            "why": "grounded"
+          }
+        ]
+      },
+      {
+        "from": "n3",
+        "to": "n5",
+        "data": [
+          "이메일",
+          "비밀번호(해시)",
+          "생년월일"
+        ],
+        "citations": [
+          {
+            "file": "src/app/api/signup/route.ts",
+            "line": 14,
+            "text": "await db.insert(users).values({ email, passwordHash, birthDate });",
+            "ok": true,
+            "why": "grounded"
+          }
+        ]
+      },
+      {
+        "from": "n3",
+        "to": "n8",
+        "data": [
+          "이메일"
+        ],
+        "citations": [
+          {
+            "file": "src/app/api/signup/route.ts",
+            "line": 16,
+            "text": "await resend.emails.send({ to: email, subject: \"가입을 환영합니다\" });",
+            "ok": true,
+            "why": "grounded"
+          }
+        ]
+      },
+      {
+        "from": "n2",
+        "to": "n4",
+        "data": [
+          "메시지"
+        ],
+        "citations": [
+          {
+            "file": "src/chat/ChatPanel.tsx",
+            "line": 4,
+            "text": "const { messages, input, handleSubmit } = useChat({ api: \"/api/chat\" });",
+            "ok": true,
+            "why": "grounded"
+          }
+        ]
+      },
+      {
+        "from": "n4",
+        "to": "n7",
+        "data": [
+          "메시지"
+        ],
+        "citations": [
+          {
+            "file": "src/app/api/chat/route.ts",
+            "line": 18,
+            "text": "const result = await streamText({ model: openai(\"gpt-4o-mini\"), messages });",
+            "ok": true,
+            "why": "grounded"
+          }
+        ]
+      },
+      {
+        "from": "n4",
+        "to": "n6",
+        "data": [
+          "회원 id",
+          "메시지",
+          "AI 답"
+        ],
+        "citations": [
+          {
+            "file": "src/app/api/chat/route.ts",
+            "line": 24,
+            "text": "await db.insert(chatLogs).values({ userId, message, reply: text });",
+            "ok": true,
+            "why": "grounded"
+          }
+        ]
+      }
+    ]
+  },
+  "obligations": {
+    "listed": [
+      {
+        "id": "pipa-22-2-1",
+        "feature": "signup",
+        "law": "개인정보 보호법",
+        "article": "제22조의2제1항",
+        "title": "만 14세 미만 아동의 개인정보를 처리하려면 법정대리인의 동의를 받고 그 동의를 확인",
+        "duty": "만 14세 미만 아동의 개인정보를 처리하려면 법정대리인의 동의를 받고 그 동의를 확인",
+        "url": "https://www.law.go.kr/법령/개인정보보호법/제22조의2",
+        "in_checklist": true
+      },
+      {
+        "id": "pipa-28-8-1",
+        "feature": "external-transfer",
+        "law": "개인정보 보호법",
+        "article": "제28조의8제1항",
+        "title": "개인정보를 국외로 이전할 때 동의를 받거나 처리방침에 이전 사항을 공개",
+        "duty": "개인정보를 국외로 이전할 때 동의를 받거나 처리방침에 이전 사항을 공개",
+        "url": "https://www.law.go.kr/법령/개인정보보호법/제28조의8",
+        "in_checklist": true
+      },
+      {
+        "id": "aibasic-31-2",
+        "feature": "genai",
+        "law": "인공지능 발전과 신뢰 기반 조성 등에 관한 기본법",
+        "article": "제31조제2항",
+        "title": "생성형 AI 결과물이라는 사실을 이용자가 알 수 있게 표시",
+        "duty": "생성형 AI 결과물이라는 사실을 이용자가 알 수 있게 표시",
+        "url": "https://www.law.go.kr/법령/인공지능발전과신뢰기반조성등에관한기본법/제31조",
+        "in_checklist": true
+      },
+      {
+        "id": "aibasic-31-1",
+        "feature": "genai",
+        "law": "인공지능 발전과 신뢰 기반 조성 등에 관한 기본법",
+        "article": "제31조제1항",
+        "title": "생성형 AI 기반 서비스라는 사실을 이용자에게 미리 알림",
+        "duty": "생성형 AI 기반 서비스라는 사실을 이용자에게 미리 알림",
+        "url": "https://www.law.go.kr/법령/인공지능발전과신뢰기반조성등에관한기본법/제31조",
+        "in_checklist": true
+      },
+      {
+        "id": "pipa-21-1",
+        "feature": "genai",
+        "law": "개인정보 보호법",
+        "article": "제21조제1항",
+        "title": "보유기간이 끝나거나 목적을 이룬 개인정보는 지체 없이 파기",
+        "duty": "보유기간이 끝나거나 목적을 이룬 개인정보는 지체 없이 파기",
+        "url": "https://www.law.go.kr/법령/개인정보보호법/제21조",
+        "in_checklist": true
+      },
+      {
+        "id": "pipa-29-1",
+        "feature": "common",
+        "law": "개인정보 보호법",
+        "article": "제29조",
+        "title": "유출되지 않도록 접근통제·암호화·접속기록 등 안전조치",
+        "duty": "유출되지 않도록 접근통제·암호화·접속기록 등 안전조치",
+        "url": "https://www.law.go.kr/법령/개인정보보호법/제29조",
+        "in_checklist": true
+      },
+      {
+        "id": "pipa-30-1",
+        "feature": "common",
+        "law": "개인정보 보호법",
+        "article": "제30조제1항",
+        "title": "필수 사항을 담은 개인정보 처리방침을 정하고 공개",
+        "duty": "필수 사항을 담은 개인정보 처리방침을 정하고 공개",
+        "url": "https://www.law.go.kr/법령/개인정보보호법/제30조",
+        "in_checklist": true
+      },
+      {
+        "id": "net-50-1",
+        "feature": "ad-send",
+        "law": "정보통신망 이용촉진 및 정보보호 등에 관한 법률",
+        "article": "제50조제1항",
+        "title": "영리목적 광고성 정보를 보내려면 수신자의 명시적인 사전 동의",
+        "duty": "영리목적 광고성 정보를 보내려면 수신자의 명시적인 사전 동의",
+        "url": "https://www.law.go.kr/법령/정보통신망이용촉진및정보보호등에관한법률/제50조",
+        "in_checklist": true
+      },
+      {
+        "id": "pipa-29-pw",
+        "feature": "signup",
+        "law": "개인정보 보호법",
+        "article": "제29조(안전성 확보조치 기준 제7조)",
+        "title": "비밀번호는 복호화되지 않도록 일방향 암호화해 저장",
+        "duty": "비밀번호는 복호화되지 않도록 일방향 암호화해 저장",
+        "url": "https://www.law.go.kr/법령/개인정보보호법/제29조",
+        "in_checklist": true
+      },
+      {
+        "id": "pipa-24-2",
+        "feature": "signup",
+        "law": "개인정보 보호법",
+        "article": "제24조의2제1항",
+        "title": "주민등록번호는 법령 근거가 있을 때만 처리",
+        "duty": "주민등록번호는 법령 근거가 있을 때만 처리",
+        "url": "https://www.law.go.kr/법령/개인정보보호법/제24조의2",
+        "in_checklist": true
+      },
+      {
+        "id": "loc-15-1",
+        "feature": "location",
+        "law": "위치정보의 보호 및 이용 등에 관한 법률",
+        "article": "제15조제1항",
+        "title": "개인위치정보를 수집하려면 본인의 동의",
+        "duty": "개인위치정보를 수집하려면 본인의 동의",
+        "url": "https://www.law.go.kr/법령/위치정보의보호및이용등에관한법률/제15조",
+        "in_checklist": true
+      },
+      {
+        "id": "pipa-35-1",
+        "feature": "common",
+        "law": "개인정보 보호법",
+        "article": "제35조제1항",
+        "title": "정보주체가 자기 개인정보의 열람을 요구할 수 있게",
+        "duty": "정보주체가 자기 개인정보의 열람을 요구할 수 있게",
+        "url": "https://www.law.go.kr/법령/개인정보보호법/제35조",
+        "in_checklist": true
+      },
+      {
+        "id": "pipa-15-1",
+        "feature": "signup",
+        "law": "개인정보 보호법",
+        "article": "제15조제1항",
+        "title": "수집·이용은 동의·법령·계약 이행 등 근거가 있을 때만",
+        "duty": "동의·법령·계약 이행 등 근거가 있을 때만 수집하고 그 목적 범위에서만 이용",
+        "url": "https://www.law.go.kr/법령/개인정보보호법/제15조",
+        "in_checklist": false
+      }
+    ],
+    "status_only": 257
+  },
+  "checklist": [
+    {
+      "duty": "pipa-22-2-1",
+      "feature": "signup",
+      "law": "개인정보 보호법",
+      "article": "제22조의2제1항",
+      "title": "만 14세 미만 아동의 개인정보를 처리하려면 법정대리인의 동의를 받고 그 동의를 확인",
+      "duty_text": "만 14세 미만 아동의 개인정보를 처리하려면 법정대리인의 동의를 받고 그 동의를 확인",
+      "url": "https://www.law.go.kr/법령/개인정보보호법/제22조의2",
+      "quote": "",
+      "krcore": true,
+      "static": [
+        {
+          "policy": "kr.pipa.22-2",
+          "rule": "signup-without-guard",
+          "outcome": "needs-review",
+          "file": "src/app/api/signup/route.ts",
+          "line": 9
+        }
+      ],
+      "status": "seen-in-code",
+      "status_label": "확인할 것 · 코드에서 본 것",
+      "rank": 1,
+      "asked": true,
+      "first": {
+        "answered": "seen-in-code",
+        "status": "seen-in-code",
+        "citations": [
+          {
+            "file": "src/auth/SignupForm.tsx",
+            "line": 21,
+            "text": "<input name=\"birthDate\" type=\"date\" required />",
+            "ok": true,
+            "why": "grounded"
+          },
+          {
+            "file": "src/app/api/signup/route.ts",
+            "line": 9,
+            "text": "const { email, password, birthDate } = await req.json();",
+            "ok": true,
+            "why": "grounded"
+          },
+          {
+            "file": "src/app/api/signup/route.ts",
+            "line": 14,
+            "text": "await db.insert(users).values({ email, passwordHash, birthDate });",
+            "ok": true,
+            "why": "grounded"
+          }
+        ],
+        "searches": [],
+        "reason": "가입 처리 API 가 생년월일을 받아 그대로 저장합니다. 나이를 계산하거나 만 14세 미만을 가르는 분기는 보이지 않습니다.",
+        "question": "만 14세 미만의 가입을 막거나 법정대리인 동의를 받는 단계가 있나요?"
+      },
+      "verification": {
+        "result": "upheld"
+      },
+      "citations": [
+        {
+          "file": "src/auth/SignupForm.tsx",
+          "line": 21,
+          "text": "<input name=\"birthDate\" type=\"date\" required />",
+          "ok": true,
+          "why": "grounded"
+        },
+        {
+          "file": "src/app/api/signup/route.ts",
+          "line": 9,
+          "text": "const { email, password, birthDate } = await req.json();",
+          "ok": true,
+          "why": "grounded"
+        },
+        {
+          "file": "src/app/api/signup/route.ts",
+          "line": 14,
+          "text": "await db.insert(users).values({ email, passwordHash, birthDate });",
+          "ok": true,
+          "why": "grounded"
+        }
+      ],
+      "searches": [],
+      "question": "만 14세 미만의 가입을 막거나 법정대리인 동의를 받는 단계가 있나요?",
+      "reason": "가입 처리 API 가 생년월일을 받아 그대로 저장합니다. 나이를 계산하거나 만 14세 미만을 가르는 분기는 보이지 않습니다."
+    },
+    {
+      "duty": "pipa-28-8-1",
+      "feature": "external-transfer",
+      "law": "개인정보 보호법",
+      "article": "제28조의8제1항",
+      "title": "개인정보를 국외로 이전할 때 동의를 받거나 처리방침에 이전 사항을 공개",
+      "duty_text": "개인정보를 국외로 이전할 때 동의를 받거나 처리방침에 이전 사항을 공개",
+      "url": "https://www.law.go.kr/법령/개인정보보호법/제28조의8",
+      "quote": "",
+      "krcore": true,
+      "static": [],
+      "status": "seen-in-code",
+      "status_label": "확인할 것 · 코드에서 본 것",
+      "rank": 2,
+      "asked": true,
+      "first": {
+        "answered": "seen-in-code",
+        "status": "seen-in-code",
+        "citations": [
+          {
+            "file": "src/app/api/chat/route.ts",
+            "line": 11,
+            "text": "export async function POST(req: Request) {",
+            "ok": true,
+            "why": "grounded"
+          },
+          {
+            "file": "src/app/api/chat/route.ts",
+            "line": 18,
+            "text": "const result = await streamText({ model: openai(\"gpt-4o-mini\"), messages });",
+            "ok": true,
+            "why": "grounded"
+          }
+        ],
+        "searches": [],
+        "reason": "채팅 API 가 이용자의 메시지를 OpenAI API 로 보냅니다. 국외 이전을 알리는 화면이나 동의는 코드에서 찾지 못했습니다.",
+        "question": "채팅 메시지를 국외(OpenAI)로 보낸다는 사실과 이전 항목·국가·업체를 어디에 알리나요?"
+      },
+      "verification": {
+        "result": "overturned",
+        "why": "처음 답은 저장소 밖에서 확인할 것이었으나, 반박이 메시지를 그대로 보내는 줄을 찾아 코드에서 본 것으로 바꿨습니다.",
+        "status": "seen-in-code",
+        "citations": [
+          {
+            "file": "src/app/api/chat/route.ts",
+            "line": 18,
+            "text": "const result = await streamText({ model: openai(\"gpt-4o-mini\"), messages });",
+            "ok": true,
+            "why": "grounded"
+          }
+        ]
+      },
+      "citations": [
+        {
+          "file": "src/app/api/chat/route.ts",
+          "line": 11,
+          "text": "export async function POST(req: Request) {",
+          "ok": true,
+          "why": "grounded"
+        },
+        {
+          "file": "src/app/api/chat/route.ts",
+          "line": 18,
+          "text": "const result = await streamText({ model: openai(\"gpt-4o-mini\"), messages });",
+          "ok": true,
+          "why": "grounded"
+        }
+      ],
+      "searches": [],
+      "question": "채팅 메시지를 국외(OpenAI)로 보낸다는 사실과 이전 항목·국가·업체를 어디에 알리나요?",
+      "reason": "채팅 API 가 이용자의 메시지를 OpenAI API 로 보냅니다. 국외 이전을 알리는 화면이나 동의는 코드에서 찾지 못했습니다."
+    },
+    {
+      "duty": "aibasic-31-2",
+      "feature": "genai",
+      "law": "인공지능 발전과 신뢰 기반 조성 등에 관한 기본법",
+      "article": "제31조제2항",
+      "title": "생성형 AI 결과물이라는 사실을 이용자가 알 수 있게 표시",
+      "duty_text": "생성형 AI 결과물이라는 사실을 이용자가 알 수 있게 표시",
+      "url": "https://www.law.go.kr/법령/인공지능발전과신뢰기반조성등에관한기본법/제31조",
+      "quote": "",
+      "krcore": true,
+      "static": [],
+      "status": "seen-in-code",
+      "status_label": "확인할 것 · 코드에서 본 것",
+      "rank": 3,
+      "asked": true,
+      "first": {
+        "answered": "seen-in-code",
+        "status": "seen-in-code",
+        "citations": [
+          {
+            "file": "src/chat/ChatPanel.tsx",
+            "line": 9,
+            "text": "{m.content}",
+            "ok": true,
+            "why": "grounded"
+          }
+        ],
+        "searches": [],
+        "reason": "채팅 답을 말풍선에 그대로 그립니다. AI 가 만든 답이라는 표시는 보이지 않습니다.",
+        "question": "채팅 답 곁에 AI 생성물이라는 표시가 있나요?"
+      },
+      "verification": {
+        "result": "upheld"
+      },
+      "citations": [
+        {
+          "file": "src/chat/ChatPanel.tsx",
+          "line": 9,
+          "text": "{m.content}",
+          "ok": true,
+          "why": "grounded"
+        }
+      ],
+      "searches": [],
+      "question": "채팅 답 곁에 AI 생성물이라는 표시가 있나요?",
+      "reason": "채팅 답을 말풍선에 그대로 그립니다. AI 가 만든 답이라는 표시는 보이지 않습니다."
+    },
+    {
+      "duty": "aibasic-31-1",
+      "feature": "genai",
+      "law": "인공지능 발전과 신뢰 기반 조성 등에 관한 기본법",
+      "article": "제31조제1항",
+      "title": "생성형 AI 기반 서비스라는 사실을 이용자에게 미리 알림",
+      "duty_text": "생성형 AI 기반 서비스라는 사실을 이용자에게 미리 알림",
+      "url": "https://www.law.go.kr/법령/인공지능발전과신뢰기반조성등에관한기본법/제31조",
+      "quote": "",
+      "krcore": true,
+      "static": [],
+      "status": "seen-in-code",
+      "status_label": "확인할 것 · 코드에서 본 것",
+      "rank": 4,
+      "asked": true,
+      "first": {
+        "answered": "seen-in-code",
+        "status": "seen-in-code",
+        "citations": [
+          {
+            "file": "src/chat/ChatPanel.tsx",
+            "line": 4,
+            "text": "const { messages, input, handleSubmit } = useChat({ api: \"/api/chat\" });",
+            "ok": true,
+            "why": "grounded"
+          }
+        ],
+        "searches": [],
+        "reason": "채팅 화면이 처음부터 입력창을 보입니다. AI 기반이라는 안내는 화면에서 찾지 못했습니다.",
+        "question": "이용자가 채팅을 쓰기 전에 AI 기반 서비스라는 안내를 어디서 보나요?"
+      },
+      "verification": {
+        "result": "upheld"
+      },
+      "citations": [
+        {
+          "file": "src/chat/ChatPanel.tsx",
+          "line": 4,
+          "text": "const { messages, input, handleSubmit } = useChat({ api: \"/api/chat\" });",
+          "ok": true,
+          "why": "grounded"
+        }
+      ],
+      "searches": [],
+      "question": "이용자가 채팅을 쓰기 전에 AI 기반 서비스라는 안내를 어디서 보나요?",
+      "reason": "채팅 화면이 처음부터 입력창을 보입니다. AI 기반이라는 안내는 화면에서 찾지 못했습니다."
+    },
+    {
+      "duty": "pipa-21-1",
+      "feature": "genai",
+      "law": "개인정보 보호법",
+      "article": "제21조제1항",
+      "title": "보유기간이 끝나거나 목적을 이룬 개인정보는 지체 없이 파기",
+      "duty_text": "보유기간이 끝나거나 목적을 이룬 개인정보는 지체 없이 파기",
+      "url": "https://www.law.go.kr/법령/개인정보보호법/제21조",
+      "quote": "",
+      "krcore": false,
+      "static": [],
+      "status": "seen-in-code",
+      "status_label": "확인할 것 · 코드에서 본 것",
+      "rank": 5,
+      "asked": true,
+      "first": {
+        "answered": "seen-in-code",
+        "status": "seen-in-code",
+        "citations": [
+          {
+            "file": "src/app/api/chat/route.ts",
+            "line": 24,
+            "text": "await db.insert(chatLogs).values({ userId, message, reply: text });",
+            "ok": true,
+            "why": "grounded"
+          },
+          {
+            "file": "src/db/schema.ts",
+            "line": 17,
+            "text": "export const chatLogs = pgTable(\"chat_logs\", {",
+            "ok": true,
+            "why": "grounded"
+          }
+        ],
+        "searches": [],
+        "reason": "채팅 기록을 chat_logs 테이블에 쌓습니다. 보존 기간이나 지우는 작업은 보이지 않습니다.",
+        "question": "채팅 기록을 언제까지 두고 언제 지우나요?"
+      },
+      "verification": {
+        "result": "upheld"
+      },
+      "citations": [
+        {
+          "file": "src/app/api/chat/route.ts",
+          "line": 24,
+          "text": "await db.insert(chatLogs).values({ userId, message, reply: text });",
+          "ok": true,
+          "why": "grounded"
+        },
+        {
+          "file": "src/db/schema.ts",
+          "line": 17,
+          "text": "export const chatLogs = pgTable(\"chat_logs\", {",
+          "ok": true,
+          "why": "grounded"
+        }
+      ],
+      "searches": [],
+      "question": "채팅 기록을 언제까지 두고 언제 지우나요?",
+      "reason": "채팅 기록을 chat_logs 테이블에 쌓습니다. 보존 기간이나 지우는 작업은 보이지 않습니다."
+    },
+    {
+      "duty": "pipa-29-1",
+      "feature": "common",
+      "law": "개인정보 보호법",
+      "article": "제29조",
+      "title": "유출되지 않도록 접근통제·암호화·접속기록 등 안전조치",
+      "duty_text": "유출되지 않도록 접근통제·암호화·접속기록 등 안전조치",
+      "url": "https://www.law.go.kr/법령/개인정보보호법/제29조",
+      "quote": "",
+      "krcore": false,
+      "static": [],
+      "status": "seen-in-code",
+      "status_label": "확인할 것 · 코드에서 본 것",
+      "rank": 6,
+      "asked": true,
+      "first": {
+        "answered": "seen-in-code",
+        "status": "seen-in-code",
+        "citations": [
+          {
+            "file": "src/app/api/signup/route.ts",
+            "line": 12,
+            "text": "const passwordHash = await bcrypt.hash(password, 12);",
+            "ok": true,
+            "why": "grounded"
+          },
+          {
+            "file": "src/app/api/chat/route.ts",
+            "line": 11,
+            "text": "export async function POST(req: Request) {",
+            "ok": true,
+            "why": "grounded"
+          }
+        ],
+        "searches": [],
+        "reason": "비밀번호는 bcrypt 로 해시합니다. 로그인 실패 횟수 제한과 접속기록은 코드에서 찾지 못했습니다.",
+        "question": "로그인 실패 횟수 제한과 관리자 접속기록은 어디서 하나요?"
+      },
+      "verification": {
+        "result": "upheld"
+      },
+      "citations": [
+        {
+          "file": "src/app/api/signup/route.ts",
+          "line": 12,
+          "text": "const passwordHash = await bcrypt.hash(password, 12);",
+          "ok": true,
+          "why": "grounded"
+        },
+        {
+          "file": "src/app/api/chat/route.ts",
+          "line": 11,
+          "text": "export async function POST(req: Request) {",
+          "ok": true,
+          "why": "grounded"
+        }
+      ],
+      "searches": [],
+      "question": "로그인 실패 횟수 제한과 관리자 접속기록은 어디서 하나요?",
+      "reason": "비밀번호는 bcrypt 로 해시합니다. 로그인 실패 횟수 제한과 접속기록은 코드에서 찾지 못했습니다."
+    },
+    {
+      "duty": "pipa-30-1",
+      "feature": "common",
+      "law": "개인정보 보호법",
+      "article": "제30조제1항",
+      "title": "필수 사항을 담은 개인정보 처리방침을 정하고 공개",
+      "duty_text": "필수 사항을 담은 개인정보 처리방침을 정하고 공개",
+      "url": "https://www.law.go.kr/법령/개인정보보호법/제30조",
+      "quote": "",
+      "krcore": false,
+      "static": [],
+      "status": "check-outside",
+      "status_label": "확인할 것 · 저장소 밖에서 확인할 것",
+      "rank": 7,
+      "asked": true,
+      "first": {
+        "answered": "check-outside",
+        "status": "check-outside",
+        "citations": [],
+        "searches": [],
+        "reason": "처리방침 화면은 저장소에 없습니다. 웹사이트 밖(별도 문서)에 있을 수 있습니다.",
+        "question": "개인정보 처리방침은 어디에 공개되어 있나요?"
+      },
+      "verification": {
+        "result": "upheld"
+      },
+      "citations": [],
+      "searches": [],
+      "question": "개인정보 처리방침은 어디에 공개되어 있나요?",
+      "reason": "처리방침 화면은 저장소에 없습니다. 웹사이트 밖(별도 문서)에 있을 수 있습니다."
+    },
+    {
+      "duty": "net-50-1",
+      "feature": "ad-send",
+      "law": "정보통신망 이용촉진 및 정보보호 등에 관한 법률",
+      "article": "제50조제1항",
+      "title": "영리목적 광고성 정보를 보내려면 수신자의 명시적인 사전 동의",
+      "duty_text": "영리목적 광고성 정보를 보내려면 수신자의 명시적인 사전 동의",
+      "url": "https://www.law.go.kr/법령/정보통신망이용촉진및정보보호등에관한법률/제50조",
+      "quote": "",
+      "krcore": false,
+      "static": [],
+      "status": "check-applicability",
+      "status_label": "확인할 것 · 해당 여부부터 확인할 것",
+      "rank": 8,
+      "asked": true,
+      "first": {
+        "answered": "check-applicability",
+        "status": "check-applicability",
+        "citations": [
+          {
+            "file": "src/app/api/signup/route.ts",
+            "line": 16,
+            "text": "await resend.emails.send({ to: email, subject: \"가입을 환영합니다\" });",
+            "ok": true,
+            "why": "grounded"
+          }
+        ],
+        "searches": [],
+        "reason": "가입 환영 메일을 보내는 줄만 보입니다. 광고 메일을 보내는지는 코드로 알 수 없습니다.",
+        "question": "가입 환영 메일 말고 이벤트·할인 같은 광고 메일도 보내나요?"
+      },
+      "verification": {
+        "result": "upheld"
+      },
+      "citations": [
+        {
+          "file": "src/app/api/signup/route.ts",
+          "line": 16,
+          "text": "await resend.emails.send({ to: email, subject: \"가입을 환영합니다\" });",
+          "ok": true,
+          "why": "grounded"
+        }
+      ],
+      "searches": [],
+      "question": "가입 환영 메일 말고 이벤트·할인 같은 광고 메일도 보내나요?",
+      "reason": "가입 환영 메일을 보내는 줄만 보입니다. 광고 메일을 보내는지는 코드로 알 수 없습니다."
+    },
+    {
+      "duty": "pipa-29-pw",
+      "feature": "signup",
+      "law": "개인정보 보호법",
+      "article": "제29조(안전성 확보조치 기준 제7조)",
+      "title": "비밀번호는 복호화되지 않도록 일방향 암호화해 저장",
+      "duty_text": "비밀번호는 복호화되지 않도록 일방향 암호화해 저장",
+      "url": "https://www.law.go.kr/법령/개인정보보호법/제29조",
+      "quote": "",
+      "krcore": false,
+      "static": [],
+      "status": "evidence-found",
+      "status_label": "지킨 근거 있음",
+      "rank": 9,
+      "asked": true,
+      "first": {
+        "answered": "evidence-found",
+        "status": "evidence-found",
+        "citations": [
+          {
+            "file": "src/app/api/signup/route.ts",
+            "line": 12,
+            "text": "const passwordHash = await bcrypt.hash(password, 12);",
+            "ok": true,
+            "why": "grounded"
+          }
+        ],
+        "searches": [],
+        "reason": "비밀번호를 bcrypt 로 해시해 저장합니다.",
+        "question": "해시 비용 값(12)은 운영 환경에서도 같나요?"
+      },
+      "verification": {
+        "result": "upheld"
+      },
+      "citations": [
+        {
+          "file": "src/app/api/signup/route.ts",
+          "line": 12,
+          "text": "const passwordHash = await bcrypt.hash(password, 12);",
+          "ok": true,
+          "why": "grounded"
+        }
+      ],
+      "searches": [],
+      "question": "해시 비용 값(12)은 운영 환경에서도 같나요?",
+      "reason": "비밀번호를 bcrypt 로 해시해 저장합니다."
+    },
+    {
+      "duty": "pipa-24-2",
+      "feature": "signup",
+      "law": "개인정보 보호법",
+      "article": "제24조의2제1항",
+      "title": "주민등록번호는 법령 근거가 있을 때만 처리",
+      "duty_text": "주민등록번호는 법령 근거가 있을 때만 처리",
+      "url": "https://www.law.go.kr/법령/개인정보보호법/제24조의2",
+      "quote": "",
+      "krcore": false,
+      "static": [],
+      "status": "not-applicable",
+      "status_label": "해당 없음",
+      "rank": 10,
+      "asked": true,
+      "first": {
+        "answered": "not-applicable",
+        "status": "not-applicable",
+        "citations": [],
+        "searches": [
+          {
+            "pattern": "주민|resident|rrn|jumin",
+            "path": ".",
+            "claimed": 0,
+            "found": 0,
+            "ok": true,
+            "why": "match"
+          }
+        ],
+        "reason": "주민등록번호를 받는 입력이나 필드가 없습니다.",
+        "question": ""
+      },
+      "verification": {
+        "result": "upheld"
+      },
+      "citations": [],
+      "searches": [
+        {
+          "pattern": "주민|resident|rrn|jumin",
+          "path": ".",
+          "claimed": 0,
+          "found": 0,
+          "ok": true,
+          "why": "match"
+        }
+      ],
+      "question": "",
+      "reason": "주민등록번호를 받는 입력이나 필드가 없습니다."
+    },
+    {
+      "duty": "loc-15-1",
+      "feature": "location",
+      "law": "위치정보의 보호 및 이용 등에 관한 법률",
+      "article": "제15조제1항",
+      "title": "개인위치정보를 수집하려면 본인의 동의",
+      "duty_text": "개인위치정보를 수집하려면 본인의 동의",
+      "url": "https://www.law.go.kr/법령/위치정보의보호및이용등에관한법률/제15조",
+      "quote": "",
+      "krcore": false,
+      "static": [],
+      "status": "likely-not-applicable",
+      "status_label": "걸리지 않는 것으로 보임(확인 안 됨)",
+      "rank": 11,
+      "asked": true,
+      "first": {
+        "answered": "check-applicability",
+        "status": "likely-not-applicable",
+        "citations": [],
+        "searches": [
+          {
+            "pattern": "geolocation|navigator\\.geolocation|latitude",
+            "path": "src",
+            "claimed": 0,
+            "found": 2,
+            "ok": false,
+            "why": "mismatch"
+          }
+        ],
+        "reason": "위치를 읽는 코드는 보이지 않습니다. 찾아본 말의 건수가 맞지 않아 확인되지 않았습니다.",
+        "question": ""
+      },
+      "verification": {
+        "result": "upheld"
+      },
+      "citations": [],
+      "searches": [
+        {
+          "pattern": "geolocation|navigator\\.geolocation|latitude",
+          "path": "src",
+          "claimed": 0,
+          "found": 2,
+          "ok": false,
+          "why": "mismatch"
+        }
+      ],
+      "question": "",
+      "reason": "위치를 읽는 코드는 보이지 않습니다. 찾아본 말의 건수가 맞지 않아 확인되지 않았습니다."
+    },
+    {
+      "duty": "pipa-35-1",
+      "feature": "common",
+      "law": "개인정보 보호법",
+      "article": "제35조제1항",
+      "title": "정보주체가 자기 개인정보의 열람을 요구할 수 있게",
+      "duty_text": "정보주체가 자기 개인정보의 열람을 요구할 수 있게",
+      "url": "https://www.law.go.kr/법령/개인정보보호법/제35조",
+      "quote": "",
+      "krcore": false,
+      "static": [],
+      "status": "unknown",
+      "status_label": "모름",
+      "rank": 12,
+      "asked": false,
+      "first": null,
+      "verification": {
+        "result": "upheld"
+      },
+      "citations": [],
+      "searches": [],
+      "question": "",
+      "reason": "",
+      "not_answered": "금액 상한에 닿아 묻지 않았습니다."
+    }
+  ],
+  "run": {
+    "models": {
+      "investigate": "claude-haiku-5-5",
+      "verify": "claude-sonnet-5-5"
+    },
+    "batch": "duty",
+    "limits": {
+      "usd": 2.0,
+      "seconds": 360.0,
+      "concurrency": 6
+    },
+    "seconds": 148.2,
+    "calls": 64,
+    "usage": {
+      "claude-haiku-5-5": {
+        "input_tokens": 120,
+        "output_tokens": 18000
+      },
+      "claude-sonnet-5-5": {
+        "input_tokens": 80,
+        "output_tokens": 6100
+      }
+    },
+    "usd_estimate": 1.42,
+    "concurrency": [
+      {
+        "start": 6,
+        "end": 6,
+        "rate_limited": 0
+      }
+    ],
+    "status_counts": {
+      "seen-in-code": 6,
+      "check-outside": 1,
+      "check-applicability": 1,
+      "unknown": 1,
+      "evidence-found": 1,
+      "likely-not-applicable": 1,
+      "not-applicable": 1
+    },
+    "verification_counts": {
+      "upheld": 10,
+      "overturned": 1
+    },
+    "citations": 31,
+    "citations_rejected": 2,
+    "searches": 5,
+    "searches_rejected": 1,
+    "understanding": {
+      "answered": true,
+      "rejected_claims": 0,
+      "reused": false
+    },
+    "not_asked": {
+      "budget": 1
+    },
+    "masked": {
+      "api-key": 1
+    },
+    "refused": [],
+    "static": {
+      "ran": true,
+      "error": null,
+      "duties": 4
+    },
+    "questions": []
+  }
+}
