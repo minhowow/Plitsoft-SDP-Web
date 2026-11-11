@@ -13,7 +13,7 @@ import { STATUS_HINT, STATUS_LABEL, type Status } from "@/lib/report/status";
 import type { Report } from "@/lib/report/types";
 import { buildReportView, type ReportView } from "@/lib/report/view-model";
 import { SITE } from "@/lib/site";
-import { elementAt, elementsOf, jsonFiles, readJson, readPackFile, root, textOf, walk } from "./helpers";
+import { closedDetailsAt, elementAt, elementsOf, jsonFiles, readJson, readPackFile, root, textOf, walk } from "./helpers";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { BANNED_WORDING } from "./wording";
@@ -202,7 +202,7 @@ describe("인용한 줄 (Citation)", () => {
     expect(renderToStaticMarkup(<Citation quotes={[]} />)).toBe("");
   });
 
-  it("인용이 받치는 대안이 있으면 인용마다 그 대안의 id 를 앞에 적는다", () => {
+  it("인용마다 경로와 글만 적는다. 받치는 대안의 id 는 적지 않는다(2026-11-11 오너 지시: 팩 안의 이름은 `자세히` 안)", () => {
     const html = renderToStaticMarkup(
       <Citation
         quotes={[
@@ -216,9 +216,10 @@ describe("인용한 줄 (Citation)", () => {
       text: textOf(elementAt(li, li.indexOf('<code class="cite-text"'))),
     }));
     expect(items).toEqual([
-      { at: "대안 alt-a src/auth/signup.ts", text: "QUOTE_FOR_A" },
-      { at: "대안 alt-b src/auth/signup.ts", text: "QUOTE_FOR_B" },
+      { at: "src/auth/signup.ts", text: "QUOTE_FOR_A" },
+      { at: "src/auth/signup.ts", text: "QUOTE_FOR_B" },
     ]);
+    expect(html).not.toContain("alt-a");
   });
 
   it("AI 가 푼 경고의 상자: 대안이 둘이고 인용이 둘이면 어느 인용이 어느 대안의 것인지 보인다", () => {
@@ -234,10 +235,13 @@ describe("인용한 줄 (Citation)", () => {
     const html = renderToStaticMarkup(<ReportSummary view={view} />);
     const box = elementAt(html, html.indexOf('<details class="box ai-box" open="">'));
     const cites = elementsOf(box, '<li class="cite">').map(textOf);
-    expect(cites).toEqual(["대안 under14-branch src/auth/signup.tsQUOTE_FOR_A", "대안 guardian-call src/auth/signup.tsQUOTE_FOR_B"]);
-    // 인용이 없는 대안은 "인용 없음"으로 따로 적는다. 대안 id 를 한 줄에 몰아 다시 적지는 않는다.
-    expect(textOf(box)).toContain("인용 없음: age-gate-text");
-    expect(textOf(box)).not.toContain("대안 under14-branch guardian-call");
+    expect(cites).toEqual(["src/auth/signup.tsQUOTE_FOR_A", "src/auth/signup.tsQUOTE_FOR_B"]);
+    // 어느 인용이 어느 대안의 것인지는 줄의 `자세히` 안에 인용과 같은 차례로 있다. 인용이 없는 대안은 "인용 없음"으로 따로 적는다.
+    const more = elementAt(box, box.indexOf('<details class="f-more">'));
+    expect(closedDetailsAt(box, box.indexOf("인용한 대안"))).toEqual(['<details class="f-more">']);
+    expect(textOf(elementAt(more, more.indexOf('<p class="ids">')))).toBe(
+      "규칙 signup-without-guard인용한 대안 under14-branch guardian-call인용 없음 age-gate-text",
+    );
   });
 
   it("AI 가 푼 경고의 상자가 이 부품으로 인용한 줄을 그린다", () => {

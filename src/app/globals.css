@@ -4787,6 +4787,16 @@ details.ai-box[open] > summary::before {
   color: var(--muted);
 }
 
+/* AI 가 푼 경고·빠진 판정의 줄 안의 `자세히`(규칙·대안 id). 줄의 안쪽 여백 안에 둔다. */
+.ai-row details.f-more > summary {
+  margin: 0;
+}
+
+.ai-row details.f-more > .ids {
+  margin-top: var(--space-1);
+  padding-left: 20px;
+}
+
 /* 인용한 줄: 경로·줄과 글(결과에 실린 그대로. 줄바꿈과 빈칸도 그대로). */
 .cites {
   list-style: none;

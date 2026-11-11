@@ -495,7 +495,7 @@ describe("대시보드", () => {
     }
     // 접힌 채로 둔다(details, open 없음). 이름은 "근거 조문 원문"이다. 조문 이름은 상자 머리의 조문 링크와 다를 때만 덧붙인다
     // (같은 사실을 한 상자에 두 번 적지 않는다).
-    const folds = html.match(/<details class="lg statute"><summary>근거 조문 원문(?: <span class="lg-name">[^<]*<\/span>)?<\/summary>/g) ?? [];
+    const folds = html.match(/<details class="lg statute-fold"><summary>근거 조문 원문(?: <span class="lg-name">[^<]*<\/span>)?<\/summary>/g) ?? [];
     expect(folds).toHaveLength(withFindings.filter((p) => statutes[p.id]).length);
     // (2026-11-11 오너 지시) 펼치면 조문 이름의 항만 먼저 보이고(원문에서 그대로 잘라 낸 것), 조문 전체는 그 안에서 다시 펼친다.
     for (const policy of withFindings.filter((p) => statutes[p.id])) {

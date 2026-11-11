@@ -12,6 +12,7 @@ import { SITE } from "@/lib/site";
 import { Citation } from "./Citation";
 import { CoverageWarning, NotSeen } from "./Coverage";
 import { isBoxed, PolicyCard, type CodeSource } from "./PolicyCard";
+import { RuleId } from "./RuleId";
 import { Where } from "./Where";
 
 /**
@@ -44,7 +45,7 @@ export interface Statute {
 function StatuteFold({ statute, law }: { statute: Statute; law: string | null }) {
   const part = paragraphOf(statute.label, statute.text);
   return (
-    <details className="lg statute">
+    <details className="lg statute-fold">
       <summary>
         근거 조문 원문
         {statute.label !== law && (
@@ -81,39 +82,67 @@ export const CLEARED_NOTE =
 export const DISMISSED_NOTE = "적용 여부를 묻는 질문에 AI 가 ‘아니오’라고 답했습니다. 인용 없이 빠진 판정입니다.";
 
 /**
- * AI 의 답으로 풀리거나 빠진 판정 하나: 위치와 정책, 인용한 줄(또는 묻는 말과 답). 정책은 이 결과에 있는 정책이면 그 이름으로,
- * 아니면 결과에 실린 id 그대로 적는다. 규칙 id 는 화면 낭독기에만 읽힌다(2026-11-11 오너 지시: 내부 이름은 화면에 드러내지 않는다.
- * 조문별 검사 기록에는 그대로 실린다).
+ * AI 의 답으로 풀리거나 빠진 판정 하나: 위치와 정책 이름, 인용한 줄(또는 묻는 말과 답). 규칙·대안 id(팩 안의 이름)와 인용이
+ * 없는 대안은 `자세히` 안에 둔다(2026-11-11 오너 지시: 내부 이름은 `자세히` 안. 조문별 검사 기록에는 그대로 실린다).
  */
-function ReviewRow({ item, policyTitle }: { item: ReviewItem; policyTitle: string | undefined }) {
+function ReviewRow({ item }: { item: ReviewItem }) {
+  // 어느 인용이 어느 대안을 받치는지는 인용과 같은 차례로 `자세히` 안에 적는다.
+  const cited = item.quotes.map((quote) => quote.alternative).filter((id): id is string => id !== null);
   return (
     <li className="ai-row">
       <p className="ai-at">
         <Where file={item.file} line={item.line} />{" "}
-        {policyTitle === undefined ? (
+        {item.title === item.policy ? (
           <code className="ai-policy" translate="no">
             {item.policy}
           </code>
         ) : (
-          <span className="ai-policy">{policyTitle}</span>
+          <span className="ai-policy">{item.title}</span>
         )}
-        <span className="visually-hidden"> 규칙 {item.rule}</span>
       </p>
-      {/* 대안의 id 는 인용마다 그 앞에 적는다(어느 인용이 어느 대안을 받치는지). 인용이 없는 대안은 아래 "인용 없음"에 적는다. */}
       <Citation quotes={item.quotes} />
-      {item.uncited.length > 0 && (
-        <p className="hint">
-          인용 없음:{" "}
-          {item.uncited.map((id, i) => (
-            <span key={`${id}:${i}`}>
-              {i > 0 && ", "}
-              <code translate="no">{id}</code>
-            </span>
-          ))}
-        </p>
-      )}
       {item.question && <p className="ask">질문: {item.question}</p>}
       {item.answer && <p className="ask">답: {item.answer}</p>}
+      <details className="f-more">
+        <summary>
+          자세히
+          <span className="visually-hidden">
+            {" "}
+            {item.line === null ? item.file : `${item.file}:${item.line}`} 규칙 {item.rule}
+          </span>
+        </summary>
+        <p className="ids">
+          <span>
+            규칙 <RuleId policy={item.policy} rule={item.rule} inPack={item.ruleInPack} />
+          </span>
+          {cited.length > 0 && (
+            <span>
+              인용한 대안{" "}
+              {cited.map((id, i) => (
+                <span key={`${id}:${i}`}>
+                  {i > 0 && " "}
+                  <code className="alt-id" translate="no">
+                    {id}
+                  </code>
+                </span>
+              ))}
+            </span>
+          )}
+          {item.uncited.length > 0 && (
+            <span>
+              인용 없음{" "}
+              {item.uncited.map((id, i) => (
+                <span key={`${id}:${i}`}>
+                  {i > 0 && " "}
+                  <code className="alt-id" translate="no">
+                    {id}
+                  </code>
+                </span>
+              ))}
+            </span>
+          )}
+        </p>
+      </details>
     </li>
   );
 }
@@ -123,16 +152,7 @@ function ReviewRow({ item, policyTitle }: { item: ReviewItem; policyTitle: strin
  * 판정은 접어 둔다(2026-11-11 오너 지시. 머리의 수는 늘 보이고 요약 줄에도 있다). 어떤 기록에서 왔는지 모르는 줄의
  * 목록(`ReviewItem`)을 받는다.
  */
-export function AiDecisions({
-  cleared,
-  dismissed,
-  titles = {},
-}: {
-  cleared: ReviewItem[];
-  dismissed: ReviewItem[];
-  /** 정책 id → 정책 이름(이 결과의 정책). */
-  titles?: Record<string, string>;
-}) {
+export function AiDecisions({ cleared, dismissed }: { cleared: ReviewItem[]; dismissed: ReviewItem[] }) {
   if (cleared.length === 0 && dismissed.length === 0) return null;
   return (
     <div className="ai-decisions">
@@ -142,7 +162,7 @@ export function AiDecisions({
           <p className="ai-note">{CLEARED_NOTE}</p>
           <ul className="ai-rows">
             {cleared.map((item, i) => (
-              <ReviewRow key={i} item={item} policyTitle={titles[item.policy]} />
+              <ReviewRow key={i} item={item} />
             ))}
           </ul>
         </details>
@@ -153,7 +173,7 @@ export function AiDecisions({
           <p className="ai-note">{DISMISSED_NOTE}</p>
           <ul className="ai-rows">
             {dismissed.map((item, i) => (
-              <ReviewRow key={i} item={item} policyTitle={titles[item.policy]} />
+              <ReviewRow key={i} item={item} />
             ))}
           </ul>
         </details>
@@ -475,11 +495,7 @@ export function ReportSummary({
               })}
             </div>
           )}
-          <AiDecisions
-            cleared={view.cleared}
-            dismissed={view.dismissed}
-            titles={Object.fromEntries(view.policies.map((policy) => [policy.id, policy.title]))}
-          />
+          <AiDecisions cleared={view.cleared} dismissed={view.dismissed} />
           {zero && <NotSeenBox view={view} />}
         </div>
         {policyList === undefined && (
