@@ -55,7 +55,7 @@
 | `SITE_URL` | 웹의 `SITE_URL` 과 같은 주소(`https://…`). 워크플로가 입력으로 받은 콜백 주소의 출처를 이것과 견주고, 다르면 멈춘다. 두지 않으면 모든 분석이 입력 확인에서 멈춘다 |
 
 - 저장소 tarball 은 워크플로 자체의 읽기 토큰(`github.token`)으로 받는다. 따로 만들 것이 없다.
-- 도구의 판(CLI 저장소·고정 커밋, uv 판, 딸린 꾸러미의 날짜 `CLI_EXCLUDE_NEWER`)과 AI 판정자 모델(`JUDGE_MODEL`, 지금 `claude-opus-5-5`), 실행기 쪽 상한은 워크플로 파일의 `env` 에
+- 도구의 판(CLI 저장소·고정 커밋, uv 판, 딸린 꾸러미의 날짜 `CLI_EXCLUDE_NEWER`)과 AI 판정자 모델(`JUDGE_MODEL`, 지금 `claude-haiku-5-5`), 실행기 쪽 상한은 워크플로 파일의 `env` 에
   있다(`docs/direction.md` 의 표). 바꾸려면 그 파일을 고친다.
 - Anthropic 콘솔에서 월 지출 상한을 정한다.
 

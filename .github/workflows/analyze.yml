@@ -56,7 +56,7 @@ jobs:
       # (2026-11-10)로 둔다. 그 커밋의 uv.lock 에 있는 판은 모두 이보다 앞서 나왔다. CLI_COMMIT 을 바꿀 때 함께 바꾼다.
       CLI_EXCLUDE_NEWER: "2026-11-10T00:00:00Z"
       # AI 판정자 모델(전체 id). 별칭(haiku 등)은 CLI 판마다 다른 모델로 풀린다.
-      JUDGE_MODEL: claude-opus-5-5
+      JUDGE_MODEL: claude-haiku-5-5
       MAX_TARBALL_MB: "100"
       MAX_EXTRACT_MB: "400"
       MAX_JSTS_FILES: "3000"
