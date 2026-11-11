@@ -1,4 +1,5 @@
 import "server-only";
+import { featureNames, parseProfile } from "@/lib/profile";
 import { parseReportText } from "@/lib/report/parse";
 import { serviceFindingCount } from "@/lib/report/types";
 import { repoKey } from "@/lib/service/href";
@@ -18,7 +19,9 @@ import { COLUMNS, readSteps, rowToAnalysis, type Row } from "./store/rows";
  * 실행의 결과를 이 분석에 붙이지 못하게).
  *
  * - `{ "event": "step", "step": "fetch" | "scan" | "finish", "run"?: { "id", "url" } }`: 그 단계를 시작했다.
- * - `{ "event": "result", "output": "<CLI 가 낸 JSON 글 그대로>" }`: 정리 단계에서 결과를 보낸다.
+ * - `{ "event": "result", "output": "<CLI 가 낸 JSON 글 그대로>", "profile"?: { …policypack profile 의 JSON… } }`: 정리 단계에서
+ *   결과를 보낸다. 저장소 프로필은 있을 때만 싣는다(2026-11-11). 프로필로 읽히지 않거나 없으면 비워 두고, 그 때문에 분석을 실패로
+ *   적지 않는다.
  * - `{ "event": "fail", "step": …, "reason": "…" }`: 그 단계에서 멈췄다.
  *
  * 상태 전이만 허용한다.
@@ -43,7 +46,7 @@ export interface RunnerTarget {
 
 export type RunnerEvent = { target: RunnerTarget } & (
   | { event: "step"; step: Exclude<StepName, "queued">; run: { id: string; url: string } | null }
-  | { event: "result"; output: string }
+  | { event: "result"; output: string; profile: unknown }
   | { event: "fail"; step: Exclude<StepName, "queued">; reason: string }
 );
 
@@ -84,7 +87,9 @@ export function readEvent(data: unknown): RunnerEvent | null {
     if (!RUN_ID.test(run.id) || !RUN_URL.test(run.url)) return null;
     return { event: "step", step, run: { id: run.id, url: run.url }, target };
   }
-  if (value.event === "result" && typeof value.output === "string") return { event: "result", output: value.output, target };
+  if (value.event === "result" && typeof value.output === "string") {
+    return { event: "result", output: value.output, profile: value.profile ?? null, target };
+  }
   if (value.event === "fail" && step && typeof value.reason === "string") {
     // 제어 문자를 빼고, 길면 자른다. 화면에 그대로 적는 글이다.
     const reason = value.reason.replace(/[\u0000-\u001f\u007f]+/g, " ").trim().slice(0, MAX_REASON_LENGTH);
@@ -170,7 +175,13 @@ export async function applyRunnerEvent(
     // 결과
     if (STEP_ORDER[current] !== "finish") return refuse(409, "결과는 정리 단계에서만 받습니다.");
     steps[current].endedAt = at;
-    await tx.query("INSERT INTO results (analysis_id, json) VALUES ($1, $2)", [id, event.output]);
+    // 프로필은 읽히는 것만 둔다(받은 그대로의 글). 읽히지 않으면 비운다.
+    const profile = parseProfile(event.profile);
+    await tx.query("INSERT INTO results (analysis_id, json, profile) VALUES ($1, $2, $3)", [
+      id,
+      event.output,
+      profile ? JSON.stringify(event.profile) : null,
+    ]);
     const parsed = parseReportText(event.output);
     if (!parsed.ok) {
       const why = parsed.errors[0] ?? "";
@@ -185,11 +196,13 @@ export async function applyRunnerEvent(
     const pack = parsed.report.run.pack_digest;
     // 발견 수는 쪽이 목록에 쓴다. 결과를 받을 때 한 번 세어 둔다(쪽이 결과 전체를 다시 읽지 않게). 결과 화면의 "사람이 볼 곳"과
     // 같은 수다: 시험·예시·설정 파일의 발견은 빼고 센다(2026-11-11 오너 지시).
-    await write(", status = 'succeeded', finished_at = $3, tool_version = $4, pack_digest = $5, finding_count = $6", [
+    // 감지된 기능의 이름도 목록이 쓴다. 프로필이 없으면 비운다(모름).
+    await write(", status = 'succeeded', finished_at = $3, tool_version = $4, pack_digest = $5, finding_count = $6, feature_names = $7", [
       options.now,
       VERSION.test(tool) ? tool : null,
       VERSION.test(pack) ? pack : null,
       serviceFindingCount(parsed.report.findings),
+      profile ? JSON.stringify(featureNames(profile)) : null,
     ]);
     return { status: 200, body: { ok: true, message: "결과를 적었습니다.", status: "succeeded" } };
   });

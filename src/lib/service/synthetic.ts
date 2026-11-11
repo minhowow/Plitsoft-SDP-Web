@@ -4,6 +4,13 @@ import kidsSignupFixed from "@contract/cli-current/kids-signup.fixed.json";
 import kidsSignupMain from "@contract/cli-current/kids-signup.main.json";
 import nightPushMain from "@contract/cli-current/night-push.main.json";
 import plainMain from "@contract/cli-current/plain.main.json";
+import genaiChatFixedProfile from "@contract/cli-current/profile/genai-chat.fixed.json";
+import genaiChatMainProfile from "@contract/cli-current/profile/genai-chat.main.json";
+import kidsSignupFixedProfile from "@contract/cli-current/profile/kids-signup.fixed.json";
+import kidsSignupMainProfile from "@contract/cli-current/profile/kids-signup.main.json";
+import nightPushMainProfile from "@contract/cli-current/profile/night-push.main.json";
+import plainMainProfile from "@contract/cli-current/profile/plain.main.json";
+import { featureNames, parseProfile } from "@/lib/profile";
 import { parseReport } from "@/lib/report/parse";
 import { serviceFindingCount } from "@/lib/report/types";
 import { pickActivity } from "./activity";
@@ -55,6 +62,19 @@ const RESULTS: Record<string, Capture> = {
   "4qqa6fdx2h": genaiChatMain,
   mruw8xjzjw: genaiChatFixed,
   w7bc479x2u: plainMain,
+};
+
+/**
+ * 분석 id → 저장소 프로필. 결과와 같은 합성 데모 코드에 `policypack profile` 을 돌린 수집본이다
+ * (contract/cli-current/profile/<표본>.json, `npm run capture` 가 함께 만든다).
+ */
+const PROFILES: Record<string, unknown> = {
+  wtk33e9zuf: kidsSignupMainProfile,
+  "87q82b6jbu": kidsSignupFixedProfile,
+  "64y4jdtazh": nightPushMainProfile,
+  "4qqa6fdx2h": genaiChatMainProfile,
+  mruw8xjzjw: genaiChatFixedProfile,
+  w7bc479x2u: plainMainProfile,
 };
 
 /** 결과마다 어느 수집본인지. 시험이 수집본과 견줄 때 쓴다. */
@@ -206,6 +226,20 @@ export const syntheticStore: ServiceStore = {
       counts[id] = parsed.ok ? serviceFindingCount(parsed.report.findings) : null;
     }
     return counts;
+  },
+  async getProfile(id) {
+    const analysis = ANALYSES.find((entry) => entry.id === id);
+    return analysis?.status === "succeeded" ? parseProfile(PROFILES[id] ?? null) : null;
+  },
+  async featureNames(ids) {
+    const names: Record<string, string[] | null> = {};
+    for (const id of ids) {
+      const analysis = ANALYSES.find((entry) => entry.id === id);
+      if (analysis?.status !== "succeeded") continue;
+      const profile = parseProfile(PROFILES[id] ?? null);
+      names[id] = profile ? featureNames(profile) : null;
+    }
+    return names;
   },
   async queue() {
     return null;

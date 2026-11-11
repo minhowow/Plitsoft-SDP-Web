@@ -21,8 +21,10 @@ async function activity(store: ServiceStore, limit: number): Promise<LoadedActiv
   const loaded = await orUnavailable(
     (async () => {
       const rows = await store.recentActivity(limit);
-      const findings = await store.findingCounts(rows.filter(({ analysis }) => analysis.status === "succeeded").map(({ analysis }) => analysis.id));
-      return { rows, findings };
+      const done = rows.filter(({ analysis }) => analysis.status === "succeeded").map(({ analysis }) => analysis.id);
+      const findings = await store.findingCounts(done);
+      const features = await store.featureNames(done);
+      return { rows, findings, features };
     })(),
   );
   return loaded.ok ? { ok: true, ...loaded.value } : loaded;

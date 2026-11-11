@@ -88,6 +88,28 @@ export function AnalyzedRow({ activity, count }: { activity: RepositoryActivity;
   );
 }
 
+/**
+ * 감지된 기능을 목록 줄에 짧게: 앞의 둘과 나머지 수("외 N"). 기능 이름에 가운뎃점이 들어 있어 쉼표로 나눈다. 모르거나(프로필이
+ * 없던 분석) 빈 목록이면 null(줄에 아무것도 더하지 않는다).
+ */
+export function featureLine(names: string[] | null | undefined): string | null {
+  if (!names || names.length === 0) return null;
+  const rest = names.length - 2;
+  return names.slice(0, 2).join(", ") + (rest > 0 ? ` 외 ${rest}` : "");
+}
+
+/** 목록 줄의 감지된 기능(2026-11-11 오너 지시). 없으면 그리지 않는다. 화면 낭독기에는 무엇인지 앞에 붙인다. */
+export function FeatureLine({ names, className }: { names: string[] | null | undefined; className: string }) {
+  const line = featureLine(names);
+  if (!line) return null;
+  return (
+    <span className={className}>
+      <span className="visually-hidden">감지된 기능: </span>
+      {line}
+    </span>
+  );
+}
+
 /** 끝난 분석의 발견 수. 결과가 없거나 읽지 못했으면 0 이라고 적지 않고 모른다고 적는다. */
 export function findingCount(count: number | null | undefined): string {
   return typeof count === "number" ? `발견 ${count}건` : `발견 수 ${STATUS_LABEL["pack-unknown"]}`;

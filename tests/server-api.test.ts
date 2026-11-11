@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { featureNames, parseProfile } from "@/lib/profile";
 import type { Analysis } from "@/lib/service/types";
 import { syntheticRepositories, syntheticStore } from "@/lib/service/synthetic";
 import { getAnalysis, postAnalysis, postRunnerClaim, postRunnerEvent, type ApiDeps } from "@/server/api";
@@ -371,6 +372,42 @@ describe("발견 수를 결과를 받을 때 세어 둔다 (검토 1)", () => {
     expect(synthetic).toHaveLength(6);
     const counts = await syntheticStore.findingCounts(synthetic);
     expect(Object.keys(counts).sort()).toEqual([...synthetic].sort());
+  });
+});
+
+describe("저장소 프로필을 결과와 함께 받아 둔다 (2026-11-11)", () => {
+  const profileCapture = readFileSync(path.join(root, "contract", "cli-current", "profile", "kids-signup.main.json"), "utf8");
+
+  it("읽히는 프로필은 받은 그대로 두고 목록의 기능 이름을 적는다. 없거나 읽히지 않으면 비우고 분석은 끝남이다", async () => {
+    const { deps, stub, later } = setup({ POOL_SIZE: "5" });
+    const withProfile = (await requestAnalysis(deps)).body.analysis!.id;
+    await runToFinish(deps, withProfile);
+    expect((await event(deps, withProfile, { event: "result", output: capture, profile: JSON.parse(profileCapture) })).body.status).toBe("succeeded");
+    stub.setHead("example-org", "kids-signup", "2");
+    later(1);
+    const broken = (await requestAnalysis(deps)).body.analysis!.id;
+    await runToFinish(deps, broken);
+    expect((await event(deps, broken, { event: "result", output: capture, profile: { profile_version: 2 } })).body.status).toBe("succeeded");
+    stub.setHead("example-org", "kids-signup", "3");
+    later(2);
+    const none = (await requestAnalysis(deps)).body.analysis!.id;
+    await runToFinish(deps, none);
+    expect((await event(deps, none, { event: "result", output: capture })).body.status).toBe("succeeded");
+
+    const expected = parseProfile(JSON.parse(profileCapture))!;
+    expect(expected.features.length).toBeGreaterThan(0);
+    expect(await deps.store().getProfile(withProfile)).toEqual(expected);
+    expect(await deps.store().getProfile(broken)).toBeNull();
+    expect(await deps.store().getProfile(none)).toBeNull();
+    expect(await deps.store().featureNames([withProfile, broken, none, "not-an-id"])).toEqual({
+      [withProfile]: featureNames(expected),
+      [broken]: null,
+      [none]: null,
+    });
+    // 합성 저장소의 끝난 분석은 같은 표본의 프로필 수집본이다.
+    const kids = await syntheticStore.getProfile("wtk33e9zuf");
+    expect(kids).toEqual(expected);
+    expect((await syntheticStore.featureNames(["wtk33e9zuf", "w7bc479x2u"]))["w7bc479x2u"]).toEqual([]);
   });
 });
 

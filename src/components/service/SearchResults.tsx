@@ -39,7 +39,9 @@ function Tag({ on }: { on: boolean }) {
 const FAKE_GITHUB = FAKE_GITHUB_NOTE;
 
 /** 읽은 최근 분석. DB 에 닿지 못하면 그 까닭이다. */
-export type LoadedActivity = { ok: true; rows: RepositoryActivity[]; findings: Record<string, number | null> } | { ok: false; message: string };
+export type LoadedActivity =
+  | { ok: true; rows: RepositoryActivity[]; findings: Record<string, number | null>; features?: Record<string, string[] | null> }
+  | { ok: false; message: string };
 
 /**
  * 검색 쪽의 빈 상태(`/search/` 를 질의 없이 연 쪽. 도구 화면의 이름이 여기로 온다. 목업 search-home #closed). 검색창, 이 사이트의
@@ -63,7 +65,7 @@ export function SearchHome({ recent, tagged }: { recent: LoadedActivity; tagged:
         ) : recent.rows.length === 0 ? (
           <p className="box-empty">아직 분석 없음</p>
         ) : (
-          <ActivityList rows={recent.rows} findings={recent.findings} variant="box" />
+          <ActivityList rows={recent.rows} findings={recent.findings} features={recent.features} variant="box" />
         )}
       </section>
       <section className="box search-home-side" aria-labelledby="policies-title">

@@ -2,7 +2,8 @@
 // 분석 실행기. GitHub Actions 의 워크플로(.github/workflows/analyze.yml)가 단계마다 이 파일을 부르고, 로컬 실행기
 // (scripts/local-runner.mjs)는 같은 함수를 가져다 쓴다. Node 내장 모듈만 쓴다.
 //
-// 하는 일(설계 8): 저장소 받기·도구 설치 → 검사(정적 검사와 AI 판정, CLI 명령 하나) → 정리(결과 보내기). 단계를 시작할 때마다
+// 하는 일(설계 8): 저장소 받기·도구 설치 → 검사(정적 검사와 AI 판정, CLI 명령 하나. 그 뒤 저장소 프로필 `policypack profile`,
+// 모델 호출 없음) → 정리(결과와 프로필 보내기). 단계를 시작할 때마다
 // 사이트에 서명한 콜백을 보내고, 멈추면 그 단계와 까닭을 보낸다. 대상 코드는 읽기만 한다(설치·빌드·실행하지 않는다).
 //
 // 워크플로에서 부르는 법(값은 모두 환경 변수로 받는다. 워크플로 입력을 셸 글에 끼워 넣지 않는다):
@@ -10,7 +11,7 @@
 //   node runner/run.mjs notify <단계>      단계 시작 콜백 (RUNNER_SECRET)
 //   node runner/run.mjs fetch              tarball 받기·풀기, JS/TS 파일 수 상한 (GITHUB_TOKEN: 이 워크플로의 읽기 토큰)
 //   node runner/run.mjs install            uv 와 CLI 설치(고정 커밋) (CLI_REPO_TOKEN: CLI 저장소가 비공개일 때만)
-//   node runner/run.mjs scan               policypack scan (ANTHROPIC_API_KEY)
+//   node runner/run.mjs scan               policypack scan (ANTHROPIC_API_KEY), 그다음 policypack profile (키 없이)
 //   node runner/run.mjs finish             정리 단계 시작 콜백과 결과 콜백 (RUNNER_SECRET)
 //   node runner/run.mjs fail               멈춘 단계와 까닭 콜백 (RUNNER_SECRET). 워크플로가 실패·취소됐을 때만 돈다
 //
@@ -32,6 +33,7 @@ export const DEFAULTS = {
   maxJsTsFiles: 3000,
   resultMaxKb: 4000,
   scanTimeoutMinutes: 15,
+  profileTimeoutMinutes: 3,
 };
 
 /** 멈춘 단계와 사람이 읽는 까닭. 사이트의 화면에 그대로 적힌다(비밀값·내부 경로를 싣지 않는다). */
@@ -109,7 +111,9 @@ async function send(ctx, payload, step) {
 }
 
 export const notifyStep = (ctx, step, run = null) => send(ctx, run ? { event: "step", step, run } : { event: "step", step }, step);
-export const sendResult = (ctx, output) => send(ctx, { event: "result", output }, "finish");
+/** 결과(CLI 결과 JSON 글)와, 있으면 저장소 프로필(JSON 값)을 보낸다. */
+export const sendResult = (ctx, output, profile = null) =>
+  send(ctx, profile ? { event: "result", output, profile } : { event: "result", output }, "finish");
 export const sendFailure = (ctx, step, reason) => send(ctx, { event: "fail", step, reason }, step);
 
 // ---- 입력 ----
@@ -313,6 +317,49 @@ export function runScan({ dir, judge, command = ["policypack"], env, timeoutMs, 
   return result.stdout;
 }
 
+/**
+ * 저장소 프로필: `policypack profile .` 을 저장소 폴더에서 돌린다(모델 호출 없음). 기능과 걸릴 수 있는 의무의 목록이다. 이것이
+ * 실패해도 분석은 실패로 적지 않는다: 까닭을 로그에 남기고(비밀값은 가린다) null 을 돌려준다. 읽어 보는 것은 사이트가 한다
+ * (여기서는 JSON 인지만 본다).
+ */
+export function runProfile({ dir, command = ["policypack"], env, timeoutMs, run = spawnSync, log = console.error }) {
+  const [bin, ...pre] = command;
+  const result = run(bin, [...pre, "profile", "."], {
+    cwd: dir,
+    env,
+    encoding: "utf8",
+    maxBuffer: 64 * 1024 * 1024,
+    timeout: timeoutMs,
+  });
+  if (result.error || result.status !== 0) {
+    const why = result.error?.code === "ETIMEDOUT" ? `${Math.round(timeoutMs / 60_000)}분 안에 끝나지 않음` : `종료 코드 ${result.status ?? "없음"}`;
+    log(`저장소 프로필을 만들지 못했습니다(${why}). 결과만 보냅니다.`);
+    logTail("프로필", result.stderr, env ?? {}, { log });
+    return null;
+  }
+  try {
+    const value = JSON.parse(result.stdout);
+    return typeof value === "object" && value !== null && !Array.isArray(value) ? value : null;
+  } catch {
+    log("저장소 프로필이 JSON 이 아닙니다. 결과만 보냅니다.");
+    return null;
+  }
+}
+
+/**
+ * 결과 콜백의 본문. 프로필을 실은 본문이 상한을 넘으면 프로필을 빼고 결과만 보낸다(프로필 때문에 분석이 실패하지 않게). 결과만으로도
+ * 넘으면 멈춘다. 사이트는 보낸 본문 전체를 상한과 견주므로 그 본문과 같은 글로 잰다.
+ */
+export function resultBody(ctx, output, profile, maxKb, { log = console.error } = {}) {
+  if (profile) {
+    const withProfile = JSON.stringify({ event: "result", output, profile, target: ctx.target });
+    if (Buffer.byteLength(withProfile, "utf8") <= maxKb * 1024) return profile;
+    log("결과와 프로필을 함께 보내면 크기 상한을 넘어 프로필을 빼고 보냅니다.");
+  }
+  checkResultSize(JSON.stringify({ event: "result", output, target: ctx.target }), maxKb);
+  return null;
+}
+
 /** 결과 크기 상한. 넘으면 보내지 않고 멈춘다(사이트도 받지 않는다). */
 export function checkResultSize(output, maxKb) {
   const bytes = Buffer.byteLength(output, "utf8");
@@ -404,15 +451,29 @@ async function main(argv, env) {
           timeoutMs: positive(env.SCAN_TIMEOUT_MINUTES, DEFAULTS.scanTimeoutMinutes) * 60_000,
         });
         writeFileSync(path.join(work, "output.json"), output);
+        // 저장소 프로필(모델 호출 없음). API 키를 넘기지 않는다. 실패하면 파일을 남기지 않고 결과만 보낸다.
+        const profile = runProfile({
+          dir: src,
+          env: childEnv(env, { GIT_CEILING_DIRECTORIES: work }),
+          timeoutMs: positive(env.PROFILE_TIMEOUT_MINUTES, DEFAULTS.profileTimeoutMinutes) * 60_000,
+        });
+        rmSync(path.join(work, "profile.json"), { force: true });
+        if (profile) writeFileSync(path.join(work, "profile.json"), JSON.stringify(profile));
         return;
       }
       case "finish": {
         step("finish");
         await notifyStep(ctx, "finish");
         const output = readFileSync(path.join(work, "output.json"), "utf8");
+        let profile = null;
+        try {
+          profile = JSON.parse(readFileSync(path.join(work, "profile.json"), "utf8"));
+        } catch {
+          profile = null; // 프로필이 없다(검사 단계에서 만들지 못했다).
+        }
         // 사이트는 보낸 본문 전체(결과를 글로 실은 JSON)를 상한과 견준다. 그 본문과 같은 글로 잰다.
-        checkResultSize(JSON.stringify({ event: "result", output, target: ctx.target }), positive(env.RESULT_MAX_KB, DEFAULTS.resultMaxKb));
-        await sendResult(ctx, output);
+        profile = resultBody(ctx, output, profile, positive(env.RESULT_MAX_KB, DEFAULTS.resultMaxKb));
+        await sendResult(ctx, output, profile);
         return;
       }
       case "fail": {

@@ -6,6 +6,7 @@
  * 그 안을 해석하지 않는다(읽는 것은 `lib/report/` 의 파서와 화면 구조).
  */
 
+import type { Profile } from "@/lib/profile";
 import type { QueueSnapshot } from "./queue";
 import type { GitHubSuggestPart, SiteSuggestion } from "./suggest";
 
@@ -157,6 +158,16 @@ export interface ServiceStore {
    * 분석 행에서 읽는다(쪽을 열 때마다 결과 JSON 전체를 읽고 해석하지 않는다).
    */
   findingCounts(ids: string[]): Promise<Record<string, number | null>>;
+  /**
+   * 끝난 분석의 저장소 프로필(`policypack profile` 의 JSON, `lib/profile`). 실행기가 검사와 함께 돌려 보낸 것을 받은 그대로 두었다가
+   * 읽는다. 끝나지 않았거나, 프로필을 받지 못했거나(그 기능이 생기기 전의 분석, 실행기에서 프로필이 실패), 읽지 못하면 null.
+   */
+  getProfile(id: string): Promise<Profile | null>;
+  /**
+   * 끝난 분석마다 감지된 기능의 이름(목록 줄에 짧게 싣는다. `featureNames` 의 차례). 프로필이 없는 분석은 null(빈 목록과 다르다).
+   * 운영은 결과를 받을 때 적어 둔 값을 분석 행에서 읽는다.
+   */
+  featureNames(ids: string[]): Promise<Record<string, string[] | null>>;
   /**
    * 지금의 대기열과 실행 자리(DB 에서 센 것, `queue.ts`). 대기 중인 분석이 대기열의 몇 번째인지 적는 데 쓴다. 합성 미리보기는
    * 대기열이 없으므로 null 이다(숫자를 꾸며 적지 않는다).
