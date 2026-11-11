@@ -2,7 +2,9 @@ import type { ReactNode } from "react";
 import type { CodeSource } from "@/components/result/PolicyCard";
 import { ReportSummary, type Statute } from "@/components/result/ReportSummary";
 import { ObligationTier, ProfileTier, Tier } from "@/components/result/Tiers";
+import { ReviewView } from "@/components/review/ReviewView";
 import type { Profile } from "@/lib/profile";
+import type { Review } from "@/lib/review";
 import { CHECKLIST_LABEL } from "@/lib/report/status";
 import type { ReportView } from "@/lib/report/view-model";
 
@@ -60,6 +62,7 @@ export function AnalysisDashboard({
   statutes = {},
   progress,
   profile = null,
+  review = null,
 }: {
   view: ReportView;
   code: CodeSource | null;
@@ -68,7 +71,22 @@ export function AnalysisDashboard({
   progress?: ReactNode;
   /** 저장소 프로필. 없으면 1·2단에 "아직 없음"이라고 적는다. */
   profile?: Profile | null;
+  /**
+   * 같은 커밋의 review 결과(policypack review 2판, 실행기에서 켰을 때만 있다). 있으면 맨 위가 review 화면(하는 일, 개인정보 흐름,
+   * 의무 체크리스트, 검증 정보)이고, 정적 검사의 결과는 그 아래 넷째 단이다.
+   */
+  review?: Review | null;
 }) {
+  if (review) {
+    return (
+      <div className="tiers">
+        <ReviewView review={review} code={code} />
+        <Tier n={4} name="정적 검사">
+          <ReportSummary view={view} code={code} statutes={statutes} progress={progress} />
+        </Tier>
+      </div>
+    );
+  }
   return (
     <div className="tiers">
       <OverviewLine profile={profile} check={placesIn(view, "checks")} unknown={placesIn(view, "unknowns")} />

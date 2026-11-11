@@ -131,7 +131,7 @@ export const NO_JUDGEMENT = "기능에 걸릴 수 있는 의무입니다. 걸린
  * 적지 않고 법·조문·법제처 링크만 둔다. 소스의 문구 시험(tests/commitments.test.ts)이 이 낱말을 글자 그대로 막으므로 글자 번호로
  * 적는다(tests/wording.ts 의 처분·액수 줄과 같은 세 낱말).
  */
-const SANCTION = new RegExp(
+export const SANCTION = new RegExp(
   [
     [0xacfc, 0xc9d5, 0xae08],
     [0xacfc, 0xd0dc, 0xb8cc],

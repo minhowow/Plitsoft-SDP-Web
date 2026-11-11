@@ -4792,6 +4792,260 @@ details.ob[open] > summary::before {
   font-size: var(--text-xs);
 }
 
+/*
+ * 개인정보 흐름 그림(review). SVG 의 색은 토큰으로 칠해 두 테마를 따른다. 외부로 나가는 화살표와 외부 마디는 경고 색(굵게).
+ * 좁은 화면에서는 그림이 제 상자 안에서 가로로 밀린다(쪽은 밀리지 않는다).
+ */
+.flow {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  min-width: 0;
+}
+
+.flow-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: var(--space-3);
+}
+
+/* 넓은 화면에서는 상자 폭에 맞춰 키우고(발표 화면), 좁은 화면에서는 이 폭 아래로 줄이지 않고 상자 안에서 밀린다. */
+.flow-svg {
+  display: block;
+  width: 100%;
+  min-width: 680px;
+  max-width: 1100px;
+  height: auto;
+  margin: 0 auto;
+}
+
+.flow-col {
+  fill: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.flow-edge {
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 1.6;
+}
+
+.flow-edge.out {
+  stroke: var(--st-review-dot);
+  stroke-width: 2.8;
+}
+
+.flow-edge.on {
+  stroke: var(--accent);
+}
+
+.flow-edge.out.on {
+  stroke: var(--st-review-dot);
+  stroke-width: 3.4;
+}
+
+.flow-head {
+  fill: var(--muted);
+}
+
+.flow-head-out {
+  fill: var(--st-review-dot);
+}
+
+.flow-node {
+  cursor: pointer;
+  outline: none;
+}
+
+.flow-node rect {
+  fill: var(--surface);
+  stroke: var(--rule);
+  stroke-width: 1.2;
+}
+
+.flow-node.k-store rect {
+  fill: var(--bg-muted);
+}
+
+.flow-node.k-external rect {
+  fill: var(--st-review-bg);
+  stroke: var(--st-review-dot);
+  stroke-width: 2;
+}
+
+.flow-node.sel rect,
+.flow-node:focus-visible rect {
+  stroke: var(--accent);
+  stroke-width: 2.6;
+}
+
+.flow-label {
+  fill: var(--ink);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.flow-data {
+  fill: var(--muted);
+  font-size: 12px;
+}
+
+.flow-node.k-external .flow-data {
+  fill: var(--st-review);
+}
+
+.flow-tag {
+  fill: var(--st-review);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+/* 고른 마디: 종류와 이름, 자료, 이어진 화살표, 인용한 줄. */
+.flow-panel {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  line-height: var(--leading-snug);
+  min-width: 0;
+}
+
+.flow-kind {
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+
+.flow-panel-data,
+.flow-link-data {
+  font-size: var(--text-sm);
+  color: var(--muted);
+}
+
+.flow-links {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-sm);
+}
+
+.flow-links .out {
+  color: var(--st-review);
+  font-weight: 600;
+}
+
+/* review 체크리스트와 머리. */
+.rv-summary {
+  max-width: var(--measure);
+  font-size: var(--text-lg);
+  line-height: var(--leading-loose);
+}
+
+.rv-features {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rv-features > li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 2px 10px;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  font-size: var(--text-sm);
+}
+
+.rv-check {
+  display: grid;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  min-width: 0;
+}
+
+.rv-check > * + * {
+  border-top: 1px solid var(--rule-muted);
+}
+
+.rv-items {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rv-item {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--rule-muted);
+  line-height: var(--leading-snug);
+  min-width: 0;
+}
+
+.rv-law {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px var(--space-3);
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+
+.rv-duty {
+  font-weight: 600;
+}
+
+.rv-seen,
+.rv-rest {
+  font-size: var(--text-sm);
+}
+
+.rv-item details.f-more > summary,
+.rv-item .f-more > summary {
+  margin: 0;
+}
+
+.rv-searches {
+  display: grid;
+  gap: 2px;
+  margin: var(--space-1) 0 0;
+  padding-left: 20px;
+  font-size: var(--text-sm);
+}
+
+details.rv-group > summary {
+  padding: 10px var(--space-4) 10px 40px;
+  font-weight: 600;
+  line-height: var(--leading-snug);
+}
+
+details.rv-group > summary::before {
+  left: 20px;
+  top: calc(10px + 0.75em - 4px);
+}
+
+details.rv-group[open] > summary::before {
+  top: calc(10px + 0.75em - 5px);
+}
+
+.rv-none {
+  padding: var(--space-3) var(--space-4);
+}
+
+.rv-verify {
+  margin-top: var(--space-4);
+}
+
 /* 같은 규칙이 여러 곳일 때의 묶음 머리: 메시지와 N곳, 질문, 접힌 곳의 상태 수. */
 .rule-group {
   min-width: 0;

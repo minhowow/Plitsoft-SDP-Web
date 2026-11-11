@@ -80,6 +80,21 @@ export const CHECKLIST_LABEL = {
   unknown: "코드로는 알 수 없음",
 } as const;
 
+/**
+ * review 체크리스트(policypack review 2판)의 상태 이름(2026-11-11 오너 결정, docs/commitments.md 의 1). 갈래는 이 차례다. "확인할
+ * 것"은 세 갈래(코드에서 본 것, 저장소 밖에서 확인할 것, 해당 여부부터 확인할 것)이고, "해당 없음"은 AI 가 낸 검색어를 도구가 저장소에서
+ * 다시 돌려 건수가 맞은 것에만 쓴다. 검색으로 확인되지 않은 것은 "걸리지 않는 것으로 보임(확인 안 됨)"이다.
+ */
+export const REVIEW_STATUS_LABEL = {
+  "seen-in-code": "확인할 것 · 코드에서 본 것",
+  "check-outside": "확인할 것 · 저장소 밖에서 확인할 것",
+  "check-applicability": "확인할 것 · 해당 여부부터 확인할 것",
+  unknown: "모름",
+  "evidence-found": "지킨 근거 있음",
+  "likely-not-applicable": "걸리지 않는 것으로 보임(확인 안 됨)",
+  "not-applicable": "해당 없음",
+} as const;
+
 /** 위에 놓을수록 먼저 봐야 한다. */
 export const STATUS_ORDER: Status[] = [
   "needs-review",
