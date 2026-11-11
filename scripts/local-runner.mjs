@@ -34,7 +34,9 @@ import {
   notifyStep,
   post,
   resultBody,
+  reviewOptions,
   runProfile,
+  runReview,
   runScan,
   sendFailure,
   sendResult,
@@ -124,6 +126,19 @@ export function profileCaptureFor(capture) {
   }
 }
 
+/**
+ * 같은 표본의 review 결과 수집본(contract/review/<앱>.review.json, 손으로 만든 review 2판 합성 예시). 없거나 읽지 못하면 null.
+ * 사이트가 이 분석에서 review 를 돌리라고 했을 때(`claimed.review`)만 보낸다.
+ */
+export function reviewCaptureFor(capture) {
+  const app = path.basename(capture).split(".")[0];
+  try {
+    return JSON.parse(readFileSync(path.join(root, "contract", "review", `${app}.review.json`), "utf8"));
+  } catch {
+    return null;
+  }
+}
+
 /** 분석 하나를 끝까지 돌린다. 멈추면 그 단계와 까닭을 알린다. */
 export async function runOne(claimed, options, secret) {
   const ctx = {
@@ -161,11 +176,21 @@ export async function runOne(claimed, options, secret) {
     const profile = options.fixture
       ? profileCaptureFor(capture)
       : runProfile({ dir: src, command, env, timeoutMs: DEFAULTS.profileTimeoutMinutes * 60_000 });
+    // review: 사이트가 이 분석에서 돌리라고 했을 때만(REVIEW 스위치가 켜져 있고 같은 커밋의 저장된 review 가 없을 때). 수집본이면
+    // 같은 표본의 합성 예시, CLI 면 policypack review 를 차례로(spawnSync). API 키가 없거나 실패하면 결과만 보낸다.
+    let review = null;
+    if (claimed.review === true) {
+      if (options.fixture) review = reviewCaptureFor(capture);
+      else if (process.env.ANTHROPIC_API_KEY) {
+        review = runReview({ dir: src, command, env: { ...env, ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY }, options: reviewOptions(process.env) });
+      } else console.error("로컬 실행기: ANTHROPIC_API_KEY 가 없어 review 를 돌리지 않았습니다.");
+    }
     await sleep(options.stepDelay);
 
     step = "finish";
     await notifyStep(ctx, "finish");
-    const body = await sendResult(ctx, output, resultBody(ctx, output, profile, DEFAULTS.resultMaxKb));
+    const fitted = resultBody(ctx, output, { profile, review }, DEFAULTS.resultMaxKb);
+    const body = await sendResult(ctx, output, fitted.profile, fitted.review);
     return body?.status ?? "succeeded";
   } catch (error) {
     if (error instanceof StepError && error.refused) throw error;

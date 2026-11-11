@@ -29,7 +29,7 @@ import { readSteps, stalledStep, type Row } from "./store/rows";
  *
  * 시간 상한:
  * - 실행기에 보낸 뒤 `DISPATCH_TIMEOUT_MINUTES`(10) 안에 시작을 알리지 않으면 실패(대기 단계). 자리가 빈다(`sweepStale`).
- * - 실행기에 보낸 뒤 `RUN_TIMEOUT_MINUTES`(25) 안에 끝나지 않으면 '시간 초과'. 요청한 때가 아니라 보낸 때부터 센다(대기열에
+ * - 실행기에 보낸 뒤 `RUN_TIMEOUT_MINUTES`(32) 안에 끝나지 않으면 '시간 초과'. 요청한 때가 아니라 보낸 때부터 센다(대기열에
  *   오래 있던 것은 실행 시간이 아니다)(`sweepStale`).
  * - 대기열에서 `QUEUE_TIMEOUT_MINUTES`(120)를 넘게 기다리면 실패(대기 단계, 까닭). 넘기기를 해 본 뒤에도 보내지 못한 것만이다
  *   (`expireWaiting`). 까닭에는 그때 센 사실만 적는다.
@@ -48,6 +48,27 @@ export interface PumpDeps {
   callbackBase: string | null;
   /** RUNNER. `none` 이면 대기열을 넘기지 않는다(정리만 한다). */
   runner: RunnerKind;
+  /** REVIEW 스위치(`ServerConfig.runner.review`). 없으면 끔이다. */
+  review?: boolean;
+}
+
+/**
+ * 같은 저장소(소문자 열쇠)·커밋의 끝난 분석에 저장된 review 가 있는지. 있으면 다시 돌리지 않고 그것을 보인다(2026-11-11 오너 지시).
+ * 조건은 `getReview` 와 같다(보일 수 있는 review 가 있을 때만 건너뛴다).
+ */
+export async function storedReviewExists(db: Queryable, repoKey: string, commit: string): Promise<boolean> {
+  const rows = await db.query(
+    `SELECT 1 FROM results r JOIN analyses a ON a.id = r.analysis_id
+     WHERE a.repo_key = $1 AND a.commit_sha = $2 AND a.status = 'succeeded' AND r.review IS NOT NULL LIMIT 1`,
+    [repoKey, commit],
+  );
+  return rows.rows.length > 0;
+}
+
+/** 이 분석에서 review 를 돌릴지: 스위치가 켜져 있고 같은 커밋의 저장된 review 가 없을 때만. */
+export async function wantsReview(db: Queryable, deps: Pick<PumpDeps, "review">, owner: string, repo: string, commit: string): Promise<boolean> {
+  if (!deps.review) return false;
+  return !(await storedReviewExists(db, `${owner.toLowerCase()}/${repo.toLowerCase()}`, commit));
 }
 
 /** 실행 자리를 쓰는 분석(실행기에 보냈거나 분석 중)의 조건. 자리를 셀 때와 대기열을 읽을 때 같은 것을 쓴다. */
@@ -250,6 +271,7 @@ export async function pumpQueue(db: Database, deps: PumpDeps): Promise<PumpOutco
         repo: picked.repo,
         commit: picked.commit_sha,
         callbackBase: deps.callbackBase,
+        review: await wantsReview(db, deps, picked.owner, picked.repo, picked.commit_sha),
       });
     } catch {
       woke = { ok: false, reason: "실행기를 깨우다 알 수 없는 오류가 나서 분석을 시작하지 못했습니다." };

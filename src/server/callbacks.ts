@@ -1,5 +1,6 @@
 import "server-only";
 import { featureNames, parseProfile } from "@/lib/profile";
+import { parseReview } from "@/lib/review";
 import { parseReportText } from "@/lib/report/parse";
 import { serviceFindingCount } from "@/lib/report/types";
 import { repoKey } from "@/lib/service/href";
@@ -8,7 +9,7 @@ import { isRepoFullName } from "@/lib/service/names";
 import { STEP_ORDER } from "@/lib/service/steps";
 import type { AnalysisStep, StepName } from "@/lib/service/types";
 import type { Database, Queryable } from "./db";
-import { sweepStale, tidyQueue, type PumpDeps, type QueueLimits } from "./queue";
+import { sweepStale, tidyQueue, wantsReview, type PumpDeps, type QueueLimits } from "./queue";
 import { COLUMNS, readSteps, rowToAnalysis, type Row } from "./store/rows";
 
 /**
@@ -19,9 +20,9 @@ import { COLUMNS, readSteps, rowToAnalysis, type Row } from "./store/rows";
  * 실행의 결과를 이 분석에 붙이지 못하게).
  *
  * - `{ "event": "step", "step": "fetch" | "scan" | "finish", "run"?: { "id", "url" } }`: 그 단계를 시작했다.
- * - `{ "event": "result", "output": "<CLI 가 낸 JSON 글 그대로>", "profile"?: { …policypack profile 의 JSON… } }`: 정리 단계에서
- *   결과를 보낸다. 저장소 프로필은 있을 때만 싣는다(2026-11-11). 프로필로 읽히지 않거나 없으면 비워 두고, 그 때문에 분석을 실패로
- *   적지 않는다.
+ * - `{ "event": "result", "output": "<CLI 가 낸 JSON 글 그대로>", "profile"?: { …policypack profile 의 JSON… },
+ *   "review"?: { …policypack review 의 JSON… } }`: 정리 단계에서 결과를 보낸다. 저장소 프로필과 review 결과는 있을 때만 싣는다
+ *   (2026-11-11). 읽히지 않거나 없으면 비워 두고, 그 때문에 분석을 실패로 적지 않는다.
  * - `{ "event": "fail", "step": …, "reason": "…" }`: 그 단계에서 멈췄다.
  *
  * 상태 전이만 허용한다.
@@ -46,7 +47,7 @@ export interface RunnerTarget {
 
 export type RunnerEvent = { target: RunnerTarget } & (
   | { event: "step"; step: Exclude<StepName, "queued">; run: { id: string; url: string } | null }
-  | { event: "result"; output: string; profile: unknown }
+  | { event: "result"; output: string; profile: unknown; review: unknown }
   | { event: "fail"; step: Exclude<StepName, "queued">; reason: string }
 );
 
@@ -88,7 +89,7 @@ export function readEvent(data: unknown): RunnerEvent | null {
     return { event: "step", step, run: { id: run.id, url: run.url }, target };
   }
   if (value.event === "result" && typeof value.output === "string") {
-    return { event: "result", output: value.output, profile: value.profile ?? null, target };
+    return { event: "result", output: value.output, profile: value.profile ?? null, review: value.review ?? null, target };
   }
   if (value.event === "fail" && step && typeof value.reason === "string") {
     // 제어 문자를 빼고, 길면 자른다. 화면에 그대로 적는 글이다.
@@ -175,12 +176,14 @@ export async function applyRunnerEvent(
     // 결과
     if (STEP_ORDER[current] !== "finish") return refuse(409, "결과는 정리 단계에서만 받습니다.");
     steps[current].endedAt = at;
-    // 프로필은 읽히는 것만 둔다(받은 그대로의 글). 읽히지 않으면 비운다.
+    // 프로필과 review 결과는 읽히는 것만 둔다(받은 그대로의 글). 읽히지 않으면 비운다.
     const profile = parseProfile(event.profile);
-    await tx.query("INSERT INTO results (analysis_id, json, profile) VALUES ($1, $2, $3)", [
+    const review = parseReview(event.review);
+    await tx.query("INSERT INTO results (analysis_id, json, profile, review) VALUES ($1, $2, $3, $4)", [
       id,
       event.output,
       profile ? JSON.stringify(event.profile) : null,
+      review ? JSON.stringify(event.review) : null,
     ]);
     const parsed = parseReportText(event.output);
     if (!parsed.ok) {
@@ -212,12 +215,12 @@ export async function applyRunnerEvent(
  * 로컬 실행기(RUNNER=local)가 분석 하나를 집어 간다. 먼저 대기열을 넘기고(`pumpQueue`. 로컬의 깨우기는 아무것도 하지 않으므로
  * 실행 자리를 얻은 분석에 '보냄' 표시만 남는다), 그다음 보냈고 아직 아무도 집지 않은 분석을 보낸 차례로 하나 집는다
  * (`runner_run_id` 에 'local' 을 적는다). 그래서 로컬 실행기도 실행 자리 수(POOL_SIZE)를 넘겨 돌리지 않는다. 둘이 동시에 집어도
- * 한 분석은 한 실행기에만 간다.
+ * 한 분석은 한 실행기에만 간다. `review` 는 GitHub 실행기의 워크플로 입력과 같은 셈이다(`wantsReview`).
  */
 export async function claimQueued(
   db: Database,
   deps: PumpDeps,
-): Promise<{ id: string; owner: string; repo: string; commit: string } | null> {
+): Promise<{ id: string; owner: string; repo: string; commit: string; review: boolean } | null> {
   await tidyQueue(db, deps, "집어 가기");
   return db.transaction(async (tx) => {
     const rows = await tx.query<{ id: string; owner: string; repo: string; commit_sha: string }>(
@@ -229,6 +232,7 @@ export async function claimQueued(
        RETURNING id, owner, repo, commit_sha`,
     );
     const row = rows.rows[0];
-    return row ? { id: row.id, owner: row.owner, repo: row.repo, commit: row.commit_sha } : null;
+    if (!row) return null;
+    return { id: row.id, owner: row.owner, repo: row.repo, commit: row.commit_sha, review: await wantsReview(tx, deps, row.owner, row.repo, row.commit_sha) };
   });
 }

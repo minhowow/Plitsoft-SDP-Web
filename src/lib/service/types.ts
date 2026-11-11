@@ -7,6 +7,7 @@
  */
 
 import type { Profile } from "@/lib/profile";
+import type { Review } from "@/lib/review";
 import type { QueueSnapshot } from "./queue";
 import type { GitHubSuggestPart, SiteSuggestion } from "./suggest";
 
@@ -168,6 +169,11 @@ export interface ServiceStore {
    * 운영은 결과를 받을 때 적어 둔 값을 분석 행에서 읽는다.
    */
   featureNames(ids: string[]): Promise<Record<string, string[] | null>>;
+  /**
+   * 그 저장소·커밋의 review 결과(`policypack review` 2판, `lib/review`). 어느 분석에서 받았든 가장 나중에 받은 것이다(같은 커밋은
+   * 다시 돌리지 않고 저장된 것을 보인다. 2026-11-11 오너 지시). 이름은 대소문자를 가리지 않는다. 없거나 읽지 못하면 null.
+   */
+  getReview(owner: string, name: string, commit: string): Promise<Review | null>;
   /**
    * 지금의 대기열과 실행 자리(DB 에서 센 것, `queue.ts`). 대기 중인 분석이 대기열의 몇 번째인지 적는 데 쓴다. 합성 미리보기는
    * 대기열이 없으므로 null 이다(숫자를 꾸며 적지 않는다).

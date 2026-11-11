@@ -36,6 +36,7 @@ function pumpDeps(deps: ApiDeps, config: ServerConfig): PumpDeps {
     wake: deps.wake ?? ((input) => wakeRunner(config, input)),
     callbackBase: config.runner.callbackBase,
     runner: config.runner.kind,
+    review: config.runner.review,
   };
 }
 

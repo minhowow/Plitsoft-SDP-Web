@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { featureNames, parseProfile } from "@/lib/profile";
+import { parseReview } from "@/lib/review";
 import type { Analysis } from "@/lib/service/types";
 import { syntheticRepositories, syntheticStore } from "@/lib/service/synthetic";
 import { getAnalysis, postAnalysis, postRunnerClaim, postRunnerEvent, type ApiDeps } from "@/server/api";
@@ -411,6 +412,45 @@ describe("저장소 프로필을 결과와 함께 받아 둔다 (2026-11-11)", (
   });
 });
 
+describe("review 를 결과와 함께 받아 두고, 같은 커밋이면 다시 돌리지 않는다 (2026-11-11)", () => {
+  const reviewCapture = JSON.parse(readFileSync(path.join(root, "contract", "review", "genai-chat.review.json"), "utf8")) as Record<string, unknown>;
+
+  it("읽히는 review 는 받은 그대로 두고 읽히지 않으면 비운다(분석은 끝남). 같은 커밋의 review 는 어느 분석에서 왔든 가장 새것을 대소문자 없이 읽고, 있으면 실행기에 맡기지 않는다", async () => {
+    const { deps, later } = setup({ POOL_SIZE: "5", REVIEW: "on" });
+    const once = async (review: unknown) => {
+      const analysis = (await requestAnalysis(deps)).body.analysis!;
+      const claimed = (await (await postRunnerClaim(signed("claim", {}, { at: deps.now() }), deps)).json()) as { analysis: { id: string; review: boolean } };
+      expect(claimed.analysis.id).toBe(analysis.id);
+      await runToFinish(deps, analysis.id);
+      expect((await event(deps, analysis.id, { event: "result", output: capture, review })).body.status).toBe("succeeded");
+      // DEDUPE_MINUTES 를 넘겨 같은 커밋의 새 분석을 만든다.
+      later(61);
+      return { analysis, review: claimed.analysis.review };
+    };
+    const broken = await once({ review_version: 99 });
+    const commit = broken.analysis.commit;
+    expect(broken.review).toBe(true);
+    expect((await db.query("SELECT review FROM results WHERE analysis_id = $1", [broken.analysis.id])).rows).toEqual([{ review: null }]);
+    expect(await deps.store().getReview("example-org", "kids-signup", commit)).toBeNull();
+
+    const stored = await once(reviewCapture);
+    expect(stored.review).toBe(true);
+    expect((await db.query<{ review: string }>("SELECT review FROM results WHERE analysis_id = $1", [stored.analysis.id])).rows[0].review).toBe(JSON.stringify(reviewCapture));
+    expect(await deps.store().getReview("Example-Org", "KIDS-SIGNUP", commit)).toEqual(parseReview(reviewCapture));
+    expect(await deps.store().getReview("example-org", "kids-signup", "f".repeat(40))).toBeNull();
+    expect(await deps.store().getReview("example-org", "kids-signup", "not-a-commit")).toBeNull();
+
+    // 이제 그 커밋은 review 를 맡기지 않는다. 그래도 보내 오면 받아 두고, 가장 새것을 읽는다.
+    const newer = { ...reviewCapture, run: { ...(reviewCapture.run as object), seconds: 1 } };
+    const again = await once(newer);
+    expect(again.review).toBe(false);
+    expect((await deps.store().getReview("example-org", "kids-signup", commit))?.run.seconds).toBe(1);
+    // 합성 미리보기는 genai-chat 표본에만 review 수집본을 준다.
+    expect(await syntheticStore.getReview("Example-Studio", "genai-chat", commit)).toEqual(parseReview(reviewCapture));
+    expect(await syntheticStore.getReview("example-org", "kids-signup", commit)).toBeNull();
+  });
+});
+
 describe("실행기 콜백: 상태 전이 (설계 6)", () => {
   it("차례대로: 저장소 받기 → 검사 → 정리 → 결과. 끝나면 succeeded, 도구·팩 판을 결과에서 적고 결과는 받은 글 그대로다", async () => {
     const { deps, later } = setup();
@@ -525,7 +565,7 @@ describe("실행기 콜백: 상태 전이 (설계 6)", () => {
     const { deps, later } = setup();
     const id = (await requestAnalysis(deps)).body.analysis!.id;
     await event(deps, id, { event: "step", step: "fetch" });
-    later(26);
+    later(33);
     expect((await event(deps, id, { event: "step", step: "scan" })).status).toBe(409);
     expect((await row(id))).toMatchObject({ status: "failed", failure_step: "fetch" });
     expect((await row(id)).failure_reason).toContain("시간 초과");
@@ -612,7 +652,7 @@ describe("로컬 실행기가 집어 가기 (RUNNER=local)", () => {
     const both = await Promise.all([claim(), claim()]);
     expect(both.map((b) => b.analysis?.id).sort()).toEqual([first.id, second.id].sort());
     expect((await claim()).analysis).toBeNull();
-    expect(both.find((b) => b.analysis?.id === first.id)!.analysis).toEqual({ id: first.id, owner: "example-org", repo: "kids-signup", commit: first.commit });
+    expect(both.find((b) => b.analysis?.id === first.id)!.analysis).toEqual({ id: first.id, owner: "example-org", repo: "kids-signup", commit: first.commit, review: false });
   });
 
   it("집어 가기도 실행 자리 수를 지킨다: 자리가 차 있으면 대기열의 분석을 내주지 않고, 앞의 것이 끝나면 내준다", async () => {

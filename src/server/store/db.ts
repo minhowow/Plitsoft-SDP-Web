@@ -1,5 +1,6 @@
 import "server-only";
 import { parseProfileText } from "@/lib/profile";
+import { parseReviewText } from "@/lib/review";
 import { ServiceUnavailableError } from "@/lib/service/errors";
 import { repoKey } from "@/lib/service/href";
 import { isAnalysisId, newAnalysisId } from "@/lib/service/id";
@@ -72,7 +73,14 @@ export function createDbStore(deps: DbStoreDeps): ServiceStore {
   }
 
   const sweep = (db: Queryable) => sweepStale(db, now(), limits);
-  const pump: PumpDeps = { now, limits, wake, callbackBase: deps.config.runner.callbackBase, runner: deps.config.runner.kind };
+  const pump: PumpDeps = {
+    now,
+    limits,
+    wake,
+    callbackBase: deps.config.runner.callbackBase,
+    runner: deps.config.runner.kind,
+    review: deps.config.runner.review,
+  };
 
   /**
    * 읽기 전에: DB 를 열고 `tidyQueue`(정리 → 빈 자리만큼 넘기기 → 대기 시간 초과)를 한다. 아무도 깨우지 않는 동안 자리가 비어
@@ -274,6 +282,19 @@ export function createDbStore(deps: DbStoreDeps): ServiceStore {
         [id],
       );
       return parseProfileText(rows.rows[0]?.profile);
+    },
+
+    async getReview(owner, name, commit) {
+      if (!/^[0-9a-f]{40}$/.test(commit)) return null;
+      const db = await database();
+      // 같은 커밋의 다른 분석이 받은 것도 보인다(같은 커밋은 다시 돌리지 않는다). 가장 나중에 받은 것.
+      const rows = await db.query<{ review: string }>(
+        `SELECT r.review FROM results r JOIN analyses a ON a.id = r.analysis_id
+         WHERE a.repo_key = $1 AND a.commit_sha = $2 AND a.status = 'succeeded' AND r.review IS NOT NULL
+         ORDER BY a.finished_at DESC NULLS LAST, a.requested_at DESC, a.id DESC LIMIT 1`,
+        [repoKey(owner, name), commit],
+      );
+      return parseReviewText(rows.rows[0]?.review);
     },
 
     async featureNames(ids) {

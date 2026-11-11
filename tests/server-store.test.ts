@@ -80,11 +80,11 @@ async function finish(id: string, at: Date, result: string | null = JSON.stringi
 
 describe("DB: 마이그레이션", () => {
   it("이름 차례로 한 번만 적용한다", async () => {
-    expect(readMigrations().map((m) => m.name)).toEqual(["001_init.sql", "002_finding_count.sql", "003_queue.sql", "004_runner_wake.sql", "005_profile.sql"]);
+    expect(readMigrations().map((m) => m.name)).toEqual(["001_init.sql", "002_finding_count.sql", "003_queue.sql", "004_runner_wake.sql", "005_profile.sql", "006_review.sql"]);
     // 이미 열 때 적용했다. 다시 돌려도 아무것도 하지 않는다.
     expect(await migrate(db)).toEqual([]);
     const applied = await db.query<{ name: string }>("SELECT name FROM schema_migrations ORDER BY name");
-    expect(applied.rows.map((row) => row.name)).toEqual(["001_init.sql", "002_finding_count.sql", "003_queue.sql", "004_runner_wake.sql", "005_profile.sql"]);
+    expect(applied.rows.map((row) => row.name)).toEqual(["001_init.sql", "002_finding_count.sql", "003_queue.sql", "004_runner_wake.sql", "005_profile.sql", "006_review.sql"]);
   });
 
   it("표에 저장하지 않기로 한 것(IP·사용자·코드)을 담을 열이 없다", async () => {
@@ -120,6 +120,8 @@ describe("DB: 마이그레이션", () => {
       "results.json",
       // 저장소 프로필(policypack profile 의 JSON): 기능과 근거 파일·줄, 걸릴 수 있는 의무 목록. 코드 전체는 담지 않는다.
       "results.profile",
+      // review(policypack review 의 JSON): 확인한 기능·질문과 근거 파일·줄. 코드 전체는 담지 않는다. 같은 커밋이면 다시 돌리지 않고 읽는다.
+      "results.review",
       "runner_wake.id",
       "runner_wake.failed_at",
       "runner_wake.reason",
@@ -171,8 +173,23 @@ describe("분석 요청", () => {
     );
     expect(analysis.failure).toBeNull();
     expect(analysis.versions).toBeNull();
-    expect(wakes).toEqual([{ analysisId: analysis.id, owner: "example-org", repo: "kids-signup", commit: analysis.commit, callbackBase: null }]);
+    expect(wakes).toEqual([{ analysisId: analysis.id, owner: "example-org", repo: "kids-signup", commit: analysis.commit, callbackBase: null, review: false }]);
     expect(await store.getAnalysis("EXAMPLE-ORG", "kids-signup", analysis.id)).toEqual(analysis);
+  });
+
+  it("REVIEW 스위치가 켜져 있으면 같은 저장소·커밋의 저장된 review 가 없을 때만 실행기에 review 를 맡긴다. 꺼져 있으면 맡기지 않는다", async () => {
+    const { store, clock, later, wakes } = setup({ runner: { review: true } });
+    const first = created(await store.requestAnalysis("example-org", "kids-signup"));
+    await finish(first.analysis.id, clock.now);
+    later(61);
+    const second = created(await store.requestAnalysis("example-org", "kids-signup"));
+    await finish(second.analysis.id, clock.now, null);
+    await db.query("INSERT INTO results (analysis_id, json, review) VALUES ($1, $2, $3)", [second.analysis.id, "{}", JSON.stringify({ review_version: 2 })]);
+    later(61);
+    created(await store.requestAnalysis("example-org", "kids-signup"));
+    created(await store.requestAnalysis("example-org", "night-push"));
+    // 꺼져 있을 때(기본)는 위의 첫 시험이 본다(review: false).
+    expect(wakes.map((w) => (w as { review: boolean }).review)).toEqual([true, true, false, true]);
   });
 
   it("같은 커밋에 대기·진행 중인 분석이 있으면 그 분석을 돌려준다(reused)", async () => {
@@ -470,7 +487,7 @@ describe("대기열과 실행 자리 (2026-11-03)", () => {
     const bb = (await store.findAnalysis(b.analysis.id))!;
     expect(bb.status).toBe("queued");
     expect(bb.failure).toBeNull();
-    expect((await store.findAnalysis(a.analysis.id))?.failure?.reason).toMatch(/^시간 초과: 실행기에 보낸 뒤 25분 안에/);
+    expect((await store.findAnalysis(a.analysis.id))?.failure?.reason).toMatch(/^시간 초과: 실행기에 보낸 뒤 32분 안에/);
     expect(ids(wakes)).toEqual([a.analysis.id, b.analysis.id]);
   });
 
@@ -504,13 +521,13 @@ describe("대기열과 실행 자리 (2026-11-03)", () => {
     await store.findAnalysis(b.analysis.id);
     expect(ids(wakes)).toEqual([a.analysis.id, b.analysis.id]);
     await running(b.analysis.id);
-    // b 는 요청한 지 44분, 보낸 지 25분: 아직 돈다.
-    later(25);
+    // b 는 요청한 지 51분, 보낸 지 32분: 아직 돈다.
+    later(32);
     expect((await store.findAnalysis(b.analysis.id))?.status).toBe("running");
     later(1);
     const stale = (await store.findAnalysis(b.analysis.id))!;
     expect(stale.status).toBe("failed");
-    expect(stale.failure?.reason).toMatch(/^시간 초과: 실행기에 보낸 뒤 25분 안에/);
+    expect(stale.failure?.reason).toMatch(/^시간 초과: 실행기에 보낸 뒤 32분 안에/);
   });
 
   it("대기열에서 QUEUE_TIMEOUT_MINUTES(기본 120)를 넘게 기다리면 까닭과 함께 실패로 적는다", async () => {
@@ -595,8 +612,8 @@ describe("대기열과 실행 자리 (2026-11-03)", () => {
 });
 
 describe("오래된 분석", () => {
-  it("RUN_TIMEOUT_MINUTES(기본 25)를 넘게 끝나지 않은 분석은 읽을 때 '시간 초과'로 실패한다. 멈춘 단계는 그때의 단계다", async () => {
-    expect(DEFAULTS.runTimeoutMinutes).toBe(25);
+  it("RUN_TIMEOUT_MINUTES(기본 32)를 넘게 끝나지 않은 분석은 읽을 때 '시간 초과'로 실패한다. 멈춘 단계는 그때의 단계다", async () => {
+    expect(DEFAULTS.runTimeoutMinutes).toBe(32);
     const { store, later } = setup();
     const { analysis } = created(await store.requestAnalysis("example-org", "kids-signup"));
     // 실행기가 저장소 받기까지 알렸다(검사는 시작했고 끝나지 않았다).
@@ -608,14 +625,14 @@ describe("오래된 분석", () => {
       { name: "finish", startedAt: null, endedAt: null },
     ];
     await db.query("UPDATE analyses SET status = 'running', steps = $2::jsonb WHERE id = $1", [analysis.id, JSON.stringify(steps)]);
-    later(25);
+    later(32);
     expect((await store.getAnalysis("example-org", "kids-signup", analysis.id))?.status).toBe("running");
     later(1);
     const stale = (await store.getAnalysis("example-org", "kids-signup", analysis.id))!;
     expect(stale.status).toBe("failed");
     expect(stale.failure).toEqual({
       step: "scan",
-      reason: "시간 초과: 실행기에 보낸 뒤 25분 안에 끝나지 않아 멈춘 것으로 적었습니다. ‘검사(정적 검사와 AI 판정)’ 단계에 머물러 있었습니다.",
+      reason: "시간 초과: 실행기에 보낸 뒤 32분 안에 끝나지 않아 멈춘 것으로 적었습니다. ‘검사(정적 검사와 AI 판정)’ 단계에 머물러 있었습니다.",
     });
     // 언제 멈췄는지는 모르므로 그 단계의 끝난 시각을 꾸며 적지 않는다.
     expect(stale.steps.find((s) => s.name === "scan")?.endedAt).toBeNull();
