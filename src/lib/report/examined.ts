@@ -1,6 +1,6 @@
 import { SITE } from "@/lib/site";
 import { GAPS_TITLE } from "./coverage";
-import { STATUS_LABEL } from "./status";
+import { CHECKLIST_LABEL, STATUS_LABEL } from "./status";
 import { CONTRACT_LABEL, type ReportView } from "./view-model";
 
 /**
@@ -103,11 +103,10 @@ function unitsFact(view: ReportView, list: string): ExaminedFact {
     const format = `이 출력 형식(${CONTRACT_LABEL[view.contract]})`;
     const staticCleared = view.staticCleared?.length ?? 0;
     if (view.aiCleared.length > 0 || staticCleared > 0) {
-      const places = [
-        ...(view.aiCleared.length > 0 ? ["'AI 가 푼 경고'"] : []),
-        ...(staticCleared > 0 ? ["정책 상자의 충족 근거 위치"] : []),
-      ].join("와 ");
-      notes.push(`${format}에는 정책별 수가 없어서, 어느 정책의 것인지는 아래 ${places}에 실린 것만 알 수 있습니다.`);
+      // AI 가 푼 경고와 충족 근거 위치는 모두 정책 상자의 체크리스트 묶음 "지킨 근거 있음"에 있다(2026-11-11).
+      notes.push(
+        `${format}에는 정책별 수가 없어서, 어느 정책의 것인지는 아래 정책 상자의 '${CHECKLIST_LABEL.kept}'에 실린 것만 알 수 있습니다.`,
+      );
     } else if (units !== 0) {
       notes.push(`${format}에는 정책별 수가 없어서, 어느 정책에서 적용 신호를 봤는지 알 수 없습니다.`);
     } else if (dismissed === 0 && view.aiDismissedKnown) {

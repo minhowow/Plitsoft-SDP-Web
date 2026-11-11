@@ -590,10 +590,11 @@ describe("기록에 싣는 것", () => {
       expect(NOT_REPORTED_NOR_CLEARED.replace("발견도 AI 가 푼 경고도 없는", "발견이 없는")).toBe(STATUS_LEGEND["not-reported"]);
       expect(readSheet(sheet(data)).statusNotes).toEqual([`${STATUS_LABEL["not-reported"]}: ${NOT_REPORTED_NOR_CLEARED}`]);
       // 결과 화면의 그 정책에도 "나누어 적지 않습니다"가 없다(tests/demo.test.tsx 가 본다). 여기서는 같은 결과로 견준다.
-      // (D5) 그 정책은 곁칸에서 `발견 없음, AI 가 푼 경고 N건` 으로 따로 선다(`발견 없음` 묶음에 넣지 않는다).
+      // (2026-11-11 오너 지시) 그 정책은 상자로 서고 체크리스트 "지킨 근거 있음"에 AI 가 푼 경고가 있다(`발견 없음` 묶음에 넣지 않는다).
       const summary = renderToStaticMarkup(<ReportSummary view={viewOf(data)} />);
       const sideRow = elementsOf(summary, '<li class="p">').find((html) => textOf(html).includes(metaOf(cleared.policy).title))!;
-      expect(textOf(sideRow)).toContain("발견 없음, AI 가 푼 경고 1건");
+      expect(sideRow).toBeDefined();
+      expect(summary).toContain('<section class="ck ck-kept">');
       expect(textOf(summary)).not.toContain("나누어 적지 않습니다");
 
       // AI 가 푼 경고가 없는 결과에서는 뜻을 그대로 적는다(빠진 판정만 있는 결과도 그렇다. 빠진 판정은 판정 단위에 들지 않는다).
@@ -1073,7 +1074,8 @@ describe("기록에 싣는 것", () => {
       expect([AI_CLEARED, AI_DISMISSED]).toEqual(["AI 가 푼 경고", "AI 가 적용되지 않는다고 답해 빠진 판정"]);
       const cleared = renderToStaticMarkup(<ReportSummary view={viewOf(fixture("judge-on.cleared"))} />);
       const dismissed = renderToStaticMarkup(<ReportSummary view={viewOf(fixture("judge-on.dismissed"))} />);
-      expect(cleared).toContain(`<summary>${AI_CLEARED} 1건</summary>`);
+      // (2026-11-11) AI 가 푼 경고는 정책 상자 안으로 옮겨 요약 아래 줄의 이름으로 남는다. 빠진 판정은 접힌 목록의 이름이다.
+      expect(textOf(elementAt(cleared, cleared.indexOf('<p class="sumline">')))).toContain(`${AI_CLEARED} 1건`);
       expect(dismissed).toContain(`<summary>${AI_DISMISSED} 1건</summary>`);
     });
 

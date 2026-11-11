@@ -1330,8 +1330,8 @@ describe("판정자를 켠 결과의 기록", () => {
     expect(lines).toContain(cite);
 
     await pick(page, ["tests", "fixtures", "judge-on.cleared.json"]);
-    // 결과 화면에는 인용한 줄이 보인다.
-    expect(await page.locator(".ai-decisions").innerText()).toContain(cite);
+    // 결과 화면에는 인용한 줄이 보인다(그 정책 상자의 체크리스트 "지킨 근거 있음". 2026-11-11 오너 지시).
+    expect(await page.locator(".ck-kept").innerText()).toContain(cite);
     await showRecord(page);
     let text = await recordText(page);
     expect(squash(text)).toContain("AI 가 푼 경고 1건. 발견에는 들어 있지 않습니다.");

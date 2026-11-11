@@ -1,7 +1,7 @@
 import type { PackIndex } from "@/lib/pack/types";
 import { judgedScope, type JudgedScope } from "./scope";
 import { findingStatus, STATUS_ORDER, worst, type Status } from "./status";
-import type { AiCleared, AiDismissed, Contract, Finding, PolicySummary, Report, StaticCleared } from "./types";
+import { isNonServiceRole, serviceFindingCount, type AiCleared, type AiDismissed, type Contract, type Finding, type PolicySummary, type Report, type StaticCleared } from "./types";
 
 /**
  * 발견 하나. 단위는 정책 × 규칙 × 파일이다(함수 단위 규칙이면 함수).
@@ -28,6 +28,11 @@ export interface LocationView {
   status: Status;
   fingerprint: string;
   finding: Finding;
+  /**
+   * 서비스 코드가 아닌 파일(시험·예시·설정)의 발견인지. CLI 가 발견마다 실은 파일 역할(`finding.role`)로만 가른다. 역할이
+   * 실려 있지 않으면 거짓이다(경로 이름으로 짐작하지 않는다).
+   */
+  nonService: boolean;
 }
 
 /** 같은 규칙이 여러 곳에 반복될 때 먼저 보이는 대표 위치의 수. 나머지는 접는다. */
@@ -59,10 +64,23 @@ export interface PolicyView {
   title: string;
   law: string;
   status: Status;
-  /** 이 정책의 발견 전부. 파일, 줄, 규칙 순서다. */
+  /**
+   * 이 정책의 "사람이 볼 곳": 서비스 코드의 발견 전부. 파일, 줄, 규칙 순서다. 시험·예시·설정 파일의 발견은 `aside` 에 따로 둔다
+   * (2026-11-11 오너 지시). 정책의 상태도 이것으로 정한다.
+   */
   locations: LocationView[];
-  /** 같은 발견을 규칙별로 묶은 것. 화면은 이 묶음으로 그린다. */
+  /** 같은 발견을 규칙별로 묶은 것. */
   rules: RuleGroupView[];
+  /**
+   * 체크리스트의 두 묶음(2026-11-11 오너 지시): 확인할 것(검토 필요·AI 확인 전)과 코드로는 알 수 없음(판단 보류)의 발견을
+   * 저마다 규칙별로 묶은 것. 화면은 이 묶음으로 그린다. 셋째 묶음(지킨 근거 있음)은 `evidence` 와 `cleared` 다.
+   */
+  checks: RuleGroupView[];
+  unknowns: RuleGroupView[];
+  /** 서비스 코드가 아닌 파일(시험·예시·설정)의 발견. 파일, 줄, 규칙 순서다. "사람이 볼 곳"에 세지 않는다. */
+  aside: LocationView[];
+  /** 이 정책의 AI 가 푼 경고의 줄(`ReportView.cleared` 가운데 이 정책의 것). 체크리스트의 "지킨 근거 있음"에 든다. */
+  cleared: ReviewItem[];
   /**
    * 충족 근거 위치. v1 초안에서는 정책별 요약의 것이다. CLI 결과 판 1 에서는 강한 정적 대안으로 풀린 단위
    * (`run.static_cleared`)를 옮긴 것이다: 대안이 맞은 줄마다 한 줄(줄이 실려 있지 않으면 줄 없이 한 줄), 규칙과 대안 id 는
@@ -131,8 +149,13 @@ export interface ReportView {
    * 나온 정책이 있으면 카드(`policies`)가 이 수보다 많다.
    */
   policyCount: number | null;
-  /** 발견 수(검토 필요 + AI 확인 전 + 판단 보류). 점수가 아니다. */
+  /**
+   * "사람이 볼 곳"의 수: 서비스 코드의 발견 수(검토 필요 + AI 확인 전 + 판단 보류). 시험·예시·설정 파일의 발견은 빼고
+   * `asideCount` 로 따로 센다. 점수가 아니다.
+   */
   findingCount: number;
+  /** 서비스 코드가 아닌 파일(시험·예시·설정)의 발견 수. 결과에 파일 역할이 실려 있을 때만 0 보다 클 수 있다. */
+  asideCount: number;
   /** AI 가 푼 경고와 적용 질문으로 빠진 판정. 숨기지 않는다. 사람이 인용한 줄을 확인해야 한다. */
   aiCleared: AiCleared[];
   /**
@@ -222,6 +245,9 @@ export function aiReviewRan(view: Pick<ReportView, "judge">): boolean {
 const COMMIT_HASH = /^[0-9a-f]{7,64}$/i;
 
 const byUrgency = (a: Status, b: Status) => STATUS_ORDER.indexOf(a) - STATUS_ORDER.indexOf(b);
+
+/** 체크리스트의 "확인할 것"에 드는 발견의 상태. 나머지(판단 보류)는 "코드로는 알 수 없음"이다. */
+const CHECK_STATUSES: Status[] = ["needs-review", "needs-review-ai-pending"];
 
 /**
  * 글자 코드 순서(UTF-16 코드 단위). 대문자가 소문자보다 앞이다. 어느 컴퓨터, 어느 브라우저에서나 같다.
@@ -325,7 +351,7 @@ export function buildReportView(report: Report, contract: Contract, pack?: PackI
     const findings = byPolicy.get(id) ?? [];
     const summary = summaries.get(id);
     const meta = packPolicies.get(id);
-    const found: LocationView[] = findings.map((finding) => ({
+    const all: LocationView[] = findings.map((finding) => ({
       file: finding.file,
       line: finding.line,
       lineUnsure: contract === "sarif" && finding.line === 1 && finding.region === null,
@@ -335,7 +361,9 @@ export function buildReportView(report: Report, contract: Contract, pack?: PackI
       status: findingStatus(finding),
       fingerprint: finding.fingerprint,
       finding,
+      nonService: isNonServiceRole(finding.role),
     }));
+    const found = all.filter((location) => !location.nonService);
     const locations = [...found].sort(byPlace);
     const evidence = summary?.evidence ?? staticEvidence.get(id) ?? [];
 
@@ -361,6 +389,10 @@ export function buildReportView(report: Report, contract: Contract, pack?: PackI
       status,
       locations,
       rules: groupByRule(found),
+      checks: groupByRule(found.filter((location) => CHECK_STATUSES.includes(location.status))),
+      unknowns: groupByRule(found.filter((location) => !CHECK_STATUSES.includes(location.status))),
+      aside: all.filter((location) => location.nonService).sort(byPlace),
+      cleared: [],
       evidence,
       units: summary ? summary.units : null,
       aiCleared: clearedCount.get(id) ?? 0,
@@ -391,6 +423,15 @@ export function buildReportView(report: Report, contract: Contract, pack?: PackI
   const engine = report.run.engine;
   // 커밋도 정책별 요약처럼 v1 초안에서만 읽는다. 파서가 모양을 보지 않는 필드라서 커밋 해시의 모양인지 여기서 확인한다.
   const commit = contract === "v1-draft" ? report.run.commit : null;
+  const cleared: ReviewItem[] = aiCleared.map((record) => ({
+    ...item(record),
+    alternatives: record.alternatives.map((alt) => alt.id),
+    // 인용한 글에는 줄 번호가 실려 있지 않다. 파일만 적는다. 어느 대안의 인용인지는 함께 옮긴다(CLI 는 대안마다 인용을 싣는다).
+    quotes: record.alternatives.flatMap((alt) => (alt.cite ? [{ file: record.file, line: null, text: alt.cite, alternative: alt.id }] : [])),
+    uncited: record.alternatives.filter((alt) => !alt.cite).map((alt) => alt.id),
+  }));
+  for (const policy of policies) policy.cleared = cleared.filter((entry) => entry.policy === policy.id);
+
   return {
     contract,
     tool: `${report.tool.name} ${report.tool.version}`,
@@ -411,21 +452,14 @@ export function buildReportView(report: Report, contract: Contract, pack?: PackI
     },
     policies,
     policyCount: contract === "v1-draft" ? summaries.size : packMatches ? packPolicies.size : null,
-    findingCount: report.findings.length,
+    findingCount: serviceFindingCount(report.findings),
+    asideCount: report.findings.length - serviceFindingCount(report.findings),
     aiCleared,
     staticCleared,
     aiDismissed,
     aiDismissedKnown: !ran || report.run.ai_dismissed !== undefined,
     aiRows: [{ label: "판정자", value: report.run.judge ?? "꺼짐" }],
-    cleared: aiCleared.map((cleared) => ({
-      ...item(cleared),
-      alternatives: cleared.alternatives.map((alt) => alt.id),
-      // 인용한 글에는 줄 번호가 실려 있지 않다. 파일만 적는다. 어느 대안의 인용인지는 함께 옮긴다(CLI 는 대안마다 인용을 싣는다).
-      quotes: cleared.alternatives.flatMap((alt) =>
-        alt.cite ? [{ file: cleared.file, line: null, text: alt.cite, alternative: alt.id }] : [],
-      ),
-      uncited: cleared.alternatives.filter((alt) => !alt.cite).map((alt) => alt.id),
-    })),
+    cleared,
     dismissed: aiDismissed.map((dismissed) => ({
       ...item(dismissed),
       question: dismissed.question ?? null,

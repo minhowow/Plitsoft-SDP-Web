@@ -65,7 +65,7 @@
             "aiPending": 1,
             "aiCleared": [],
             "aiDismissed": [],
-            "packDigest": "7897fc0f79ce975b",
+            "packDigest": "9f70938de41b6f3a",
             "coverageComplete": true
           }
         }
@@ -91,7 +91,7 @@
             }
           ],
           "partialFingerprints": {
-            "policypack/v1": "1c68f43e15a146414054ef792c74a62b"
+            "policypack/v1": "5ceb99b54225a7aad7f31895d5a756b5"
           },
           "properties": {
             "outcome": "needs-review",

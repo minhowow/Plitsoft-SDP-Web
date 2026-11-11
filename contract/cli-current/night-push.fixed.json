@@ -6,7 +6,7 @@
   },
   "run": {
     "judge": null,
-    "pack_digest": "7897fc0f79ce975b",
+    "pack_digest": "9f70938de41b6f3a",
     "fingerprint_version": "policypack/v1",
     "questions_asked": 0,
     "ai_answered": 0,
@@ -28,6 +28,14 @@
     "incomplete": [],
     "engine_errors": [],
     "coverage_complete": true,
+    "finding_counts": {
+      "total": 3,
+      "service": 3,
+      "non_service": 0,
+      "by_role": {
+        "other": 3
+      }
+    },
     "files": 1
   },
   "findings": [
@@ -37,6 +45,7 @@
       "outcome": "needs-review-uncertain",
       "file": "src/marketing/campaign.ts",
       "line": 12,
+      "role": "other",
       "case": null,
       "category": "ads-night-send",
       "title": "야간(21시~08시) 광고성 정보 전송의 별도 동의",
@@ -48,7 +57,7 @@
       "ai_pending": [
         "ai-night-guard"
       ],
-      "fingerprint": "8b80aa95832a48a7af6dee65317e434d",
+      "fingerprint": "158e4293f383c30df3d485b2d84a0635",
       "scope": "anchor",
       "region": {
         "start_line": 9,
@@ -90,6 +99,7 @@
       "outcome": "needs-review",
       "file": "src/marketing/campaign.ts",
       "line": 2,
+      "role": "other",
       "case": null,
       "category": "ads-disclosure",
       "title": "광고성 정보에 밝혀야 할 사항 — (광고) 표기, 전송자 명칭·연락처, 무료 수신거부 방법",
@@ -101,7 +111,7 @@
       "ai_pending": [
         "ai-start-block"
       ],
-      "fingerprint": "3b26ebf0758d062eb21a0fdc27014a1d",
+      "fingerprint": "d91483e9cadb9c64587fb588ba20d184",
       "scope": "file",
       "region": null,
       "top_level": false,
@@ -128,6 +138,7 @@
       "outcome": "needs-review",
       "file": "src/marketing/campaign.ts",
       "line": 2,
+      "role": "other",
       "case": null,
       "category": "ads-disclosure",
       "title": "광고성 정보에 밝혀야 할 사항 — (광고) 표기, 전송자 명칭·연락처, 무료 수신거부 방법",
@@ -139,7 +150,7 @@
       "ai_pending": [
         "ai-optout-free"
       ],
-      "fingerprint": "36371ab5f85f97ab3c7efff048d5dd93",
+      "fingerprint": "f8bd663ad9e32696291712fc2badfa05",
       "scope": "file",
       "region": null,
       "top_level": false,

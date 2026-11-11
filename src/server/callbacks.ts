@@ -1,5 +1,6 @@
 import "server-only";
 import { parseReportText } from "@/lib/report/parse";
+import { serviceFindingCount } from "@/lib/report/types";
 import { repoKey } from "@/lib/service/href";
 import { isAnalysisId } from "@/lib/service/id";
 import { isRepoFullName } from "@/lib/service/names";
@@ -182,12 +183,13 @@ export async function applyRunnerEvent(
     }
     const tool = parsed.report.tool.version;
     const pack = parsed.report.run.pack_digest;
-    // 발견 수는 쪽이 목록에 쓴다. 결과를 받을 때 한 번 세어 둔다(쪽이 결과 전체를 다시 읽지 않게).
+    // 발견 수는 쪽이 목록에 쓴다. 결과를 받을 때 한 번 세어 둔다(쪽이 결과 전체를 다시 읽지 않게). 결과 화면의 "사람이 볼 곳"과
+    // 같은 수다: 시험·예시·설정 파일의 발견은 빼고 센다(2026-11-11 오너 지시).
     await write(", status = 'succeeded', finished_at = $3, tool_version = $4, pack_digest = $5, finding_count = $6", [
       options.now,
       VERSION.test(tool) ? tool : null,
       VERSION.test(pack) ? pack : null,
-      parsed.report.findings.length,
+      serviceFindingCount(parsed.report.findings),
     ]);
     return { status: 200, body: { ok: true, message: "결과를 적었습니다.", status: "succeeded" } };
   });

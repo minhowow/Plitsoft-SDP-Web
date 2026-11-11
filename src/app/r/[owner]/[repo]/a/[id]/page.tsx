@@ -5,6 +5,7 @@ import { AnalysisHeader, AnalysisMeta, AnalysisTitle, Failed, InProgress, PROGRE
 import { LiveAnalysis } from "@/components/service/LiveAnalysis";
 import { AnalysisDashboard, type Statute } from "@/components/service/AnalysisDashboard";
 import { packIndex, packMeta } from "@/lib/pack";
+import { SYNTHETIC_PROFILES } from "@/lib/profile";
 import { parseReport } from "@/lib/report/parse";
 import { buildReportView } from "@/lib/report/view-model";
 import { orUnavailable } from "@/lib/service/errors";
@@ -123,6 +124,8 @@ export default async function AnalysisPage({ params }: PageProps<"/r/[owner]/[re
           view={view}
           code={code}
           statutes={statutes}
+          // 1·2단의 예시는 합성 예시 이름표가 붙는 화면의 합성 저장소에만 쓴다. 실제 저장소의 프로필을 꾸며 내지 않는다.
+          profile={tagged ? (SYNTHETIC_PROFILES[`${repository.owner}/${repository.name}`.toLowerCase()] ?? null) : null}
           progress={
             <details className="lg an-steps">
               <summary>

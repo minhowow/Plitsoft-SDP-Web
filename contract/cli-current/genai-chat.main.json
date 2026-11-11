@@ -6,7 +6,7 @@
   },
   "run": {
     "judge": null,
-    "pack_digest": "7897fc0f79ce975b",
+    "pack_digest": "9f70938de41b6f3a",
     "fingerprint_version": "policypack/v1",
     "questions_asked": 0,
     "ai_answered": 0,
@@ -28,6 +28,14 @@
     "incomplete": [],
     "engine_errors": [],
     "coverage_complete": true,
+    "finding_counts": {
+      "total": 2,
+      "service": 2,
+      "non_service": 0,
+      "by_role": {
+        "screen": 2
+      }
+    },
     "files": 1
   },
   "findings": [
@@ -37,6 +45,7 @@
       "outcome": "needs-review",
       "file": "src/chat/ChatPanel.tsx",
       "line": 1,
+      "role": "screen",
       "case": null,
       "category": "ai-output-label",
       "title": "생성형 AI 결과물 표시",
@@ -49,7 +58,7 @@
         "ai-label",
         "ai-machine-mark"
       ],
-      "fingerprint": "6050cfd44fd476e348a617f82903595b",
+      "fingerprint": "f80b1da911e3607baa6667cfbc2b3d2e",
       "scope": "file",
       "region": null,
       "top_level": false,
@@ -77,6 +86,7 @@
       "outcome": "needs-review",
       "file": "src/chat/ChatPanel.tsx",
       "line": 1,
+      "role": "screen",
       "case": null,
       "category": "ai-prior-notice",
       "title": "생성형 AI 기반 서비스 사전 고지",
@@ -88,7 +98,7 @@
       "ai_pending": [
         "ai-prior-notice"
       ],
-      "fingerprint": "f395a006608add9e1867b3395d7e6d33",
+      "fingerprint": "6d129b3097c9af9964f007633d8e02f6",
       "scope": "file",
       "region": null,
       "top_level": false,

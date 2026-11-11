@@ -11,6 +11,8 @@ import { SearchHome, SearchResults } from "@/components/service/SearchResults";
 import { keepArticle } from "@/components/text";
 import { packMeta, policyHref } from "@/lib/pack";
 import { paragraphOf } from "@/lib/pack/legal";
+import { SYNTHETIC_PROFILES } from "@/lib/profile";
+import { NO_FEATURES, NO_JUDGEMENT } from "@/components/result/Tiers";
 import { parseReport } from "@/lib/report/parse";
 import type { Report } from "@/lib/report/types";
 import { buildReportView, type ReportView } from "@/lib/report/view-model";
@@ -24,7 +26,7 @@ import { activeStep, duration, finishedAt, formatKst, STEP_ORDER, stepState } fr
 import { SYNTHETIC_RESULT_SOURCES, syntheticRepositories, syntheticStore as store } from "@/lib/service/synthetic";
 import type { Analysis, Repository } from "@/lib/service/types";
 import { SITE } from "@/lib/site";
-import { readJson, textOf } from "./helpers";
+import { elementsOf, readJson, textOf } from "./helpers";
 import { BANNED_WORDING } from "./wording";
 
 // 분석 서비스(방향 B): 데이터 모델, 합성 저장소(SERVICE_STORE=synthetic 의 미리보기), 주소, 그리고 쪽의 부품. 운영 구현
@@ -526,6 +528,20 @@ describe("대시보드", () => {
       expect(html).not.toContain("quiet-hint");
       expect(html).toContain('href="/policy#status">상태의 뜻</a>');
     }
+  });
+
+  it("세 단으로 그린다: 1·2단은 예시 자료가 있을 때만 '예시'로 채우고, 없으면 '아직 없음'이다. 기능이 없는 예시는 걸리는 의무가 없다고 답한다", () => {
+    const view = viewOf("64y4jdtazh");
+    const heads = (html: string) => elementsOf(html, '<h2 class="tier-hd"').map(textOf);
+    const real = renderToStaticMarkup(<AnalysisDashboard view={view} code={null} />);
+    expect(heads(real)).toEqual(["1프로필", "2걸리는 의무", "3검토 결과"]);
+    expect(elementsOf(real, '<p class="tier-none">').map(textOf)).toEqual(["아직 없음", "아직 없음"]);
+    const example = renderToStaticMarkup(<AnalysisDashboard view={view} code={null} profile={SYNTHETIC_PROFILES["example-org/night-push"]} />);
+    expect(heads(example)).toEqual(["1프로필예시", "2걸리는 의무예시", "3검토 결과"]);
+    expect(textOf(example)).toContain(NO_JUDGEMENT);
+    expect(textOf(example)).toContain("걸릴 수 있는 의무 2개");
+    const none = renderToStaticMarkup(<AnalysisDashboard view={view} code={null} profile={SYNTHETIC_PROFILES["example-labs/plain-utils"]} />);
+    expect(textOf(none)).toContain(NO_FEATURES);
   });
 
   it("저장소 주소가 있으면 발견 줄마다 커밋 고정 링크를 새 창으로 걸고, 새 창과 고정한 커밋을 화면 낭독기에 알린다", () => {

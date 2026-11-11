@@ -6,7 +6,7 @@
   },
   "run": {
     "judge": null,
-    "pack_digest": "7897fc0f79ce975b",
+    "pack_digest": "9f70938de41b6f3a",
     "fingerprint_version": "policypack/v1",
     "questions_asked": 0,
     "ai_answered": 0,
@@ -28,6 +28,14 @@
     "incomplete": [],
     "engine_errors": [],
     "coverage_complete": true,
+    "finding_counts": {
+      "total": 1,
+      "service": 1,
+      "non_service": 0,
+      "by_role": {
+        "other": 1
+      }
+    },
     "files": 1
   },
   "findings": [
@@ -37,6 +45,7 @@
       "outcome": "needs-review",
       "file": "src/auth/signup.ts",
       "line": 5,
+      "role": "other",
       "case": null,
       "category": "child-consent",
       "title": "만 14세 미만 아동의 개인정보 처리",
@@ -48,7 +57,7 @@
       "ai_pending": [
         "ai-guard"
       ],
-      "fingerprint": "1c68f43e15a146414054ef792c74a62b",
+      "fingerprint": "5ceb99b54225a7aad7f31895d5a756b5",
       "scope": "file",
       "region": null,
       "top_level": false,

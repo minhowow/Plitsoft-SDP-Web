@@ -724,6 +724,20 @@ describe("빈 결과에서 아는 것과 모르는 것", () => {
     expect(view("../tests/fixtures", "judge-on.dismissed.json").aiDismissedKnown).toBe(true);
   });
 
+  it("시험·예시·설정 파일(CLI 의 파일 역할 test·config)의 발견은 사람이 볼 곳에서 빼고 따로 둔다. 역할이 없으면 짐작하지 않는다", () => {
+    const data = readJson("contract", "cli-current", "night-push.main.json") as Report;
+    expect(data.findings.map((f) => f.role)).toEqual(["other", "other"]);
+    const [a, b] = data.findings;
+    const split = viewOf({ ...data, findings: [{ ...a, role: "test" }, { ...b, role: "config" }] });
+    expect([split.findingCount, split.asideCount]).toEqual([0, 2]);
+    const policy = split.policies.find((p) => p.id === a.policy)!;
+    expect([policy.locations.length, policy.aside.length, policy.status]).toEqual([0, 2, "not-reported"]);
+    // 역할이 없거나(옛 출력·SARIF) 서비스 코드의 역할이면 사람이 볼 곳이다.
+    const { role: _drop, ...noRole } = a;
+    void _drop;
+    expect(viewOf({ ...data, findings: [noRole as Finding, { ...b, role: "screen" }] })).toMatchObject({ findingCount: 2, asideCount: 0 });
+  });
+
   it("검사한 것은 파일 수, 판정 단위 수, 검사하지 않은 파일, 정책 순서다", () => {
     const facts = examinedFacts(view("cli-current", "kids-signup.fixed.json"));
     expect(facts.map((f) => [f.label, f.value, f.warn])).toEqual([

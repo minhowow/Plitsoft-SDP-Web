@@ -342,12 +342,17 @@ describe("분석 쪽의 완료 조건 (재디자인 D5, docs/redesign.md 6장)",
     expect(new Set(shown.map((entry) => entry.text)).size).toBe(2);
   });
 
-  it("390×844: 첫 발견 문장이 첫 화면 안에 있고, 쪽 길이는 2,000px 이하다", async () => {
+  it("390×844: 세 단의 머리가 첫 화면 안에 있고, 첫 발견 문장은 두 화면 안, 쪽 길이는 2,400px 이하다", async () => {
+    // (2026-11-11 오너 지시) 결과 화면이 세 단(프로필, 걸리는 의무, 검토 결과)이 되어 발견은 셋째 단에 있다. 좁은 화면에서는 세
+    // 단의 머리가 먼저 한 화면에 들어오고, 발견은 한 번 내리면 보인다.
     const { page } = await openPage(browser, site, STANDARD, { viewport: { width: 390, height: 844 }, contexts, problems });
-    const [first] = await sentences(page);
-    expect(first.inView).toBe(true);
+    const tiers = await page.locator(".tier-hd").evaluateAll((all) => all.map((el) => el.getBoundingClientRect().bottom));
+    expect(tiers).toHaveLength(3);
+    for (const bottom of tiers) expect(bottom).toBeLessThanOrEqual(844);
+    const top = await page.locator("li.finding .msg").first().evaluate((el) => el.getBoundingClientRect().top);
+    expect(top).toBeLessThan(2 * 844);
     const height = await page.evaluate(() => document.documentElement.scrollHeight);
-    expect(height).toBeLessThanOrEqual(2000);
+    expect(height).toBeLessThanOrEqual(2400);
     expect(await overflow(page)).toMatchObject({ page: 0, over: [] });
   });
 

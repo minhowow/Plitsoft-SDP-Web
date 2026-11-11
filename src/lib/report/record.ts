@@ -88,6 +88,8 @@ export function policySourceNote(contract: Contract, digest: string): string {
 /** 결과 화면이 이 둘을 부르는 이름 그대로다(`components/result/ReportSummary.tsx`). */
 export const AI_CLEARED = "AI 가 푼 경고";
 export const AI_DISMISSED = "AI 가 적용되지 않는다고 답해 빠진 판정";
+/** 서비스 코드가 아닌 파일(CLI 의 파일 역할 test·config)의 발견. 결과 화면은 접어 두고, 기록은 수만 적는다(2026-11-11 오너 지시). */
+export const ASIDE_LABEL = "시험·예시·설정 파일의 발견";
 
 /** 기록이 무엇으로 만든 것인지. 기록만 인쇄되므로 기록이 제 안에 적는다. */
 export interface RecordSource {
@@ -371,6 +373,8 @@ export function buildRecord(view: ReportView, pack: PackIndex, source?: RecordSo
   });
 
   const aiNotes: string[] = [];
+  // 시험·예시·설정 파일의 발견은 결과 화면처럼 발견 수에서 빼고, 이 기록에도 싣지 않는다. 뺀 수를 숨기지 않는다.
+  if (view.asideCount > 0) aiNotes.push(`${ASIDE_LABEL} ${view.asideCount}건. 발견에 들어 있지 않고 이 기록에 싣지 않습니다.`);
   if (view.aiCleared.length > 0) aiNotes.push(`${AI_CLEARED} ${view.aiCleared.length}건. 발견에는 들어 있지 않습니다.`);
   if (view.aiDismissed.length > 0) {
     // 빠진 판정은 판정 단위 수에도 들어 있지 않다(`examined.ts`). 그 수가 결과에 없으면(SARIF) 발견만 말한다.

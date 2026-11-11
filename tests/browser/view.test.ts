@@ -6,7 +6,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { GAPS_NOTE, GAPS_TITLE, SARIF_COUNTS_NOTE } from "@/lib/report/coverage";
 import { MAX_FILE_BYTES, NOT_UTF8 } from "@/lib/report/open";
 import { scopeLabel } from "@/lib/report/scope";
-import { STATUS_LABEL } from "@/lib/report/status";
+import { CHECKLIST_LABEL, STATUS_LABEL } from "@/lib/report/status";
 import type { Finding, Report } from "@/lib/report/types";
 import { SAMPLES } from "@/lib/samples";
 import { SITE } from "@/lib/site";
@@ -1433,11 +1433,13 @@ describe("결과 화면의 글과 꾸밈 (조문 도감·기록의 시험과 같
     // (D5) 정책 상자(발견이나 충족 근거가 있는 정책)의 제목은 2단계다. 곁칸 `정책 N`, 검사 정보도 2단계 구획 머리다.
     const boxed = view.policies.filter((policy) => policy.locations.length > 0 || policy.evidence.length > 0);
     expect(atLevel(2)).toEqual([...boxed.map((policy) => policy.title), `정책 ${view.policies.length}`, "검사 정보"]);
-    // 같은 규칙이 여러 곳일 때만 묶음 머리(3단계)가 있다(메시지와 곳의 수). 이 결과는 규칙마다 한 곳이라 없다.
+    // (2026-11-11 오너 지시) 정책 상자 안의 체크리스트 묶음 머리(지킨 근거 있음·확인할 것·코드로는 알 수 없음)가 3단계다. 같은 규칙이
+    // 여러 곳일 때만 있는 규칙 묶음 머리(메시지와 곳의 수)는 4단계이고, 이 결과는 규칙마다 한 곳이라 없다.
     const groups = view.policies.flatMap((policy) => policy.rules);
     const multi = groups.filter((group) => group.shown.length + group.folded.length > 1);
     expect(multi).toEqual([]);
-    expect(atLevel(3)).toEqual([]);
+    expect(atLevel(3)).toEqual(boxed.map((policy) => `${CHECKLIST_LABEL.check} ${policy.locations.length}곳`));
+    expect(atLevel(4)).toEqual([]);
     const locations = groups.flatMap((group) => [...group.shown, ...group.folded]);
     // (2026-11-11 오너 지시) 발견 줄은 늘 보이고, 펼치는 단추는 `자세히` 하나다. 그 이름에는 화면 낭독기에만 읽히는 위치와 규칙이
     // 붙어 줄마다 다르다.

@@ -49,6 +49,24 @@ export interface Finding {
   decision_path: string[];
   category?: string;
   anchor_lines?: number[];
+  /**
+   * 이 발견이 나온 파일의 역할(CLI 54e048a 부터). CLI 가 경로와 내용의 모양으로 고른 힌트이고 판정은 역할을 보지 않는다.
+   * 옛 출력과 SARIF 에는 없다. 모르는 값도 받는다(`isNonServiceRole` 이 시험·설정만 가른다).
+   */
+  role?: string;
+}
+
+/** 서비스 코드가 아닌 파일의 역할: 시험·픽스처·목업·스토리(test)와 설정(config). CLI 의 `run.finding_counts.non_service` 와 같은 가름이다. */
+export const NON_SERVICE_ROLES: readonly string[] = ["test", "config"];
+
+/** 그 발견이 서비스 코드가 아닌 파일(시험·예시·설정)에서 나왔는지. 역할이 실려 있지 않으면 짐작하지 않는다(거짓). */
+export function isNonServiceRole(role: string | undefined): boolean {
+  return role !== undefined && NON_SERVICE_ROLES.includes(role);
+}
+
+/** "사람이 볼 곳"으로 세는 발견의 수: 서비스 코드가 아닌 파일의 발견을 뺀 수. 분석 기록(DB)과 결과 화면이 같은 수를 쓴다. */
+export function serviceFindingCount(findings: Pick<Finding, "role">[]): number {
+  return findings.filter((finding) => !isNonServiceRole(finding.role)).length;
 }
 
 /**

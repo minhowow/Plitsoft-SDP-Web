@@ -145,7 +145,7 @@ GitHub Actions(실행기 저장소) ── 공개 저장소를 그 커밋으로 
 | `SCAN_TIMEOUT_MINUTES` | 15 | 검사 명령 하나의 시간 상한 |
 | `RESULT_MAX_KB` | 4000 | 보내는 결과 크기 상한(사이트와 같은 값) |
 | `JUDGE_MODEL` | claude-haiku-5-5 | AI 판정자 `anthropic:<모델>`(전체 id). 모델을 바꾸는 것은 오너가 정한다 |
-| `CLI_REPO`·`CLI_COMMIT` | `minhowow/Plitsoft-SDP`·`50c70bc…`(태그 `handoff-w11`) | 설치하는 CLI 와 그 고정 커밋 |
+| `CLI_REPO`·`CLI_COMMIT` | `minhowow/Plitsoft-SDP`·`54e048a…`(태그 `handoff-w11-2`) | 설치하는 CLI 와 그 고정 커밋 |
 | `CLI_EXCLUDE_NEWER` | 2026-11-10T00:00:00Z | CLI 의 딸린 꾸러미를 이 날짜까지 나온 판에서만 고른다(`uv tool install --exclude-newer`. git 설치는 CLI 의 uv.lock 을 쓰지 않는다). CLI 커밋을 바꿀 때 함께 바꾼다 |
 | `SITE_ORIGIN` | Actions 변수 `SITE_URL` | 콜백을 받을 사이트. 워크플로 입력의 `callback_url` 출처가 이것과 다르면 멈춘다 |
 

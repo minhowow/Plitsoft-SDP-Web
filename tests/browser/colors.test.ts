@@ -298,10 +298,10 @@ const ANALYSIS_PARTS = [".chip", ".badge", ".badge-running", ".badge-failed", ".
 /** 조문 도감: 상태의 뜻의 칩, 검사에 들지 않는 것, 대표 조문 이름표, 판정자 알림, 곁칸 `이 정책`, 아이콘. */
 const POLICY_PARTS = ["#status .chip", "#scope", ".tag", ".judge-note", ".policy-side", "svg.ic"];
 /**
- * 결과 파일 열기: 칩, 이름표, '모름', 곁칸과 점, AI 가 푼 경고 상자, 다 보지 못한 검사 경고(접혀 있어 그 머리 띠를 센다. 안의 표는
- * 펼친 채의 재기에서 잰다), 발견 0 의 검사한 것, 검사 정보.
+ * 결과 파일 열기: 칩, 이름표, '모름', 곁칸과 점, 체크리스트 묶음 머리와 그 안의 AI 가 푼 경고 줄(2026-11-11), 다 보지 못한 검사
+ * 경고(접혀 있어 그 머리 띠를 센다. 안의 표는 펼친 채의 재기에서 잰다), 발견 0 의 검사한 것, 검사 정보.
  */
-const VIEW_PARTS = [".chip", ".tag", ".unk", ".side-pol", ".dot", ".ai-box", ".warn-hd", ".empty-report", ".info"];
+const VIEW_PARTS = [".chip", ".tag", ".unk", ".side-pol", ".dot", ".ck-hd", ".ai-row", ".warn-hd", ".empty-report", ".info"];
 /** 데모: 칩, 합성 예시 이름표, 칠한 줄, 고치기 전·후 표와 그 아래 발견 없음의 묶음, 판정자 권고, 발견 0 의 검사한 것, 검사 정보. 곁칸은 없다(D7). */
 const DEMO_PARTS = [".chip", ".tag", ".codeline-marked", ".demo-compare", ".compare-quiet", ".judge-advice", ".empty-report", ".info"];
 
@@ -362,10 +362,11 @@ describe("두 테마의 명도 대비: 그려진 글자마다 4.5:1 이상", () 
     }
     expectReadable(scans, scheme);
     scans.expectParts(VIEW_PARTS, scheme);
-    // 칩이 그려졌다(칩이 없어서 통과한 것이 아니다). (D5) 칩은 정책 상자(발견이나 충족 근거가 있는 정책)와 발견 줄에만 있다.
-    // 발견이 없는 정책의 상태(적용 신호 없음, 발견 없음, 알 수 없음)는 곁칸 묶음의 이름표(글)로 보이고, 그 글도 위에서 쟀다.
-    expect([...scans.chips].sort()).toEqual(["evidence-found", "needs-review", "needs-review-ai-pending", "uncertain"]);
-    expect(STATUS_ORDER.filter((status) => !scans.chips.has(status))).toEqual(["no-signal", "not-reported", "pack-unknown"]);
+    // 칩이 그려졌다(칩이 없어서 통과한 것이 아니다). (D5) 칩은 정책 상자(발견이나 지킨 근거가 있는 정책)와 발견 줄에만 있다.
+    // (2026-11-11) AI 가 푼 경고만 있는 정책도 상자로 서고 그 칩이 `발견 없음` 이다. 나머지 발견이 없는 정책의 상태(적용 신호
+    // 없음, 알 수 없음)는 곁칸 묶음의 이름표(글)로 보이고, 그 글도 위에서 쟀다.
+    expect([...scans.chips].sort()).toEqual(["evidence-found", "needs-review", "needs-review-ai-pending", "not-reported", "uncertain"]);
+    expect(STATUS_ORDER.filter((status) => !scans.chips.has(status))).toEqual(["no-signal", "pack-unknown"]);
   });
 
   it.each(EVERY)("%s %ipx: 데모 세 앱 × 두 판. 넓은 화면에서는 좁은 화면에서 가려 두는 표의 칸 머리도 잰다", async (scheme, width) => {

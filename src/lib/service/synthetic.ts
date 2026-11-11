@@ -5,6 +5,7 @@ import kidsSignupMain from "@contract/cli-current/kids-signup.main.json";
 import nightPushMain from "@contract/cli-current/night-push.main.json";
 import plainMain from "@contract/cli-current/plain.main.json";
 import { parseReport } from "@/lib/report/parse";
+import { serviceFindingCount } from "@/lib/report/types";
 import { pickActivity } from "./activity";
 import { repoKey } from "./href";
 import { matchRepositories } from "./search";
@@ -113,7 +114,7 @@ const ANALYSES: Analysis[] = [
     status: "running",
     steps: steps("2026-10-24T04:58:02Z", { queued: [0, 18], fetch: [18, 37], scan: [37, null] }),
     failure: null,
-    versions: { tool: "0.3.0.dev0", pack: "7897fc0f79ce975b" },
+    versions: { tool: "0.3.0.dev0", pack: "9f70938de41b6f3a" },
   },
   succeeded("4qqa6fdx2h", "example-studio", "genai-chat", "5d34db91055d0cacd81e5aa655a6ae2a04cc7007", "2026-10-18T11:20:40Z", [12, 33, 84, 90]),
   {
@@ -202,7 +203,7 @@ export const syntheticStore: ServiceStore = {
       const analysis = ANALYSES.find((entry) => entry.id === id);
       if (analysis?.status !== "succeeded") continue;
       const parsed = parseReport(RESULTS[id] ?? null);
-      counts[id] = parsed.ok ? parsed.report.findings.length : null;
+      counts[id] = parsed.ok ? serviceFindingCount(parsed.report.findings) : null;
     }
     return counts;
   },

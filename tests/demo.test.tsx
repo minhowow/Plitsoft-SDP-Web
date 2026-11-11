@@ -985,14 +985,15 @@ describe("그려 낸 데모 화면", () => {
         expect(first.title).toBe("만 14세 미만 아동의 개인정보 처리");
         expect(first.cells[1]).toMatchObject({ status: NONE, counts: ["AI 가 푼 경고 1건"] });
         expect(textOf(html)).not.toContain("나누어 적지 않습니다");
-        expect(html).toContain("<summary>AI 가 푼 경고 1건</summary>");
+        // (2026-11-11 오너 지시) 아래 결과에서는 그 정책 상자의 체크리스트 "지킨 근거 있음"에 있다.
+        expect(html).toContain('<section class="ck ck-kept">');
         // 발견이 0인 판이다. 0의 뜻은 표 아래와 아래 결과(굵게)에 있다.
         expect(html).toContain(`<p class="zero-line">${SITE.zeroIsNotClearance}</p>`);
       });
 
       it("고치기 전을 볼 때: 아래 결과(고치기 전)에는 AI 가 푼 경고의 목록이 없다. 표의 칸이 그 수를 보인다", () => {
         const html = renderToStaticMarkup(<DemoPanel app={judged} variant={judged.variants[0]} pack={packIndex} />);
-        expect(report(html)).not.toContain("<summary>AI 가 푼 경고");
+        expect(report(html)).not.toContain('<ul class="ai-rows">');
         expect(compareBlock(html)!.rows[0].cells[1].counts).toEqual(["AI 가 푼 경고 1건"]);
       });
 

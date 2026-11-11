@@ -5,10 +5,12 @@ import { keepArticle } from "@/components/text";
 import { policyCardId, policyHref } from "@/lib/pack/href";
 import { reasonLabel } from "@/lib/report/reasons";
 import { scopeLabel, scopeNote } from "@/lib/report/scope";
-import { STATUS_LABEL } from "@/lib/report/status";
+import { CHECKLIST_LABEL, STATUS_LABEL } from "@/lib/report/status";
 import { fileLink, shortCommit } from "@/lib/service/href";
 import type { UnsatisfiedAlternative } from "@/lib/report/types";
 import type { LocationView, PolicyView, RuleGroupView } from "@/lib/report/view-model";
+import { CLEARED_NOTE } from "./notes";
+import { ReviewRow } from "./ReviewRow";
 import { RuleId } from "./RuleId";
 import { StatusChip } from "./StatusChip";
 import { Where } from "./Where";
@@ -304,9 +306,9 @@ function RuleGroup({ group, code, policy }: { group: RuleGroupView; code: CodeSo
     <section className="rule-group">
       {total > 1 && lead && (
         <div className="rule-head">
-          <h3>
+          <h4>
             <Message location={lead} /> <span className="rule-n">{total}곳</span>
-          </h3>
+          </h4>
           {headQuestion && <Ask text={headQuestion} />}
           {/* 접힌 곳에만 있는 상태가 가려지지 않게, 상태가 섞여 있으면 개수를 머리에 적는다. */}
           {group.folded.length > 0 &&
@@ -329,11 +331,30 @@ function RuleGroup({ group, code, policy }: { group: RuleGroupView; code: CodeSo
   );
 }
 
-/** 상자로 그리는 정책인지: 발견이나 충족 근거 위치가 있다. 나머지는 곁칸의 묶음에만 나온다. */
-export const isBoxed = (policy: PolicyView) => policy.locations.length > 0 || policy.evidence.length > 0;
+/**
+ * 상자로 그리는 정책인지: 사람이 볼 곳(서비스 코드의 발견)이나 지킨 근거(충족 근거 위치, AI 가 푼 경고)가 있다. 나머지는 곁칸의
+ * 묶음에만 나온다.
+ */
+export const isBoxed = (policy: PolicyView) => policy.locations.length > 0 || policy.evidence.length > 0 || policy.cleared.length > 0;
+
+/** 체크리스트 묶음 하나의 머리: 묶음 이름과 곳의 수. 사례 쪽도 쓴다. */
+export function CheckHead({ kind, count }: { kind: keyof typeof CHECKLIST_LABEL; count: number }) {
+  return (
+    <h3 className={`ck-hd ck-hd-${kind}`}>
+      {CHECKLIST_LABEL[kind]} <span className="ck-n">{count}곳</span>
+    </h3>
+  );
+}
+
+/** 묶음 안의 발견 수(접힌 곳까지). */
+const placesOf = (groups: RuleGroupView[]) => groups.reduce((sum, group) => sum + group.shown.length + group.folded.length, 0);
 
 /**
- * 정책 하나의 상자. `statute` 는 상자 맨 아래에 접어 두는 근거 조문 원문(분석 쪽이 서버에서 팩 메타데이터의 글을 넘긴다).
+ * 정책 하나의 상자: 검토 결과 체크리스트의 의무 하나(2026-11-11 오너 지시). `statute` 는 상자 맨 아래에 접어 두는 근거 조문
+ * 원문(분석 쪽이 서버에서 팩 메타데이터의 글을 넘긴다).
+ *
+ * 머리와 정책의 질문 아래에 세 묶음을 이 차례로 둔다(있는 것만): 지킨 근거 있음(충족 근거 위치와 AI 가 코드 줄을 인용해 푼
+ * 경고), 확인할 것(검토 필요·AI 확인 전의 발견과 그 질문), 코드로는 알 수 없음(판단 보류의 발견).
  */
 export function PolicyCard({
   policy,
@@ -346,6 +367,7 @@ export function PolicyCard({
 }) {
   const question = policy.locations[0]?.finding.ask_developer;
   const titleId = `${policyCardId(policy.id)}-title`;
+  const kept = policy.evidence.length + policy.cleared.length;
   return (
     // id 는 같은 쪽 안에서 이 상자로 옮겨 올 때 쓴다(곁칸, 데모의 표). 한 쪽에 그리는 결과는 하나뿐이다.
     <article className={`box policy policy-${policy.status}`} id={policyCardId(policy.id)} aria-labelledby={titleId}>
@@ -378,23 +400,78 @@ export function PolicyCard({
       {policy.units !== null && <p className="hint pbox-units">이 정책의 판정 단위는 {policy.units}개입니다.</p>}
 
       <div className="rows">
-        {policy.evidence.length > 0 && (
-          <ul className="evidence" aria-label="충족 근거 위치">
-            {policy.evidence.map((e, i) => (
-              // 대안 id(팩 안의 이름)는 적지 않는다(2026-11-11 오너 지시: 내부 이름은 화면에 드러내지 않는다).
-              <li key={`${e.file}:${e.line}:${e.alternative}:${i}`}>
-                <Where file={e.file} line={e.line} /> 에서 충족 근거 확인
-              </li>
-            ))}
-          </ul>
+        {kept > 0 && (
+          <section className="ck ck-kept">
+            <CheckHead kind="kept" count={kept} />
+            {policy.evidence.length > 0 && (
+              <ul className="evidence" aria-label="충족 근거 위치">
+                {policy.evidence.map((e, i) => (
+                  // 대안 id(팩 안의 이름)는 적지 않는다(2026-11-11 오너 지시: 내부 이름은 화면에 드러내지 않는다).
+                  <li key={`${e.file}:${e.line}:${e.alternative}:${i}`}>
+                    <Where file={e.file} line={e.line} /> 에서 충족 근거 확인
+                  </li>
+                ))}
+              </ul>
+            )}
+            {policy.cleared.length > 0 && (
+              <>
+                <p className="ai-note">{CLEARED_NOTE}</p>
+                <ul className="ai-rows">
+                  {policy.cleared.map((item, i) => (
+                    <ReviewRow key={i} item={item} code={code} policy={false} />
+                  ))}
+                </ul>
+              </>
+            )}
+          </section>
         )}
 
-        {policy.rules.map((group) => (
-          <RuleGroup key={group.rule} group={group} code={code} policy={policy} />
-        ))}
+        {policy.checks.length > 0 && (
+          <section className="ck ck-check">
+            <CheckHead kind="check" count={placesOf(policy.checks)} />
+            {policy.checks.map((group) => (
+              <RuleGroup key={group.rule} group={group} code={code} policy={policy} />
+            ))}
+          </section>
+        )}
+
+        {policy.unknowns.length > 0 && (
+          <section className="ck ck-unknown">
+            <CheckHead kind="unknown" count={placesOf(policy.unknowns)} />
+            {policy.unknowns.map((group) => (
+              <RuleGroup key={group.rule} group={group} code={code} policy={policy} />
+            ))}
+          </section>
+        )}
 
         {statute}
       </div>
     </article>
+  );
+}
+
+/**
+ * 서비스 코드가 아닌 파일(시험·예시·설정)의 발견 한 줄: 위치(분석 쪽은 GitHub 링크)와 정책 이름, 메시지(첫 미확인 대안의 것),
+ * 상태. "사람이 볼 곳"에 세지 않고 결과 화면 아래에 접어 둔 목록에 적는다(2026-11-11 오너 지시).
+ */
+export function AsideRow({ location, policyTitle, code }: { location: LocationView; policyTitle: string; code: CodeSource | null }) {
+  const link = code && fileLink(code.htmlUrl, code.commit, location.file, location.line);
+  const where = <Where file={location.file} line={location.line} />;
+  return (
+    <li className="aside-row">
+      <span className="loc">
+        {link && code ? (
+          <a className="gh" href={link} target="_blank" rel="noopener noreferrer">
+            {where}
+            <Icon name="external" />
+            <span className="visually-hidden">(GitHub, 새 창, 커밋 {shortCommit(code.commit)} 에 고정)</span>
+          </a>
+        ) : (
+          where
+        )}{" "}
+        <span className="ai-policy">{policyTitle}</span>
+      </span>{" "}
+      <StatusChip status={location.status} /> <Message location={location} />
+    </li>
   );
 }

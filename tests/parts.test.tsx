@@ -222,7 +222,7 @@ describe("인용한 줄 (Citation)", () => {
     expect(html).not.toContain("alt-a");
   });
 
-  it("AI 가 푼 경고의 상자: 대안이 둘이고 인용이 둘이면 어느 인용이 어느 대안의 것인지 보인다", () => {
+  it("AI 가 푼 경고(정책 상자의 '지킨 근거 있음'): 대안이 둘이고 인용이 둘이면 어느 인용이 어느 대안의 것인지 보인다", () => {
     const data = readJson("tests", "fixtures", "judge-on.cleared.json") as Report;
     const [one] = data.run.ai_cleared!;
     const view = viewOf({
@@ -233,7 +233,8 @@ describe("인용한 줄 (Citation)", () => {
       },
     });
     const html = renderToStaticMarkup(<ReportSummary view={view} />);
-    const box = elementAt(html, html.indexOf('<details class="box ai-box" open="">'));
+    // (2026-11-11 오너 지시) AI 가 푼 경고는 그 정책 상자의 체크리스트 "지킨 근거 있음"에 있다.
+    const box = elementAt(html, html.indexOf('<section class="ck ck-kept">'));
     const cites = elementsOf(box, '<li class="cite">').map(textOf);
     expect(cites).toEqual(["src/auth/signup.tsQUOTE_FOR_A", "src/auth/signup.tsQUOTE_FOR_B"]);
     // 어느 인용이 어느 대안의 것인지는 줄의 `자세히` 안에 인용과 같은 차례로 있다. 인용이 없는 대안은 "인용 없음"으로 따로 적는다.
@@ -244,10 +245,11 @@ describe("인용한 줄 (Citation)", () => {
     );
   });
 
-  it("AI 가 푼 경고의 상자가 이 부품으로 인용한 줄을 그린다", () => {
+  it("정책 상자의 '지킨 근거 있음'이 이 부품으로 AI 가 인용한 줄을 그린다", () => {
     const view = viewOf(readJson("tests", "fixtures", "judge-on.cleared.json"));
     const html = renderToStaticMarkup(<ReportSummary view={view} />);
-    const box = elementAt(html, html.indexOf('<details class="box ai-box" open="">'));
+    // (2026-11-11 오너 지시) AI 가 푼 경고는 그 정책 상자의 체크리스트 "지킨 근거 있음"에 있다.
+    const box = elementAt(html, html.indexOf('<section class="ck ck-kept">'));
     expect(box).toContain(renderToStaticMarkup(<Citation quotes={view.cleared[0].quotes} />));
     expect(textOf(box)).toContain("const age = calcKoreanAge(form.birthDate);");
   });
@@ -275,7 +277,7 @@ describe("AI 검토가 돈 결과의 요약 줄과 곁칸 (D5 검토 반영)", (
     expect(sumline(renderToStaticMarkup(<ReportSummary view={off} />))).not.toContain("AI");
   });
 
-  it("AI 가 푼 경고만 있는 정책의 `발견 없음` 줄만 곁칸에 있어도 0의 뜻을 적는다", () => {
+  it("AI 가 푼 경고만 있는 정책은 상자(지킨 근거 있음)로 서고 상태가 `발견 없음` 이다. 그런 상자만 있어도 곁칸에 0의 뜻을 적는다", () => {
     // 발견이 다른 정책을 모두 상자로 만들고, AI 가 푼 경고만 한 정책에 남긴 결과.
     const data = judged();
     const view = viewOf(data);
@@ -285,7 +287,12 @@ describe("AI 검토가 돈 결과의 요약 줄과 곁칸 (D5 검토 반영)", (
     const html = renderToStaticMarkup(<ReportSummary view={viewOf({ ...data, findings })} />);
     const side = elementAt(html, html.indexOf('<details class="box side-pol"'));
     expect(side).not.toContain('<div class="side-group">');
-    expect(textOf(side)).toContain("발견 없음, AI 가 푼 경고 1건");
+    // 상태가 `발견 없음` 인 상자는 AI 가 푼 경고만 있는 그 정책 하나다.
+    expect(html.split('<article class="box policy policy-not-reported"').length - 1).toBe(1);
+    const pipa = elementAt(html, html.indexOf('<article class="box policy policy-not-reported"'));
+    expect(pipa).toContain(data.run.ai_cleared![0].policy.replace(/\./g, "-"));
+    expect(textOf(elementAt(pipa, pipa.indexOf('<span class="chip ')))).toBe(STATUS_LABEL["not-reported"]);
+    expect(pipa).toContain('<section class="ck ck-kept">');
     expect(side).toContain(`<p class="z">${SITE.zeroIsNotClearance}</p>`);
   });
 });

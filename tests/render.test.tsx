@@ -5,7 +5,7 @@ import { packMeta } from "@/lib/pack";
 import { SHOWN_PER_LIST } from "@/lib/report/coverage";
 import { parseReport } from "@/lib/report/parse";
 import { scopeLabel } from "@/lib/report/scope";
-import { STATUS_HINT, STATUS_LABEL } from "@/lib/report/status";
+import { CHECKLIST_LABEL, STATUS_HINT, STATUS_LABEL } from "@/lib/report/status";
 import type { Finding, Report } from "@/lib/report/types";
 import { buildReportView, type ReportView } from "@/lib/report/view-model";
 import { SITE } from "@/lib/site";
@@ -101,8 +101,9 @@ function rowParts(row: string) {
 function rowsWithFindings(data: unknown) {
   const view = viewOf(data);
   const html = renderToStaticMarkup(<ReportSummary view={view} recommend />);
+  // (2026-11-11) 상자 안의 차례는 체크리스트 묶음의 차례다: 확인할 것, 그다음 코드로는 알 수 없음.
   const expected = view.policies.flatMap((policy) =>
-    policy.rules.flatMap((group, g) => [
+    [...policy.checks, ...policy.unknowns].flatMap((group, g) => [
       ...group.shown.map((location, i) => ({ location, first: g === 0 && i === 0, folded: false, policy })),
       ...group.folded.map((location) => ({ location, first: false, folded: true, policy })),
     ]),
@@ -287,11 +288,13 @@ describe("판정자에 관한 문구", () => {
 
   it("AI 가 푼 경고를 숨기지 않고, 나누어 적지 않는다고도 하지 않는다", () => {
     const html = render("tests", "fixtures", "judge-on.cleared.json");
-    expect(html).toContain("AI 가 푼 경고 1건");
+    expect(textOf(html)).toContain("AI 가 푼 경고 1건");
     expect(html).toContain("const age = calcKoreanAge(form.birthDate);");
-    // (D5) 발견 없는 정책 카드의 "풀린 경고가 1건 있습니다"는 곁칸의 줄로 옮겼다(docs/redesign.md 3장 "곁칸"). 그 정책은
+    // (2026-11-11 오너 지시) AI 가 푼 경고는 그 정책 상자의 체크리스트 "지킨 근거 있음"에 인용한 줄과 함께 있다. 그 정책은
     // `발견 없음` 묶음에 넣지 않고, 나누어 적지 않는다는 상태 풀이도 그 정책의 말로 적지 않는다.
-    expect(textOf(html)).toContain("발견 없음, AI 가 푼 경고 1건");
+    const card = elementAt(html, html.indexOf('<article class="box policy'));
+    expect(textOf(elementAt(card, card.indexOf('<h3 class="ck-hd')))).toBe(`${CHECKLIST_LABEL.kept} 1곳`);
+    expect(card).toContain("const age = calcKoreanAge(form.birthDate);");
     expect(textOf(html)).not.toContain(STATUS_HINT["not-reported"]);
   });
 
@@ -718,7 +721,8 @@ describe("빈 결과 화면 (발견이 0인 결과)", () => {
       units: units === undefined ? null : Number(units),
       /** 충족 근거 위치. */
       evidence: evidence === -1 ? [] : elementsOf(elementAt(card, evidence), "<li>").map(textOf),
-      cleared: null as string | null,
+      /** 체크리스트의 "지킨 근거 있음"에 AI 가 푼 경고가 있으면 그 묶음 머리의 글. */
+      cleared: card.includes('<ul class="ai-rows">') ? part('<h3 class="ck-hd ck-hd-kept"') : null,
     };
   }
 
@@ -1009,7 +1013,7 @@ describe("빈 결과 화면 (발견이 0인 결과)", () => {
     expect(rest).toEqual(cards(plain).filter((card) => card.title !== PIPA));
     expect(fixed).not.toContain("이 정책의 판정 단위");
     expect(emptyParts(fixed)!.facts["판정 단위"].text).toBe(
-      "1개. 모든 정책을 합친 수입니다. 이 출력 형식(CLI 0.3)에는 정책별 수가 없어서, 어느 정책의 것인지는 아래 정책 상자의 충족 근거 위치에 실린 것만 알 수 있습니다.",
+      "1개. 모든 정책을 합친 수입니다. 이 출력 형식(CLI 0.3)에는 정책별 수가 없어서, 어느 정책의 것인지는 아래 정책 상자의 '지킨 근거 있음'에 실린 것만 알 수 있습니다.",
     );
   });
 
@@ -1051,11 +1055,11 @@ describe("빈 결과 화면 (발견이 0인 결과)", () => {
   it("AI 가 푼 경고가 있으면, 어느 정책의 판정 단위인지는 거기 실린 것만 안다고 적는다", () => {
     const html = render("tests", "fixtures", "judge-on.cleared.json");
     expect(emptyParts(html)!.facts["판정 단위"]).toEqual({
-      text: "1개. 모든 정책을 합친 수입니다. 이 출력 형식(CLI 0.3)에는 정책별 수가 없어서, 어느 정책의 것인지는 아래 'AI 가 푼 경고'에 실린 것만 알 수 있습니다.",
+      text: "1개. 모든 정책을 합친 수입니다. 이 출력 형식(CLI 0.3)에는 정책별 수가 없어서, 어느 정책의 것인지는 아래 정책 상자의 '지킨 근거 있음'에 실린 것만 알 수 있습니다.",
       warn: false,
     });
-    // "아래"라고 했으니 그 목록은 빈 결과 구역 뒤에 있다.
-    expect(html.indexOf("AI 가 푼 경고 1건")).toBeGreaterThan(html.indexOf(EMPTY));
+    // "아래"라고 했으니 그 묶음은 빈 결과 구역 뒤에 있다.
+    expect(html.indexOf('<section class="ck ck-kept">')).toBeGreaterThan(html.indexOf(EMPTY));
   });
 
   // AI 가 적용되지 않는다고 답해 빠진 판정은 판정 단위 수에 들어 있지 않다. CLI 는 적용 조건이 '모름'일 때만 AI 에게
@@ -1095,12 +1099,12 @@ describe("빈 결과 화면 (발견이 0인 결과)", () => {
     const format = "이 출력 형식(CLI 0.3)에는 정책별 수가 없어서";
     // AI 가 푼 경고와 함께 있을 때.
     expect(units(readJson("tests", "fixtures", "judge-on.cleared.json") as Report)).toBe(
-      `1개. ${total} ${format}, 어느 정책의 것인지는 아래 'AI 가 푼 경고'에 실린 것만 알 수 있습니다. ${notCounted(2)}`,
+      `1개. ${total} ${format}, 어느 정책의 것인지는 아래 정책 상자의 '지킨 근거 있음'에 실린 것만 알 수 있습니다. ${notCounted(2)}`,
     );
     // 판정 단위가 있을 때. 정적 대안으로 풀린 단위가 실려 있으면 그 자리를 가리킨다.
     const fixed = readJson("contract", "cli-current", "kids-signup.fixed.json") as Report;
     expect(units(fixed)).toBe(
-      `1개. ${total} ${format}, 어느 정책의 것인지는 아래 정책 상자의 충족 근거 위치에 실린 것만 알 수 있습니다. ${notCounted(2)}`,
+      `1개. ${total} ${format}, 어느 정책의 것인지는 아래 정책 상자의 '지킨 근거 있음'에 실린 것만 알 수 있습니다. ${notCounted(2)}`,
     );
     expect(units(fixed, { static_cleared: [] })).toBe(
       `1개. ${total} ${format}, 어느 정책에서 적용 신호를 봤는지 알 수 없습니다. ${notCounted(2)}`,
@@ -1108,7 +1112,7 @@ describe("빈 결과 화면 (발견이 0인 결과)", () => {
     // AI 가 푼 경고와 정적 대안으로 풀린 단위가 함께 있을 때.
     const cleared = readJson("tests", "fixtures", "judge-on.cleared.json") as Report;
     expect(units(cleared, { static_cleared: fixed.run.static_cleared })).toBe(
-      `1개. ${total} ${format}, 어느 정책의 것인지는 아래 'AI 가 푼 경고'와 정책 상자의 충족 근거 위치에 실린 것만 알 수 있습니다. ${notCounted(2)}`,
+      `1개. ${total} ${format}, 어느 정책의 것인지는 아래 정책 상자의 '지킨 근거 있음'에 실린 것만 알 수 있습니다. ${notCounted(2)}`,
     );
     // v1 초안. run.units 는 같은 필드다(스키마가 같은 정의를 가리킨다).
     expect(units(readJson("contract", "samples-v1-draft", "plain.main.json") as Report)).toBe(
@@ -1326,8 +1330,8 @@ describe("빈 결과 화면 (발견이 0인 결과)", () => {
       );
       const card = cards(html).find((c) => c.title === PIPA)!;
       expect(card.units).toBeNull();
-      // (D5) 카드의 "AI 판정자의 답으로 풀린 경고가 1건 있습니다."는 곁칸의 줄로 옮겼다(docs/redesign.md 3장 "곁칸").
-      expect(card.cleared).toBe("발견 없음, AI 가 푼 경고 1건");
+      // (2026-11-11 오너 지시) AI 가 푼 경고는 정책 상자의 체크리스트 "지킨 근거 있음"에 있다.
+      expect(card.cleared).toBe(`${CHECKLIST_LABEL.kept} 1곳`);
     });
   });
 });
@@ -1500,7 +1504,7 @@ describe("규칙 묶음은 가려지지 않는다", () => {
     // 여러 곳인 묶음의 머리는 메시지와 곳의 수다(2026-11-11 오너 지시: 규칙 id 는 줄마다 `자세히` 안에 있다).
     const data = readJson("tests", "fixtures", "repeated-rule.json") as Report;
     const messageOf = (rule: string) => data.findings.find((f) => f.rule === rule)!.unsatisfied_alternatives[0].message;
-    expect(elementsOf(html, '<div class="rule-head">').map((head) => textOf(elementAt(head, head.indexOf("<h3>"))))).toEqual([
+    expect(elementsOf(html, '<div class="rule-head">').map((head) => textOf(elementAt(head, head.indexOf("<h4>"))))).toEqual([
       `${messageOf("nonemail-start-block")} 20곳`,
       `${messageOf("nonemail-end-optout")} 2곳`,
     ]);
@@ -1583,7 +1587,7 @@ describe("같은 규칙이 여러 파일에 반복되는 결과 (손으로 만�
     expect(messages.size).toBe(3);
   });
 
-  it("접힌 곳에만 있는 상태는 묶음 머리에 개수로 보인다", () => {
+  it("같은 규칙의 발견이 상태가 섞이면 체크리스트의 묶음으로 나뉜다. 판단 보류가 된 곳은 접힌 곳에 숨지 않는다", () => {
     const data = readJson("tests", "fixtures", "repeated-rule.json") as Report;
     const uniform = textOf(ruleGroup(html, "nonemail-start-block").split("<ul")[0]);
     // 묶음 머리에는 메시지와 질문(첫 미확인 대안의 것)과 `N곳` 이 있다(2026-11-11 오너 지시).
@@ -1597,11 +1601,15 @@ describe("같은 규칙이 여러 파일에 반복되는 결과 (손으로 만�
         ? { ...f, outcome: "needs-review-uncertain" }
         : f,
     );
-    const mixed = ruleGroup(renderData({ ...data, findings }), "nonemail-start-block");
-    const head = textOf(mixed.split("<ul")[0]);
-    expect(head).toContain("검토 필요 · AI 확인 전 19곳");
-    expect(head).toContain("판단 보류(모름) 1곳");
-    expect(textOf(elementAt(mixed, mixed.indexOf(FOLD)))).toContain("src/campaigns/winter-sale.ts:2");
+    // (2026-11-11 오너 지시) 체크리스트는 상태로 묶는다. 판단 보류가 된 한 곳은 "코드로는 알 수 없음" 묶음에 따로 보이고(접힌 곳이
+    // 아니다), "확인할 것" 묶음의 같은 규칙은 19곳이다.
+    const mixedHtml = renderData({ ...data, findings });
+    const check = elementAt(mixedHtml, mixedHtml.indexOf('<section class="ck ck-check">'));
+    const unknown = elementAt(mixedHtml, mixedHtml.indexOf('<section class="ck ck-unknown">'));
+    expect(textOf(check)).toContain(`${first.message} 19곳`);
+    expect(textOf(check)).not.toContain("src/campaigns/winter-sale.ts:2");
+    expect(textOf(unknown)).toContain("src/campaigns/winter-sale.ts:2");
+    expect(closedDetailsAt(mixedHtml, mixedHtml.indexOf("src/campaigns/winter-sale.ts", mixedHtml.indexOf('<section class="ck ck-unknown">')))).toEqual([]);
   });
 });
 

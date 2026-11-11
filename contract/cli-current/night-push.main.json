@@ -6,7 +6,7 @@
   },
   "run": {
     "judge": null,
-    "pack_digest": "7897fc0f79ce975b",
+    "pack_digest": "9f70938de41b6f3a",
     "fingerprint_version": "policypack/v1",
     "questions_asked": 0,
     "ai_answered": 0,
@@ -28,6 +28,14 @@
     "incomplete": [],
     "engine_errors": [],
     "coverage_complete": true,
+    "finding_counts": {
+      "total": 2,
+      "service": 2,
+      "non_service": 0,
+      "by_role": {
+        "other": 2
+      }
+    },
     "files": 1
   },
   "findings": [
@@ -37,6 +45,7 @@
       "outcome": "needs-review",
       "file": "src/marketing/campaign.ts",
       "line": 2,
+      "role": "other",
       "case": null,
       "category": "ads-disclosure",
       "title": "광고성 정보에 밝혀야 할 사항 — (광고) 표기, 전송자 명칭·연락처, 무료 수신거부 방법",
@@ -48,7 +57,7 @@
       "ai_pending": [
         "ai-start-block"
       ],
-      "fingerprint": "cb2dbb87ad20246c6ef467c8efae5c18",
+      "fingerprint": "a1274b146e564f1782caa69de0b3c827",
       "scope": "file",
       "region": null,
       "top_level": false,
@@ -75,6 +84,7 @@
       "outcome": "needs-review",
       "file": "src/marketing/campaign.ts",
       "line": 2,
+      "role": "other",
       "case": null,
       "category": "ads-disclosure",
       "title": "광고성 정보에 밝혀야 할 사항 — (광고) 표기, 전송자 명칭·연락처, 무료 수신거부 방법",
@@ -86,7 +96,7 @@
       "ai_pending": [
         "ai-optout-free"
       ],
-      "fingerprint": "b030fb7b22650d8caa066a264e5ad486",
+      "fingerprint": "185f7ef141ad9d0ac75c89688b50283a",
       "scope": "file",
       "region": null,
       "top_level": false,

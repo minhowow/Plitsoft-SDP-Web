@@ -5,15 +5,13 @@ import { policyCardId, policyHref } from "@/lib/pack/href";
 import { paragraphOf } from "@/lib/pack/legal";
 import { coverageSummary } from "@/lib/report/coverage";
 import { examinedFacts, UNIT_GLOSS } from "@/lib/report/examined";
-import { AI_CLEARED, AI_DISMISSED } from "@/lib/report/record";
+import { AI_CLEARED, AI_DISMISSED, ASIDE_LABEL } from "@/lib/report/record";
 import { STATUS_LABEL, STATUS_ORDER, type Status } from "@/lib/report/status";
-import { aiReviewRan, CONTRACT_LABEL, type PolicyView, type ReportView, type ReviewItem } from "@/lib/report/view-model";
+import { aiReviewRan, CONTRACT_LABEL, type PolicyView, type ReportView } from "@/lib/report/view-model";
 import { SITE } from "@/lib/site";
-import { Citation } from "./Citation";
 import { CoverageWarning, NotSeen } from "./Coverage";
-import { isBoxed, PolicyCard, type CodeSource } from "./PolicyCard";
-import { RuleId } from "./RuleId";
-import { Where } from "./Where";
+import { AsideRow, isBoxed, PolicyCard, type CodeSource } from "./PolicyCard";
+import { ReviewRow } from "./ReviewRow";
 
 /**
  * 결과 한 건의 화면. 분석 쪽(`/r/…/a/[id]`), 결과 파일 열기(`/view`), 데모가 모두 이 부품을 같은 차례로 쓴다(docs/redesign.md
@@ -74,106 +72,43 @@ function StatuteFold({ statute, law }: { statute: Statute; law: string | null })
 export const JUDGE_ADVICE =
   "판정자가 꺼져 있었습니다. 로컬에서 판정자를 켜고 다시 검사하면 AI 에게 묻는 조건도 판정에 넣을 수 있습니다. 판정자를 켜면 판정 대상 코드가 외부 API 로 나갑니다.";
 
-/** AI 가 푼 경고 상자의 사람 확인 문장. */
-export const CLEARED_NOTE =
-  "AI 판정자가 ‘예’라고 답하고 코드 줄을 인용해서 경고가 풀렸습니다. 인용이 코드에 있는지만 확인된 것입니다. 그 줄이 이 규칙의 근거가 맞는지는 사람이 봐야 합니다.";
+export { CLEARED_NOTE } from "./notes";
 
 /** 적용 질문으로 빠진 판정 상자의 문장. */
 export const DISMISSED_NOTE = "적용 여부를 묻는 질문에 AI 가 ‘아니오’라고 답했습니다. 인용 없이 빠진 판정입니다.";
 
 /**
- * AI 의 답으로 풀리거나 빠진 판정 하나: 위치와 정책 이름, 인용한 줄(또는 묻는 말과 답). 규칙·대안 id(팩 안의 이름)와 인용이
- * 없는 대안은 `자세히` 안에 둔다(2026-11-11 오너 지시: 내부 이름은 `자세히` 안. 조문별 검사 기록에는 그대로 실린다).
+ * 결과 화면 아래에 접어 두는 두 목록(2026-11-11 오너 지시). 머리의 이름과 수는 접힌 채로 보인다.
+ *
+ * - 시험·예시·설정 파일의 발견: CLI 가 발견마다 실은 파일 역할(test·config)로 가른 것. "사람이 볼 곳"에 세지 않는다.
+ * - AI 가 적용되지 않는다고 답해 빠진 판정: CLI 가 사람이 검토하라고 남긴 것이라 숨기지 않는다.
+ *
+ * AI 가 푼 경고는 여기 두지 않는다. 그 정책 상자의 "지킨 근거 있음"에 인용한 줄과 함께 있다.
  */
-function ReviewRow({ item }: { item: ReviewItem }) {
-  // 어느 인용이 어느 대안을 받치는지는 인용과 같은 차례로 `자세히` 안에 적는다.
-  const cited = item.quotes.map((quote) => quote.alternative).filter((id): id is string => id !== null);
-  return (
-    <li className="ai-row">
-      <p className="ai-at">
-        <Where file={item.file} line={item.line} />{" "}
-        {item.title === item.policy ? (
-          <code className="ai-policy" translate="no">
-            {item.policy}
-          </code>
-        ) : (
-          <span className="ai-policy">{item.title}</span>
-        )}
-      </p>
-      <Citation quotes={item.quotes} />
-      {item.question && <p className="ask">질문: {item.question}</p>}
-      {item.answer && <p className="ask">답: {item.answer}</p>}
-      <details className="f-more">
-        <summary>
-          자세히
-          <span className="visually-hidden">
-            {" "}
-            {item.line === null ? item.file : `${item.file}:${item.line}`} 규칙 {item.rule}
-          </span>
-        </summary>
-        <p className="ids">
-          <span>
-            규칙 <RuleId policy={item.policy} rule={item.rule} inPack={item.ruleInPack} />
-          </span>
-          {cited.length > 0 && (
-            <span>
-              인용한 대안{" "}
-              {cited.map((id, i) => (
-                <span key={`${id}:${i}`}>
-                  {i > 0 && " "}
-                  <code className="alt-id" translate="no">
-                    {id}
-                  </code>
-                </span>
-              ))}
-            </span>
-          )}
-          {item.uncited.length > 0 && (
-            <span>
-              인용 없음{" "}
-              {item.uncited.map((id, i) => (
-                <span key={`${id}:${i}`}>
-                  {i > 0 && " "}
-                  <code className="alt-id" translate="no">
-                    {id}
-                  </code>
-                </span>
-              ))}
-            </span>
-          )}
-        </p>
-      </details>
-    </li>
-  );
-}
-
-/**
- * AI 가 푼 경고와 적용 질문으로 빠진 판정. CLI 가 사람이 검토하라고 남긴 것이라 숨기지 않는다. AI 가 푼 경고는 펼쳐 두고, 빠진
- * 판정은 접어 둔다(2026-11-11 오너 지시. 머리의 수는 늘 보이고 요약 줄에도 있다). 어떤 기록에서 왔는지 모르는 줄의
- * 목록(`ReviewItem`)을 받는다.
- */
-export function AiDecisions({ cleared, dismissed }: { cleared: ReviewItem[]; dismissed: ReviewItem[] }) {
-  if (cleared.length === 0 && dismissed.length === 0) return null;
+export function AsideLists({ view, code = null }: { view: ReportView; code?: CodeSource | null }) {
+  const aside = view.policies.flatMap((policy) => policy.aside.map((location) => ({ location, title: policy.title })));
+  if (aside.length === 0 && view.dismissed.length === 0) return null;
   return (
     <div className="ai-decisions">
-      {cleared.length > 0 && (
-        <details className="box ai-box" open>
-          <summary>AI 가 푼 경고 {cleared.length}건</summary>
-          <p className="ai-note">{CLEARED_NOTE}</p>
-          <ul className="ai-rows">
-            {cleared.map((item, i) => (
-              <ReviewRow key={i} item={item} />
+      {aside.length > 0 && (
+        <details className="box aside-box">
+          <summary>
+            {ASIDE_LABEL} {aside.length}건
+          </summary>
+          <ul className="aside-rows">
+            {aside.map(({ location, title }, i) => (
+              <AsideRow key={`${location.fingerprint}:${i}`} location={location} policyTitle={title} code={code} />
             ))}
           </ul>
         </details>
       )}
-      {dismissed.length > 0 && (
+      {view.dismissed.length > 0 && (
         <details className="box ai-box">
-          <summary>AI 가 적용되지 않는다고 답해 빠진 판정 {dismissed.length}건</summary>
+          <summary>AI 가 적용되지 않는다고 답해 빠진 판정 {view.dismissed.length}건</summary>
           <p className="ai-note">{DISMISSED_NOTE}</p>
           <ul className="ai-rows">
-            {dismissed.map((item, i) => (
-              <ReviewRow key={i} item={item} />
+            {view.dismissed.map((item, i) => (
+              <ReviewRow key={i} item={item} code={code} />
             ))}
           </ul>
         </details>
@@ -257,6 +192,14 @@ function SummaryLine({ view }: { view: ReportView }) {
       <span>
         <span className="lbl">검사한 파일</span> <b>{files === null ? STATUS_LABEL["pack-unknown"] : `${files}개`}</b>
       </span>
+      {view.asideCount > 0 && (
+        <>
+          {" "}
+          <span>
+            <span className="lbl">{ASIDE_LABEL}</span> <b>{view.asideCount}건</b>
+          </span>
+        </>
+      )}
       {aiReviewRan(view) && (
         <>
           {" "}
@@ -290,15 +233,15 @@ function PolicyName({ policy }: { policy: PolicyView }) {
 /**
  * 곁칸 `정책 N`. N 은 이 결과의 정책 수다(데이터에서 센다).
  *
- * - 상자로 그린 정책(발견이나 충족 근거 위치가 있다): 상태 점, 상자로 가는 제목, 발견 수.
- * - AI 가 푼 경고만 있는 정책: `발견 없음, AI 가 푼 경고 N건`. 아래 `발견 없음` 묶음에 넣지 않는다.
- * - 나머지: 상태별 묶음(`발견 없음 N`). 그 아래에 0의 뜻 한 줄.
+ * - 상자로 그린 정책(사람이 볼 곳이나 지킨 근거가 있다): 상태 점, 상자로 가는 제목, 사람이 볼 곳의 수.
+ * - 나머지: 상태별 묶음(`발견 없음 N`). 시험·예시·설정 파일의 발견만 있는 정책은 그 수를 옆에 적는다. 그 아래에 0의 뜻 한 줄.
  * - 맨 아래에 `상태의 뜻`(조문 도감).
  */
 function SidePolicies({ view }: { view: ReportView }) {
   const boxed = view.policies.filter(isBoxed);
-  const clearedOnly = view.policies.filter((policy) => !isBoxed(policy) && policy.aiCleared > 0);
-  const quiet = view.policies.filter((policy) => !isBoxed(policy) && policy.aiCleared === 0);
+  const quiet = view.policies.filter((policy) => !isBoxed(policy));
+  // 지킨 근거만 있는 상자의 정책도 상태가 `발견 없음` 이다. 그런 정책이 있으면 0의 뜻을 적는다.
+  const zeroBoxed = boxed.some((policy) => policy.locations.length === 0);
   const groups = QUIET_ORDER.map((status) => ({ status, list: quiet.filter((policy) => policy.status === status) })).filter(
     (group) => group.list.length > 0,
   );
@@ -311,7 +254,7 @@ function SidePolicies({ view }: { view: ReportView }) {
           정책 <span className="count">{view.policies.length}</span>
         </h2>
       </summary>
-      {(boxed.length > 0 || clearedOnly.length > 0) && (
+      {boxed.length > 0 && (
         <ul className="side-found">
           {boxed.map((policy) => (
             <li key={policy.id} className="p">
@@ -321,21 +264,10 @@ function SidePolicies({ view }: { view: ReportView }) {
               {policy.locations.length > 0 && <span className="n">{policy.locations.length}건</span>}
             </li>
           ))}
-          {clearedOnly.map((policy) => (
-            <li key={policy.id} className="p">
-              <span className={`dot dot-${policy.status}`} aria-hidden="true" />
-              <span className="p-t">
-                <PolicyName policy={policy} />
-                <span className="ai">
-                  {STATUS_LABEL[policy.status]}, AI 가 푼 경고 {policy.aiCleared}건
-                </span>
-              </span>
-            </li>
-          ))}
         </ul>
       )}
-      {/* 0의 뜻은 `발견 없음` 같은 0의 상태가 곁칸에 하나라도 보이면 둔다(AI 가 푼 경고만 있는 정책의 `발견 없음` 도 그렇다). */}
-      {(groups.length > 0 || clearedOnly.length > 0) && (
+      {/* 0의 뜻은 `발견 없음` 같은 0의 상태가 곁칸이나 상자에 하나라도 보이면 둔다(지킨 근거만 있는 상자의 `발견 없음` 도 그렇다). */}
+      {(groups.length > 0 || zeroBoxed) && (
         <div className="side-quiet">
           {groups.map(({ status, list }) => (
             <div key={status} className="side-group">
@@ -347,6 +279,11 @@ function SidePolicies({ view }: { view: ReportView }) {
                   <li key={policy.id}>
                     <PolicyName policy={policy} />
                     {policy.units !== null && <span className="u">판정 단위 {policy.units}개</span>}
+                    {policy.aside.length > 0 && (
+                      <span className="u">
+                        {ASIDE_LABEL} {policy.aside.length}건
+                      </span>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -495,7 +432,7 @@ export function ReportSummary({
               })}
             </div>
           )}
-          <AiDecisions cleared={view.cleared} dismissed={view.dismissed} />
+          <AsideLists view={view} code={code} />
           {zero && <NotSeenBox view={view} />}
         </div>
         {policyList === undefined && (

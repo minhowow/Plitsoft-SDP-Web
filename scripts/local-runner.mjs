@@ -134,6 +134,9 @@ export async function runOne(claimed, options, secret) {
 
     step = "scan";
     await notifyStep(ctx, "scan");
+    // CLI 검사는 spawnSync 로 돌려 이 과정을 막는다. --parallel 로 여럿을 집어 와도 검사는 한 번에 하나뿐이다. 한 컴퓨터에서 검사를
+    // 여럿 동시에 돌리면 큰 파일에서 엔진 시간 초과가 나 '판단 보류'가 는다(CLI 가 2026-11-11 에 잰 것). 바꾸지 않는다.
+    // GitHub Actions 의 실행기는 분석마다 새 VM 이고 그 안에서 검사는 하나다.
     const output = options.fixture
       ? readFileSync(capture, "utf8")
       : runScan({

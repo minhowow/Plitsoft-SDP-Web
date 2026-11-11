@@ -1604,10 +1604,6 @@ main.wrap > h1 + .pi-meta {
   gap: var(--space-1) var(--space-2);
 }
 
-.case-item-title {
-  font-weight: 600;
-}
-
 .case-at {
   justify-self: start;
   max-width: 100%;
@@ -4278,7 +4274,7 @@ details.coverage-warning:not([open]) > summary.warn-hd {
 }
 
 .headline strong {
-  font-size: var(--text-xl);
+  font-size: var(--text-lg);
   font-weight: 600;
 }
 
@@ -4477,6 +4473,258 @@ details.coverage-warning:not([open]) > summary.warn-hd {
   color: var(--muted);
 }
 
+/*
+ * 검토 결과 체크리스트의 묶음(지킨 근거 있음, 확인할 것, 코드로는 알 수 없음). 정책 상자 안에서 머리 띠 하나와 그 아래 줄들.
+ * 묶음 머리의 왼쪽 굵은 선이 묶음을 가른다(색은 상태 색과 같은 뜻으로만 쓴다).
+ */
+.ck {
+  min-width: 0;
+}
+
+.ck-hd {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border-left: 3px solid var(--rule);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  line-height: var(--leading-snug);
+}
+
+.ck-hd-kept {
+  border-left-color: var(--st-ok-dot);
+}
+
+.ck-hd-check {
+  border-left-color: var(--st-review-dot);
+}
+
+.ck-hd-unknown {
+  border-left-color: var(--st-pending-dot);
+}
+
+.ck-n {
+  font-size: var(--text-xs);
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.ck-hd + .rule-group > .rule-head,
+.ck-hd + .rule-group > .findings,
+.ck-hd + .evidence,
+.ck-hd + .ai-note {
+  border-top: 1px solid var(--rule-muted);
+}
+
+.ck .ai-note {
+  border-top: 1px solid var(--rule-muted);
+}
+
+.rule-group + .rule-group {
+  border-top: 1px solid var(--rule-muted);
+}
+
+/* 시험·예시·설정 파일의 발견(접어 둔 목록): 줄마다 위치·정책 이름, 상태 칩과 메시지. */
+.aside-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.aside-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px var(--space-2);
+  padding: 10px var(--space-4);
+  border-top: 1px solid var(--rule-muted);
+  line-height: var(--leading-snug);
+  min-width: 0;
+}
+
+.aside-row > .loc {
+  flex-basis: 100%;
+}
+
+.aside-row > .msg {
+  font-size: var(--text-sm);
+}
+
+details.aside-box > summary {
+  padding: var(--space-2) var(--space-4) var(--space-2) 40px;
+  min-height: var(--row-h);
+  background: var(--bg-muted);
+  font-weight: 600;
+}
+
+details.aside-box[open] > summary {
+  border-bottom: 1px solid var(--rule);
+}
+
+details.aside-box > summary::before {
+  left: 20px;
+  top: calc(var(--space-2) + 0.75em - 4px);
+}
+
+details.aside-box[open] > summary::before {
+  top: calc(var(--space-2) + 0.75em - 5px);
+}
+
+/* 결과 화면의 세 단(프로필, 걸리는 의무, 검토 결과). 단마다 번호와 이름의 머리. */
+.tiers {
+  display: grid;
+  gap: var(--space-6);
+  min-width: 0;
+}
+
+.tier {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.tier-hd {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-xl);
+  font-weight: 600;
+  line-height: var(--leading-snug);
+}
+
+.tier-n {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 1.5px solid var(--accent);
+  border-radius: 50%;
+  color: var(--accent);
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+
+.tier-none {
+  color: var(--muted);
+}
+
+.tier-zero {
+  font-weight: 600;
+}
+
+/* 1단: 기능마다 한 줄. 이름 | 근거 파일들. */
+.features {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+}
+
+.features > li {
+  display: grid;
+  grid-template-columns: minmax(0, 16em) minmax(0, 1fr);
+  gap: var(--space-1) var(--space-4);
+  padding: 10px var(--space-4);
+  line-height: var(--leading-snug);
+}
+
+.features > li + li {
+  border-top: 1px solid var(--rule-muted);
+}
+
+.ft-name {
+  font-weight: 600;
+}
+
+.ft-files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px var(--space-4);
+  font-size: var(--text-xs);
+  min-width: 0;
+}
+
+.ft-files a.gh,
+.ob-ext {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.ft-files a.gh code {
+  color: inherit;
+}
+
+@media (max-width: 599px) {
+  .features > li {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* 2단: 기능마다 접는 줄(걸릴 수 있는 의무 N개)과 그 안의 의무 줄. */
+.obligations {
+  display: grid;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  min-width: 0;
+}
+
+details.ob + details.ob {
+  border-top: 1px solid var(--rule-muted);
+}
+
+details.ob > summary {
+  padding: 10px var(--space-4) 10px 40px;
+  font-weight: 600;
+  line-height: var(--leading-snug);
+}
+
+details.ob > summary::before {
+  left: 20px;
+  top: calc(10px + 0.75em - 4px);
+}
+
+details.ob[open] > summary::before {
+  top: calc(10px + 0.75em - 5px);
+}
+
+.ob-n {
+  margin-left: var(--space-2);
+  font-size: var(--text-xs);
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.ob-list {
+  display: grid;
+  margin: 0;
+  padding: 0 var(--space-4) var(--space-3) 40px;
+  list-style: none;
+  gap: var(--space-2);
+}
+
+.ob-list > li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px var(--space-3);
+  line-height: var(--leading-snug);
+}
+
+.ob-law {
+  flex-basis: 100%;
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+
+.ob-ext {
+  font-size: var(--text-xs);
+}
+
 /* 같은 규칙이 여러 곳일 때의 묶음 머리: 메시지와 N곳, 질문, 접힌 곳의 상태 수. */
 .rule-group {
   min-width: 0;
@@ -4493,12 +4741,12 @@ details.coverage-warning:not([open]) > summary.warn-hd {
   color: var(--muted);
 }
 
-.rule-head h3,
+.rule-head h4,
 .rule-head > .ask-line {
   flex-basis: 100%;
 }
 
-.rule-head h3 {
+.rule-head h4 {
   font-size: var(--text-md);
   font-weight: 400;
   line-height: var(--leading-snug);
@@ -4883,8 +5131,7 @@ details.ai-box[open] > summary::before {
   border-top: 1px solid var(--rule-muted);
 }
 
-.side-found .p > a,
-.side-found .p-t {
+.side-found .p > a {
   flex: 1;
   min-width: 0;
 }

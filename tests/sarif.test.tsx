@@ -119,15 +119,18 @@ describe("같은 검사의 SARIF 와 JSON (contract/cli-current 의 수집본 �
   it("화면 구조에서도 같다: 정책의 차례와 상태, 규칙 묶음, 발견의 범위·지문·대안·판정 경로", () => {
     const [a, b] = [viewOf(jsonCapture()), viewOf(sarifCapture())];
     expect(b.contract).toBe("sarif");
+    const location = (l: LocationView) => ({ ...l, finding: carried(l.finding) });
+    const groups = (list: ReportView["policies"][number]["rules"]) =>
+      list.map((group) => ({ ...group, shown: group.shown.map(location), folded: group.folded.map(location) }));
+    // 체크리스트의 묶음(확인할 것, 코드로는 알 수 없음)과 시험·예시·설정 파일의 발견도 같은 발견을 옮긴 것이다.
     const shape = (view: ReportView) =>
       view.policies.map((policy) => ({
         ...policy,
-        locations: policy.locations.map((l) => ({ ...l, finding: carried(l.finding) })),
-        rules: policy.rules.map((group) => ({
-          ...group,
-          shown: group.shown.map((l) => ({ ...l, finding: carried(l.finding) })),
-          folded: group.folded.map((l) => ({ ...l, finding: carried(l.finding) })),
-        })),
+        locations: policy.locations.map(location),
+        rules: groups(policy.rules),
+        checks: groups(policy.checks),
+        unknowns: groups(policy.unknowns),
+        aside: policy.aside.map(location),
       }));
     expect(shape(b)).toEqual(shape(a));
     expect(locationsOf(b)).toHaveLength(1);

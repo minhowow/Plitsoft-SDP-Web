@@ -65,6 +65,21 @@ export const STATUS_LEGEND: Record<Status, string> = {
 export const NOT_REPORTED_NOR_CLEARED =
   "발견도 AI 가 푼 경고도 없는 정책은 이 사이트가 아직 '충족 근거 발견'과 '적용 신호 없음'으로 나누어 적지 않습니다.";
 
+/**
+ * 검토 결과 체크리스트의 세 묶음(2026-11-11 오너 결정, docs/commitments.md 의 1). 의무(정책)마다 이 차례로 적는다. 묶음 안의
+ * 줄마다의 상태는 위의 상태 이름(칩) 그대로다.
+ *
+ * - kept: 지킨 근거 있음. 강한 정적 대안이 맞은 자리(충족 근거 발견)와 AI 가 코드 줄을 인용해 푼 경고. 인용은 코드에 있는지만
+ *   확인된 것이라 사람이 봐야 한다.
+ * - check: 확인할 것. 미충족 신호(검토 필요)와 검토 필요 · AI 확인 전. 줄마다 확인 질문이 있다.
+ * - unknown: 코드로는 알 수 없음. 판단 보류(모름).
+ */
+export const CHECKLIST_LABEL = {
+  kept: "지킨 근거 있음",
+  check: "확인할 것",
+  unknown: "코드로는 알 수 없음",
+} as const;
+
 /** 위에 놓을수록 먼저 봐야 한다. */
 export const STATUS_ORDER: Status[] = [
   "needs-review",
