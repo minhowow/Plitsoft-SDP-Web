@@ -364,8 +364,8 @@ describe("워크플로 (.github/workflows/analyze.yml)", () => {
     expect(jobEnv).not.toMatch(/\$\{\{\s*(runner|job|steps|env)\./);
   });
 
-  it("실행 시간 상한 20분, 도구는 이 파일에서 고정(CLI 저장소·커밋, uv 판), 비밀값은 그것이 필요한 단계에만", () => {
-    expect(workflow).toMatch(/timeout-minutes: 20\n/);
+  it("실행 시간 상한 23분(검사 15분 + 프로필 3분 + 받기·설치), 도구는 이 파일에서 고정(CLI 저장소·커밋, uv 판), 비밀값은 그것이 필요한 단계에만", () => {
+    expect(workflow).toMatch(/timeout-minutes: 23\n/);
     expect(workflow).toMatch(/CLI_REPO: minhowow\/Plitsoft-SDP\n/);
     expect(workflow).toMatch(/CLI_COMMIT: [0-9a-f]{40}\n/);
     expect(workflow).toMatch(/UV_VERSION: \d+\.\d+\.\d+\n/);

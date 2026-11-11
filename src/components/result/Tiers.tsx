@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Icon } from "@/components/Icon";
+import { keepParticles } from "@/components/text";
 import type { Profile, ProfileDuties, ProfileEvidence } from "@/lib/profile";
 import { fileLink, shortCommit } from "@/lib/service/href";
 import type { CodeSource } from "./PolicyCard";
@@ -153,7 +154,7 @@ function DutyGroup({ name, duties }: { name: string; duties: ProfileDuties }) {
             <span className="ob-law">
               {item.law} {item.article}
             </span>
-            {item.duty && !SANCTION.test(item.duty) && <span className="ob-duty">{item.duty}</span>}
+            {item.duty && !SANCTION.test(item.duty) && <span className="ob-duty">{keepParticles(item.duty)}</span>}
             {item.url && (
               <a className="ob-ext" href={item.url} target="_blank" rel="noopener noreferrer">
                 법제처
@@ -197,7 +198,7 @@ export function ObligationTier({ profile }: { profile: Profile | null }) {
           </div>
           {profile.status && (
             <p className="hint tier-note">
-              {profile.status.name} {profile.status.count}개. {profile.status.note}
+              {profile.status.name} {profile.status.count}개. {keepParticles(profile.status.note)}
             </p>
           )}
         </>

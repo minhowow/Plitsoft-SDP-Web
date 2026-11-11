@@ -121,7 +121,7 @@ GitHub Actions(실행기 저장소) ── 공개 저장소를 그 커밋으로 
 | `DAILY_LIMIT` | 30 | 하루(한국 표준시 0시~) 새로 만드는 분석 수 |
 | `POOL_SIZE` | 2 | 실행 자리 수: 실행기에 보냈거나 분석 중인 분석 수의 상한(동시에 도는 분석 수). 넘는 요청은 거절하지 않고 대기열에 둔다. 비우면 옛 이름 `CONCURRENT_LIMIT` 을 읽는다 |
 | `QUEUE_LIMIT` | 20 | 대기열(실행기에 보내기 전)의 길이 상한. 넘으면 그때만 요청을 받지 않는다(429) |
-| `RUN_TIMEOUT_MINUTES` | 25 | 실행기에 보낸 뒤 이 시간을 넘게 끝나지 않은 분석은 "시간 초과"로 실패 처리한다(요청한 때가 아니라 보낸 때부터 센다. 워크플로의 `timeout-minutes` 는 20) |
+| `RUN_TIMEOUT_MINUTES` | 25 | 실행기에 보낸 뒤 이 시간을 넘게 끝나지 않은 분석은 "시간 초과"로 실패 처리한다(요청한 때가 아니라 보낸 때부터 센다. 워크플로의 `timeout-minutes` 는 23) |
 | `DISPATCH_TIMEOUT_MINUTES` | 10 | 실행기에 보낸 뒤 이 시간 안에 실행기가 시작을 알리지 않으면 실패로 적고 다음을 보낸다 |
 | `QUEUE_TIMEOUT_MINUTES` | 120 | 대기열에서 이 시간을 넘게 실행 자리를 기다린 분석은 까닭과 함께 실패로 적는다 |
 | `SEARCH_CACHE_SECONDS` | 60 | 같은 검색어의 GitHub 검색 결과를 서버 메모리에 두는 시간 |
@@ -138,7 +138,7 @@ GitHub Actions(실행기 저장소) ── 공개 저장소를 그 커밋으로 
 
 | 워크플로 `env` | 기본값 | 뜻 |
 |---|---|---|
-| `timeout-minutes` | 20 | 실행기 작업의 실행 시간 상한(분) |
+| `timeout-minutes` | 23 | 실행기 작업의 실행 시간 상한(분) |
 | `MAX_TARBALL_MB` | 100 | 받는 압축 파일 크기 상한 |
 | `MAX_EXTRACT_MB` | 400 | 압축을 푼 크기 상한(압축 폭탄) |
 | `MAX_JSTS_FILES` | 3000 | JS/TS 파일 수 상한(CLI 가 보지 않는 `node_modules`·`dist` 등은 세지 않는다) |

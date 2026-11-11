@@ -334,25 +334,34 @@ describe("분석 쪽의 완료 조건 (재디자인 D5, docs/redesign.md 6장)",
       }),
     );
 
-  it("1280×900: 첫 화면에 발견 두 줄의 문장이 보인다", async () => {
+  /** 맨 위 요약과 세 단의 머리의 아래 끝, 첫 발견 문장의 위 끝(처음 화면, 스크롤 전). */
+  const layout = (page: Page) =>
+    page.evaluate(() => ({
+      overview: document.querySelector(".overview")!.getBoundingClientRect().bottom,
+      tiers: [...document.querySelectorAll(".tier-hd")].map((el) => el.getBoundingClientRect().bottom),
+      finding: document.querySelector("li.finding .msg")!.getBoundingClientRect().top,
+      height: document.documentElement.scrollHeight,
+    }));
+
+  it("1280×900: 첫 화면에 맨 위 요약과 세 단의 머리가 보이고, 발견 두 줄의 문장은 두 화면 안에 서로 다르게 있다", async () => {
+    // (2026-11-11 오너 지시) 결과 화면이 맨 위 한 문장 요약과 세 단(프로필, 걸리는 의무, 검토 결과)이 되어 발견은 셋째 단에 있다.
     const { page } = await openPage(browser, site, STANDARD, { viewport: { width: 1280, height: 900 }, contexts, problems });
+    const at = await layout(page);
+    expect(at.overview).toBeLessThanOrEqual(900);
+    expect(at.tiers).toHaveLength(3);
+    for (const bottom of at.tiers) expect(bottom).toBeLessThanOrEqual(900);
+    expect(at.finding).toBeLessThan(2 * 900);
     const shown = await sentences(page);
     expect(shown).toHaveLength(2);
-    expect(shown.map((entry) => entry.inView)).toEqual([true, true]);
     expect(new Set(shown.map((entry) => entry.text)).size).toBe(2);
   });
 
-  it("390×844: 세 단의 머리가 첫 화면 안에 있고, 첫 발견 문장은 두 화면 안, 쪽 길이는 2,400px 이하다", async () => {
-    // (2026-11-11 오너 지시) 결과 화면이 세 단(프로필, 걸리는 의무, 검토 결과)이 되어 발견은 셋째 단에 있다. 좁은 화면에서는 세
-    // 단의 머리가 먼저 한 화면에 들어오고, 발견은 한 번 내리면 보인다.
+  it("390×844: 맨 위 요약이 첫 화면 안에 있고, 첫 발견 문장은 두 화면 안, 쪽 길이는 3,000px 이하다", async () => {
     const { page } = await openPage(browser, site, STANDARD, { viewport: { width: 390, height: 844 }, contexts, problems });
-    const tiers = await page.locator(".tier-hd").evaluateAll((all) => all.map((el) => el.getBoundingClientRect().bottom));
-    expect(tiers).toHaveLength(3);
-    for (const bottom of tiers) expect(bottom).toBeLessThanOrEqual(844);
-    const top = await page.locator("li.finding .msg").first().evaluate((el) => el.getBoundingClientRect().top);
-    expect(top).toBeLessThan(2 * 844);
-    const height = await page.evaluate(() => document.documentElement.scrollHeight);
-    expect(height).toBeLessThanOrEqual(2400);
+    const at = await layout(page);
+    expect(at.overview).toBeLessThanOrEqual(844);
+    expect(at.finding).toBeLessThan(2 * 844);
+    expect(at.height).toBeLessThanOrEqual(3000);
     expect(await overflow(page)).toMatchObject({ page: 0, over: [] });
   });
 
