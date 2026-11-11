@@ -196,7 +196,7 @@ async function compareTable(page: Page) {
  * 아래 결과의 발견 줄마다의 상태(화면 순서). (D5) 칩은 정책과 상태가 다를 때만 있고, 같으면 화면 낭독기에만 읽히는 글이다.
  */
 const rowStatuses = (page: Page) =>
-  page.locator("li.finding > details > summary").evaluateAll((all) =>
+  page.locator("li.finding > .finding-head").evaluateAll((all) =>
     all.map((summary) => (summary.querySelector(".chip") ?? summary.querySelector(".visually-hidden"))!.textContent),
   );
 /** 지금 판에서 상자로 그린 정책(발견이나 충족 근거 위치가 있다). 표의 정책 이름은 그 상자로만 잇는다. */
@@ -387,13 +387,12 @@ describe("세 앱 × 두 판", () => {
       expect(await page.locator(".demo-compare .box-hd a").getAttribute("href"), name).toBe("/policy/#status");
 
       // 그 판의 결과: 발견 수, 발견 줄마다의 상태(고친 뒤에도 남은 것은 남은 대로), 상자로 그린 정책.
-      expect((await page.locator(".report > .sumline").innerText()).replace(/\s+/g, " "), name).toBe(
-        `사람이 볼 곳 ${data.findings.length}건 검사한 파일 ${data.run.files}개`,
-      );
+      expect(await page.locator(".report > .headline strong").innerText(), name).toBe(`사람이 볼 곳 ${data.findings.length}건`);
+      expect((await page.locator(".report > .sumline").innerText()).replace(/\s+/g, " "), name).toBe(`검사한 파일 ${data.run.files}개`);
       if (data.findings.length === 0) expect(await page.locator(".report .zero-line").innerText(), name).toBe(SITE.zeroIsNotClearance);
       expect(await rowStatuses(page), name).toEqual(want.statuses);
       expect(want.statuses, name).toHaveLength(data.findings.length);
-      expect((await page.locator("li.finding summary code:not(.rule-id)").allInnerTexts()).sort(), name).toEqual(
+      expect((await page.locator("li.finding > .finding-head .loc code").allInnerTexts()).sort(), name).toEqual(
         data.findings.map((finding) => `${finding.file}:${finding.line}`).sort(),
       );
       expect(await page.locator("article.policy").count(), name).toBe(boxed.length);
@@ -416,10 +415,12 @@ describe("세 앱 × 두 판", () => {
     expect(await legend.getAttribute("href")).toBe("/policy/#status");
     // 표 머리와 아래의 글은 곁에 없는 정책이나 조문을 "이"로 가리키지 않는다.
     expect(await page.locator(".demo-compare").innerText()).not.toMatch(/이 (정책|조문|결과)/);
-    // 판단 보류로 남은 발견은 그 정책 상자의 첫 발견이라 펼쳐져 있다. 판정 경로(CLI 원문)는 접어 두고, 펼치면 약한 근거라는
-    // 문장이 CLI 가 낸 그대로 보인다.
+    // 판단 보류로 남은 발견의 `자세히` 를 펼치면 판정 경로(CLI 원문)가 접혀 있고, 그것까지 펼치면 약한 근거라는 문장이 CLI 가
+    // 낸 그대로 보인다(2026-11-11 오너 지시: 판정 경로는 `자세히` 안).
     const weak = page.locator("ol.path li", { hasText: "대안 night-consent-field: 약한 근거 — AI 확인 전에는 풀지 않음 → unknown" });
     expect(await weak.count()).toBe(1);
+    expect(await weak.isVisible()).toBe(false);
+    await page.locator("details.f-more", { has: weak }).locator("> summary").click();
     expect(await weak.isVisible()).toBe(false);
     const fold = page.locator("details.path-fold", { has: weak });
     await fold.locator("> summary").click();
@@ -437,6 +438,7 @@ describe("세 앱 × 두 판", () => {
     await pick(page, "생성형 AI 채팅", "고친 뒤");
     const label = page.locator("ol.path li", { hasText: "대안 label-text: 약한 근거 — AI 확인 전에는 풀지 않음 → unknown" });
     expect(await label.count()).toBe(1);
+    await page.locator("details.f-more", { has: label }).locator("> summary").click();
     await page.locator("details.path-fold", { has: label }).locator("> summary").click();
     expect(await label.isVisible()).toBe(true);
   });
@@ -485,21 +487,21 @@ describe("세 앱 × 두 판", () => {
     expect(await pressed(page)).toEqual(["광고 푸시", "고치기 전"]);
   });
 
-  it("한 판에서 접은 발견 줄이 다른 판의 발견으로 넘어가지 않는다", async () => {
-    // 채팅의 두 판은 발견의 지문이 같다(줄 둘레의 코드가 같다). 판마다 새로 그리지 않으면, 고치기 전에서 접은 줄이
-    // 고친 뒤의 다른 판정에서도 접힌 채로 남아 판정 경로가 보이지 않는다.
+  it("한 판에서 펼친 발견의 `자세히` 가 다른 판의 발견으로 넘어가지 않는다", async () => {
+    // 채팅의 두 판은 발견의 지문이 같다(줄 둘레의 코드가 같다). 판마다 새로 그리지 않으면, 고치기 전에서 펼친 `자세히` 가
+    // 고친 뒤의 다른 판정에서도 펼친 채로 남는다.
     const { page } = await openDemo();
-    const open = () => page.locator("li.finding > details").evaluateAll((all) => all.map((el) => (el as HTMLDetailsElement).open));
-    // 채팅의 두 발견은 정책이 서로 달라 저마다 정책 상자의 첫 발견이다(펼쳐 둔다).
+    const open = () => page.locator("li.finding > details.f-more").evaluateAll((all) => all.map((el) => (el as HTMLDetailsElement).open));
+    // (2026-11-11 오너 지시) `자세히` 는 처음에 모두 접혀 있다.
     await pick(page, "생성형 AI 채팅", "고치기 전");
-    expect(await open()).toEqual([true, true]);
-    for (const summary of await page.locator("li.finding > details > summary").all()) await summary.click();
     expect(await open()).toEqual([false, false]);
-    await pick(page, "생성형 AI 채팅", "고친 뒤");
+    for (const summary of await page.locator("li.finding > details.f-more > summary").all()) await summary.click();
     expect(await open()).toEqual([true, true]);
+    await pick(page, "생성형 AI 채팅", "고친 뒤");
+    expect(await open()).toEqual([false, false]);
     // 돌아와도 처음 상태다.
     await pick(page, "생성형 AI 채팅", "고치기 전");
-    expect(await open()).toEqual([true, true]);
+    expect(await open()).toEqual([false, false]);
   });
 });
 
@@ -1003,9 +1005,9 @@ describe("다른 쪽에 다녀오거나 새로 고친 뒤", () => {
     // 그대로 두면 보던 것과 다른 앱의 결과 한가운데에 놓이고, 무엇이 열려 있는지 알리는 이름과 단추는 화면 밖이다.
     const { page } = await openDemo();
     await pick(page, "광고 푸시", "고친 뒤");
-    // (D5) 정책 상자마다 첫 발견만 펼쳐 쪽이 짧아졌다(1280×720 에서 끝까지 1600px 남짓). 그만큼 깊이 내린다.
-    await page.evaluate(() => window.scrollTo(0, 1200));
-    expect(await scrollY(page)).toBe(1200);
+    // (2026-11-11) 발견의 `자세히` 를 모두 접어 쪽이 짧아졌다(1280×720 에서 끝까지 1400px 남짓). 그만큼 깊이 내린다.
+    await page.evaluate(() => window.scrollTo(0, 600));
+    expect(await scrollY(page)).toBe(600);
     await page.reload({ waitUntil: "load" });
     await shown(page, "아동 가입 · 고치기 전");
     expect(await pressed(page)).toEqual(["아동 가입", "고치기 전"]);
@@ -1013,11 +1015,11 @@ describe("다른 쪽에 다녀오거나 새로 고친 뒤", () => {
     // 조금 뒤에도 그대로다(브라우저가 스크롤 자리를 늦게 되살리는 때가 있다).
     await page.waitForTimeout(700);
     expect(await scrollY(page)).toBe(0);
-    // 지켜보는 동안이 지나면 스크롤을 건드리지 않는다. (D7) 결과에 곁칸이 없어 아동 가입 · 고치기 전의 쪽이 짧아졌다(1280×720 에서
-    // 끝까지 내려도 900px 에 못 미친다). 닿을 수 있는 깊이로 내린다.
-    await page.evaluate(() => window.scrollTo(0, 600));
+    // 지켜보는 동안이 지나면 스크롤을 건드리지 않는다. (D7) 결과에 곁칸이 없어, (2026-11-11) 발견의 `자세히` 를 접어 아동 가입 ·
+    // 고치기 전의 쪽이 짧아졌다(1280×720 에서 끝까지 내려도 600px 에 못 미친다). 닿을 수 있는 깊이로 내린다.
+    await page.evaluate(() => window.scrollTo(0, 400));
     await page.waitForTimeout(300);
-    expect(await scrollY(page)).toBe(600);
+    expect(await scrollY(page)).toBe(400);
   });
 
   it("처음 찾아온 쪽에서는 스크롤을 건드리지 않는다", async () => {

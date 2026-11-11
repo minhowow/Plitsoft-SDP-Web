@@ -265,7 +265,14 @@ function FindingItem({
         {ask && <Ask text={ask} />}
       </div>
       <details className="f-more">
-        <summary>자세히</summary>
+        {/* 줄마다 같은 글이라, 화면 낭독기가 단추만 옮겨 다녀도 어느 발견의 것인지 알게 위치와 규칙을 보이지 않게 붙인다. */}
+        <summary>
+          자세히
+          <span className="visually-hidden">
+            {" "}
+            {location.line === null ? location.file : `${location.file}:${location.line}`} 규칙 {location.rule}
+          </span>
+        </summary>
         <FindingBody location={location} />
       </details>
     </li>

@@ -377,16 +377,17 @@ describe("결과가 열려 있는 자리에서 바로 기록을 본다", () => {
     expect(draft).not.toContain("정책 목록");
   });
 
-  it("결과로 돌아오면 펼치고 접어 둔 발견 줄이 그대로다. 다른 예시를 고르면 결과 화면으로 돌아간다", async () => {
+  it("결과로 돌아오면 펼쳐 둔 발견의 `자세히` 와 접힌 곳이 그대로다. 다른 예시를 고르면 결과 화면으로 돌아간다", async () => {
     const { page } = await open("/view/");
     await pick(page, ["tests", "fixtures", "repeated-rule.json"]);
-    const openRows = () => page.locator("li.finding > details").evaluateAll((all) => all.map((el) => (el as HTMLDetailsElement).open));
-    // 접힌 곳을 펼치고, 첫 발견 줄을 접어 둔다.
+    const openRows = () => page.locator("li.finding > details.f-more").evaluateAll((all) => all.map((el) => (el as HTMLDetailsElement).open));
+    // 접힌 곳을 펼치고, 첫 발견의 `자세히` 를 펼쳐 둔다(처음에는 모두 접혀 있다).
     await page.locator("details.more > summary").first().click();
-    await page.locator("li.finding > details > summary").first().click();
+    await page.locator("li.finding > details.f-more > summary").first().click();
     const before = await openRows();
     expect(before.length).toBe(25);
-    expect(before[0]).toBe(false);
+    expect(before[0]).toBe(true);
+    expect(before.slice(1).every((open) => !open)).toBe(true);
     expect(await page.locator("details.more").first().evaluate((el) => (el as HTMLDetailsElement).open)).toBe(true);
 
     await showRecord(page);
@@ -1344,6 +1345,8 @@ describe("판정자를 켠 결과의 기록", () => {
 
     await pick(page, ["tests", "fixtures", "judge-on.dismissed.json"]);
     const dismissed = readJson("tests", "fixtures", "judge-on.dismissed.json") as Report;
+    // (2026-11-11 오너 지시) 빠진 판정 목록은 접혀 있다. 펼치면 묻는 말이 보인다.
+    await page.locator(".ai-decisions details.ai-box > summary", { hasText: "AI 가 적용되지 않는다고 답해 빠진 판정" }).click();
     expect(await page.locator(".ai-decisions").innerText()).toContain(dismissed.run.ai_dismissed![0].question!);
     await showRecord(page);
     text = await recordText(page);

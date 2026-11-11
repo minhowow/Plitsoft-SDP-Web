@@ -326,11 +326,11 @@ describe("연 파일을 어디로도 보내지 않는다", () => {
       note: await page.locator(".sum-note").allInnerTexts(),
       units: squashed(await page.locator(".report-meta div", { hasText: "판정 단위" }).innerText()),
     });
-    expect(await counts()).toEqual({ summary: "사람이 볼 곳 1건 검사한 파일 알 수 없음", note: [SARIF_COUNTS_NOTE], units: "판정 단위 알 수 없음" });
+    expect(await counts()).toEqual({ summary: "검사한 파일 알 수 없음", note: [SARIF_COUNTS_NOTE], units: "판정 단위 알 수 없음" });
     const fromSarif = await page.locator(".policies").innerHTML();
 
     await pick(page, ["contract", "cli-current", "kids-signup.main.json"]);
-    expect(await counts()).toEqual({ summary: "사람이 볼 곳 1건 검사한 파일 1개", note: [], units: "판정 단위 1개" });
+    expect(await counts()).toEqual({ summary: "검사한 파일 1개", note: [], units: "판정 단위 1개" });
     expect(await page.locator(".policies").innerHTML()).toBe(fromSarif);
     // 빈 것끼리 견준 것이 아니다. 발견 줄과 그 안쪽이 들어 있다.
     expect(await page.locator(".policies li.finding").count()).toBe(1);
@@ -746,7 +746,8 @@ describe("발견이 많은 결과", () => {
     ]);
 
     // 발견은 하나도 빠지지 않았다. 같은 규칙의 3곳까지만 먼저 보이고 나머지는 접혀 있다.
-    expect((await page.locator(".report > .sumline").innerText()).replace(/\s+/g, " ")).toBe("사람이 볼 곳 500건 검사한 파일 500개");
+    expect(await page.locator(".report > .headline strong").innerText()).toBe("사람이 볼 곳 500건");
+    expect((await page.locator(".report > .sumline").innerText()).replace(/\s+/g, " ")).toBe("검사한 파일 500개");
     expect(await page.locator("article.policy").count()).toBe(5);
     expect(await page.locator("li.finding").count()).toBe(500);
     expect(await page.locator(".rule-group").count()).toBe(9);
@@ -935,11 +936,12 @@ describe("다른 쪽에 다녀오거나 새로 고친 뒤", () => {
     // 끌어올리면 안 된다. 스크립트가 붙기 전에 내려야 하므로 쪽은 문서만 읽고 바로 돌려받는다(창은 다른 시험과 같게 연다).
     const { page } = await newPage(browser, site, { contexts, problems });
     await page.goto(`${site.origin}/view/`, { waitUntil: "domcontentloaded" });
-    await page.evaluate(() => window.scrollTo(0, 400));
+    // (2026-11-11) 발견의 `자세히` 를 접어 쪽이 짧아졌다. 기본 예시에서 내릴 수 있는 만큼(300px) 내린다.
+    await page.evaluate(() => window.scrollTo(0, 300));
     // 스크립트가 붙을 때까지 기다린다(파일 입력에 React 가 붙는다).
     await page.waitForFunction(() => Object.keys(document.querySelector("#report-file")!).some((key) => key.startsWith("__react")));
     await page.waitForTimeout(700);
-    expect(await scrollY(page)).toBe(400);
+    expect(await scrollY(page)).toBe(300);
     expect(await title(page)).toBe(DEFAULT_TITLE);
   });
 });
@@ -1069,7 +1071,7 @@ describe("같은 규칙이 여러 파일에 반복되는 결과 (tests/fixtures/
       all
         .filter((li) => li.checkVisibility({ opacityProperty: true, visibilityProperty: true }))
         .map((li) => {
-          const summary = li.querySelector(":scope > details > summary")!;
+          const summary = li.querySelector(":scope > .finding-head")!;
           const code = summary.querySelector("code")!;
           const scope = summary.querySelector(".finding-scope")!;
           // 경로는 줄이 바뀔 수 있다. 줄 번호는 마지막 줄 조각에 있다.
@@ -1102,7 +1104,7 @@ describe("같은 규칙이 여러 파일에 반복되는 결과 (tests/fixtures/
     expect(rows.map((entry) => entry.row)).toEqual(first);
     for (const entry of rows) expect(entry, entry.row.where!).toMatchObject({ beside: true, inside: true });
     // 판정 범위와 줄 번호는 실제로 그려진다(흐리거나 잘리거나 덮이지 않았다).
-    const closed = await undrawn(page, { root: "li.finding > details > summary", veiled: ".visually-hidden" });
+    const closed = await undrawn(page, { root: "li.finding > .finding-head", veiled: ".visually-hidden" });
     expect(closed.undrawn).toEqual([]);
     expect(closed.texts).toBeGreaterThanOrEqual(first.length * 3);
 
@@ -1113,7 +1115,7 @@ describe("같은 규칙이 여러 파일에 반복되는 결과 (tests/fixtures/
     rows = await shownRows(page);
     expect(rows.map((entry) => entry.row)).toEqual(all);
     for (const entry of rows) expect(entry, entry.row.where!).toMatchObject({ beside: true, inside: true });
-    const opened = await undrawn(page, { root: "li.finding > details > summary", veiled: ".visually-hidden" });
+    const opened = await undrawn(page, { root: "li.finding > .finding-head", veiled: ".visually-hidden" });
     expect(opened.undrawn).toEqual([]);
     expect(opened.texts).toBeGreaterThan(closed.texts);
 
@@ -1122,7 +1124,7 @@ describe("같은 규칙이 여러 파일에 반복되는 결과 (tests/fixtures/
     rows = await shownRows(page);
     expect(rows.map((entry) => entry.row)).toEqual(all);
     for (const entry of rows) expect(entry.inside, entry.row.where!).toBe(true);
-    expect((await undrawn(page, { root: "li.finding > details > summary", veiled: ".visually-hidden" })).undrawn).toEqual([]);
+    expect((await undrawn(page, { root: "li.finding > .finding-head", veiled: ".visually-hidden" })).undrawn).toEqual([]);
     expect(await overflow(page)).toMatchObject({ page: 0, over: [] });
 
     // 접으면 다시 8개다.
@@ -1137,33 +1139,49 @@ describe("다 보지 못한 것 (tests/fixtures/incomplete-coverage.json)", () =
   // 좁은 화면에서 줄이 쌓이는지, 칸 머리가 가려지는지, 표로 드러나는지, 오류 문장의 빈칸이 보이는지는 브라우저에서 본다.
   const INCOMPLETE = ["tests", "fixtures", "incomplete-coverage.json"];
   const LABELS = ["검사하지 않은 파일", "일부를 읽지 못한 파일", "엔진이 끝내지 못한 파일"];
+  /** (2026-11-11 오너 지시) 경고는 접혀 있다. 그 머리를 눌러 표를 연다. */
+  const openWarning = async (page: Page) => {
+    await page.locator(".coverage-warning > summary").click();
+    await page.locator(".coverage-warning table.gaps").waitFor({ state: "visible" });
+  };
 
-  it("맨 위 경고가 결과의 첫 줄로 보이고 그 안에 목록이 있다. 검사에 들지 않는 파일과 정보는 검사 정보의 링크로 둔다", async () => {
+  it("요약 바로 아래에 접힌 경고의 머리(첫 문장과 수)가 보이고, 펼치면 그 안에 목록이 있다. 검사에 들지 않는 파일과 정보는 검사 정보의 링크로 둔다", async () => {
     // (D5) 표 아래에 접어 두던 "이 도구가 보지 못하는 것"은 발견이 있는 결과에서는 조문 도감(#scope)으로 옮겼다(docs/redesign.md
-    // 3장, 7장 2). 경고 안의 표는 그대로다.
+    // 3장, 7장 2). (2026-11-11 오너 지시) 결과의 첫 줄은 요약이고, 경고와 표는 그 아래의 접힌 구획이다.
     const { page } = await openView({ width: 375, height: 667 });
     await pick(page, INCOMPLETE);
-    const read = await page.locator(".report").evaluate((report) => {
-      const shown = [...report.children].filter((el) => el.checkVisibility());
-      return {
-        first: report.firstElementChild?.className,
-        // 결과 화면에 그려진 것 가운데 가장 위에 있는 것(CSS 로 자리를 옮겨도 드러나게 자리를 잰다).
-        top: shown.reduce((best, el) => (el.getBoundingClientRect().top < best.getBoundingClientRect().top ? el : best)).className,
-        firstLine: (report as HTMLElement).innerText.split("\n")[0],
-        table: report.querySelector(".coverage-warning table.gaps")?.checkVisibility() ?? false,
-        notSeen: report.querySelectorAll(".not-seen").length,
-        link: report.querySelector(".info a[href='/policy/#scope']")?.textContent ?? null,
-      };
-    });
-    expect(read).toEqual({
-      first: "warn coverage-warning",
-      top: "warn coverage-warning",
-      firstLine: expect.stringMatching(/^다 보지 못한 검사입니다\. 검사하지 않은 파일 1개 · /),
-      table: true,
+    const read = () =>
+      page.locator(".report").evaluate((report) => {
+        const shown = [...report.children].filter((el) => el.checkVisibility());
+        const warning = report.querySelector(".coverage-warning");
+        return {
+          first: report.firstElementChild?.className,
+          // 결과 화면에 그려진 것 가운데 가장 위에 있는 것(CSS 로 자리를 옮겨도 드러나게 자리를 잰다).
+          top: shown.reduce((best, el) => (el.getBoundingClientRect().top < best.getBoundingClientRect().top ? el : best)).className,
+          firstLine: (report as HTMLElement).innerText.split("\n")[0],
+          // 요약과 옅은 줄 다음이 경고다.
+          third: report.children[2]?.className,
+          warning: (warning?.querySelector(":scope > summary") as HTMLElement | null)?.innerText ?? null,
+          table: report.querySelector(".coverage-warning table.gaps")?.checkVisibility() ?? false,
+          notSeen: report.querySelectorAll(".not-seen").length,
+          link: report.querySelector(".info a[href='/policy/#scope']")?.textContent ?? null,
+        };
+      });
+    const closed = {
+      first: "headline",
+      top: "headline",
+      firstLine: "사람이 볼 곳 4건",
+      third: "warn coverage-warning",
+      warning: expect.stringMatching(/^다 보지 못한 검사입니다\. 검사하지 않은 파일 1개 · /),
+      table: false,
       notSeen: 0,
       link: SITE.notSeen.title,
-    });
-    // 경고는 실제로 그려진다.
+    };
+    expect(await read()).toEqual(closed);
+    // 경고의 머리는 접힌 채로 실제로 그려진다.
+    expect((await undrawn(page, { root: ".coverage-warning > summary", veiled: ".visually-hidden" })).undrawn).toEqual([]);
+    await openWarning(page);
+    expect(await read()).toEqual({ ...closed, table: true });
     expect((await undrawn(page, { root: ".coverage-warning", veiled: ".visually-hidden" })).undrawn).toEqual([]);
   });
 
@@ -1202,6 +1220,7 @@ describe("다 보지 못한 것 (tests/fixtures/incomplete-coverage.json)", () =
   it("480px 이하: 표의 줄을 세로로 쌓는다(이름과 수가 한 줄, 뜻과 파일이 그 아래). 넘치지 않고, 칸 머리는 화면에 보이지 않고, 이름과 수의 글자 밑줄이 맞는다", async () => {
     const { page } = await openView({ width: 480, height: 720 });
     await pick(page, INCOMPLETE);
+    await openWarning(page);
     for (const width of [480, 375, 320]) {
       await page.setViewportSize({ width, height: 720 });
       const rows = await gapRows(page);
@@ -1246,6 +1265,7 @@ describe("다 보지 못한 것 (tests/fixtures/incomplete-coverage.json)", () =
     // 표·줄·칸으로 드러내므로(8번에서 사본으로 걷어 봤다), role 이 붙어 있는지는 부품 시험(tests/parts.test.tsx)이 본다.
     const { context, page } = await openView({ width: 375, height: 667 });
     await pick(page, INCOMPLETE);
+    await openWarning(page);
     const nodes = (selector: string) => accessibleNodes(context, page, selector);
     for (const width of [375, 1280]) {
       await page.setViewportSize({ width, height: 720 });
@@ -1273,6 +1293,7 @@ describe("다 보지 못한 것 (tests/fixtures/incomplete-coverage.json)", () =
     const base = readJson(...INCOMPLETE) as Report;
     const { page } = await openView({ width: 375, height: 667 });
     await pickContent(page, "engine-errors.json", JSON.stringify({ ...base, run: { ...base.run, engine_errors: texts } }));
+    await openWarning(page);
     const fold = page.locator("table.gaps details.fold", { hasText: "결과에 실린 오류 문장" });
     expect(await fold.locator("> summary").innerText()).toBe("결과에 실린 오류 문장 2개");
     await fold.locator("> summary").click();
@@ -1412,20 +1433,18 @@ describe("결과 화면의 글과 꾸밈 (조문 도감·기록의 시험과 같
     // (D5) 정책 상자(발견이나 충족 근거가 있는 정책)의 제목은 2단계다. 곁칸 `정책 N`, 검사 정보도 2단계 구획 머리다.
     const boxed = view.policies.filter((policy) => policy.locations.length > 0 || policy.evidence.length > 0);
     expect(atLevel(2)).toEqual([...boxed.map((policy) => policy.title), `정책 ${view.policies.length}`, "검사 정보"]);
-    // 같은 규칙이 여러 곳일 때만 묶음 머리(3단계)가 있다. 이 결과는 규칙마다 한 곳이라 없다.
+    // 같은 규칙이 여러 곳일 때만 묶음 머리(3단계)가 있다(메시지와 곳의 수). 이 결과는 규칙마다 한 곳이라 없다.
     const groups = view.policies.flatMap((policy) => policy.rules);
-    expect(atLevel(3)).toEqual(groups.filter((group) => group.shown.length + group.folded.length > 1).map((group) => `규칙 ${group.rule}`));
+    const multi = groups.filter((group) => group.shown.length + group.folded.length > 1);
+    expect(multi).toEqual([]);
+    expect(atLevel(3)).toEqual([]);
     const locations = groups.flatMap((group) => [...group.shown, ...group.folded]);
-    const names = (await accessibleNames(context, page, ".report li.finding > details > summary")).map((name) => name.replace(/\s+/g, " ").trim());
-    // 이름: 메시지(첫 미확인 대안), 경로·줄, 판정 범위, 상태(정책과 같으면 화면 낭독기에만), 규칙.
-    expect(names).toEqual(
-      locations.map(
-        (location) =>
-          `${location.finding.unsatisfied_alternatives[0].message} ${location.file}:${location.line} ${scopeLabel(location.scope)} ${STATUS_LABEL[location.status]} 규칙 ${location.rule}`,
-      ),
-    );
+    // (2026-11-11 오너 지시) 발견 줄은 늘 보이고, 펼치는 단추는 `자세히` 하나다. 그 이름에는 화면 낭독기에만 읽히는 위치와 규칙이
+    // 붙어 줄마다 다르다.
+    const names = (await accessibleNames(context, page, ".report li.finding > details.f-more > summary")).map((name) => name.replace(/\s+/g, " ").trim());
+    expect(names).toEqual(locations.map((location) => `자세히 ${location.file}:${location.line} 규칙 ${location.rule}`));
     // (D5) 같은 줄의 두 발견도 눈에 보이는 글이 다르다(줄의 첫 줄이 저마다의 대안 메시지다). 이름도 서로 다르다.
-    const shown = await page.locator(".report li.finding > details > summary").evaluateAll((all) =>
+    const shown = await page.locator(".report li.finding > .finding-head").evaluateAll((all) =>
       all.map((el) => {
         const copy = el.cloneNode(true) as Element;
         for (const veiled of copy.querySelectorAll(".visually-hidden")) veiled.remove();
@@ -1435,7 +1454,7 @@ describe("결과 화면의 글과 꾸밈 (조문 도감·기록의 시험과 같
     expect(new Set(shown).size).toBe(shown.length);
     expect(new Set(names).size).toBe(names.length);
     // 상태(정책과 같을 때)와 규칙 이름은 화면에서만 가린다(1px).
-    const hidden = await page.locator(".report li.finding > details > summary .visually-hidden").evaluateAll((all) =>
+    const hidden = await page.locator(".report li.finding > .finding-head .visually-hidden").evaluateAll((all) =>
       all.map((el) => Math.max(el.getBoundingClientRect().width, el.getBoundingClientRect().height)),
     );
     expect(hidden).toEqual(locations.flatMap(() => [1, 1]));

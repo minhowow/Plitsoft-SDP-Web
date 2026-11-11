@@ -114,13 +114,12 @@ describe("390px: 펼치는 메뉴", () => {
         return hidden;
       });
 
-    // 키보드로 메뉴를 열고 메뉴의 링크 셋(최근 분석, 조문 도감, 데모. 재디자인 D4 에서 하나 늘었다)을 지나 본문으로 간다.
+    // 키보드로 메뉴를 열고 메뉴의 링크 넷(최근 분석, 사례, 조문 도감, 데모. 재디자인 D4 에서 하나, 2026-11-11 사례로 하나
+    // 늘었다)을 지나 본문으로 간다.
     await page.locator(".site-header .menu > summary").focus();
     await page.keyboard.press("Enter");
     expect(await menuOpen(page)).toBe(true);
-    await page.keyboard.press("Tab");
-    await page.keyboard.press("Tab");
-    await page.keyboard.press("Tab");
+    for (let i = 0; i < 4; i++) await page.keyboard.press("Tab");
     expect(await menuOpen(page)).toBe(true);
     await page.keyboard.press("Tab");
     expect(await page.evaluate(() => document.activeElement?.closest(".site-header") === null)).toBe(true);

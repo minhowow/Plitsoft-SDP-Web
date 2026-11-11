@@ -287,7 +287,9 @@ describe("분석 쪽의 세 상태", () => {
     const { page } = await open(analysisHref("example-org", "kids-signup", "wtk33e9zuf"), 1280);
     // (D5) 수 여섯 칸(.tile)을 요약 한 줄로 줄였다(docs/redesign.md 2.3 낱말 표). 숫자인 사실만 둔다.
     expect(await page.locator(".tile").count()).toBe(0);
-    expect((await page.locator(".sumline").innerText()).replace(/\s+/g, " ")).toBe("사람이 볼 곳 1건 검사한 파일 1개");
+    // (2026-11-11 오너 지시) 맨 위는 요약(사람이 볼 곳 N건과 정책마다의 수), 그 아래 옅은 줄에 숫자인 사실.
+    expect((await page.locator(".headline").innerText()).replace(/\s+/g, " ")).toBe("사람이 볼 곳 1건 만 14세 미만 아동의 개인정보 처리 1건");
+    expect((await page.locator(".sumline").innerText()).replace(/\s+/g, " ")).toBe("검사한 파일 1개");
     // 넓은 화면에서 곁칸(정책 N)은 오른쪽 칸이다.
     const side = await page.locator(".report-side").boundingBox();
     const main = await page.locator(".report-main").boundingBox();

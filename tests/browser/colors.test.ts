@@ -297,8 +297,11 @@ const FRONT_PARTS = [".act-mark", ".act-trail", ".act-zero", ".tag", ".sr-list",
 const ANALYSIS_PARTS = [".chip", ".badge", ".badge-running", ".badge-failed", ".tag", ".zero-line", ".side-pol", ".dot", ".step-dot", ".info", "svg.ic"];
 /** 조문 도감: 상태의 뜻의 칩, 검사에 들지 않는 것, 대표 조문 이름표, 판정자 알림, 곁칸 `이 정책`, 아이콘. */
 const POLICY_PARTS = ["#status .chip", "#scope", ".tag", ".judge-note", ".policy-side", "svg.ic"];
-/** 결과 파일 열기: 칩, 이름표, '모름', 곁칸과 점, AI 가 푼 경고 상자, 다 보지 못한 검사 경고, 발견 0 의 검사한 것, 검사 정보. */
-const VIEW_PARTS = [".chip", ".tag", ".unk", ".side-pol", ".dot", ".ai-box", ".warn", ".empty-report", ".info"];
+/**
+ * 결과 파일 열기: 칩, 이름표, '모름', 곁칸과 점, AI 가 푼 경고 상자, 다 보지 못한 검사 경고(접혀 있어 그 머리 띠를 센다. 안의 표는
+ * 펼친 채의 재기에서 잰다), 발견 0 의 검사한 것, 검사 정보.
+ */
+const VIEW_PARTS = [".chip", ".tag", ".unk", ".side-pol", ".dot", ".ai-box", ".warn-hd", ".empty-report", ".info"];
 /** 데모: 칩, 합성 예시 이름표, 칠한 줄, 고치기 전·후 표와 그 아래 발견 없음의 묶음, 판정자 권고, 발견 0 의 검사한 것, 검사 정보. 곁칸은 없다(D7). */
 const DEMO_PARTS = [".chip", ".tag", ".codeline-marked", ".demo-compare", ".compare-quiet", ".judge-advice", ".empty-report", ".info"];
 
