@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { casesFile, casesHref } from "@/lib/cases";
 import { policyHref, policySlug } from "@/lib/pack";
 import { analysisHref, repoHref } from "@/lib/service/href";
 import { syntheticRepositories, syntheticStore } from "@/lib/service/synthetic";
@@ -28,7 +29,7 @@ import { nextDir, serveSite, type Site } from "./site";
  */
 const packFile = readPackFile();
 
-/** 받아 볼 쪽: 첫 화면, 결과 보기, 데모, 조문 도감(목록과 정책마다), 검색, 합성 저장소마다, 합성 분석마다. */
+/** 받아 볼 쪽: 첫 화면, 결과 보기, 데모, 조문 도감(목록과 정책마다), 사례(목록과 사례마다), 검색, 합성 저장소마다, 합성 분석마다. */
 const hits = syntheticRepositories();
 const PAGES = [
   "/",
@@ -36,6 +37,8 @@ const PAGES = [
   "/demo/",
   "/policy/",
   ...packFile.policies.map((policy) => policyHref(policy.id)),
+  casesHref(),
+  ...casesFile.cases.map((c) => casesHref(c.slug)),
   "/search/",
   "/search/?q=example",
   ...hits.map(({ repository: r }) => repoHref(r.owner, r.name)),

@@ -501,11 +501,12 @@ main.wrap > section,
 }
 
 /*
- * 지금 쪽(최근 분석, 조문 도감, 데모). 쪽이 본문에 남긴 표시(질의 없는 검색 쪽, 조문 도감의 쪽, 데모의 틀)로 고른다. 화면 낭독기에 알리는 aria-current 는
+ * 지금 쪽(최근 분석, 사례, 조문 도감, 데모). 쪽이 본문에 남긴 표시(질의 없는 검색 쪽, 사례의 쪽, 조문 도감의 쪽, 데모의 틀)로 고른다. 화면 낭독기에 알리는 aria-current 는
  * 스크립트(HeaderBehavior)가 단다. 스크립트 없이도 보이게 표시는 :has 로 고르고, aria-current 도 함께 받는다.
  */
 body:has(main [data-page="search-home"]) .site-header nav a[href="/search/"],
 body:has(main :is(.policy-page, [data-page="policy"])) .site-header nav a[href="/policy/"],
+body:has(main [data-page="cases"]) .site-header nav a[href="/cases/"],
 body:has(main > .demo) .site-header nav a[href="/demo/"],
 .site-header nav a[aria-current="page"] {
   font-weight: 600;
@@ -513,6 +514,7 @@ body:has(main > .demo) .site-header nav a[href="/demo/"],
 
 body:has(main [data-page="search-home"]) .hdr-nav a[href="/search/"],
 body:has(main :is(.policy-page, [data-page="policy"])) .hdr-nav a[href="/policy/"],
+body:has(main [data-page="cases"]) .hdr-nav a[href="/cases/"],
 body:has(main > .demo) .hdr-nav a[href="/demo/"],
 .hdr-nav a[aria-current="page"] {
   box-shadow: inset 0 -2px 0 var(--ink);
@@ -523,6 +525,7 @@ body:has(main > .demo) .hdr-nav a[href="/demo/"],
 @media (forced-colors: active) {
   body:has(main [data-page="search-home"]) .hdr-nav a[href="/search/"],
   body:has(main :is(.policy-page, [data-page="policy"])) .hdr-nav a[href="/policy/"],
+  body:has(main [data-page="cases"]) .hdr-nav a[href="/cases/"],
   body:has(main > .demo) .hdr-nav a[href="/demo/"],
   .hdr-nav a[aria-current="page"] {
     text-decoration: underline;
@@ -1520,6 +1523,111 @@ main.wrap > h1 + .pi-meta {
   .defs > div {
     grid-template-columns: minmax(0, 1fr);
   }
+}
+
+/* ---------- 사례 /cases, /cases/[slug]: 목록과 조문 줄은 조문 도감 목록의 줄(.policy-index, .pi-row)을 쓴다 ---------- */
+.case-page,
+.case-page > section,
+.case-head {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.case-page {
+  gap: var(--space-5);
+}
+
+.case-head {
+  gap: var(--space-2);
+}
+
+.case-up {
+  font-size: var(--text-xs);
+}
+
+.case-head h1 a {
+  color: var(--ink);
+}
+
+.case-head h1 .ic {
+  margin-left: var(--space-2);
+  color: var(--muted);
+}
+
+.case-lead {
+  font-size: var(--text-lg);
+}
+
+.case-lead,
+.case-text,
+.case-compare .box-in,
+.case-notes > li {
+  max-width: var(--measure);
+}
+
+/* 규칙만 | AI 를 켠 뒤. 좁은 화면에서는 위아래로 쌓는다. */
+.case-compare {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.case-compare .box-hd h3 {
+  font-size: var(--text-md);
+}
+
+@media (max-width: 767px) {
+  .case-compare {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* 발견 한 건: 상태 · 정책 · 이름표, 파일·줄(GitHub), 인용한 줄. */
+.case-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.case-item {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-3) var(--space-4);
+}
+
+.case-item-hd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+}
+
+.case-item-title {
+  font-weight: 600;
+}
+
+.case-at {
+  justify-self: start;
+  max-width: 100%;
+}
+
+.case-at .ic {
+  margin-left: var(--space-1);
+}
+
+.case-cites-lbl {
+  margin-top: var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+
+.case-notes {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding-left: var(--space-5);
 }
 
 /* ---------- 조문 도감 정책 쪽 /policy/[id] (목업 policy): 머리 → (근거 조문, 규칙 | 곁칸 `이 정책`) ---------- */

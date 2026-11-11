@@ -100,8 +100,9 @@ describe("첫 화면", () => {
     expect(await page.locator(".site-footer").evaluate((footer) => getComputedStyle(footer).textAlign)).toBe("center");
     // 재디자인 D2: 넓은 화면의 메뉴(.hdr-nav)와 좁은 화면의 펼치는 메뉴(.menu-pop)가 같은 링크를 갖는다. 머리글은 감춰져 있어도 HTML 은 같다.
     // 재디자인 D4: 메뉴 맨 앞에 최근 분석(질의 없는 /search/)을 더했다(목업 search-home).
-    expect(await page.locator(".site-header .hdr-nav a").allTextContents()).toEqual(["최근 분석", "조문 도감", "데모"]);
-    expect(await page.locator(".site-header .menu-pop a").allTextContents()).toEqual(["최근 분석", "조문 도감", "데모"]);
+    // 2026-11-11: 최근 분석 뒤에 사례(미리 돌린 공개 저장소 결과)를 더했다.
+    expect(await page.locator(".site-header .hdr-nav a").allTextContents()).toEqual(["최근 분석", "사례", "조문 도감", "데모"]);
+    expect(await page.locator(".site-header .menu-pop a").allTextContents()).toEqual(["최근 분석", "사례", "조문 도감", "데모"]);
     expect(await page.locator("a[href='/view/']").count()).toBe(0);
     const view = await fetch(`${site.origin}/view/`);
     await view.arrayBuffer();

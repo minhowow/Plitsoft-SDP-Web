@@ -26,12 +26,14 @@ export const viewport: Viewport = {
 /**
  * 메뉴의 링크. 넓은 화면의 메뉴와 좁은 화면의 펼치는 메뉴가 같은 것을 쓴다. 결과 파일 열기(/view)는 메뉴에 두지 않는다. 주소는
  * 유틸리티로 남는다(docs/redesign.md, 2026-11-05 오너 결정). `최근 분석` 은 질의 없는 검색 쪽(이 사이트의 최근 분석과 검사하는
- * 정책)이다(재디자인 D4, 목업 search-home). 그 쪽에서만 지금 쪽으로 표시한다(쪽의 표시 `data-page="search-home"`).
+ * 정책)이다(재디자인 D4, 목업 search-home). 그 쪽에서만 지금 쪽으로 표시한다(쪽의 표시 `data-page="search-home"`). `사례` 는
+ * 미리 돌린 공개 저장소 결과다(2026-11-11 오너 지시).
  */
 function NavLinks() {
   return (
     <>
       <Link href="/search/">최근 분석</Link>
+      <Link href="/cases/">{SITE.cases.title}</Link>
       <Link href="/policy/">조문 도감</Link>
       <Link href="/demo/">데모</Link>
     </>
