@@ -17,6 +17,11 @@ export interface WakeInput {
   commit: string;
   /** 실행기가 진행과 결과를 알릴 이 사이트의 주소(끝에 빗금 없음). */
   callbackBase: string | null;
+  /**
+   * 이 실행에서 `policypack review` 도 돌릴지. 사이트의 REVIEW 스위치가 켜져 있고 같은 저장소·커밋의 저장된 review 가 없을 때만
+   * 참이다(`src/server/queue.ts` 의 `wantsReview`). 워크플로 입력 `review`("true" | "false")로 보낸다.
+   */
+  review: boolean;
 }
 
 /** 실행기가 진행과 결과를 알릴 주소. 쪽 주소처럼 끝에 빗금을 둔다(next.config 의 trailingSlash. 빗금 없는 주소는 308 로 보낸다). */
@@ -62,6 +67,7 @@ export async function wakeRunner(
             repo: input.repo,
             commit: input.commit,
             callback_url: callbackUrl(input.callbackBase, input.analysisId),
+            review: input.review ? "true" : "false",
           },
         }),
         cache: "no-store",

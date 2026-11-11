@@ -3,7 +3,8 @@
 // (scripts/local-runner.mjs)는 같은 함수를 가져다 쓴다. Node 내장 모듈만 쓴다.
 //
 // 하는 일(설계 8): 저장소 받기·도구 설치 → 검사(정적 검사와 AI 판정, CLI 명령 하나. 그 뒤 저장소 프로필 `policypack profile`,
-// 모델 호출 없음) → 정리(결과와 프로필 보내기). 단계를 시작할 때마다
+// 모델 호출 없음. 입력 REVIEW 가 "true" 일 때만 그다음 `policypack review`, 모델 호출) → 정리(결과와 프로필·review 보내기).
+// 단계를 시작할 때마다
 // 사이트에 서명한 콜백을 보내고, 멈추면 그 단계와 까닭을 보낸다. 대상 코드는 읽기만 한다(설치·빌드·실행하지 않는다).
 //
 // 워크플로에서 부르는 법(값은 모두 환경 변수로 받는다. 워크플로 입력을 셸 글에 끼워 넣지 않는다):
@@ -11,7 +12,8 @@
 //   node runner/run.mjs notify <단계>      단계 시작 콜백 (RUNNER_SECRET)
 //   node runner/run.mjs fetch              tarball 받기·풀기, JS/TS 파일 수 상한 (GITHUB_TOKEN: 이 워크플로의 읽기 토큰)
 //   node runner/run.mjs install            uv 와 CLI 설치(고정 커밋) (CLI_REPO_TOKEN: CLI 저장소가 비공개일 때만)
-//   node runner/run.mjs scan               policypack scan (ANTHROPIC_API_KEY), 그다음 policypack profile (키 없이)
+//   node runner/run.mjs scan               policypack scan (ANTHROPIC_API_KEY), 그다음 policypack profile (키 없이),
+//                                          REVIEW="true" 면 policypack review (ANTHROPIC_API_KEY, REVIEW_* 상한)
 //   node runner/run.mjs finish             정리 단계 시작 콜백과 결과 콜백 (RUNNER_SECRET)
 //   node runner/run.mjs fail               멈춘 단계와 까닭 콜백 (RUNNER_SECRET). 워크플로가 실패·취소됐을 때만 돈다
 //
@@ -34,6 +36,13 @@ export const DEFAULTS = {
   resultMaxKb: 4000,
   scanTimeoutMinutes: 15,
   profileTimeoutMinutes: 3,
+  // review(입력 REVIEW 가 "true" 일 때만). 워크플로의 REVIEW_* 가 없을 때의 값이다(CLI 의 기본과 같은 모델, 한 건 $2·360초).
+  reviewModel: "anthropic:claude-haiku-5-5",
+  reviewChecker: "anthropic:claude-sonnet-5-5",
+  reviewMaxUsd: 2,
+  reviewTimeLimitSeconds: 360,
+  // review 의 시간 상한을 넘겨도 CLI 가 답을 정리해 낼 틈. 이것까지 지나면 멈추고 결과만 보낸다.
+  reviewMarginSeconds: 90,
 };
 
 /** 멈춘 단계와 사람이 읽는 까닭. 사이트의 화면에 그대로 적힌다(비밀값·내부 경로를 싣지 않는다). */
@@ -111,9 +120,9 @@ async function send(ctx, payload, step) {
 }
 
 export const notifyStep = (ctx, step, run = null) => send(ctx, run ? { event: "step", step, run } : { event: "step", step }, step);
-/** 결과(CLI 결과 JSON 글)와, 있으면 저장소 프로필(JSON 값)을 보낸다. */
-export const sendResult = (ctx, output, profile = null) =>
-  send(ctx, profile ? { event: "result", output, profile } : { event: "result", output }, "finish");
+/** 결과(CLI 결과 JSON 글)와, 있으면 저장소 프로필과 review 결과(JSON 값)를 보낸다. */
+export const sendResult = (ctx, output, profile = null, review = null) =>
+  send(ctx, { event: "result", output, ...(profile ? { profile } : {}), ...(review ? { review } : {}) }, "finish");
 export const sendFailure = (ctx, step, reason) => send(ctx, { event: "fail", step, reason }, step);
 
 // ---- 입력 ----
@@ -346,18 +355,77 @@ export function runProfile({ dir, command = ["policypack"], env, timeoutMs, run 
   }
 }
 
+/** 양의 수(소수 허용). 없거나 읽을 수 없으면 기본값이다. */
+const positiveNumber = (value, fallback) => (/^\d+(\.\d+)?$/.test(value ?? "") && Number(value) > 0 ? Number(value) : fallback);
+const MODEL_ID = /^[A-Za-z0-9._:-]{1,100}$/;
+
 /**
- * 결과 콜백의 본문. 프로필을 실은 본문이 상한을 넘으면 프로필을 빼고 결과만 보낸다(프로필 때문에 분석이 실패하지 않게). 결과만으로도
- * 넘으면 멈춘다. 사이트는 보낸 본문 전체를 상한과 견주므로 그 본문과 같은 글로 잰다.
+ * review 의 설정(워크플로의 env). 모델 id 와 한 건의 상한(금액·시간)을 CLI 옵션으로 넘긴다(2026-11-11 오너 지시: 상한은 오너가
+ * 비용을 정한 뒤 바꾼다). 모델 id 의 모양이 맞지 않으면 멈춘다(review 만 건너뛴다. `runReview`).
  */
-export function resultBody(ctx, output, profile, maxKb, { log = console.error } = {}) {
-  if (profile) {
-    const withProfile = JSON.stringify({ event: "result", output, profile, target: ctx.target });
-    if (Buffer.byteLength(withProfile, "utf8") <= maxKb * 1024) return profile;
-    log("결과와 프로필을 함께 보내면 크기 상한을 넘어 프로필을 빼고 보냅니다.");
+export function reviewOptions(env) {
+  return {
+    model: env.REVIEW_MODEL || DEFAULTS.reviewModel,
+    checker: env.REVIEW_CHECKER || DEFAULTS.reviewChecker,
+    maxUsd: positiveNumber(env.REVIEW_MAX_USD, DEFAULTS.reviewMaxUsd),
+    timeLimitSeconds: positiveNumber(env.REVIEW_TIME_LIMIT_SECONDS, DEFAULTS.reviewTimeLimitSeconds),
+  };
+}
+
+/** `policypack review` 의 인자(저장소 폴더는 지금 폴더). 모델 id 의 모양이 맞지 않으면 null. */
+export function reviewArgs({ model, checker, maxUsd, timeLimitSeconds }) {
+  if (!MODEL_ID.test(model) || !MODEL_ID.test(checker)) return null;
+  return ["review", ".", "--model", model, "--checker", checker, "--max-usd", String(maxUsd), "--time-limit", String(timeLimitSeconds)];
+}
+
+/**
+ * review: `policypack review .` 을 저장소 폴더에서 돌린다(모델 호출. API 키를 받는다). 한 건의 금액·시간 상한은 CLI 옵션으로
+ * 넘기고, 과정은 그 시간 상한에 틈(`reviewMarginSeconds`)을 더한 만큼만 기다린다. 실패해도 분석은 실패로 적지 않는다: 까닭을
+ * 로그에 남기고(비밀값은 가린다) null 을 돌려준다. 읽어 보는 것은 사이트가 한다(여기서는 JSON 인지만 본다).
+ */
+export function runReview({ dir, command = ["policypack"], env, options, run = spawnSync, log = console.error }) {
+  const args = reviewArgs(options);
+  if (!args) {
+    log("review 의 모델 설정이 맞지 않아 review 를 돌리지 않았습니다. 결과만 보냅니다.");
+    return null;
   }
-  checkResultSize(JSON.stringify({ event: "result", output, target: ctx.target }), maxKb);
-  return null;
+  const [bin, ...pre] = command;
+  const timeoutMs = (options.timeLimitSeconds + DEFAULTS.reviewMarginSeconds) * 1000;
+  const result = run(bin, [...pre, ...args], { cwd: dir, env, encoding: "utf8", maxBuffer: 64 * 1024 * 1024, timeout: timeoutMs });
+  if (result.error || result.status !== 0) {
+    const why = result.error?.code === "ETIMEDOUT" ? `${Math.round(timeoutMs / 1000)}초 안에 끝나지 않음` : `종료 코드 ${result.status ?? "없음"}`;
+    log(`review 를 만들지 못했습니다(${why}). 결과만 보냅니다.`);
+    logTail("review", result.stderr, env ?? {}, { log });
+    return null;
+  }
+  try {
+    const value = JSON.parse(result.stdout);
+    return typeof value === "object" && value !== null && !Array.isArray(value) ? value : null;
+  } catch {
+    log("review 결과가 JSON 이 아닙니다. 결과만 보냅니다.");
+    return null;
+  }
+}
+
+/**
+ * 결과 콜백에 함께 실을 것(`{ profile, review }`)을 크기 상한에 맞춘다. 다 실은 본문이 상한을 넘으면 review 를 먼저 빼고, 그래도
+ * 넘으면 프로필도 뺀다(둘 때문에 분석이 실패하지 않게). 결과만으로도 넘으면 멈춘다. 사이트는 보낸 본문 전체를 상한과 견주므로
+ * 그 본문과 같은 글로 잰다.
+ */
+export function resultBody(ctx, output, extras, maxKb, { log = console.error } = {}) {
+  const fits = (body) => Buffer.byteLength(JSON.stringify({ event: "result", output, ...body, target: ctx.target }), "utf8") <= maxKb * 1024;
+  let profile = extras?.profile ?? null;
+  let review = extras?.review ?? null;
+  if (review && !fits({ ...(profile ? { profile } : {}), review })) {
+    log("결과와 review 를 함께 보내면 크기 상한을 넘어 review 를 빼고 보냅니다.");
+    review = null;
+  }
+  if (profile && !fits({ profile })) {
+    log("결과와 프로필을 함께 보내면 크기 상한을 넘어 프로필을 빼고 보냅니다.");
+    profile = null;
+  }
+  if (!profile && !review) checkResultSize(JSON.stringify({ event: "result", output, target: ctx.target }), maxKb);
+  return { profile, review };
 }
 
 /** 결과 크기 상한. 넘으면 보내지 않고 멈춘다(사이트도 받지 않는다). */
@@ -459,21 +527,39 @@ async function main(argv, env) {
         });
         rmSync(path.join(work, "profile.json"), { force: true });
         if (profile) writeFileSync(path.join(work, "profile.json"), JSON.stringify(profile));
+        // review(모델 호출). 사이트가 입력 REVIEW 를 "true" 로 보냈을 때만(스위치가 켜져 있고 같은 커밋의 저장된 review 가 없을 때).
+        // 실패하면 파일을 남기지 않고 결과만 보낸다.
+        rmSync(path.join(work, "review.json"), { force: true });
+        if (env.REVIEW === "true") {
+          const review = runReview({
+            dir: src,
+            env: childEnv(env, { ANTHROPIC_API_KEY: env.ANTHROPIC_API_KEY, GIT_CEILING_DIRECTORIES: work }),
+            options: reviewOptions(env),
+          });
+          if (review) writeFileSync(path.join(work, "review.json"), JSON.stringify(review));
+        }
         return;
       }
       case "finish": {
         step("finish");
         await notifyStep(ctx, "finish");
         const output = readFileSync(path.join(work, "output.json"), "utf8");
-        let profile = null;
-        try {
-          profile = JSON.parse(readFileSync(path.join(work, "profile.json"), "utf8"));
-        } catch {
-          profile = null; // 프로필이 없다(검사 단계에서 만들지 못했다).
-        }
+        // 프로필·review 가 없으면(검사 단계에서 만들지 못했거나 돌리지 않았다) 결과만 보낸다.
+        const optional = (name) => {
+          try {
+            return JSON.parse(readFileSync(path.join(work, name), "utf8"));
+          } catch {
+            return null;
+          }
+        };
         // 사이트는 보낸 본문 전체(결과를 글로 실은 JSON)를 상한과 견준다. 그 본문과 같은 글로 잰다.
-        profile = resultBody(ctx, output, profile, positive(env.RESULT_MAX_KB, DEFAULTS.resultMaxKb));
-        await sendResult(ctx, output, profile);
+        const fitted = resultBody(
+          ctx,
+          output,
+          { profile: optional("profile.json"), review: optional("review.json") },
+          positive(env.RESULT_MAX_KB, DEFAULTS.resultMaxKb),
+        );
+        await sendResult(ctx, output, fitted.profile, fitted.review);
         return;
       }
       case "fail": {

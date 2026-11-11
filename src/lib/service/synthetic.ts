@@ -11,6 +11,8 @@ import kidsSignupMainProfile from "@contract/cli-current/profile/kids-signup.mai
 import nightPushMainProfile from "@contract/cli-current/profile/night-push.main.json";
 import plainMainProfile from "@contract/cli-current/profile/plain.main.json";
 import { featureNames, parseProfile } from "@/lib/profile";
+import { parseReview } from "@/lib/review";
+import genaiChatReview from "@contract/review/genai-chat.review.json";
 import { parseReport } from "@/lib/report/parse";
 import { serviceFindingCount } from "@/lib/report/types";
 import { pickActivity } from "./activity";
@@ -230,6 +232,10 @@ export const syntheticStore: ServiceStore = {
   async getProfile(id) {
     const analysis = ANALYSES.find((entry) => entry.id === id);
     return analysis?.status === "succeeded" ? parseProfile(PROFILES[id] ?? null) : null;
+  },
+  async getReview(owner, name) {
+    // 손으로 만든 review 2판 합성 예시(contract/review/genai-chat.review.json)는 생성형 AI 채팅 합성 저장소에만 있다(커밋을 가리지 않는다).
+    return `${owner}/${name}`.toLowerCase() === "example-studio/genai-chat" ? parseReview(genaiChatReview) : null;
   },
   async featureNames(ids) {
     const names: Record<string, string[] | null> = {};

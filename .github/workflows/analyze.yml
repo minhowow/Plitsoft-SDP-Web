@@ -3,7 +3,7 @@
 #
 # 비밀값(Actions secret, 값은 오너가 만든다. docs/deploy.md):
 #   RUNNER_SECRET      콜백 서명 열쇠. 사이트의 RUNNER_SECRET 과 같은 값. 콜백 단계(notify·finish·fail)에만 넘긴다.
-#   ANTHROPIC_API_KEY  AI 판정자. 검사 단계에만 넘긴다.
+#   ANTHROPIC_API_KEY  AI 판정자와 review. 검사 단계에만 넘긴다.
 #   CLI_REPO_TOKEN     (CLI 저장소가 비공개일 때만) 읽기 토큰. 도구 설치 단계에만 넘긴다.
 #
 # 워크플로 입력은 셸 글에 끼워 넣지 않고 환경 변수로만 넘긴다(입력으로 명령을 끼워 넣지 못하게). runner/run.mjs 가 모양을 본다.
@@ -34,6 +34,11 @@ on:
         description: 사이트의 콜백 주소(https://…/api/runner/{분석 id}/)
         required: true
         type: string
+      review:
+        description: policypack review 도 돌릴지("true" | "false"). 사이트의 REVIEW 스위치가 켜져 있고 같은 커밋의 저장된 review 가 없을 때만 "true"
+        required: false
+        default: "false"
+        type: string
 
 permissions:
   contents: read
@@ -45,9 +50,9 @@ concurrency:
 jobs:
   analyze:
     runs-on: ubuntu-24.04
-    # 실행 시간 상한. 사이트는 실행기에 보낸 뒤 25분(RUN_TIMEOUT_MINUTES)이 지나도 끝나지 않은 분석을 '시간 초과'로 적는다.
-    # 검사 15분과 프로필 3분(아래 상한)에 받기·설치가 들어갈 자리를 남긴다.
-    timeout-minutes: 23
+    # 실행 시간 상한. 사이트는 실행기에 보낸 뒤 32분(RUN_TIMEOUT_MINUTES)이 지나도 끝나지 않은 분석을 '시간 초과'로 적는다.
+    # 검사 15분, 프로필 3분, review 6분(켰을 때. 아래 상한)에 받기·설치가 들어갈 자리를 남긴다.
+    timeout-minutes: 30
     env:
       # 도구는 워크플로 입력이 아니라 이 파일에서 고정한다(요청하는 쪽이 바꾸지 못한다).
       CLI_REPO: minhowow/Plitsoft-SDP
@@ -65,11 +70,20 @@ jobs:
       SCAN_TIMEOUT_MINUTES: "15"
       # 검사 뒤의 저장소 프로필(policypack profile, 모델 호출 없음)의 시간 상한. 넘으면 결과만 보낸다.
       PROFILE_TIMEOUT_MINUTES: "3"
+      # review(policypack review, 모델 호출. 입력 review 가 "true" 일 때만 돈다). 분석 한 건의 상한을 CLI 옵션으로 넘긴다.
+      # 값은 오너가 비용을 정한 뒤 바꾼다(2026-11-11). 조사 모델과 반박 모델은 서로 다른 모델이다.
+      REVIEW_MODEL: anthropic:claude-haiku-5-5
+      REVIEW_CHECKER: anthropic:claude-sonnet-5-5
+      # 한 건의 어림 금액 상한(달러, CLI 의 --max-usd. 보수 단가로 센다).
+      REVIEW_MAX_USD: "2"
+      # 한 건의 시간 상한(초, CLI 의 --time-limit). 실행기는 이보다 조금 더 기다린 뒤 멈추고 결과만 보낸다.
+      REVIEW_TIME_LIMIT_SECONDS: "360"
       ANALYSIS_ID: ${{ inputs.analysis_id }}
       REPO_OWNER: ${{ inputs.owner }}
       REPO_NAME: ${{ inputs.repo }}
       REPO_COMMIT: ${{ inputs.commit }}
       CALLBACK_URL: ${{ inputs.callback_url }}
+      REVIEW: ${{ inputs.review }}
       # 콜백을 받을 사이트의 주소. 워크플로 입력이 아니라 이 저장소의 Actions 변수(SITE_URL, 오너가 둔다)에서 읽는다.
       # callback_url 의 출처가 이것과 다르면 입력 확인에서 멈춘다(콜백을 다른 곳으로 돌리지 못하게).
       SITE_ORIGIN: ${{ vars.SITE_URL }}
@@ -105,7 +119,7 @@ jobs:
           RUNNER_SECRET: ${{ secrets.RUNNER_SECRET }}
         run: node runner/run.mjs notify scan
 
-      - name: 검사(정적 검사와 AI 판정)
+      - name: 검사(정적 검사와 AI 판정, 켰을 때 review)
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: node runner/run.mjs scan

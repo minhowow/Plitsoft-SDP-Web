@@ -30,13 +30,20 @@ describe("설정", () => {
       daily: 30,
       poolSize: 2,
       queueLimit: 20,
-      runTimeoutMinutes: 25,
+      runTimeoutMinutes: 32,
       dispatchTimeoutMinutes: 10,
       queueTimeoutMinutes: 120,
       maxResultKb: 4_000,
     });
     // 설정하지 않은 배포는 요청을 받지 않는다.
-    expect(config.runner).toEqual({ kind: "none", repo: null, workflow: "analyze.yml", ref: "main", token: null, callbackBase: null, secret: null });
+    expect(config.runner).toEqual({ kind: "none", repo: null, workflow: "analyze.yml", ref: "main", token: null, callbackBase: null, secret: null, review: false });
+  });
+
+  it("review 스위치(REVIEW)는 'on' 일 때만 켜진다. 기본은 끔이다(2026-11-11 오너 지시: 켜는 것은 비용을 정한 뒤)", () => {
+    expect(readConfig({}).runner.review).toBe(false);
+    expect(readConfig({ REVIEW: "on" }).runner.review).toBe(true);
+    expect(readConfig({ REVIEW: " on " }).runner.review).toBe(true);
+    for (const value of ["true", "1", "ON", "yes", ""]) expect(readConfig({ REVIEW: value }).runner.review, value).toBe(false);
   });
 
   it("환경 변수로 바꾼다. 읽을 수 없는 수는 기본값으로 둔다(0·음수·글자를 받지 않는다)", () => {
@@ -128,7 +135,7 @@ describe("합성 예시 이름표의 조건 (docs/redesign.md 4장, D3)", () => 
 
 describe("실행기 깨우기", () => {
   const base = readConfig({});
-  const input = { analysisId: "abcdefghjk", owner: "o", repo: "r", commit: "a".repeat(40), callbackBase: "https://site.example" };
+  const input = { analysisId: "abcdefghjk", owner: "o", repo: "r", commit: "a".repeat(40), callbackBase: "https://site.example", review: false };
 
   it("RUNNER=local 은 아무것도 부르지 않는다", async () => {
     const calls: string[] = [];
@@ -154,8 +161,18 @@ describe("실행기 깨우기", () => {
     expect((calls[0].init.headers as Record<string, string>).authorization).toBe("Bearer test-runner-token");
     expect(JSON.parse(String(calls[0].init.body))).toEqual({
       ref: "main",
-      inputs: { analysis_id: "abcdefghjk", owner: "o", repo: "r", commit: "a".repeat(40), callback_url: "https://site.example/api/runner/abcdefghjk/" },
+      inputs: {
+        analysis_id: "abcdefghjk",
+        owner: "o",
+        repo: "r",
+        commit: "a".repeat(40),
+        callback_url: "https://site.example/api/runner/abcdefghjk/",
+        review: "false",
+      },
     });
+    // review 를 돌릴 분석이면 워크플로 입력이 "true" 다.
+    await wakeRunner(config, { ...input, review: true }, fetcher);
+    expect(JSON.parse(String(calls[1].init.body)).inputs.review).toBe("true");
   });
 
   it("설정이 모자라거나 GitHub 이 받지 않으면 까닭을 돌려준다(토큰·응답 본문을 싣지 않는다)", async () => {

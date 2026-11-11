@@ -21,7 +21,10 @@ import {
   logTail,
   readInputs,
   resultBody,
+  reviewArgs,
+  reviewOptions,
   runProfile,
+  runReview,
   runScan,
   sign as runnerSign,
   StepError,
@@ -311,13 +314,47 @@ describe("도구 설치와 검사", () => {
     expect(logged.join("\n")).not.toContain("sek");
   });
 
-  it("결과 콜백의 본문: 프로필을 실으면 상한을 넘을 때 프로필을 빼고 결과만 보낸다. 결과만으로 넘으면 멈춘다", () => {
+  it("결과 콜백의 본문: 프로필·review 를 실으면 상한을 넘을 때 review 를 먼저, 그다음 프로필을 빼고 보낸다. 결과만으로 넘으면 멈춘다", () => {
     const ctx = { target: { owner: "o", repo: "r", commit: "a".repeat(40) } };
     const quiet = { log: () => {} };
-    const big = { profile_version: 1, features: [], pad: "x".repeat(4000) };
-    expect(resultBody(ctx, "{}", { profile_version: 1 }, 1, quiet)).toEqual({ profile_version: 1 });
-    expect(resultBody(ctx, "{}", big, 1, quiet)).toBeNull();
-    expect(() => resultBody(ctx, "y".repeat(2000), null, 1, quiet)).toThrow("결과가 너무 큽니다");
+    const profile = { profile_version: 1 };
+    const review = { review_version: 2 };
+    const bigProfile = { profile_version: 1, features: [], pad: "x".repeat(4000) };
+    const bigReview = { review_version: 2, pad: "x".repeat(4000) };
+    expect(resultBody(ctx, "{}", { profile, review }, 1, quiet)).toEqual({ profile, review });
+    expect(resultBody(ctx, "{}", { profile, review: bigReview }, 1, quiet)).toEqual({ profile, review: null });
+    expect(resultBody(ctx, "{}", { profile: bigProfile, review }, 1, quiet)).toEqual({ profile: null, review: null });
+    expect(resultBody(ctx, "{}", { profile: bigProfile, review: null }, 1, quiet)).toEqual({ profile: null, review: null });
+    expect(() => resultBody(ctx, "y".repeat(2000), { profile: null, review: null }, 1, quiet)).toThrow("결과가 너무 큽니다");
+  });
+
+  it("review: 워크플로의 REVIEW_* 를 CLI 옵션으로 넘긴다(한 건의 금액·시간 상한). 실패해도 던지지 않고 null 이며, 까닭의 비밀값은 가린다", () => {
+    // 기본값은 워크플로에 값이 없을 때다(조사 haiku, 반박 sonnet, $2, 360초).
+    expect(reviewArgs(reviewOptions({}))).toEqual([
+      "review", ".", "--model", "anthropic:claude-haiku-5-5", "--checker", "anthropic:claude-sonnet-5-5", "--max-usd", "2", "--time-limit", "360",
+    ]);
+    const options = reviewOptions({ REVIEW_MODEL: "anthropic:m1", REVIEW_CHECKER: "anthropic:m2", REVIEW_MAX_USD: "0.5", REVIEW_TIME_LIMIT_SECONDS: "120" });
+    expect(reviewArgs(options)).toEqual(["review", ".", "--model", "anthropic:m1", "--checker", "anthropic:m2", "--max-usd", "0.5", "--time-limit", "120"]);
+    // 읽을 수 없는 상한은 기본값이고, 모양이 맞지 않는 모델 id 는 돌리지 않는다.
+    expect(reviewOptions({ REVIEW_MAX_USD: "-1", REVIEW_TIME_LIMIT_SECONDS: "x" })).toMatchObject({ maxUsd: 2, timeLimitSeconds: 360 });
+    expect(reviewArgs({ ...options, model: "a b" })).toBeNull();
+
+    const calls: { args: string[]; cwd: string; timeout: number; key?: string }[] = [];
+    const ok = ((_bin: string, args: string[], o: { cwd: string; timeout: number; env: Record<string, string> }) => {
+      calls.push({ args, cwd: o.cwd, timeout: o.timeout, key: o.env.ANTHROPIC_API_KEY });
+      return { status: 0, stdout: '{"review_version":2}', stderr: "" };
+    }) as never;
+    expect(runReview({ dir: "/w/src", env: { ANTHROPIC_API_KEY: "k" }, options, run: ok })).toEqual({ review_version: 2 });
+    // 과정은 시간 상한에 틈(90초)을 더한 만큼 기다린다.
+    expect(calls).toEqual([{ args: reviewArgs(options), cwd: "/w/src", timeout: (120 + 90) * 1000, key: "k" }]);
+    const logged: string[] = [];
+    const failed = (result: object) =>
+      runReview({ dir: ".", env: { ANTHROPIC_API_KEY: "sek" }, options, run: (() => result) as never, log: (line: string) => logged.push(line) });
+    expect(failed({ status: 1, stdout: "", stderr: "boom sek" })).toBeNull();
+    expect(failed({ status: null, error: Object.assign(new Error("t"), { code: "ETIMEDOUT" }) })).toBeNull();
+    expect(failed({ status: 0, stdout: "not json", stderr: "" })).toBeNull();
+    expect(logged.join("\n")).toContain("boom ***");
+    expect(logged.join("\n")).not.toContain("sek");
   });
 
   it("도구 설치: uv 판·CLI 저장소·커밋이 고정 모양이 아니면 설치하지 않는다. CLI 저장소 토큰은 git 설정 환경으로만 넘긴다", () => {
@@ -364,8 +401,12 @@ describe("워크플로 (.github/workflows/analyze.yml)", () => {
     expect(jobEnv).not.toMatch(/\$\{\{\s*(runner|job|steps|env)\./);
   });
 
-  it("실행 시간 상한 23분(검사 15분 + 프로필 3분 + 받기·설치), 도구는 이 파일에서 고정(CLI 저장소·커밋, uv 판), 비밀값은 그것이 필요한 단계에만", () => {
-    expect(workflow).toMatch(/timeout-minutes: 23\n/);
+  it("실행 시간 상한 30분(검사 15분 + 프로필 3분 + 켰을 때 review 6분 + 받기·설치), 도구는 이 파일에서 고정(CLI 저장소·커밋, uv 판), 비밀값은 그것이 필요한 단계에만", () => {
+    expect(workflow).toMatch(/timeout-minutes: 30\n/);
+    // review 는 입력(기본 "false")으로만 켜고, 한 건의 상한은 이 파일에서 정한다. 입력은 셸 글이 아니라 환경 변수로 넘긴다.
+    expect(workflow).toMatch(/ {6}review:\n {8}description: [^\n]+\n {8}required: false\n {8}default: "false"\n {8}type: string\n/);
+    expect(workflow).toMatch(/REVIEW: \$\{\{ inputs\.review \}\}\n/);
+    for (const name of ["REVIEW_MODEL", "REVIEW_CHECKER", "REVIEW_MAX_USD", "REVIEW_TIME_LIMIT_SECONDS"]) expect(workflow).toContain(`\n      ${name}: `);
     expect(workflow).toMatch(/CLI_REPO: minhowow\/Plitsoft-SDP\n/);
     expect(workflow).toMatch(/CLI_COMMIT: [0-9a-f]{40}\n/);
     expect(workflow).toMatch(/UV_VERSION: \d+\.\d+\.\d+\n/);
@@ -387,7 +428,7 @@ describe("워크플로 (.github/workflows/analyze.yml)", () => {
       "저장소 받기": [],
       "도구 설치": ["CLI_REPO_TOKEN"],
       '"알림: 검사 시작"': ["RUNNER_SECRET"],
-      "검사(정적 검사와 AI 판정)": ["ANTHROPIC_API_KEY"],
+      "검사(정적 검사와 AI 판정, 켰을 때 review)": ["ANTHROPIC_API_KEY"],
       "정리(결과 보내기)": ["RUNNER_SECRET"],
       '"알림: 멈춤"': ["RUNNER_SECRET"],
     });
