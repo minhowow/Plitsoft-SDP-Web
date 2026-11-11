@@ -80,11 +80,11 @@ async function finish(id: string, at: Date, result: string | null = JSON.stringi
 
 describe("DB: 마이그레이션", () => {
   it("이름 차례로 한 번만 적용한다", async () => {
-    expect(readMigrations().map((m) => m.name)).toEqual(["001_init.sql", "002_finding_count.sql", "003_queue.sql", "004_runner_wake.sql"]);
+    expect(readMigrations().map((m) => m.name)).toEqual(["001_init.sql", "002_finding_count.sql", "003_queue.sql", "004_runner_wake.sql", "005_profile.sql"]);
     // 이미 열 때 적용했다. 다시 돌려도 아무것도 하지 않는다.
     expect(await migrate(db)).toEqual([]);
     const applied = await db.query<{ name: string }>("SELECT name FROM schema_migrations ORDER BY name");
-    expect(applied.rows.map((row) => row.name)).toEqual(["001_init.sql", "002_finding_count.sql", "003_queue.sql", "004_runner_wake.sql"]);
+    expect(applied.rows.map((row) => row.name)).toEqual(["001_init.sql", "002_finding_count.sql", "003_queue.sql", "004_runner_wake.sql", "005_profile.sql"]);
   });
 
   it("표에 저장하지 않기로 한 것(IP·사용자·코드)을 담을 열이 없다", async () => {
@@ -111,11 +111,15 @@ describe("DB: 마이그레이션", () => {
       "analyses.runner_run_url",
       "analyses.finding_count",
       "analyses.dispatched_at",
+      // 저장소 프로필에서 목록에 싣는 기능 이름(코드가 아니다. CLI 가 붙인 기능 이름뿐이다. 2026-11-11).
+      "analyses.feature_names",
       "github_budget.bucket",
       "github_budget.window_start",
       "github_budget.used",
       "results.analysis_id",
       "results.json",
+      // 저장소 프로필(policypack profile 의 JSON): 기능과 근거 파일·줄, 걸릴 수 있는 의무 목록. 코드 전체는 담지 않는다.
+      "results.profile",
       "runner_wake.id",
       "runner_wake.failed_at",
       "runner_wake.reason",

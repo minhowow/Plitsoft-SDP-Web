@@ -10,7 +10,15 @@ import { analysisHref, shortCommit } from "@/lib/service/href";
 import { duration, finishedAt, formatKst } from "@/lib/service/steps";
 import type { Analysis, Repository } from "@/lib/service/types";
 import { SITE } from "@/lib/site";
-import { AnalysisBadge, findingCount } from "./parts";
+import { AnalysisBadge, FeatureLine, findingCount } from "./parts";
+
+/** 최신 분석 상자의 감지된 기능 한 줄(있을 때만). */
+const featureLineOf = (features: string[] | null) =>
+  features && features.length > 0 ? (
+    <p className="box-in latest-feat">
+      <FeatureLine names={features} className="feat" />
+    </p>
+  ) : null;
 
 /** 최신 분석 상자에 보이는 발견 줄의 수. 나머지는 "결과 보기"의 분석 쪽에 있다. */
 export const LATEST_FINDINGS = 5;
@@ -26,7 +34,18 @@ export const LATEST_FINDINGS = 5;
  *   발견 줄은 모두 합해 `LATEST_FINDINGS` 개까지다. 발견이 0이면 0의 뜻을 둔다.
  * - 결과를 읽지 못했으면(`view` 가 null) 발견 수를 모른다고 적고 0 이라고 하지 않는다.
  */
-export function LatestAnalysis({ repository, analysis, view }: { repository: Repository; analysis: Analysis; view: ReportView | null }) {
+export function LatestAnalysis({
+  repository,
+  analysis,
+  view,
+  features = null,
+}: {
+  repository: Repository;
+  analysis: Analysis;
+  view: ReportView | null;
+  /** 그 분석에서 감지된 기능(`ServiceStore.featureNames`). 머리 줄 아래에 짧게 적는다(발견 0건이어도 빈 상자가 아니게). */
+  features?: string[] | null;
+}) {
   const href = analysisHref(repository.owner, repository.name, analysis.id);
   const started = analysis.steps[0]?.startedAt ?? null;
   const ended = finishedAt(analysis);
@@ -77,6 +96,7 @@ export function LatestAnalysis({ repository, analysis, view }: { repository: Rep
           결과 보기
         </Link>
       </div>
+      {featureLineOf(features)}
       {!view ? (
         <p className="box-in notice notice-warn">이 분석의 결과를 읽지 못했습니다.</p>
       ) : view.findingCount === 0 ? (

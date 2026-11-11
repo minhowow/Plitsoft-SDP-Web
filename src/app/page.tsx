@@ -22,8 +22,10 @@ export default async function Home() {
   const loaded = await orUnavailable(
     (async () => {
       const rows = await store.recentActivity(HOME_ROWS);
-      const findings = await store.findingCounts(rows.filter(({ analysis }) => analysis.status === "succeeded").map(({ analysis }) => analysis.id));
-      return { rows, findings };
+      const done = rows.filter(({ analysis }) => analysis.status === "succeeded").map(({ analysis }) => analysis.id);
+      const findings = await store.findingCounts(done);
+      const features = await store.featureNames(done);
+      return { rows, findings, features };
     })(),
   );
   const tagged = showsSyntheticTag();
@@ -48,7 +50,7 @@ export default async function Home() {
         ) : loaded.value.rows.length === 0 ? (
           <p className="home-empty">아직 분석 없음</p>
         ) : (
-          <ActivityList rows={loaded.value.rows} findings={loaded.value.findings} variant="feed" />
+          <ActivityList rows={loaded.value.rows} findings={loaded.value.findings} features={loaded.value.features} variant="feed" />
         )}
       </section>
     </div>

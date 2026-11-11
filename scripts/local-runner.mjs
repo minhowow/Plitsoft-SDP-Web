@@ -28,12 +28,13 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   checkFileCount,
-  checkResultSize,
   childEnv,
   copyRepository,
   DEFAULTS,
   notifyStep,
   post,
+  resultBody,
+  runProfile,
   runScan,
   sendFailure,
   sendResult,
@@ -110,6 +111,19 @@ function cliCommand(work) {
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/**
+ * 수집본(contract/cli-current/<표본>.json)과 같은 표본의 저장소 프로필 수집본(contract/cli-current/profile/<표본>.json). 없거나
+ * 읽지 못하면 null(결과만 보낸다).
+ */
+export function profileCaptureFor(capture) {
+  const file = path.join(path.dirname(capture), "profile", path.basename(capture));
+  try {
+    return JSON.parse(readFileSync(file, "utf8"));
+  } catch {
+    return null;
+  }
+}
+
 /** 분석 하나를 끝까지 돌린다. 멈추면 그 단계와 까닭을 알린다. */
 export async function runOne(claimed, options, secret) {
   const ctx = {
@@ -137,21 +151,21 @@ export async function runOne(claimed, options, secret) {
     // CLI 검사는 spawnSync 로 돌려 이 과정을 막는다. --parallel 로 여럿을 집어 와도 검사는 한 번에 하나뿐이다. 한 컴퓨터에서 검사를
     // 여럿 동시에 돌리면 큰 파일에서 엔진 시간 초과가 나 '판단 보류'가 는다(CLI 가 2026-11-11 에 잰 것). 바꾸지 않는다.
     // GitHub Actions 의 실행기는 분석마다 새 VM 이고 그 안에서 검사는 하나다.
+    const command = options.fixture ? null : cliCommand(work);
+    const env = childEnv(process.env, { GIT_CEILING_DIRECTORIES: work });
     const output = options.fixture
       ? readFileSync(capture, "utf8")
-      : runScan({
-          dir: src,
-          judge: "none",
-          command: cliCommand(work),
-          env: childEnv(process.env, { GIT_CEILING_DIRECTORIES: work }),
-          timeoutMs: DEFAULTS.scanTimeoutMinutes * 60_000,
-        });
+      : runScan({ dir: src, judge: "none", command, env, timeoutMs: DEFAULTS.scanTimeoutMinutes * 60_000 });
+    // 저장소 프로필(모델 호출 없음): 수집본이면 같은 표본의 프로필 수집본, CLI 면 policypack profile 을 검사 다음에 돌린다(역시
+    // spawnSync 로 하나씩). 없거나 실패하면 결과만 보낸다.
+    const profile = options.fixture
+      ? profileCaptureFor(capture)
+      : runProfile({ dir: src, command, env, timeoutMs: DEFAULTS.profileTimeoutMinutes * 60_000 });
     await sleep(options.stepDelay);
 
     step = "finish";
     await notifyStep(ctx, "finish");
-    checkResultSize(output, DEFAULTS.resultMaxKb);
-    const body = await sendResult(ctx, output);
+    const body = await sendResult(ctx, output, resultBody(ctx, output, profile, DEFAULTS.resultMaxKb));
     return body?.status ?? "succeeded";
   } catch (error) {
     if (error instanceof StepError && error.refused) throw error;

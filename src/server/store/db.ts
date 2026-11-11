@@ -1,4 +1,5 @@
 import "server-only";
+import { parseProfileText } from "@/lib/profile";
 import { ServiceUnavailableError } from "@/lib/service/errors";
 import { repoKey } from "@/lib/service/href";
 import { isAnalysisId, newAnalysisId } from "@/lib/service/id";
@@ -14,6 +15,17 @@ import { wakeRunner, type WakeOutcome } from "../runner";
 import { COLUMNS, initialSteps, iso, rowToAnalysis, type Row } from "./rows";
 
 // 다른 곳(콜백, 시험)이 이 파일에서 읽던 것.
+/** 분석 행의 감지된 기능 이름(JSON 글 배열). 비었거나 모양이 다르면 null(모름). */
+function readNames(text: string | null): string[] | null {
+  if (!text) return null;
+  try {
+    const value = JSON.parse(text) as unknown;
+    return Array.isArray(value) && value.every((name) => typeof name === "string") ? value : null;
+  } catch {
+    return null;
+  }
+}
+
 export { COLUMNS, initialSteps, readSteps, rowToAnalysis, stalledStep, type Row } from "./rows";
 export { sweepStale, timeoutReason } from "../queue";
 
@@ -252,6 +264,27 @@ export function createDbStore(deps: DbStoreDeps): ServiceStore {
         [wanted],
       );
       return Object.fromEntries(rows.rows.map((row) => [row.id, row.finding_count]));
+    },
+
+    async getProfile(id) {
+      if (!isAnalysisId(id)) return null;
+      const db = await database();
+      const rows = await db.query<{ profile: string | null }>(
+        "SELECT r.profile FROM results r JOIN analyses a ON a.id = r.analysis_id WHERE r.analysis_id = $1 AND a.status = 'succeeded'",
+        [id],
+      );
+      return parseProfileText(rows.rows[0]?.profile);
+    },
+
+    async featureNames(ids) {
+      const wanted = ids.filter(isAnalysisId);
+      if (wanted.length === 0) return {};
+      const db = await database();
+      const rows = await db.query<{ id: string; feature_names: string | null }>(
+        "SELECT id, feature_names FROM analyses WHERE id = ANY($1::text[]) AND status = 'succeeded'",
+        [wanted],
+      );
+      return Object.fromEntries(rows.rows.map((row) => [row.id, readNames(row.feature_names)]));
     },
 
     async queue() {

@@ -4,24 +4,28 @@ import { analysisHref, shortCommit } from "@/lib/service/href";
 import { activeStep, ANALYSIS_STATUS_LABEL, formatKst, STEP_LABEL, stepState } from "@/lib/service/steps";
 import type { Analysis, RepositoryActivity } from "@/lib/service/types";
 import { SITE } from "@/lib/site";
-import { findingCount, RepoName } from "./parts";
+import { FeatureLine, findingCount, RepoName } from "./parts";
 
 /**
  * 이 사이트의 최근 분석(저장소마다 한 줄, `ServiceStore.recentActivity`). 첫 화면(`feed`: 검색창 아래 같은 단)과 검색 쪽의 빈
  * 상태(`box`: 상자 안의 줄)가 같은 줄을 쓴다(docs/redesign.md 3장 "첫 화면", 목업 home-feed·search-home).
  *
  * 줄은 그 분석의 쪽으로 가는 링크다. 첫 줄은 상태 표시, 저장소 이름, 오른쪽에 발견 수(끝남) 또는 상태 글(`steps.ts` 의 말).
- * 둘째 줄은 분석 id, 커밋, 요청 시각(KST)이다. 분석 중이면 단계 점 넷과 지금 단계 이름을 더한다. 끝난 분석의 결과가 없거나
+ * 둘째 줄은 분석 id, 커밋, 요청 시각(KST)이다. 끝난 분석에 저장소 프로필이 있으면 셋째 줄에 감지된 기능을 짧게 적는다(발견 0건
+ * 줄도 빈 줄로 보이지 않게. 2026-11-11). 분석 중이면 단계 점 넷과 지금 단계 이름을 더한다. 끝난 분석의 결과가 없거나
  * 읽지 못했으면 0 이라고 적지 않고 "발견 수 알 수 없음"이다. 발견 0건 줄이 보이면 목록 아래에 0의 뜻을 둔다.
  */
 export function ActivityList({
   rows,
   findings,
+  features = {},
   variant,
 }: {
   rows: RepositoryActivity[];
   /** 끝난 분석마다 결과에 실린 발견 수(`ServiceStore.findingCounts`). */
   findings: Record<string, number | null>;
+  /** 끝난 분석마다 감지된 기능의 이름(`ServiceStore.featureNames`). */
+  features?: Record<string, string[] | null>;
   variant: "feed" | "box";
 }) {
   const zero = rows.some(({ analysis }) => analysis.status === "succeeded" && findings[analysis.id] === 0);
@@ -45,6 +49,7 @@ export function ActivityList({
                 </span>{" "}
                 <time dateTime={analysis.requestedAt}>{formatKst(analysis.requestedAt)}</time>
               </span>
+              {analysis.status === "succeeded" && <FeatureLine names={features[analysis.id]} className="act-feat" />}
               {analysis.status === "running" && <StepTrail analysis={analysis} />}
               {variant === "box" && <Icon name="chevron-right" />}
             </Link>

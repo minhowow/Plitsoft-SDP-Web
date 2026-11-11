@@ -20,6 +20,8 @@ import {
   installCli,
   logTail,
   readInputs,
+  resultBody,
+  runProfile,
   runScan,
   sign as runnerSign,
   StepError,
@@ -291,6 +293,33 @@ describe("도구 설치와 검사", () => {
     expect(with_({ status: null, error: Object.assign(new Error("t"), { code: "ETIMEDOUT" }) })).toThrow("1분 안에 끝나지 않아");
   });
 
+  it("저장소 프로필: policypack profile . 을 저장소 폴더에서 돌린다. 실패해도 던지지 않고 null 이며, 까닭의 비밀값은 가린다", () => {
+    const calls: { args: string[]; cwd: string }[] = [];
+    const ok = ((_bin: string, args: string[], options: { cwd: string }) => {
+      calls.push({ args, cwd: options.cwd });
+      return { status: 0, stdout: '{"profile_version":1,"features":[]}', stderr: "" };
+    }) as never;
+    expect(runProfile({ dir: "/w/src", env: {}, timeoutMs: 1000, run: ok })).toEqual({ profile_version: 1, features: [] });
+    expect(calls).toEqual([{ args: ["profile", "."], cwd: "/w/src" }]);
+    const logged: string[] = [];
+    const failed = (result: object) =>
+      runProfile({ dir: ".", env: { RUNNER_SECRET: "sek" }, timeoutMs: 60_000, run: (() => result) as never, log: (line: string) => logged.push(line) });
+    expect(failed({ status: 2, stdout: "", stderr: "boom sek" })).toBeNull();
+    expect(failed({ status: null, error: Object.assign(new Error("t"), { code: "ETIMEDOUT" }) })).toBeNull();
+    expect(failed({ status: 0, stdout: "not json", stderr: "" })).toBeNull();
+    expect(logged.join("\n")).toContain("boom ***");
+    expect(logged.join("\n")).not.toContain("sek");
+  });
+
+  it("결과 콜백의 본문: 프로필을 실으면 상한을 넘을 때 프로필을 빼고 결과만 보낸다. 결과만으로 넘으면 멈춘다", () => {
+    const ctx = { target: { owner: "o", repo: "r", commit: "a".repeat(40) } };
+    const quiet = { log: () => {} };
+    const big = { profile_version: 1, features: [], pad: "x".repeat(4000) };
+    expect(resultBody(ctx, "{}", { profile_version: 1 }, 1, quiet)).toEqual({ profile_version: 1 });
+    expect(resultBody(ctx, "{}", big, 1, quiet)).toBeNull();
+    expect(() => resultBody(ctx, "y".repeat(2000), null, 1, quiet)).toThrow("결과가 너무 큽니다");
+  });
+
   it("도구 설치: uv 판·CLI 저장소·커밋이 고정 모양이 아니면 설치하지 않는다. CLI 저장소 토큰은 git 설정 환경으로만 넘긴다", () => {
     const calls: { bin: string; args: string[]; env: Record<string, string> }[] = [];
     const fake = ((bin: string, args: string[], options: { env: Record<string, string> }) => {
@@ -422,6 +451,8 @@ describe("로컬 실행기 (scripts/local-runner.mjs --fixture)", () => {
       expect(analysis?.status, id).toBe("succeeded");
       expect(analysis?.steps.every((step) => step.startedAt && step.endedAt)).toBe(true);
       expect(await deps.store().getResult(id)).toEqual(JSON.parse(readFileSync(path.join(root, "contract", "cli-current", `${fixture}.main.json`), "utf8")));
+      // 저장소 프로필도 같은 표본의 수집본을 함께 보낸다.
+      expect((await deps.store().getProfile(id))?.features.length, id).toBeGreaterThan(0);
     }
     expect(sourceFor("example-labs", "plain.utils", { source: null })?.dir).toBe(path.join(root, "contract", "fixtures", "plain", "main"));
     // --source 를 줘도 합성 저장소는 제 합성 데모 코드다(다른 폴더의 코드가 그 이름에 붙지 않는다).

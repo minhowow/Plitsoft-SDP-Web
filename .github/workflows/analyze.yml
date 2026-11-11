@@ -62,6 +62,8 @@ jobs:
       MAX_JSTS_FILES: "3000"
       RESULT_MAX_KB: "4000"
       SCAN_TIMEOUT_MINUTES: "15"
+      # 검사 뒤의 저장소 프로필(policypack profile, 모델 호출 없음)의 시간 상한. 넘으면 결과만 보낸다.
+      PROFILE_TIMEOUT_MINUTES: "3"
       ANALYSIS_ID: ${{ inputs.analysis_id }}
       REPO_OWNER: ${{ inputs.owner }}
       REPO_NAME: ${{ inputs.repo }}

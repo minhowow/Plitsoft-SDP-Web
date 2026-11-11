@@ -8,7 +8,7 @@ import type { Analysis, Repository } from "@/lib/service/types";
 import { STATUS_LABEL } from "@/lib/report/status";
 import { Icon } from "@/components/Icon";
 import { SITE } from "@/lib/site";
-import { AnalysisBadge, RepoName } from "./parts";
+import { AnalysisBadge, FeatureLine, RepoName } from "./parts";
 
 export { findingCount } from "./parts";
 import { RequestButton } from "./RequestButton";
@@ -265,11 +265,14 @@ export function HistoryTable({
   repository,
   analyses,
   findings,
+  features = {},
   queue = null,
 }: {
   repository: Repository;
   analyses: Analysis[];
   findings: Record<string, number | null>;
+  /** 끝난 분석마다 감지된 기능(`ServiceStore.featureNames`). 분석 칸의 id 아래에 짧게 적는다. */
+  features?: Record<string, string[] | null>;
   /** 대기열(DB 에서 센 것). 없으면(합성) 대기열의 자리를 적지 않는다. */
   queue?: QueueSnapshot | null;
 }) {
@@ -301,6 +304,7 @@ export function HistoryTable({
                     <Link href={analysisHref(repository.owner, repository.name, analysis.id)} className="an-row-id">
                       <code translate="no">{analysis.id}</code>
                     </Link>
+                    {analysis.status === "succeeded" && <FeatureLine names={features[analysis.id]} className="an-row-feat" />}
                   </td>
                   <td className="an-row-state">
                     <AnalysisBadge status={analysis.status} />

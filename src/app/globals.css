@@ -3014,6 +3014,14 @@ body:has(main [data-page="home"]) ::selection {
   white-space: nowrap;
 }
 
+/* 끝난 분석의 감지된 기능(저장소 프로필, 앞의 둘과 나머지 수). 줄을 바꿔도 된다 */
+.act-feat {
+  min-width: 0;
+  font-size: var(--text-xs);
+  line-height: 18px;
+  overflow-wrap: anywhere;
+}
+
 /* 분석 중: 네 단계의 점(분석 쪽의 단계 점과 같은 말)과 지금 단계 이름 */
 .act-step {
   display: flex;
@@ -3103,6 +3111,11 @@ body:has(main [data-page="home"]) ::selection {
   padding-left: var(--space-4);
 }
 
+.act-feed .act-feat {
+  grid-column: 2 / -1;
+  grid-row: 3;
+}
+
 .act-feed + .act-zero {
   padding: var(--space-2) var(--space-3) 0 var(--text-x);
 }
@@ -3176,7 +3189,7 @@ body:has(main [data-page="home"]) ::selection {
   text-align: right;
 }
 
-.act-box :is(.act-sub, .act-step) {
+.act-box :is(.act-sub, .act-step, .act-feat) {
   grid-column: 1;
 }
 
@@ -3952,6 +3965,15 @@ body:has(main [data-page="home"]) ::selection {
   font-size: var(--text-md);
 }
 
+/* 최신 분석의 감지된 기능(머리 줄 아래 한 줄). 상자 폭 전체로 아래 옅은 줄 */
+p.box-in.latest-feat {
+  margin: 0;
+  padding: 10px var(--space-4);
+  border-bottom: 1px solid var(--rule-muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+}
+
 .latest-rows,
 .latest-rows ul {
   list-style: none;
@@ -4074,11 +4096,19 @@ table.tbl {
   font-size: var(--text-xs);
 }
 
-.an-row-note {
+.an-row-note,
+.an-row-feat {
   display: block;
   margin-top: 2px;
   font-size: var(--text-xs);
   color: var(--muted);
+}
+
+/* 분석 칸의 감지된 기능은 줄을 바꿔도 된다(표 칸의 nowrap 을 푼다) */
+.an-row-feat {
+  max-width: 24em;
+  color: var(--ink);
+  white-space: normal;
 }
 
 .an-row-failed .an-row-note {
