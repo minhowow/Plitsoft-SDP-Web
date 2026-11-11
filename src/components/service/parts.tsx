@@ -88,23 +88,27 @@ export function AnalyzedRow({ activity, count }: { activity: RepositoryActivity;
   );
 }
 
+/** 프로필이 기능을 하나도 찾지 못했을 때의 줄. 발견 0건인 줄이 빈 줄로 보이지 않게 한다(2026-11-11 오너 지시). */
+export const NO_FEATURE_LINE = "감지된 기능 없음";
+
 /**
- * 감지된 기능을 목록 줄에 짧게: 앞의 둘과 나머지 수("외 N"). 기능 이름에 가운뎃점이 들어 있어 쉼표로 나눈다. 모르거나(프로필이
- * 없던 분석) 빈 목록이면 null(줄에 아무것도 더하지 않는다).
+ * 감지된 기능을 목록 줄에 짧게: 앞의 둘과 나머지 수("외 N"). 기능 이름에 가운뎃점이 들어 있어 쉼표로 나눈다. 프로필이 기능을
+ * 하나도 찾지 못했으면(빈 목록) 그렇다고 적고, 모르면(프로필이 없던 분석) null(줄에 아무것도 더하지 않는다).
  */
 export function featureLine(names: string[] | null | undefined): string | null {
-  if (!names || names.length === 0) return null;
+  if (!names) return null;
+  if (names.length === 0) return NO_FEATURE_LINE;
   const rest = names.length - 2;
   return names.slice(0, 2).join(", ") + (rest > 0 ? ` 외 ${rest}` : "");
 }
 
-/** 목록 줄의 감지된 기능(2026-11-11 오너 지시). 없으면 그리지 않는다. 화면 낭독기에는 무엇인지 앞에 붙인다. */
+/** 목록 줄의 감지된 기능(2026-11-11 오너 지시). 모르면 그리지 않는다. 화면 낭독기에는 무엇인지 앞에 붙인다. */
 export function FeatureLine({ names, className }: { names: string[] | null | undefined; className: string }) {
   const line = featureLine(names);
   if (!line) return null;
   return (
     <span className={className}>
-      <span className="visually-hidden">감지된 기능: </span>
+      {line !== NO_FEATURE_LINE && <span className="visually-hidden">감지된 기능: </span>}
       {line}
     </span>
   );
