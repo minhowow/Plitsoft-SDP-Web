@@ -397,7 +397,8 @@ describe("너비·테마·요청", () => {
       await page.evaluate(() => {
         for (const details of document.querySelectorAll("details")) details.open = true;
       });
-      const measured = await overflow(page);
+      // review 의 개인정보 흐름 그림은 제 상자(.flow-scroll) 안에서 가로로 밀린다. 쪽은 밀리지 않는다.
+      const measured = await overflow(page, ".flow-scroll");
       if (measured.page !== 0 || measured.over.length > 0) fits.push(`${scheme} ${pathname}: ${JSON.stringify(measured)}`);
       // 실행 자리의 수(운영 내부 수치)는 어느 쪽에도 적지 않는다(재디자인 D3).
       if (/실행 자리 \d+개 중/.test(await page.locator("main").innerText())) fits.push(`${scheme} ${pathname}: 실행 자리 문구`);

@@ -147,7 +147,7 @@ GitHub Actions(실행기 저장소) ── 공개 저장소를 그 커밋으로 
 | `RESULT_MAX_KB` | 4000 | 보내는 결과 크기 상한(사이트와 같은 값) |
 | `JUDGE_MODEL` | claude-haiku-5-5 | AI 판정자 `anthropic:<모델>`(전체 id). 모델을 바꾸는 것은 오너가 정한다 |
 | `CLI_REPO`·`CLI_COMMIT` | `minhowow/Plitsoft-SDP`·`e12e6ba…`(태그 `handoff-w11-5`) | 설치하는 CLI 와 그 고정 커밋 |
-| `CLI_EXCLUDE_NEWER` | 2026-11-10T00:00:00Z | CLI 의 딸린 꾸러미를 이 날짜까지 나온 판에서만 고른다(`uv tool install --exclude-newer`. git 설치는 CLI 의 uv.lock 을 쓰지 않는다). CLI 커밋을 바꿀 때 함께 바꾼다 |
+| `CLI_EXCLUDE_NEWER` | 2026-11-11T00:00:00Z | CLI 의 딸린 꾸러미를 이 날짜까지 나온 판에서만 고른다(`uv tool install --exclude-newer`. git 설치는 CLI 의 uv.lock 을 쓰지 않는다). CLI 커밋을 바꿀 때 함께 바꾼다 |
 | `SITE_ORIGIN` | Actions 변수 `SITE_URL` | 콜백을 받을 사이트. 워크플로 입력의 `callback_url` 출처가 이것과 다르면 멈춘다 |
 
 CLI 의 출력은 방향 A 로 10/27~11/16 에 바뀐다(흐름 단위, 여러 파일 인용). B1~B3 은 지금 출력(`7300205`)으로 만들고,

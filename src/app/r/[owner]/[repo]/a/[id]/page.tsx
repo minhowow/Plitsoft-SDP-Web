@@ -37,9 +37,11 @@ export default async function AnalysisPage({ params }: PageProps<"/r/[owner]/[re
       const result = analysis.status === "succeeded" ? await store.getResult(analysis.id) : null;
       // 저장소 프로필(1·2단). 프로필을 내지 않던 판으로 돌린 분석에는 없다(null).
       const profile = analysis.status === "succeeded" ? await store.getProfile(analysis.id) : null;
+      // 같은 커밋의 review 결과(실행기에서 켰을 때만 있다. 같은 커밋은 다시 돌리지 않고 앞서 저장된 것을 보인다).
+      const review = analysis.status === "succeeded" ? await store.getReview(repository.owner, repository.name, analysis.commit) : null;
       // 대기 중이면 대기열의 몇 번째인지(DB 에서 센 것). 합성은 대기열이 없다(null).
       const place = analysis.status === "queued" ? placeOf(await store.queue(), analysis.id) : null;
-      return { repository, analysis, result, place, profile };
+      return { repository, analysis, result, place, profile, review };
     })(),
   );
   if (!found.ok) {
@@ -51,7 +53,7 @@ export default async function AnalysisPage({ params }: PageProps<"/r/[owner]/[re
     );
   }
   if (!found.value) notFound();
-  const { repository, analysis, result, place, profile } = found.value;
+  const { repository, analysis, result, place, profile, review } = found.value;
 
   // 합성 예시 이름표: 합성 미리보기이거나 가짜 GitHub 일 때(서버 설정. 저장소 기록의 synthetic 이 아니다. 가짜 GitHub 의 저장소는
   // DB 에 실제 저장소처럼 적힌다).
@@ -126,6 +128,7 @@ export default async function AnalysisPage({ params }: PageProps<"/r/[owner]/[re
           code={code}
           statutes={statutes}
           profile={profile}
+          review={review}
           progress={
             <details className="lg an-steps">
               <summary>

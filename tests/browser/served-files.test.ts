@@ -35,6 +35,7 @@ const PAGES = [
   "/",
   "/view/",
   "/demo/",
+  "/demo/review/",
   "/policy/",
   ...packFile.policies.map((policy) => policyHref(policy.id)),
   casesHref(),
