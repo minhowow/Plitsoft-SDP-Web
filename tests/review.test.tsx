@@ -191,6 +191,9 @@ describe("review 결과 (2판)", () => {
 
 describe("사례 쪽: review 2판 실측(2026-11-12)", () => {
   it("사례 4곳의 결과는 모두 읽히고, 짚은 의무는 그 결과의 체크리스트에 있다. 사례 쪽은 review 화면을 그리고 짚은 의무를 접는다", async () => {
+    // CLI f4967db 로 다시 돌린 결과(2026-11-12)에서 사례 4곳의 '다시 검토 중'은 걷어 냈다(오너 지시).
+    expect(casesFile.reviewRun.cli).toBe("f4967db");
+    expect(casesFile.cases.flatMap((c) => c.recheck)).toEqual([]);
     for (const c of casesFile.cases) {
       const review = parseReview(c.review);
       expect(review, c.slug).not.toBeNull();
@@ -205,12 +208,16 @@ describe("사례 쪽: review 2판 실측(2026-11-12)", () => {
   it("성격이 다른 저장소 8곳: 이름·주소 없이 성격과 갈래별 건수·시간·비용만. 라이브러리는 빈 체크리스트", () => {
     expect(casesFile.others.map((o) => o.kind)).toEqual(["쇼핑몰", "위치", "가입만", "AI 없는 커뮤니티", "라이브러리", "POS", "자체 서버 AI", "실시간 게임"]);
     for (const row of casesFile.others) expect(Object.keys(row).sort()).toEqual(["counts", "kind", "recheck", "seconds", "usd"]);
+    // 비용은 공식 단가로 다시 센 것이다(11/12 실측 12곳 합계 $15.06, 사례 4곳의 그날 몫 $5.12 를 빼면 8곳 $9.94).
+    expect(Math.round(casesFile.others.reduce((sum, row) => sum + row.usd, 0) * 100) / 100).toBe(9.94);
     const library = casesFile.others.find((o) => o.kind === "라이브러리")!;
     expect(Object.values(library.counts).every((n) => n === 0)).toBe(true);
     const html = renderToStaticMarkup(<CasesPage />);
     const table = elementsOf(html, '<table class="tbl others-table"')[0];
     expect(elementsOf(table, "<tr>").length).toBe(2 + casesFile.others.length);
     expect(table).not.toContain("<a ");
+    // 8곳은 사례 4곳과 다른 판(e12e6ba)으로 돌렸다는 것을 표 위에 적는다.
+    expect(textOf(html)).toContain(`CLI ${casesFile.othersRun.cli}`);
   });
 });
 

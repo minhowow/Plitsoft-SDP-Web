@@ -66,6 +66,7 @@ export interface OtherRepo {
   counts: Record<ReviewStatus, number>;
   recheck: number;
   seconds: number;
+  /** 공식 단가로 다시 센 금액(결과의 사용량 × 단가, scripts/export-cases.mjs). */
   usd: number;
 }
 
@@ -75,8 +76,10 @@ export interface CasesFile {
   packDigest: string;
   /** 프로필을 돌린 CLI 커밋과 날(검토 결과와 다른 판이다). */
   profileCli: { commit: string; ranOn: string };
-  /** review 2판을 돌린 날과 CLI 커밋. */
+  /** 사례 4곳의 review 2판을 돌린 날과 CLI 커밋. */
   reviewRun: { ranOn: string; cli: string };
+  /** 성격이 다른 저장소 8곳의 review 2판을 돌린 날과 CLI 커밋(사례 4곳보다 앞선 판). */
+  othersRun: { ranOn: string; cli: string };
   cases: CaseData[];
   others: OtherRepo[];
 }

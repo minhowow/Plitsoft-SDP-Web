@@ -55,6 +55,14 @@ export default function CasesPage() {
         <h2 className="sec-h" id="cases-others">
           성격이 다른 저장소 {others.length}곳에서의 결과
         </h2>
+        <p className="pi-meta">
+          <span>
+            <time dateTime={casesFile.othersRun.ranOn}>{casesFile.othersRun.ranOn}</time>
+          </span>{" "}
+          <span>
+            CLI <code translate="no">{casesFile.othersRun.cli}</code>
+          </span>
+        </p>
         <div className="box box-scroll">
           <table className="tbl others-table" aria-labelledby="cases-others">
             <thead>

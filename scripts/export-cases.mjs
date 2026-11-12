@@ -2,14 +2,15 @@
 // 사례 쪽(/cases)의 데이터를 만든다: CLI 세션이 미리 돌린 공개 저장소 결과(--agent combined)와 규칙만 돌린 결과에서
 // 쪽이 쓰는 필드만 옮겨 data/cases.json 에 쓴다. Node 내장 모듈만 쓴다.
 //
-//   node scripts/export-cases.mjs [사례 폴더] [프로필 폴더] [review 폴더]
+//   node scripts/export-cases.mjs [사례 폴더] [프로필 폴더] [사례 review 폴더] [8곳 review 폴더]
 //     (기본 ~/.cache/policypack-eval/cases-2026-11-10, ~/.cache/policypack-eval/profile-2026-11-11/repos,
-//      ~/.cache/policypack-eval/review-v2-2026-11-11)
+//      ~/.cache/policypack-eval/review-w11-6-2026-11-12, ~/.cache/policypack-eval/review-v2-2026-11-11)
 //
-// review 2판(`policypack review`, CLI e12e6ba)의 실측 결과도 옮긴다(2026-11-12 오너 지시). 사례 4곳은 결과 JSON 에서 화면이 읽는
-// 필드만(의무의 `title` 과 `quote` 는 처분 액수·조문 인용이 들어 있어 뺀다). results.md 가 "말이 안 되는 것"으로 짚은 의무는
-// `recheck` 로 따로 적어 화면이 상태를 보이지 않고 접게 한다. 나머지 8곳은 남의 저장소라 이름·주소·코드를 옮기지 않고 성격과
-// 갈래별 건수·시간·비용만 옮긴다. 저장소 이름은 이 스크립트에도 적지 않는다: 성격은 review 폴더의 plan.md 표에서 찾는다.
+// review 2판(`policypack review`)의 실측 결과도 옮긴다(2026-11-12 오너 지시). 사례 4곳은 CLI f4967db(handoff-w11-6)로 다시 돌린
+// 결과에서 화면이 읽는 필드만(의무의 `title` 과 `quote` 는 처분 액수·조문 인용이 들어 있어 뺀다). 나머지 8곳은 CLI e12e6ba 로 돌린
+// 11/12 실측이고, 남의 저장소라 이름·주소·코드를 옮기지 않고 성격과 갈래별 건수·시간·비용만 옮긴다. 저장소 이름은 이 스크립트에도
+// 적지 않는다: 성격은 그 폴더의 plan.md 표에서 찾는다. 8곳의 비용은 결과에 실린 사용량을 공식 단가(`PRICE`)로 다시 센다(결과의
+// 어림 금액은 옛 단가표로 센 것이라 약 2.4배 컸다).
 //
 // 저장소 프로필(`policypack profile`, CLI fe98fb7, 같은 커밋의 사본에서 돌린 것)도 사례마다 함께 옮긴다. 의무 항목은 화면이 쓰는
 // 필드(id, 법, 조문, 의무 한 줄, 법제처 링크)만 남긴다.
@@ -25,7 +26,8 @@ import { fileURLToPath } from "node:url";
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const dir = process.argv[2] ?? path.join(os.homedir(), ".cache/policypack-eval/cases-2026-11-10");
 const profileDir = process.argv[3] ?? path.join(os.homedir(), ".cache/policypack-eval/profile-2026-11-11/repos");
-const reviewDir = process.argv[4] ?? path.join(os.homedir(), ".cache/policypack-eval/review-v2-2026-11-11");
+const reviewDir = process.argv[4] ?? path.join(os.homedir(), ".cache/policypack-eval/review-w11-6-2026-11-12");
+const othersDir = process.argv[5] ?? path.join(os.homedir(), ".cache/policypack-eval/review-v2-2026-11-11");
 /** 프로필을 돌린 CLI 와 날(profile-41.md). */
 const PROFILE_CLI = { commit: "fe98fb7", ranOn: "2026-11-11" };
 
@@ -45,17 +47,46 @@ const RAN_ON = "2026-11-11";
 const CLI_COMMIT = "0be0c07";
 
 /** 쪽의 차례(마지막이 예비). 커밋은 corpus-2026-09-30/commits.txt 의 것(그 커밋을 받아 검사했다). */
-// recheck: review 결과 가운데 results.md 의 "말이 안 되는 것" 1·4 가 짚은 의무(지킨 처리가 없는 것을 '해당 없음'·'걸리지 않는 듯'으로
-// 읽은 것, 근거가 약한 '지킨 근거 있음'). CLI 가 고치는 중이고 다음 판에서 다시 돌린다.
+// recheck: 11/12 실측에서 짚은 의무는 CLI f4967db 로 다시 돌린 결과에서 고쳐졌다(results.md). 사례 4곳에서는 걷어 냈다(2026-11-12
+// 오너 지시). 다시 짚을 것이 생기면 여기에 의무 id 를 적는다.
 const CASES = [
   { file: "JinInSaDaeCheonMyeong__starthub-app", commit: "0ab1c2b70b5d79fb9f80519044760cdd0fd8a30b", recheck: [] },
-  { file: "Malbolo__Excelerate", commit: "53bf78a586bc2e3f04d38ebd6281b90c293deb64", recheck: ["tcra-3-2", "aiact-31-1"] },
-  { file: "Vactor0911__jobtalk", commit: "bbfb3ab14534907ff4618c563ff92a6354da97a1", recheck: ["safety-std-7-4"] },
-  { file: "team-medeasy__medeasy-frontend", commit: "95fd35fd20a23ff3057b613b02922f4a8f4be2b7", recheck: ["tcra-3-2"] },
+  { file: "Malbolo__Excelerate", commit: "53bf78a586bc2e3f04d38ebd6281b90c293deb64", recheck: [] },
+  { file: "Vactor0911__jobtalk", commit: "bbfb3ab14534907ff4618c563ff92a6354da97a1", recheck: [] },
+  { file: "team-medeasy__medeasy-frontend", commit: "95fd35fd20a23ff3057b613b02922f4a8f4be2b7", recheck: [] },
 ];
 
-/** review 2판을 돌린 날과 CLI(out/LOG 와 결과 파일의 시각, 그날 CLI 저장소의 HEAD). 결과 JSON 에는 날짜와 커밋이 없다. */
-const REVIEW_RUN = { ranOn: "2026-11-12", cli: "e12e6ba" };
+/**
+ * review 2판을 돌린 날과 CLI(out/LOG 와 결과 파일의 시각, results.md). 결과 JSON 에는 날짜와 커밋이 없다. 사례 4곳은 handoff-w11-6
+ * (f4967db)에 단가표만 고친 판으로 다시 돌렸다. 8곳은 그보다 앞선 e12e6ba 다.
+ */
+const REVIEW_RUN = { ranOn: "2026-11-12", cli: "f4967db" };
+const OTHERS_RUN = { ranOn: "2026-11-12", cli: "e12e6ba" };
+
+/**
+ * 공식 단가(100만 토큰당 달러: 입력, 출력, 캐시 쓰기 배수, 캐시 읽기 배수). CLI 세션이 공식 가격표에서 옮긴 것이다
+ * (review-w11-6-2026-11-12/results.md "비용 계산 점검", 2026-11-12). haiku 의 10만 토큰을 넘는 프롬프트 구간(5배)은 11/12 실측의
+ * 호출에 거의 없어 셈하지 않는다(그 셈으로 12곳 합계 $15.06, results.md 와 같다).
+ */
+const PRICE = {
+  "claude-haiku-5-5": [0.1, 0.5, 1.25, 0.1],
+  "claude-sonnet-5-5": [2, 10, 1.25, 0.05],
+};
+/** 결과의 모델별 사용량(`run.usage`)을 공식 단가로 센 금액. 단가가 없는 모델이 있으면 멈춘다. */
+const officialUsd = (usage) =>
+  Object.entries(usage).reduce((sum, [model, u]) => {
+    const price = PRICE[model];
+    if (!price) throw new Error(`공식 단가가 없는 모델: ${model}`);
+    const [input, output, write, read] = price;
+    return (
+      sum +
+      (u.input_tokens * input +
+        u.cache_creation_input_tokens * input * write +
+        u.cache_read_input_tokens * input * read +
+        u.output_tokens * output) /
+        1e6
+    );
+  }, 0);
 
 /**
  * 성격이 다른 저장소 8곳(오너가 정한 이름과 차례). `match` 는 plan.md 표의 '성격' 칸에서 찾는 말이다. recheck 는 위와 같다
@@ -74,6 +105,7 @@ const OTHERS = [
 
 const read = (file) => JSON.parse(readFileSync(path.join(dir, file), "utf8"));
 const readReview = (name) => JSON.parse(readFileSync(path.join(reviewDir, "out", `${name}.json`), "utf8"));
+const readOther = (name) => JSON.parse(readFileSync(path.join(othersDir, "out", `${name}.json`), "utf8"));
 
 /** review 결과에서 화면이 읽는 필드만(`src/lib/review`). 의무의 `title`(처분 액수)과 `quote`(조문 인용)는 옮기지 않는다. */
 const cite = ({ file, line, text, ok, why }) => ({ file, line, text, ok, why });
@@ -116,6 +148,10 @@ const trimReview = (r) => ({
     reason: it.reason,
     ...(it.not_answered ? { not_answered: it.not_answered } : {}),
     ...(it.verification ? { verification: { result: it.verification.result } } : {}),
+    // CLI f4967db 의 덧붙임: 없는 것, 품목 묶음, 관문이 바꾼 까닭(화면이 reason 앞의 메모를 떼는 데 쓴다).
+    ...(it.missing ? { missing: it.missing } : {}),
+    ...(it.group ? { group: it.group } : {}),
+    ...(it.first?.gate ? { first: { gate: it.first.gate } } : {}),
   })),
   run: Object.fromEntries(
     [
@@ -196,18 +232,18 @@ const cases = CASES.map(({ file, commit, recheck }) => {
 const tools = new Set(CASES.map(({ file }) => read(`agent/${file}.json`).tool.version));
 const digests = new Set(CASES.map(({ file }) => read(`agent/${file}.json`).run.pack_digest));
 // 8곳: plan.md 표(| 저장소 | 성격 | …)에서 성격으로 저장소를 찾아 결과의 갈래별 건수·시간·비용만 옮긴다.
-const planRows = readFileSync(path.join(reviewDir, "plan.md"), "utf8")
+const planRows = readFileSync(path.join(othersDir, "plan.md"), "utf8")
   .split("\n")
   .filter((line) => line.startsWith("| ") && !line.startsWith("| 저장소") && !line.startsWith("|---"))
   .map((line) => line.split("|").map((cell) => cell.trim()))
   .map((cells) => ({ name: cells[1], kind: cells[2] }));
-const outFiles = readdirSync(path.join(reviewDir, "out")).filter((f) => f.endsWith(".json"));
+const outFiles = readdirSync(path.join(othersDir, "out")).filter((f) => f.endsWith(".json"));
 const others = OTHERS.map(({ kind, match, recheck }) => {
   const rows = planRows.filter((row) => !row.kind.startsWith("사례") && row.kind.includes(match));
   if (rows.length !== 1) throw new Error(`plan.md 에서 '${match}' 성격의 저장소가 ${rows.length}곳`);
   const file = outFiles.find((f) => f.endsWith(`__${rows[0].name}.json`));
   if (!file) throw new Error(`'${kind}' 의 결과가 없다`);
-  const review = readReview(file.slice(0, -5));
+  const review = readOther(file.slice(0, -5));
   checkRecheck(review, recheck, kind);
   const counts = { ...review.summary.counts };
   for (const id of recheck) counts[review.checklist.find((it) => it.duty === id).status] -= 1;
@@ -216,7 +252,7 @@ const others = OTHERS.map(({ kind, match, recheck }) => {
     counts,
     recheck: recheck.length,
     seconds: review.run.seconds,
-    usd: review.run.usd_estimate,
+    usd: Math.round(officialUsd(review.run.usage) * 1e4) / 1e4,
   };
 });
 
@@ -226,6 +262,7 @@ const out = {
   packDigest: [...digests].join(", "),
   profileCli: PROFILE_CLI,
   reviewRun: REVIEW_RUN,
+  othersRun: OTHERS_RUN,
   cases,
   others,
 };
