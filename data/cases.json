@@ -11,7 +11,11 @@
   },
   "reviewRun": {
     "ranOn": "2026-11-12",
-    "cli": "f4967db"
+    "cli": "f4967db",
+    "regate": {
+      "cli": "2a24d94",
+      "moved": 7
+    }
   },
   "othersRun": {
     "ranOn": "2026-11-12",
@@ -1005,17 +1009,17 @@
         "review_version": 2,
         "tool": {
           "name": "policypack",
-          "version": "0.3.0.dev0"
+          "version": "0.3.0.dev0+regate.w11-7"
         },
         "summary": {
           "counts": {
             "seen-in-code": 7,
             "check-outside": 3,
-            "check-applicability": 2,
+            "check-applicability": 3,
             "unknown": 0,
             "evidence-found": 0,
             "likely-not-applicable": 4,
-            "not-applicable": 7
+            "not-applicable": 6
           },
           "top": [
             "pipa-29-1",
@@ -2417,6 +2421,52 @@
             "missing": "고영향 AI 조치 내용(위험관리·설명 방안, 이용자 보호 방안, 관리·감독자 성명·연락처)을 게시한 공개 경로·표기를 찾지 못함"
           },
           {
+            "duty": "cistd-annex4-4",
+            "feature": "auth",
+            "law": "연계정보의 생성ㆍ처리 등에 관한 기준",
+            "article": "별표 4 제4호 (제11조제2항, 영 제13조제2항제4호)",
+            "duty_text": "CI를 인터넷 구간으로 주고받을 때 안전한 알고리즘으로 암호화; 10만명(대기업·중견·공공)·100만명(중소) 이상 보유 시 저장도 암호화",
+            "url": "https://www.law.go.kr/행정규칙/연계정보의생성ㆍ처리등에관한기준",
+            "status": "check-applicability",
+            "citations": [],
+            "searches": [
+              {
+                "pattern": "ciEnc|\\bci\\b|connect(ing)?_?info|연계",
+                "path": ".",
+                "claimed": 8,
+                "found": 9,
+                "ok": false
+              },
+              {
+                "pattern": "본인확인|iamport|portone|다날|NICE|KCP|dupinfo|connInfo|연계정보|주민등록|identityVerification",
+                "path": ".",
+                "claimed": 1,
+                "found": 1,
+                "ok": true
+              },
+              {
+                "pattern": "createCipher|createCipheriv|aes-256|KMS|kms\\.|encrypt\\(|ciEnc",
+                "path": ".",
+                "claimed": 13,
+                "found": 13,
+                "ok": true
+              }
+            ],
+            "question": "회원가입·로그인 과정에서 본인인증(휴대폰·아이핀 등)을 거쳐 CI를 받는 기능이 있는지, 있다면 CI를 처리하는 서버와 DB가 어디에 있고 전송·저장 시 암호화가 어떻게 적용되는지 알려 달라.",
+            "reason": "걸리는지 모른다고 답해(applies '모름') '해당 여부부터 확인할 것'으로 옮겼습니다. 앱 가입 화면은 이메일 인증번호 방식이고(SignupStepFields.tsx), CI 관련 코드는 저장소에서 찾지 못했다. 다만 회원 API 서버가 저장소 밖에 있어 CI 수신 여부와 보유 인원 규모는 코드만으로 판단할 수 없다.",
+            "verification": {
+              "result": "not-run"
+            },
+            "missing": "이 저장소의 클라이언트 코드에는 본인인증 흐름과 CI 값의 수신·전송·저장 코드가 보이지 않음. 회원 API 서버는 저장소에 없음",
+            "first": {
+              "gate": {
+                "from": "check-outside",
+                "why": "applies-unknown",
+                "note": "걸리는지 모른다고 답해(applies '모름') '해당 여부부터 확인할 것'으로 옮겼습니다."
+              }
+            }
+          },
+          {
             "duty": "pipa-22-5",
             "feature": "signup",
             "law": "개인정보 보호법",
@@ -2648,44 +2698,6 @@
             }
           },
           {
-            "duty": "cistd-annex4-4",
-            "feature": "auth",
-            "law": "연계정보의 생성ㆍ처리 등에 관한 기준",
-            "article": "별표 4 제4호 (제11조제2항, 영 제13조제2항제4호)",
-            "duty_text": "CI를 인터넷 구간으로 주고받을 때 안전한 알고리즘으로 암호화; 10만명(대기업·중견·공공)·100만명(중소) 이상 보유 시 저장도 암호화",
-            "url": "https://www.law.go.kr/행정규칙/연계정보의생성ㆍ처리등에관한기준",
-            "status": "not-applicable",
-            "citations": [],
-            "searches": [
-              {
-                "pattern": "ciEnc|\\bci\\b|connect(ing)?_?info|연계",
-                "path": ".",
-                "claimed": 9,
-                "found": 9,
-                "ok": true
-              },
-              {
-                "pattern": "본인확인|본인인증|iamport|portone|다날|NICE|KCP|dupinfo|connInfo|연계정보|주민등록|identityVerification",
-                "path": ".",
-                "claimed": 1,
-                "found": 1,
-                "ok": true
-              },
-              {
-                "pattern": "createCipher|createCipheriv|aes-256|KMS|kms\\.|encrypt\\(|ciEnc",
-                "path": ".",
-                "claimed": 13,
-                "found": 13,
-                "ok": true
-              }
-            ],
-            "question": "회원가입·로그인 과정에서 본인인증(휴대폰·아이핀 등)을 거쳐 CI를 받는 기능이 있는지, 있다면 CI를 처리하는 서버와 DB가 어디에 있고 전송·저장 시 암호화가 어떻게 적용되는지 알려 달라.",
-            "reason": "세 검색의 맞는 줄은 모두 package-lock.json 안의 ci-info 패키지 이름이나 integrity 해시뿐이다. api 폴더에도 CI나 본인인증 관련 호출이 없다. 가입은 이메일 인증번호와 OAuth(Google, Apple)로 하고, birth 는 사용자가 직접 입력하는 프로필 항목이다. 그래서 이 앱 코드에서는 CI를 받거나 보내거나 저장하는 조건이 보이지 않는다.",
-            "verification": {
-              "result": "overturned"
-            }
-          },
-          {
             "duty": "pipa-24-1",
             "feature": "auth",
             "law": "개인정보 보호법",
@@ -2832,12 +2844,12 @@
           },
           "citations": 44,
           "citations_rejected": 0,
-          "searches": 78,
+          "searches": 75,
           "searches_rejected": 12,
           "verification_counts": {
             "upheld": 19,
-            "overturned": 2,
-            "not-run": 2
+            "overturned": 1,
+            "not-run": 3
           },
           "masked": {
             "secret-value": 4
@@ -3651,17 +3663,17 @@
         "review_version": 2,
         "tool": {
           "name": "policypack",
-          "version": "0.3.0.dev0"
+          "version": "0.3.0.dev0+regate.w11-7"
         },
         "summary": {
           "counts": {
-            "seen-in-code": 12,
+            "seen-in-code": 10,
             "check-outside": 2,
-            "check-applicability": 4,
+            "check-applicability": 7,
             "unknown": 0,
             "evidence-found": 0,
             "likely-not-applicable": 1,
-            "not-applicable": 11
+            "not-applicable": 10
           },
           "top": [
             "pipa-29-1",
@@ -4934,53 +4946,6 @@
             "missing": "생성 결과 말풍선·출력 카드 옆에 AI 생성 사실을 알리는 표시(배지, 캡션, 안내 문구)나 기계판독 표시가 보이지 않는다. 응답 아이콘(Bot)과 'AI Output (Test Result)' 같은 제목만 있다."
           },
           {
-            "duty": "pipa-26-2",
-            "feature": "external-transfer",
-            "law": "개인정보 보호법",
-            "article": "제26조제2항(시행령 제28조제2항)",
-            "duty_text": "위탁 업무 내용과 수탁자(재수탁자 포함)를 정보주체가 언제든 쉽게 확인하게 공개(홈페이지 지속 게재)",
-            "url": "https://www.law.go.kr/법령/개인정보보호법/제26조",
-            "status": "seen-in-code",
-            "citations": [
-              {
-                "file": "backend/agent-service/app/services/code_gen/graph.py",
-                "line": 53,
-                "text": "self.sllm = ChatOpenAI(model_name=\"gpt-4.1-mini\", temperature=0, callbacks=[self.logger])",
-                "ok": true,
-                "why": "grounded"
-              },
-              {
-                "file": "backend/agent-service/app/services/code_gen/graph.py",
-                "line": 234,
-                "text": "llm_input = {\"original_code\":original_for_prompt, \"dftypes\": df.dtypes.to_string(), \"df\": df_preview, \"input\": input}",
-                "ok": true,
-                "why": "grounded"
-              }
-            ],
-            "searches": [
-              {
-                "pattern": "PROCESSORS|수탁|위탁|재수탁|processor|subprocessor",
-                "path": ".",
-                "claimed": 2,
-                "found": 2,
-                "ok": true
-              },
-              {
-                "pattern": "처리방침|개인정보",
-                "path": ".",
-                "claimed": 0,
-                "found": 0,
-                "ok": true
-              }
-            ],
-            "question": "LLM·임베딩 API로 전송되는 사용자 명령, 데이터프레임 미리보기, 업로드 문서에 개인정보가 포함될 수 있는지, 그리고 OpenAI를 수탁자로 홈페이지 처리방침에 공개하고 있는지 확인해 주실 수 있나요?",
-            "reason": "외부 LLM API로 데이터를 보내는 줄은 코드에서 확인되지만, 수탁자 공개를 보여 주는 코드는 저장소에서 찾지 못했다. 공개는 홈페이지에서 이뤄질 수 있어 저장소 밖 확인이 필요하다.",
-            "verification": {
-              "result": "upheld"
-            },
-            "missing": "위탁 업무 내용과 수탁자(OpenAI 등, 재수탁자 포함)를 공개하는 코드·설정이 저장소에서 보이지 않음. PROCESSORS 같은 수탁자 목록이나 처리방침 생성 코드도 없음"
-          },
-          {
             "duty": "pipa-28-8-1",
             "feature": "external-transfer",
             "law": "개인정보 보호법",
@@ -5040,67 +5005,6 @@
               "result": "upheld"
             },
             "missing": "전송 전 마스킹·가명처리 코드, 국외 이전 별도 동의 화면, 처리방침의 국외 이전 공개 근거가 코드에서 보이지 않음 (가입 화면에는 이름·부서 입력만 있고 동의 항목이 없음)"
-          },
-          {
-            "duty": "pipa-17-2",
-            "feature": "external-transfer",
-            "law": "개인정보 보호법",
-            "article": "제17조제2항",
-            "duty_text": "제공 동의 때 받는 자·목적·항목·보유기간·거부권(불이익) 알리고, 바꾸면 다시 동의",
-            "url": "https://www.law.go.kr/법령/개인정보보호법/제17조",
-            "status": "seen-in-code",
-            "citations": [
-              {
-                "file": "backend/agent-service/app/services/code_gen/graph.py",
-                "line": 53,
-                "text": "self.sllm = ChatOpenAI(model_name=\"gpt-4.1-mini\", temperature=0, callbacks=[self.logger])",
-                "ok": true,
-                "why": "grounded"
-              },
-              {
-                "file": "backend/agent-service/app/services/rag_service.py",
-                "line": 124,
-                "text": "embedder = OpenAIEmbeddings()  # 내부적으로 settings.OPENAI_API_KEY 사용",
-                "ok": true,
-                "why": "grounded"
-              }
-            ],
-            "searches": [
-              {
-                "pattern": "제3자|third.?part|THIRD_PARTIES|제공 동의|제공동의|provide.*consent|share.*consent",
-                "path": ".",
-                "claimed": 1,
-                "found": 1,
-                "ok": true
-              },
-              {
-                "pattern": "동의|consent|약관|terms|privacy|개인정보",
-                "path": ".",
-                "claimed": 0,
-                "found": 0,
-                "ok": true
-              },
-              {
-                "pattern": "보유 ?기간|retention|보유기간|거부 ?권|동의 ?거부|withdraw",
-                "path": ".",
-                "claimed": 0,
-                "found": 0,
-                "ok": true
-              },
-              {
-                "pattern": "checkbox|agree|agreement|체크|checked",
-                "path": "frontend/src",
-                "claimed": 13,
-                "found": 42,
-                "ok": false
-              }
-            ],
-            "question": "사용자 명령(또는 데이터프레임 내용)이 OpenAI로 전송될 때 개인정보가 포함되는지, 그리고 이를 제3자 제공으로 보는지 처리위탁으로 보는지 정리되어 있는지, 그리고 제공 동의를 받는 화면이 있다면 어디인지 확인 부탁드립니다.",
-            "reason": "외부 AI로 데이터를 보내는 줄은 보이지만, 동의 화면·문구·철회 경로를 저장소에서 찾지 못했습니다. 개인정보 포함 여부와 법적 성격은 사업자 판단입니다.",
-            "verification": {
-              "result": "upheld"
-            },
-            "missing": "제공 동의 체크박스·모달, 받는 자·목적·항목·보유기간·거부권을 알리는 화면이나 문구를 찾지 못함. 회원가입 스키마에도 동의 항목이 없음(email, password, name, department)"
           },
           {
             "duty": "pipa-28-8-2",
@@ -5427,6 +5331,59 @@
             "missing": "응답 전 개인정보 마스킹·가림 처리가 보이지 않음"
           },
           {
+            "duty": "pipa-22-2-1",
+            "feature": "signup",
+            "law": "개인정보 보호법",
+            "article": "제22조의2제1항(시행령 제17조의2제1항)",
+            "duty_text": "만 14세 미만 아동 개인정보 처리에 동의가 필요하면 법정대리인 동의를 받고 동의했는지 확인",
+            "url": "https://www.law.go.kr/법령/개인정보보호법/제22조의2",
+            "status": "check-applicability",
+            "citations": [
+              {
+                "file": "frontend/src/pages/auth/authSchema.ts",
+                "line": 8,
+                "text": "const signupSchema = z.object({",
+                "ok": true,
+                "why": "grounded"
+              }
+            ],
+            "searches": [
+              {
+                "pattern": "birth|생년월일|birthDate|birthday|만 ?14세|법정대리인|parentConsent|guardian",
+                "path": "frontend",
+                "claimed": 0,
+                "found": 0,
+                "ok": true
+              },
+              {
+                "pattern": "birth|생년월일|birthDate|birthday|법정대리인|guardian",
+                "path": "backend/user-service",
+                "claimed": 0,
+                "found": 0,
+                "ok": true
+              },
+              {
+                "pattern": "생년|birth|나이|연령|만 ?\\d+세",
+                "path": "frontend/src",
+                "claimed": 0,
+                "found": 0,
+                "ok": true
+              }
+            ],
+            "question": "회원 가입에 생년월일·나이·연령 확인 단계나 보호자 동의 흐름이 배포 버전이나 다른 저장소에 따로 있는지 확인해 주시겠어요?",
+            "reason": "이용자가 누구인지(아동·미성년자·청소년)에 걸리는 의무라 코드만으로는 '해당 없음'을 받지 않았습니다. 나이·본인·지역을 확인하는 장치가 없다는 것은 그런 이용자가 없다는 증명이 아니라 '해당 없음'으로 받지 않았습니다. 가입 명령(RegisterUserCommand)과 가입 스키마는 이메일, 비밀번호, 이름, 부서만 받으며 생년월일이나 나이를 받는 처리가 검색되지 않았습니다.",
+            "verification": {
+              "result": "not-run"
+            },
+            "first": {
+              "gate": {
+                "from": "not-applicable",
+                "why": "audience",
+                "note": "이용자가 누구인지(아동·미성년자·청소년)에 걸리는 의무라 코드만으로는 '해당 없음'을 받지 않았습니다. 나이·본인·지역을 확인하는 장치가 없다는 것은 그런 이용자가 없다는 증명이 아니라 '해당 없음'으로 받지 않았습니다."
+              }
+            }
+          },
+          {
             "duty": "pipa-23-1",
             "feature": "signup",
             "law": "개인정보 보호법",
@@ -5534,6 +5491,128 @@
             }
           },
           {
+            "duty": "pipa-26-2",
+            "feature": "external-transfer",
+            "law": "개인정보 보호법",
+            "article": "제26조제2항(시행령 제28조제2항)",
+            "duty_text": "위탁 업무 내용과 수탁자(재수탁자 포함)를 정보주체가 언제든 쉽게 확인하게 공개(홈페이지 지속 게재)",
+            "url": "https://www.law.go.kr/법령/개인정보보호법/제26조",
+            "status": "check-applicability",
+            "citations": [
+              {
+                "file": "backend/agent-service/app/services/code_gen/graph.py",
+                "line": 53,
+                "text": "self.sllm = ChatOpenAI(model_name=\"gpt-4.1-mini\", temperature=0, callbacks=[self.logger])",
+                "ok": true,
+                "why": "grounded"
+              },
+              {
+                "file": "backend/agent-service/app/services/code_gen/graph.py",
+                "line": 234,
+                "text": "llm_input = {\"original_code\":original_for_prompt, \"dftypes\": df.dtypes.to_string(), \"df\": df_preview, \"input\": input}",
+                "ok": true,
+                "why": "grounded"
+              }
+            ],
+            "searches": [
+              {
+                "pattern": "PROCESSORS|수탁|위탁|재수탁|processor|subprocessor",
+                "path": ".",
+                "claimed": 2,
+                "found": 2,
+                "ok": true
+              },
+              {
+                "pattern": "처리방침|개인정보",
+                "path": ".",
+                "claimed": 0,
+                "found": 0,
+                "ok": true
+              }
+            ],
+            "question": "LLM·임베딩 API로 전송되는 사용자 명령, 데이터프레임 미리보기, 업로드 문서에 개인정보가 포함될 수 있는지, 그리고 OpenAI를 수탁자로 홈페이지 처리방침에 공개하고 있는지 확인해 주실 수 있나요?",
+            "reason": "걸리는지 모른다고 답해(applies '모름') '해당 여부부터 확인할 것'으로 옮겼습니다. 외부 LLM API로 데이터를 보내는 줄은 코드에서 확인되지만, 수탁자 공개를 보여 주는 코드는 저장소에서 찾지 못했다. 공개는 홈페이지에서 이뤄질 수 있어 저장소 밖 확인이 필요하다.",
+            "verification": {
+              "result": "not-run"
+            },
+            "missing": "위탁 업무 내용과 수탁자(OpenAI 등, 재수탁자 포함)를 공개하는 코드·설정이 저장소에서 보이지 않음. PROCESSORS 같은 수탁자 목록이나 처리방침 생성 코드도 없음",
+            "first": {
+              "gate": {
+                "from": "seen-in-code",
+                "why": "applies-unknown",
+                "note": "걸리는지 모른다고 답해(applies '모름') '해당 여부부터 확인할 것'으로 옮겼습니다."
+              }
+            }
+          },
+          {
+            "duty": "pipa-17-2",
+            "feature": "external-transfer",
+            "law": "개인정보 보호법",
+            "article": "제17조제2항",
+            "duty_text": "제공 동의 때 받는 자·목적·항목·보유기간·거부권(불이익) 알리고, 바꾸면 다시 동의",
+            "url": "https://www.law.go.kr/법령/개인정보보호법/제17조",
+            "status": "check-applicability",
+            "citations": [
+              {
+                "file": "backend/agent-service/app/services/code_gen/graph.py",
+                "line": 53,
+                "text": "self.sllm = ChatOpenAI(model_name=\"gpt-4.1-mini\", temperature=0, callbacks=[self.logger])",
+                "ok": true,
+                "why": "grounded"
+              },
+              {
+                "file": "backend/agent-service/app/services/rag_service.py",
+                "line": 124,
+                "text": "embedder = OpenAIEmbeddings()  # 내부적으로 settings.OPENAI_API_KEY 사용",
+                "ok": true,
+                "why": "grounded"
+              }
+            ],
+            "searches": [
+              {
+                "pattern": "제3자|third.?part|THIRD_PARTIES|제공 동의|제공동의|provide.*consent|share.*consent",
+                "path": ".",
+                "claimed": 1,
+                "found": 1,
+                "ok": true
+              },
+              {
+                "pattern": "동의|consent|약관|terms|privacy|개인정보",
+                "path": ".",
+                "claimed": 0,
+                "found": 0,
+                "ok": true
+              },
+              {
+                "pattern": "보유 ?기간|retention|보유기간|거부 ?권|동의 ?거부|withdraw",
+                "path": ".",
+                "claimed": 0,
+                "found": 0,
+                "ok": true
+              },
+              {
+                "pattern": "checkbox|agree|agreement|체크|checked",
+                "path": "frontend/src",
+                "claimed": 13,
+                "found": 42,
+                "ok": false
+              }
+            ],
+            "question": "사용자 명령(또는 데이터프레임 내용)이 OpenAI로 전송될 때 개인정보가 포함되는지, 그리고 이를 제3자 제공으로 보는지 처리위탁으로 보는지 정리되어 있는지, 그리고 제공 동의를 받는 화면이 있다면 어디인지 확인 부탁드립니다.",
+            "reason": "걸리는지 모른다고 답해(applies '모름') '해당 여부부터 확인할 것'으로 옮겼습니다. 외부 AI로 데이터를 보내는 줄은 보이지만, 동의 화면·문구·철회 경로를 저장소에서 찾지 못했습니다. 개인정보 포함 여부와 법적 성격은 사업자 판단입니다.",
+            "verification": {
+              "result": "not-run"
+            },
+            "missing": "제공 동의 체크박스·모달, 받는 자·목적·항목·보유기간·거부권을 알리는 화면이나 문구를 찾지 못함. 회원가입 스키마에도 동의 항목이 없음(email, password, name, department)",
+            "first": {
+              "gate": {
+                "from": "seen-in-code",
+                "why": "applies-unknown",
+                "note": "걸리는지 모른다고 답해(applies '모름') '해당 여부부터 확인할 것'으로 옮겼습니다."
+              }
+            }
+          },
+          {
             "duty": "dincl-19-2",
             "feature": "web-ui",
             "law": "디지털포용법",
@@ -5629,52 +5708,6 @@
             ],
             "question": "가입 화면과 백엔드 가입 처리에 선택 동의 항목이 없는 것이 맞는지, 그리고 SaveJobDialog.tsx의 'send-email' 체크박스(작업 결과 이메일 발송 옵션)가 개인정보 수집·이용 동의나 홍보 동의에 해당하지 않는지 확인해 주세요.",
             "reason": "가입 스키마는 email, password, name, department 네 필드뿐이고 동의 항목이나 동의 여부에 따른 거부 분기가 보이지 않습니다. SaveJobDialog의 체크박스는 작업 결과를 이메일로 받을지 정하는 기능 옵션으로 보이며, 거부 시 서비스를 막는 코드는 보이지 않습니다.",
-            "verification": {
-              "result": "upheld"
-            }
-          },
-          {
-            "duty": "pipa-22-2-1",
-            "feature": "signup",
-            "law": "개인정보 보호법",
-            "article": "제22조의2제1항(시행령 제17조의2제1항)",
-            "duty_text": "만 14세 미만 아동 개인정보 처리에 동의가 필요하면 법정대리인 동의를 받고 동의했는지 확인",
-            "url": "https://www.law.go.kr/법령/개인정보보호법/제22조의2",
-            "status": "not-applicable",
-            "citations": [
-              {
-                "file": "frontend/src/pages/auth/authSchema.ts",
-                "line": 8,
-                "text": "const signupSchema = z.object({",
-                "ok": true,
-                "why": "grounded"
-              }
-            ],
-            "searches": [
-              {
-                "pattern": "birth|생년월일|birthDate|birthday|만 ?14세|법정대리인|parentConsent|guardian",
-                "path": "frontend",
-                "claimed": 0,
-                "found": 0,
-                "ok": true
-              },
-              {
-                "pattern": "birth|생년월일|birthDate|birthday|법정대리인|guardian",
-                "path": "backend/user-service",
-                "claimed": 0,
-                "found": 0,
-                "ok": true
-              },
-              {
-                "pattern": "생년|birth|나이|연령|만 ?\\d+세",
-                "path": "frontend/src",
-                "claimed": 0,
-                "found": 0,
-                "ok": true
-              }
-            ],
-            "question": "회원 가입에 생년월일·나이·연령 확인 단계나 보호자 동의 흐름이 배포 버전이나 다른 저장소에 따로 있는지 확인해 주시겠어요?",
-            "reason": "가입 명령(RegisterUserCommand)과 가입 스키마는 이메일, 비밀번호, 이름, 부서만 받으며 생년월일이나 나이를 받는 처리가 검색되지 않았습니다.",
             "verification": {
               "result": "upheld"
             }
@@ -6049,11 +6082,11 @@
           },
           "citations": 71,
           "citations_rejected": 0,
-          "searches": 99,
+          "searches": 98,
           "searches_rejected": 12,
           "verification_counts": {
-            "upheld": 26,
-            "not-run": 4
+            "upheld": 23,
+            "not-run": 7
           },
           "masked": {
             "secret-value": 6
@@ -7336,13 +7369,13 @@
         "review_version": 2,
         "tool": {
           "name": "policypack",
-          "version": "0.3.0.dev0"
+          "version": "0.3.0.dev0+regate.w11-7"
         },
         "summary": {
           "counts": {
-            "seen-in-code": 13,
+            "seen-in-code": 11,
             "check-outside": 2,
-            "check-applicability": 2,
+            "check-applicability": 4,
             "unknown": 0,
             "evidence-found": 0,
             "likely-not-applicable": 0,
@@ -7352,8 +7385,8 @@
             "pipa-29-1",
             "safety-std-6-3",
             "tcra-3-2",
-            "pipa-22-2-1",
-            "pipa-15-2"
+            "pipa-15-2",
+            "aiact-31-1"
           ]
         },
         "profile": {
@@ -8683,53 +8716,6 @@
             "missing": "요구 시 약관 사본을 내주는 경로(다운로드·메일 발송·사본 요청 수단)가 코드에서 보이지 않음"
           },
           {
-            "duty": "pipa-22-2-1",
-            "feature": "signup",
-            "law": "개인정보 보호법",
-            "article": "제22조의2제1항(시행령 제17조의2제1항)",
-            "duty_text": "만 14세 미만 아동 개인정보 처리에 동의가 필요하면 법정대리인 동의를 받고 동의했는지 확인",
-            "url": "https://www.law.go.kr/법령/개인정보보호법/제22조의2",
-            "status": "seen-in-code",
-            "citations": [
-              {
-                "file": "frontend/src/pages/Register.tsx",
-                "line": 106,
-                "text": "  const [name, setName] = useState(\"\"); // 사용자 별명",
-                "ok": true,
-                "why": "grounded"
-              },
-              {
-                "file": "frontend/src/pages/Register.tsx",
-                "line": 96,
-                "text": "  const [email, setEmail] = useState(\"\");",
-                "ok": true,
-                "why": "grounded"
-              }
-            ],
-            "searches": [
-              {
-                "pattern": "생년월일|birth|나이|\\bage\\b|14세|법정대리인|guardian|parentalConsent|보호자",
-                "path": "frontend/src",
-                "claimed": 0,
-                "found": 0,
-                "ok": true
-              },
-              {
-                "pattern": "생년월일|birth|나이|\\bage\\b|14세|법정대리인|guardian|보호자",
-                "path": "backend/src",
-                "claimed": 0,
-                "found": 0,
-                "ok": true
-              }
-            ],
-            "question": "회원가입으로 만 14세 미만 이용자가 가입할 수 있는지, 가입 흐름에 나이·생년월일 확인이나 법정대리인 동의 절차를 둘 계획이 있는지 개발자에게 확인이 필요합니다. 처리방침이나 별도 화면이 저장소 밖에 있는지도 확인해 주세요.",
-            "reason": "회원가입 화면은 이메일·비밀번호·별명·자격증만 받고, 나이·생년월일·보호자 관련 코드는 프론트엔드와 백엔드 모두에서 찾지 못했습니다. 아동 가입 가능 여부 자체는 코드로 알 수 없습니다.",
-            "verification": {
-              "result": "upheld"
-            },
-            "missing": "생년월일·나이를 받거나 만 14세 미만 여부를 확인하는 처리, 법정대리인 동의를 받는 처리가 보이지 않음"
-          },
-          {
             "duty": "pipa-15-2",
             "feature": "signup",
             "law": "개인정보 보호법",
@@ -8962,67 +8948,6 @@
               "result": "upheld"
             },
             "missing": "국외 이전에 대한 별도 동의 화면, 처리방침의 이전 국가·받는 자·항목 공개, 국내 리전 설정, 전송 전 마스킹·가명처리가 코드에서 보이지 않음"
-          },
-          {
-            "duty": "pipa-17-2",
-            "feature": "external-transfer",
-            "law": "개인정보 보호법",
-            "article": "제17조제2항",
-            "duty_text": "제공 동의 때 받는 자·목적·항목·보유기간·거부권(불이익) 알리고, 바꾸면 다시 동의",
-            "url": "https://www.law.go.kr/법령/개인정보보호법/제17조",
-            "status": "seen-in-code",
-            "citations": [
-              {
-                "file": "backend/src/controllers/chatController.ts",
-                "line": 109,
-                "text": "관심 분야는 ${interests}입니다.",
-                "ok": true,
-                "why": "grounded"
-              },
-              {
-                "file": "backend/src/controllers/chatController.ts",
-                "line": 135,
-                "text": "const response = await openai.responses.create({",
-                "ok": true,
-                "why": "grounded"
-              }
-            ],
-            "searches": [
-              {
-                "pattern": "제3자|제공 동의|제공받는|third.?part|THIRD_PARTIES|제휴",
-                "path": ".",
-                "claimed": 0,
-                "found": 0,
-                "ok": true
-              },
-              {
-                "pattern": "제공 동의|제3자 제공|개인정보 제공|제공받",
-                "path": ".",
-                "claimed": 0,
-                "found": 0,
-                "ok": true
-              },
-              {
-                "pattern": "위탁|국외|해외|OpenAI|외부 AI|제3자|third",
-                "path": "frontend/src",
-                "claimed": 0,
-                "found": 0,
-                "ok": true
-              },
-              {
-                "pattern": "위탁|국외|해외|OpenAI|외부|제3자|third",
-                "path": "backend/src",
-                "claimed": 22,
-                "found": 22,
-                "ok": true
-              }
-            ],
-            "question": "챗봇 호출 시 전송되는 닉네임·관심 분야·자격증·대화 내용이 OpenAI에 제공되는 것인지, 처리 위탁인지 정리해 주실 수 있나요? 제공이라면 이를 알리고 동의받는 화면이나 처리방침 항목이 있는지 알려 주세요.",
-            "reason": "외부 AI로 개인정보성 값을 보내는 줄은 코드에서 보이지만, 제3자 제공 동의 화면이나 고지 항목은 찾지 못했습니다. 제공인지 위탁인지는 개발자가 판단해야 합니다.",
-            "verification": {
-              "result": "upheld"
-            },
-            "missing": "제3자 제공 동의 화면, 받는 자·목적·항목·보유기간·거부권 고지가 보이지 않음. 가입 약관(Register.tsx)은 수집·이용 목적만 있고 OpenAI 등 외부 제공을 적지 않음"
           },
           {
             "duty": "pipa-28-8-2",
@@ -9273,6 +9198,60 @@
             }
           },
           {
+            "duty": "pipa-22-2-1",
+            "feature": "signup",
+            "law": "개인정보 보호법",
+            "article": "제22조의2제1항(시행령 제17조의2제1항)",
+            "duty_text": "만 14세 미만 아동 개인정보 처리에 동의가 필요하면 법정대리인 동의를 받고 동의했는지 확인",
+            "url": "https://www.law.go.kr/법령/개인정보보호법/제22조의2",
+            "status": "check-applicability",
+            "citations": [
+              {
+                "file": "frontend/src/pages/Register.tsx",
+                "line": 106,
+                "text": "  const [name, setName] = useState(\"\"); // 사용자 별명",
+                "ok": true,
+                "why": "grounded"
+              },
+              {
+                "file": "frontend/src/pages/Register.tsx",
+                "line": 96,
+                "text": "  const [email, setEmail] = useState(\"\");",
+                "ok": true,
+                "why": "grounded"
+              }
+            ],
+            "searches": [
+              {
+                "pattern": "생년월일|birth|나이|\\bage\\b|14세|법정대리인|guardian|parentalConsent|보호자",
+                "path": "frontend/src",
+                "claimed": 0,
+                "found": 0,
+                "ok": true
+              },
+              {
+                "pattern": "생년월일|birth|나이|\\bage\\b|14세|법정대리인|guardian|보호자",
+                "path": "backend/src",
+                "claimed": 0,
+                "found": 0,
+                "ok": true
+              }
+            ],
+            "question": "회원가입으로 만 14세 미만 이용자가 가입할 수 있는지, 가입 흐름에 나이·생년월일 확인이나 법정대리인 동의 절차를 둘 계획이 있는지 개발자에게 확인이 필요합니다. 처리방침이나 별도 화면이 저장소 밖에 있는지도 확인해 주세요.",
+            "reason": "걸리는지 모른다고 답해(applies '모름') '해당 여부부터 확인할 것'으로 옮겼습니다. 회원가입 화면은 이메일·비밀번호·별명·자격증만 받고, 나이·생년월일·보호자 관련 코드는 프론트엔드와 백엔드 모두에서 찾지 못했습니다. 아동 가입 가능 여부 자체는 코드로 알 수 없습니다.",
+            "verification": {
+              "result": "not-run"
+            },
+            "missing": "생년월일·나이를 받거나 만 14세 미만 여부를 확인하는 처리, 법정대리인 동의를 받는 처리가 보이지 않음",
+            "first": {
+              "gate": {
+                "from": "seen-in-code",
+                "why": "applies-unknown",
+                "note": "걸리는지 모른다고 답해(applies '모름') '해당 여부부터 확인할 것'으로 옮겼습니다."
+              }
+            }
+          },
+          {
             "duty": "aiact-decree-27-1",
             "feature": "genai",
             "law": "인공지능 발전과 신뢰 기반 조성 등에 관한 기본법 시행령",
@@ -9318,6 +9297,74 @@
               "result": "not-run"
             },
             "missing": "고영향 AI 조치 내용(위험관리·설명 방안, 이용자 보호 방안, 관리·감독자 성명·연락처)을 게시하는 공개 페이지나 링크가 코드에서 보이지 않음"
+          },
+          {
+            "duty": "pipa-17-2",
+            "feature": "external-transfer",
+            "law": "개인정보 보호법",
+            "article": "제17조제2항",
+            "duty_text": "제공 동의 때 받는 자·목적·항목·보유기간·거부권(불이익) 알리고, 바꾸면 다시 동의",
+            "url": "https://www.law.go.kr/법령/개인정보보호법/제17조",
+            "status": "check-applicability",
+            "citations": [
+              {
+                "file": "backend/src/controllers/chatController.ts",
+                "line": 109,
+                "text": "관심 분야는 ${interests}입니다.",
+                "ok": true,
+                "why": "grounded"
+              },
+              {
+                "file": "backend/src/controllers/chatController.ts",
+                "line": 135,
+                "text": "const response = await openai.responses.create({",
+                "ok": true,
+                "why": "grounded"
+              }
+            ],
+            "searches": [
+              {
+                "pattern": "제3자|제공 동의|제공받는|third.?part|THIRD_PARTIES|제휴",
+                "path": ".",
+                "claimed": 0,
+                "found": 0,
+                "ok": true
+              },
+              {
+                "pattern": "제공 동의|제3자 제공|개인정보 제공|제공받",
+                "path": ".",
+                "claimed": 0,
+                "found": 0,
+                "ok": true
+              },
+              {
+                "pattern": "위탁|국외|해외|OpenAI|외부 AI|제3자|third",
+                "path": "frontend/src",
+                "claimed": 0,
+                "found": 0,
+                "ok": true
+              },
+              {
+                "pattern": "위탁|국외|해외|OpenAI|외부|제3자|third",
+                "path": "backend/src",
+                "claimed": 22,
+                "found": 22,
+                "ok": true
+              }
+            ],
+            "question": "챗봇 호출 시 전송되는 닉네임·관심 분야·자격증·대화 내용이 OpenAI에 제공되는 것인지, 처리 위탁인지 정리해 주실 수 있나요? 제공이라면 이를 알리고 동의받는 화면이나 처리방침 항목이 있는지 알려 주세요.",
+            "reason": "걸리는지 모른다고 답해(applies '모름') '해당 여부부터 확인할 것'으로 옮겼습니다. 외부 AI로 개인정보성 값을 보내는 줄은 코드에서 보이지만, 제3자 제공 동의 화면이나 고지 항목은 찾지 못했습니다. 제공인지 위탁인지는 개발자가 판단해야 합니다.",
+            "verification": {
+              "result": "not-run"
+            },
+            "missing": "제3자 제공 동의 화면, 받는 자·목적·항목·보유기간·거부권 고지가 보이지 않음. 가입 약관(Register.tsx)은 수집·이용 목적만 있고 OpenAI 등 외부 제공을 적지 않음",
+            "first": {
+              "gate": {
+                "from": "seen-in-code",
+                "why": "applies-unknown",
+                "note": "걸리는지 모른다고 답해(applies '모름') '해당 여부부터 확인할 것'으로 옮겼습니다."
+              }
+            }
           },
           {
             "duty": "disc-decree-14-2-h1",
@@ -9862,9 +9909,9 @@
           "searches": 93,
           "searches_rejected": 5,
           "verification_counts": {
-            "upheld": 27,
+            "upheld": 25,
             "overturned": 1,
-            "not-run": 2
+            "not-run": 4
           },
           "masked": {},
           "not_asked": {}
@@ -10982,17 +11029,17 @@
         "review_version": 2,
         "tool": {
           "name": "policypack",
-          "version": "0.3.0.dev0"
+          "version": "0.3.0.dev0+regate.w11-7"
         },
         "summary": {
           "counts": {
             "seen-in-code": 10,
             "check-outside": 0,
-            "check-applicability": 3,
+            "check-applicability": 4,
             "unknown": 0,
             "evidence-found": 1,
             "likely-not-applicable": 4,
-            "not-applicable": 8
+            "not-applicable": 7
           },
           "top": [
             "pipa-29-1",
@@ -12782,6 +12829,60 @@
             }
           },
           {
+            "duty": "cistd-annex4-4",
+            "feature": "auth",
+            "law": "연계정보의 생성ㆍ처리 등에 관한 기준",
+            "article": "별표 4 제4호 (제11조제2항, 영 제13조제2항제4호)",
+            "duty_text": "CI를 인터넷 구간으로 주고받을 때 안전한 알고리즘으로 암호화; 10만명(대기업·중견·공공)·100만명(중소) 이상 보유 시 저장도 암호화",
+            "url": "https://www.law.go.kr/행정규칙/연계정보의생성ㆍ처리등에관한기준",
+            "status": "check-applicability",
+            "citations": [
+              {
+                "file": "app/api/services/authService.js",
+                "line": 190,
+                "text": "name, // 성+이름 형태로 서버에 전송",
+                "ok": false,
+                "why": "trailing-comment"
+              },
+              {
+                "file": "app/api/services/authService.js",
+                "line": 191,
+                "text": "birthday: data.birthday || null,",
+                "ok": true,
+                "why": "grounded"
+              }
+            ],
+            "searches": [
+              {
+                "pattern": "연계정보|본인인증|본인확인|실명인증|\\bCI\\b|\\bci_|_ci\\b|\\bDI\\b",
+                "path": "app",
+                "claimed": 0,
+                "found": 0,
+                "ok": true
+              },
+              {
+                "pattern": "createCipheriv|aes-256|KMS|ciEnc",
+                "path": ".",
+                "claimed": 3,
+                "found": 3,
+                "ok": true
+              }
+            ],
+            "question": "회원가입·카카오 로그인 서버 API(/open-api/auth/sign_up, /open-api/auth/kakao)가 본인인증으로 CI를 받는지, 받는다면 서버 간 전송 구간과 DB 저장 시 암호화 방식은 무엇인지, 그리고 CI 보유 인원이 10만명(또는 중소 100만명)을 넘는지 알려 달라.",
+            "reason": "걸리는지 모른다고 답해(applies '모름') '해당 여부부터 확인할 것'으로 옮겼습니다. 앱 코드에는 CI 수신이나 본인인증 흐름이 보이지 않아 조건 자체를 판단할 수 없고, 서버와 배포 설정은 저장소 밖에 있다.",
+            "verification": {
+              "result": "not-run"
+            },
+            "missing": "앱 코드에 본인인증 화면·CI 수신·CI 전송 코드가 보이지 않음. 서버 쪽 CI 처리와 암호화 저장은 저장소 밖",
+            "first": {
+              "gate": {
+                "from": "check-outside",
+                "why": "applies-unknown",
+                "note": "걸리는지 모른다고 답해(applies '모름') '해당 여부부터 확인할 것'으로 옮겼습니다."
+              }
+            }
+          },
+          {
             "duty": "pipa-24-1",
             "feature": "auth",
             "law": "개인정보 보호법",
@@ -13105,37 +13206,6 @@
             }
           },
           {
-            "duty": "cistd-annex4-4",
-            "feature": "auth",
-            "law": "연계정보의 생성ㆍ처리 등에 관한 기준",
-            "article": "별표 4 제4호 (제11조제2항, 영 제13조제2항제4호)",
-            "duty_text": "CI를 인터넷 구간으로 주고받을 때 안전한 알고리즘으로 암호화; 10만명(대기업·중견·공공)·100만명(중소) 이상 보유 시 저장도 암호화",
-            "url": "https://www.law.go.kr/행정규칙/연계정보의생성ㆍ처리등에관한기준",
-            "status": "not-applicable",
-            "citations": [],
-            "searches": [
-              {
-                "pattern": "연계정보|본인인증|본인확인|실명인증|\\bCI\\b|\\bci_|_ci\\b|\\bDI\\b|connectingInfo|connecting_info",
-                "path": "app",
-                "claimed": 0,
-                "found": 0,
-                "ok": true
-              },
-              {
-                "pattern": "ci\\s*[:=,]|[\"']ci[\"']|\\.ci\\b",
-                "path": "app",
-                "claimed": 0,
-                "found": 0,
-                "ok": true
-              }
-            ],
-            "question": "회원가입·카카오 로그인 서버 API(/open-api/auth/sign_up, /open-api/auth/kakao)가 본인인증으로 CI를 받는지, 받는다면 서버 간 전송 구간과 DB 저장 시 암호화 방식은 무엇인지, 그리고 CI 보유 인원이 10만명(또는 중소 100만명)을 넘는지 알려 달라.",
-            "reason": "앱 코드 전체에서 CI·본인인증 관련 말이 한 줄도 나오지 않는다. 저장소에는 서버 코드도 없다. 앞 인용(birthday)은 CI가 아니라 가입 때 받는 생년월일이다. 그래서 의무가 걸리는 조건(CI 송수신·저장)을 이 저장소에서 찾을 수 없다.",
-            "verification": {
-              "result": "overturned"
-            }
-          },
-          {
             "duty": "pipa-24-2-3",
             "feature": "auth",
             "law": "개인정보 보호법",
@@ -13311,12 +13381,12 @@
           },
           "citations": 57,
           "citations_rejected": 1,
-          "searches": 98,
+          "searches": 96,
           "searches_rejected": 9,
           "verification_counts": {
             "upheld": 21,
-            "not-run": 3,
-            "overturned": 2
+            "not-run": 4,
+            "overturned": 1
           },
           "masked": {
             "secret-value": 6

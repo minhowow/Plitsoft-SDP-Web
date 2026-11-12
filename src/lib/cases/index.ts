@@ -76,8 +76,11 @@ export interface CasesFile {
   packDigest: string;
   /** 프로필을 돌린 CLI 커밋과 날(검토 결과와 다른 판이다). */
   profileCli: { commit: string; ranOn: string };
-  /** 사례 4곳의 review 2판을 돌린 날과 CLI 커밋. */
-  reviewRun: { ranOn: string; cli: string };
+  /**
+   * 사례 4곳의 review 2판을 돌린 날과 CLI 커밋. `regate` 가 있으면 그 답에 뒤 판(`cli`)의 판정 규칙만 다시 건 결과다(모델 재호출
+   * 없음, `moved` 는 갈래가 바뀐 의무 수).
+   */
+  reviewRun: { ranOn: string; cli: string; regate?: { cli: string; moved: number } };
   /** 성격이 다른 저장소 8곳의 review 2판을 돌린 날과 CLI 커밋(사례 4곳보다 앞선 판). */
   othersRun: { ranOn: string; cli: string };
   cases: CaseData[];

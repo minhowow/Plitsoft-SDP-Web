@@ -8,6 +8,7 @@ import CasePage from "@/app/cases/[slug]/page";
 import CasesPage from "@/app/cases/page";
 import { casesFile } from "@/lib/cases";
 import { REVIEW_GOODS_LABEL, REVIEW_RECHECK_LABEL, REVIEW_STATUS_LABEL } from "@/lib/report/status";
+import { SITE } from "@/lib/site";
 import { closedDetailsAt, elementAt, elementsOf, readJson, textOf } from "./helpers";
 
 // review 2판(policypack review, CLI e12e6ba)의 결과를 읽는 부품과 화면(2026-11-11 오너 지시). 자료는 손으로 만든 합성 예시다.
@@ -203,6 +204,9 @@ describe("사례 쪽: review 2판 실측(2026-11-12)", () => {
   it("사례 4곳의 결과는 모두 읽히고, 짚은 의무는 그 결과의 체크리스트에 있다. 사례 쪽은 review 화면을 그리고 짚은 의무를 접는다", async () => {
     // CLI f4967db 로 다시 돌린 결과(2026-11-12)에서 사례 4곳의 '다시 검토 중'은 걷어 냈다(오너 지시).
     expect(casesFile.reviewRun.cli).toBe("f4967db");
+    // 그 답에 handoff-w11-7 의 판정 규칙만 다시 건 결과다(모델 재호출 없음). 목록과 사례 쪽 머리에 그렇다고 적는다.
+    expect(casesFile.reviewRun.regate).toEqual({ cli: "2a24d94", moved: 7 });
+    expect(textOf(renderToStaticMarkup(<CasesPage />))).toContain(`${SITE.cases.regate} 규칙 CLI 2a24d94`);
     expect(casesFile.cases.flatMap((c) => c.recheck)).toEqual([]);
     for (const c of casesFile.cases) {
       const review = parseReview(c.review);
@@ -212,6 +216,7 @@ describe("사례 쪽: review 2판 실측(2026-11-12)", () => {
       expect(html).toContain('<figure class="flow">');
       expect(html.includes('<details class="rv-group rv-recheck">'), c.slug).toBe(c.recheck.length > 0);
       expect(html).toContain(c.commit.slice(0, 7));
+      expect(textOf(html)).toContain(SITE.cases.regate);
     }
   });
 

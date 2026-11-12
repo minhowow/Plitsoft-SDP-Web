@@ -56,7 +56,7 @@ jobs:
     env:
       # 도구는 워크플로 입력이 아니라 이 파일에서 고정한다(요청하는 쪽이 바꾸지 못한다).
       CLI_REPO: minhowow/Plitsoft-SDP
-      CLI_COMMIT: 2a24d946165587ddc935f211ebe307ca13692826
+      CLI_COMMIT: b5888e50012118bbfbb27f05af7e21779b3d7949
       UV_VERSION: 0.13.0
       # 딸린 꾸러미는 이 날짜까지 나온 판에서만 고른다(git 설치는 CLI 의 uv.lock 을 쓰지 않는다). CLI 고정 커밋의 날짜
       # (2026-11-12)로 둔다. 그 커밋의 uv.lock 에 있는 판은 모두 이보다 앞서 나왔다. CLI_COMMIT 을 바꿀 때 함께 바꾼다.

@@ -2,9 +2,12 @@
 // 사례 쪽(/cases)의 데이터를 만든다: CLI 세션이 미리 돌린 공개 저장소 결과(--agent combined)와 규칙만 돌린 결과에서
 // 쪽이 쓰는 필드만 옮겨 data/cases.json 에 쓴다. Node 내장 모듈만 쓴다.
 //
-//   node scripts/export-cases.mjs [사례 폴더] [프로필 폴더] [사례 review 폴더] [8곳 review 폴더]
+//   node scripts/export-cases.mjs [사례 폴더] [프로필 폴더] [사례 review 결과 폴더] [8곳 review 폴더]
 //     (기본 ~/.cache/policypack-eval/cases-2026-11-10, ~/.cache/policypack-eval/profile-2026-11-11/repos,
-//      ~/.cache/policypack-eval/review-w11-6-2026-11-12, ~/.cache/policypack-eval/review-v2-2026-11-11)
+//      ~/.cache/policypack-eval/review-w11-6-2026-11-12/out-w11-7, ~/.cache/policypack-eval/review-v2-2026-11-11)
+//
+// 사례 4곳의 결과 폴더에 META.json 이 있고 `regate` 면, 모델 답은 그대로 두고 판정 규칙(관문)만 다시 건 결과다(모델 재호출 없음).
+// 그 사실과 규칙의 판을 `reviewRun.regate` 로 옮겨 화면이 머리에 적게 한다.
 //
 // review 2판(`policypack review`)의 실측 결과도 옮긴다(2026-11-12 오너 지시). 사례 4곳은 CLI f4967db(handoff-w11-6)로 다시 돌린
 // 결과에서 화면이 읽는 필드만(의무의 `title` 과 `quote` 는 처분 액수·조문 인용이 들어 있어 뺀다). 나머지 8곳은 CLI e12e6ba 로 돌린
@@ -26,7 +29,7 @@ import { fileURLToPath } from "node:url";
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const dir = process.argv[2] ?? path.join(os.homedir(), ".cache/policypack-eval/cases-2026-11-10");
 const profileDir = process.argv[3] ?? path.join(os.homedir(), ".cache/policypack-eval/profile-2026-11-11/repos");
-const reviewDir = process.argv[4] ?? path.join(os.homedir(), ".cache/policypack-eval/review-w11-6-2026-11-12");
+const reviewDir = process.argv[4] ?? path.join(os.homedir(), ".cache/policypack-eval/review-w11-6-2026-11-12/out-w11-7");
 const othersDir = process.argv[5] ?? path.join(os.homedir(), ".cache/policypack-eval/review-v2-2026-11-11");
 /** 프로필을 돌린 CLI 와 날(profile-41.md). */
 const PROFILE_CLI = { commit: "fe98fb7", ranOn: "2026-11-11" };
@@ -61,6 +64,19 @@ const CASES = [
  * (f4967db)에 단가표만 고친 판으로 다시 돌렸다. 8곳은 그보다 앞선 e12e6ba 다.
  */
 const REVIEW_RUN = { ranOn: "2026-11-12", cli: "f4967db" };
+/** 규칙만 다시 건 결과면 그 규칙의 CLI(META.json 의 `rules` 태그 → 커밋). 모델을 다시 부르지 않았어야 한다. */
+const REGATE_TAGS = { "handoff-w11-7": "2a24d94" };
+const regate = (() => {
+  let meta;
+  try {
+    meta = JSON.parse(readFileSync(path.join(reviewDir, "META.json"), "utf8"));
+  } catch {
+    return null;
+  }
+  if (!meta.regate) return null;
+  if (meta.model_calls !== 0 || !REGATE_TAGS[meta.rules]) throw new Error(`META.json: 규칙만 다시 건 결과가 아니거나 모르는 판(${meta.rules})`);
+  return { cli: REGATE_TAGS[meta.rules], moved: meta.moved.length };
+})();
 const OTHERS_RUN = { ranOn: "2026-11-12", cli: "e12e6ba" };
 
 /**
@@ -104,7 +120,7 @@ const OTHERS = [
 ];
 
 const read = (file) => JSON.parse(readFileSync(path.join(dir, file), "utf8"));
-const readReview = (name) => JSON.parse(readFileSync(path.join(reviewDir, "out", `${name}.json`), "utf8"));
+const readReview = (name) => JSON.parse(readFileSync(path.join(reviewDir, `${name}.json`), "utf8"));
 const readOther = (name) => JSON.parse(readFileSync(path.join(othersDir, "out", `${name}.json`), "utf8"));
 
 /** review 결과에서 화면이 읽는 필드만(`src/lib/review`). 의무의 `title`(처분 액수)과 `quote`(조문 인용)는 옮기지 않는다. */
@@ -261,7 +277,7 @@ const out = {
   cli: { commit: CLI_COMMIT, version: [...tools].join(", ") },
   packDigest: [...digests].join(", "),
   profileCli: PROFILE_CLI,
-  reviewRun: REVIEW_RUN,
+  reviewRun: { ...REVIEW_RUN, ...(regate ? { regate } : {}) },
   othersRun: OTHERS_RUN,
   cases,
   others,
