@@ -36,11 +36,11 @@ export const DEFAULTS = {
   resultMaxKb: 4000,
   scanTimeoutMinutes: 15,
   profileTimeoutMinutes: 3,
-  // review(입력 REVIEW 가 "true" 일 때만). 워크플로의 REVIEW_* 가 없을 때의 값이다(CLI 의 기본과 같은 모델, 한 건 $2·360초).
+  // review(입력 REVIEW 가 "true" 일 때만). 워크플로의 REVIEW_* 가 없을 때의 값이다(CLI 의 기본과 같은 모델, 한 건 $4·420초).
   reviewModel: "anthropic:claude-haiku-5-5",
   reviewChecker: "anthropic:claude-sonnet-5-5",
-  reviewMaxUsd: 2,
-  reviewTimeLimitSeconds: 360,
+  reviewMaxUsd: 4,
+  reviewTimeLimitSeconds: 420,
   // review 의 시간 상한을 넘겨도 CLI 가 답을 정리해 낼 틈. 이것까지 지나면 멈추고 결과만 보낸다.
   reviewMarginSeconds: 90,
 };

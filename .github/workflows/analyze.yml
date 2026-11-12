@@ -71,13 +71,13 @@ jobs:
       # 검사 뒤의 저장소 프로필(policypack profile, 모델 호출 없음)의 시간 상한. 넘으면 결과만 보낸다.
       PROFILE_TIMEOUT_MINUTES: "3"
       # review(policypack review, 모델 호출. 입력 review 가 "true" 일 때만 돈다). 분석 한 건의 상한을 CLI 옵션으로 넘긴다.
-      # 값은 오너가 비용을 정한 뒤 바꾼다(2026-11-11). 조사 모델과 반박 모델은 서로 다른 모델이다.
+      # 값은 오너가 비용을 정한 뒤 바꾼다(2026-11-12: 12곳 실측 뒤 $4·420초). 조사 모델과 반박 모델은 서로 다른 모델이다.
       REVIEW_MODEL: anthropic:claude-haiku-5-5
       REVIEW_CHECKER: anthropic:claude-sonnet-5-5
       # 한 건의 어림 금액 상한(달러, CLI 의 --max-usd. 보수 단가로 센다).
-      REVIEW_MAX_USD: "2"
+      REVIEW_MAX_USD: "4"
       # 한 건의 시간 상한(초, CLI 의 --time-limit). 실행기는 이보다 조금 더 기다린 뒤 멈추고 결과만 보낸다.
-      REVIEW_TIME_LIMIT_SECONDS: "360"
+      REVIEW_TIME_LIMIT_SECONDS: "420"
       ANALYSIS_ID: ${{ inputs.analysis_id }}
       REPO_OWNER: ${{ inputs.owner }}
       REPO_NAME: ${{ inputs.repo }}

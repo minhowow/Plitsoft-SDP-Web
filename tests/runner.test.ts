@@ -329,14 +329,14 @@ describe("도구 설치와 검사", () => {
   });
 
   it("review: 워크플로의 REVIEW_* 를 CLI 옵션으로 넘긴다(한 건의 금액·시간 상한). 실패해도 던지지 않고 null 이며, 까닭의 비밀값은 가린다", () => {
-    // 기본값은 워크플로에 값이 없을 때다(조사 haiku, 반박 sonnet, $2, 360초).
+    // 기본값은 워크플로에 값이 없을 때다(조사 haiku, 반박 sonnet, $4, 420초).
     expect(reviewArgs(reviewOptions({}))).toEqual([
-      "review", ".", "--model", "anthropic:claude-haiku-5-5", "--checker", "anthropic:claude-sonnet-5-5", "--max-usd", "2", "--time-limit", "360",
+      "review", ".", "--model", "anthropic:claude-haiku-5-5", "--checker", "anthropic:claude-sonnet-5-5", "--max-usd", "4", "--time-limit", "420",
     ]);
     const options = reviewOptions({ REVIEW_MODEL: "anthropic:m1", REVIEW_CHECKER: "anthropic:m2", REVIEW_MAX_USD: "0.5", REVIEW_TIME_LIMIT_SECONDS: "120" });
     expect(reviewArgs(options)).toEqual(["review", ".", "--model", "anthropic:m1", "--checker", "anthropic:m2", "--max-usd", "0.5", "--time-limit", "120"]);
     // 읽을 수 없는 상한은 기본값이고, 모양이 맞지 않는 모델 id 는 돌리지 않는다.
-    expect(reviewOptions({ REVIEW_MAX_USD: "-1", REVIEW_TIME_LIMIT_SECONDS: "x" })).toMatchObject({ maxUsd: 2, timeLimitSeconds: 360 });
+    expect(reviewOptions({ REVIEW_MAX_USD: "-1", REVIEW_TIME_LIMIT_SECONDS: "x" })).toMatchObject({ maxUsd: 4, timeLimitSeconds: 420 });
     expect(reviewArgs({ ...options, model: "a b" })).toBeNull();
 
     const calls: { args: string[]; cwd: string; timeout: number; key?: string }[] = [];
