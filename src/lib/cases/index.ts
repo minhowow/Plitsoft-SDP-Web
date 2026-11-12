@@ -1,4 +1,5 @@
 import raw from "@data/cases.json";
+import type { ReviewStatus } from "@/lib/review";
 import type { Status } from "@/lib/report/status";
 
 /**
@@ -51,6 +52,21 @@ export interface CaseData {
   final: FinalFinding[];
   /** 저장소 프로필(`policypack profile` 의 JSON 그대로. 의무 항목은 화면이 쓰는 필드만). 읽는 것은 `lib/profile` 이 한다. */
   profile: unknown;
+  /** review 2판의 실측 결과(화면이 읽는 필드만). 읽는 것은 `lib/review` 가 한다. */
+  review: unknown;
+  /** review 결과 가운데 사람이 답을 읽고 말이 안 된다고 짚은 의무(상태를 보이지 않고 "다시 검토 중"으로 접는다). */
+  recheck: string[];
+}
+
+/** 성격이 다른 저장소 한 곳의 review 결과(이름·주소·코드 없이 갈래별 건수·시간·비용만). */
+export interface OtherRepo {
+  /** 오너가 정한 성격 이름(쇼핑몰, 위치, …). */
+  kind: string;
+  /** 갈래별 건수(다시 검토 중인 것은 뺐다). */
+  counts: Record<ReviewStatus, number>;
+  recheck: number;
+  seconds: number;
+  usd: number;
 }
 
 export interface CasesFile {
@@ -59,7 +75,10 @@ export interface CasesFile {
   packDigest: string;
   /** 프로필을 돌린 CLI 커밋과 날(검토 결과와 다른 판이다). */
   profileCli: { commit: string; ranOn: string };
+  /** review 2판을 돌린 날과 CLI 커밋. */
+  reviewRun: { ranOn: string; cli: string };
   cases: CaseData[];
+  others: OtherRepo[];
 }
 
 export const casesFile = raw as CasesFile;

@@ -1,0 +1,177 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="904" viewBox="0 0 1920 904" font-family="'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', sans-serif">
+<rect width="1920" height="904" fill="#ffffff"/>
+<text x="48" y="58" font-size="30" font-weight="700" fill="#1f2328">공개 저장소 12곳의 review 결과 · 의무 갈래별 건수</text>
+<text x="48" y="94" font-size="17" fill="#59636e">policypack review 2판 실측 2026-11-12 · 조사 claude-haiku-5-5 · 반박 claude-sonnet-5-5 · 한 곳 상한 $5 · 합계 비용 어림 $36.64 · 합계 40분</text>
+<rect x="48" y="125" width="20" height="20" rx="3" fill="#bc4c00"/>
+<text x="76" y="141" font-size="17" fill="#1f2328">확인할 것 · 코드에서 본 것</text>
+<rect x="358" y="125" width="20" height="20" rx="3" fill="#e16f24"/>
+<text x="386" y="141" font-size="17" fill="#1f2328">확인할 것 · 저장소 밖에서 확인할 것</text>
+<rect x="745.5" y="125" width="20" height="20" rx="3" fill="#f5a35c"/>
+<text x="773.5" y="141" font-size="17" fill="#1f2328">확인할 것 · 해당 여부부터 확인할 것</text>
+<rect x="1133" y="125" width="20" height="20" rx="3" fill="#818b98"/>
+<text x="1161" y="141" font-size="17" fill="#1f2328">모름</text>
+<rect x="48" y="159" width="20" height="20" rx="3" fill="#1a7f37"/>
+<text x="76" y="175" font-size="17" fill="#1f2328">지킨 근거 있음</text>
+<rect x="234" y="159" width="20" height="20" rx="3" fill="#c3cad3"/>
+<text x="262" y="175" font-size="17" fill="#1f2328">걸리지 않는 것으로 보임(확인 안 됨)</text>
+<rect x="621.5" y="159" width="20" height="20" rx="3" fill="#e3e8ed" stroke="#d1d9e0"/>
+<text x="649.5" y="175" font-size="17" fill="#1f2328">해당 없음</text>
+<rect x="761" y="159" width="20" height="20" rx="3" fill="#8250df"/>
+<text x="789" y="175" font-size="17" fill="#1f2328">다시 검토 중</text>
+<text x="1872" y="196" font-size="15" fill="#59636e" text-anchor="end">비용 어림 · 걸린 시간</text>
+<text x="48" y="242" font-size="18" font-weight="600" fill="#1f2328">starthub-app</text>
+<text x="292" y="242" font-size="14" fill="#59636e" text-anchor="end">사례</text>
+<rect x="308.0" y="221" width="130.7" height="30" fill="#bc4c00"/>
+<text x="373.3" y="241" font-size="14" font-weight="600" text-anchor="middle" fill="#ffffff">7</text>
+<rect x="438.7" y="221" width="56.0" height="30" fill="#e16f24"/>
+<text x="466.7" y="241" font-size="14" font-weight="600" text-anchor="middle" fill="#ffffff">3</text>
+<rect x="494.7" y="221" width="37.3" height="30" fill="#f5a35c"/>
+<text x="513.3" y="241" font-size="14" font-weight="600" text-anchor="middle" fill="#1f2328">2</text>
+<rect x="532.0" y="221" width="205.3" height="30" fill="#e3e8ed" stroke="#d1d9e0"/>
+<text x="634.7" y="241" font-size="14" font-weight="600" text-anchor="middle" fill="#1f2328">11</text>
+<text x="747.3" y="242" font-size="16" fill="#59636e">23건</text>
+<text x="1872" y="242" font-size="16" fill="#59636e" text-anchor="end">$2.31 · 2분 14초</text>
+<text x="48" y="294" font-size="18" font-weight="600" fill="#1f2328">Excelerate</text>
+<text x="292" y="294" font-size="14" fill="#59636e" text-anchor="end">사례</text>
+<rect x="308.0" y="273" width="205.3" height="30" fill="#bc4c00"/>
+<text x="410.7" y="293" font-size="14" font-weight="600" text-anchor="middle" fill="#ffffff">11</text>
+<rect x="513.3" y="273" width="18.7" height="30" fill="#e16f24"/>
+<rect x="532.0" y="273" width="18.7" height="30" fill="#f5a35c"/>
+<rect x="550.7" y="273" width="56.0" height="30" fill="#c3cad3"/>
+<text x="578.7" y="293" font-size="14" font-weight="600" text-anchor="middle" fill="#1f2328">3</text>
+<rect x="606.7" y="273" width="224.0" height="30" fill="#e3e8ed" stroke="#d1d9e0"/>
+<text x="718.7" y="293" font-size="14" font-weight="600" text-anchor="middle" fill="#1f2328">12</text>
+<rect x="830.7" y="273" width="37.3" height="30" fill="#8250df"/>
+<text x="849.3" y="293" font-size="14" font-weight="600" text-anchor="middle" fill="#ffffff">2</text>
+<text x="878.0" y="294" font-size="16" fill="#59636e">30건</text>
+<text x="1872" y="294" font-size="16" fill="#59636e" text-anchor="end">$3.82 · 3분 2초</text>
+<text x="48" y="346" font-size="18" font-weight="600" fill="#1f2328">jobtalk</text>
+<text x="292" y="346" font-size="14" fill="#59636e" text-anchor="end">사례</text>
+<rect x="308.0" y="325" width="224.0" height="30" fill="#bc4c00"/>
+<text x="420.0" y="345" font-size="14" font-weight="600" text-anchor="middle" fill="#ffffff">12</text>
+<rect x="532.0" y="325" width="18.7" height="30" fill="#e16f24"/>
+<rect x="550.7" y="325" width="18.7" height="30" fill="#f5a35c"/>
+<rect x="569.3" y="325" width="18.7" height="30" fill="#1a7f37"/>
+<rect x="588.0" y="325" width="74.7" height="30" fill="#c3cad3"/>
+<text x="625.3" y="345" font-size="14" font-weight="600" text-anchor="middle" fill="#1f2328">4</text>
+<rect x="662.7" y="325" width="186.7" height="30" fill="#e3e8ed" stroke="#d1d9e0"/>
+<text x="756.0" y="345" font-size="14" font-weight="600" text-anchor="middle" fill="#1f2328">10</text>
+<rect x="849.3" y="325" width="18.7" height="30" fill="#8250df"/>
+<text x="878.0" y="346" font-size="16" fill="#59636e">30건</text>
+<text x="1872" y="346" font-size="16" fill="#59636e" text-anchor="end">$3.19 · 2분 46초</text>
+<text x="48" y="398" font-size="18" font-weight="600" fill="#1f2328">medeasy-frontend</text>
+<text x="292" y="398" font-size="14" fill="#59636e" text-anchor="end">사례</text>
+<rect x="308.0" y="377" width="149.3" height="30" fill="#bc4c00"/>
+<text x="382.7" y="397" font-size="14" font-weight="600" text-anchor="middle" fill="#ffffff">8</text>
+<rect x="457.3" y="377" width="74.7" height="30" fill="#f5a35c"/>
+<text x="494.7" y="397" font-size="14" font-weight="600" text-anchor="middle" fill="#1f2328">4</text>
+<rect x="532.0" y="377" width="37.3" height="30" fill="#1a7f37"/>
+<text x="550.7" y="397" font-size="14" font-weight="600" text-anchor="middle" fill="#ffffff">2</text>
+<rect x="569.3" y="377" width="37.3" height="30" fill="#c3cad3"/>
+<text x="588.0" y="397" font-size="14" font-weight="600" text-anchor="middle" fill="#1f2328">2</text>
+<rect x="606.7" y="377" width="168.0" height="30" fill="#e3e8ed" stroke="#d1d9e0"/>
+<text x="690.7" y="397" font-size="14" font-weight="600" text-anchor="middle" fill="#1f2328">9</text>
+<rect x="774.7" y="377" width="18.7" height="30" fill="#8250df"/>
+<text x="803.3" y="398" font-size="16" fill="#59636e">26건</text>
+<text x="1872" y="398" font-size="16" fill="#59636e" text-anchor="end">$2.80 · 2분 49초</text>
+<line x1="48" x2="1872" y1="412" y2="412" stroke="#d1d9e0"/>
+<text x="48" y="450" font-size="18" font-weight="400" fill="#1f2328">쇼핑몰</text>
+<rect x="308.0" y="429" width="354.7" height="30" fill="#bc4c00"/>
+<text x="485.3" y="449" font-size="14" font-weight="600" text-anchor="middle" fill="#ffffff">19</text>
+<rect x="662.7" y="429" width="74.7" height="30" fill="#e16f24"/>
+<text x="700.0" y="449" font-size="14" font-weight="600" text-anchor="middle" fill="#ffffff">4</text>
+<rect x="737.3" y="429" width="37.3" height="30" fill="#f5a35c"/>
+<text x="756.0" y="449" font-size="14" font-weight="600" text-anchor="middle" fill="#1f2328">2</text>
+<rect x="774.7" y="429" width="261.3" height="30" fill="#818b98"/>
+<text x="905.3" y="449" font-size="14" font-weight="600" text-anchor="middle" fill="#ffffff">14</text>
+<rect x="1036.0" y="429" width="18.7" height="30" fill="#1a7f37"/>
+<rect x="1054.7" y="429" width="93.3" height="30" fill="#c3cad3"/>
+<text x="1101.3" y="449" font-size="14" font-weight="600" text-anchor="middle" fill="#1f2328">5</text>
+<rect x="1148.0" y="429" width="429.3" height="30" fill="#e3e8ed" stroke="#d1d9e0"/>
+<text x="1362.7" y="449" font-size="14" font-weight="600" text-anchor="middle" fill="#1f2328">23</text>
+<rect x="1577.3" y="429" width="18.7" height="30" fill="#8250df"/>
+<text x="1606.0" y="450" font-size="16" fill="#59636e">69건</text>
+<text x="1872" y="450" font-size="16" fill="#59636e" text-anchor="end">$5.08 · 5분 35초</text>
+<text x="48" y="502" font-size="18" font-weight="400" fill="#1f2328">위치</text>
+<rect x="308.0" y="481" width="317.3" height="30" fill="#bc4c00"/>
+<text x="466.7" y="501" font-size="14" font-weight="600" text-anchor="middle" fill="#ffffff">17</text>
+<rect x="625.3" y="481" width="56.0" height="30" fill="#f5a35c"/>
+<text x="653.3" y="501" font-size="14" font-weight="600" text-anchor="middle" fill="#1f2328">3</text>
+<rect x="681.3" y="481" width="56.0" height="30" fill="#1a7f37"/>
+<text x="709.3" y="501" font-size="14" font-weight="600" text-anchor="middle" fill="#ffffff">3</text>
+<rect x="737.3" y="481" width="18.7" height="30" fill="#c3cad3"/>
+<rect x="756.0" y="481" width="224.0" height="30" fill="#e3e8ed" stroke="#d1d9e0"/>
+<text x="868.0" y="501" font-size="14" font-weight="600" text-anchor="middle" fill="#1f2328">12</text>
+<rect x="980.0" y="481" width="18.7" height="30" fill="#8250df"/>
+<text x="1008.7" y="502" font-size="16" fill="#59636e">37건</text>
+<text x="1872" y="502" font-size="16" fill="#59636e" text-anchor="end">$4.10 · 4분 3초</text>
+<text x="48" y="554" font-size="18" font-weight="400" fill="#1f2328">가입만</text>
+<rect x="308.0" y="533" width="205.3" height="30" fill="#bc4c00"/>
+<text x="410.7" y="553" font-size="14" font-weight="600" text-anchor="middle" fill="#ffffff">11</text>
+<rect x="513.3" y="533" width="37.3" height="30" fill="#e16f24"/>
+<text x="532.0" y="553" font-size="14" font-weight="600" text-anchor="middle" fill="#ffffff">2</text>
+<rect x="550.7" y="533" width="149.3" height="30" fill="#f5a35c"/>
+<text x="625.3" y="553" font-size="14" font-weight="600" text-anchor="middle" fill="#1f2328">8</text>
+<rect x="700.0" y="533" width="18.7" height="30" fill="#c3cad3"/>
+<rect x="718.7" y="533" width="224.0" height="30" fill="#e3e8ed" stroke="#d1d9e0"/>
+<text x="830.7" y="553" font-size="14" font-weight="600" text-anchor="middle" fill="#1f2328">12</text>
+<text x="952.7" y="554" font-size="16" fill="#59636e">34건</text>
+<text x="1872" y="554" font-size="16" fill="#59636e" text-anchor="end">$2.59 · 3분 20초</text>
+<text x="48" y="606" font-size="18" font-weight="400" fill="#1f2328">AI 없는 커뮤니티</text>
+<rect x="308.0" y="585" width="205.3" height="30" fill="#bc4c00"/>
+<text x="410.7" y="605" font-size="14" font-weight="600" text-anchor="middle" fill="#ffffff">11</text>
+<rect x="513.3" y="585" width="93.3" height="30" fill="#e16f24"/>
+<text x="560.0" y="605" font-size="14" font-weight="600" text-anchor="middle" fill="#ffffff">5</text>
+<rect x="606.7" y="585" width="74.7" height="30" fill="#f5a35c"/>
+<text x="644.0" y="605" font-size="14" font-weight="600" text-anchor="middle" fill="#1f2328">4</text>
+<rect x="681.3" y="585" width="130.7" height="30" fill="#e3e8ed" stroke="#d1d9e0"/>
+<text x="746.7" y="605" font-size="14" font-weight="600" text-anchor="middle" fill="#1f2328">7</text>
+<text x="822.0" y="606" font-size="16" fill="#59636e">27건</text>
+<text x="1872" y="606" font-size="16" fill="#59636e" text-anchor="end">$2.31 · 3분 5초</text>
+<text x="48" y="658" font-size="18" font-weight="400" fill="#1f2328">라이브러리</text>
+<text x="318.0" y="658" font-size="16" fill="#59636e">0건 (서비스 기능 없음)</text>
+<text x="1872" y="658" font-size="16" fill="#59636e" text-anchor="end">$0.01 · 6초</text>
+<text x="48" y="710" font-size="18" font-weight="400" fill="#1f2328">POS</text>
+<rect x="308.0" y="689" width="224.0" height="30" fill="#bc4c00"/>
+<text x="420.0" y="709" font-size="14" font-weight="600" text-anchor="middle" fill="#ffffff">12</text>
+<rect x="532.0" y="689" width="74.7" height="30" fill="#e16f24"/>
+<text x="569.3" y="709" font-size="14" font-weight="600" text-anchor="middle" fill="#ffffff">4</text>
+<rect x="606.7" y="689" width="93.3" height="30" fill="#f5a35c"/>
+<text x="653.3" y="709" font-size="14" font-weight="600" text-anchor="middle" fill="#1f2328">5</text>
+<rect x="700.0" y="689" width="448.0" height="30" fill="#818b98"/>
+<text x="924.0" y="709" font-size="14" font-weight="600" text-anchor="middle" fill="#ffffff">24</text>
+<rect x="1148.0" y="689" width="18.7" height="30" fill="#1a7f37"/>
+<rect x="1166.7" y="689" width="112.0" height="30" fill="#c3cad3"/>
+<text x="1222.7" y="709" font-size="14" font-weight="600" text-anchor="middle" fill="#1f2328">6</text>
+<rect x="1278.7" y="689" width="373.3" height="30" fill="#e3e8ed" stroke="#d1d9e0"/>
+<text x="1465.3" y="709" font-size="14" font-weight="600" text-anchor="middle" fill="#1f2328">20</text>
+<text x="1662.0" y="710" font-size="16" fill="#59636e">72건</text>
+<text x="1872" y="710" font-size="16" fill="#59636e" text-anchor="end">$5.09 · 6분 26초</text>
+<text x="48" y="762" font-size="18" font-weight="400" fill="#1f2328">자체 서버 AI</text>
+<rect x="308.0" y="741" width="130.7" height="30" fill="#bc4c00"/>
+<text x="373.3" y="761" font-size="14" font-weight="600" text-anchor="middle" fill="#ffffff">7</text>
+<rect x="438.7" y="741" width="56.0" height="30" fill="#e16f24"/>
+<text x="466.7" y="761" font-size="14" font-weight="600" text-anchor="middle" fill="#ffffff">3</text>
+<rect x="494.7" y="741" width="56.0" height="30" fill="#f5a35c"/>
+<text x="522.7" y="761" font-size="14" font-weight="600" text-anchor="middle" fill="#1f2328">3</text>
+<rect x="550.7" y="741" width="18.7" height="30" fill="#1a7f37"/>
+<rect x="569.3" y="741" width="74.7" height="30" fill="#c3cad3"/>
+<text x="606.7" y="761" font-size="14" font-weight="600" text-anchor="middle" fill="#1f2328">4</text>
+<rect x="644.0" y="741" width="149.3" height="30" fill="#e3e8ed" stroke="#d1d9e0"/>
+<text x="718.7" y="761" font-size="14" font-weight="600" text-anchor="middle" fill="#1f2328">8</text>
+<text x="803.3" y="762" font-size="16" fill="#59636e">26건</text>
+<text x="1872" y="762" font-size="16" fill="#59636e" text-anchor="end">$2.52 · 3분 1초</text>
+<text x="48" y="814" font-size="18" font-weight="400" fill="#1f2328">실시간 게임</text>
+<rect x="308.0" y="793" width="112.0" height="30" fill="#bc4c00"/>
+<text x="364.0" y="813" font-size="14" font-weight="600" text-anchor="middle" fill="#ffffff">6</text>
+<rect x="420.0" y="793" width="56.0" height="30" fill="#f5a35c"/>
+<text x="448.0" y="813" font-size="14" font-weight="600" text-anchor="middle" fill="#1f2328">3</text>
+<rect x="476.0" y="793" width="18.7" height="30" fill="#1a7f37"/>
+<rect x="494.7" y="793" width="37.3" height="30" fill="#c3cad3"/>
+<text x="513.3" y="813" font-size="14" font-weight="600" text-anchor="middle" fill="#1f2328">2</text>
+<rect x="532.0" y="793" width="280.0" height="30" fill="#e3e8ed" stroke="#d1d9e0"/>
+<text x="672.0" y="813" font-size="14" font-weight="600" text-anchor="middle" fill="#1f2328">15</text>
+<text x="822.0" y="814" font-size="16" fill="#59636e">27건</text>
+<text x="1872" y="814" font-size="16" fill="#59636e" text-anchor="end">$2.82 · 3분 18초</text>
+<text x="48" y="874" font-size="15" fill="#59636e">사례 4곳은 사이트의 사례 쪽에 실었다. 나머지 8곳은 성격만 적는다. 다시 검토 중: 사람이 답을 읽고 말이 안 된다고 짚은 것(다음 판에서 다시 돌린다).</text>
+</svg>

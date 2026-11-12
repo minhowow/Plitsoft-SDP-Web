@@ -95,6 +95,12 @@ export const REVIEW_STATUS_LABEL = {
   "not-applicable": "해당 없음",
 } as const;
 
+/**
+ * 사례 쪽 review 결과에서 사람이 답을 읽고 말이 안 된다고 짚은 의무(2026-11-12 오너 결정, docs/commitments.md 의 1). 그 상태를
+ * 그대로 싣지 않고 이 이름으로 접어 둔다. CLI 가 고친 다음 판에서 다시 돌린다.
+ */
+export const REVIEW_RECHECK_LABEL = "다시 검토 중";
+
 /** 위에 놓을수록 먼저 봐야 한다. */
 export const STATUS_ORDER: Status[] = [
   "needs-review",

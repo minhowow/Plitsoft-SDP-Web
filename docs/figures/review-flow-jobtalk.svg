@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1404" height="975" viewBox="0 0 1404 975" font-family="'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', sans-serif">
+<defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="9" markerHeight="9" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#59636e"/></marker>
+    <marker id="ao" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="12" markerHeight="12" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#bc4c00"/></marker>
+  </defs>
+<rect width="1404" height="975" fill="#ffffff"/>
+<text x="48" y="58" font-size="30" font-weight="700" fill="#1f2328">개인정보 흐름 · Vactor0911/jobtalk</text>
+<text x="48" y="94" font-size="17" fill="#59636e">policypack review 2판 실측 2026-11-12 · 커밋 bbfb3ab · 조사 claude-haiku-5-5 · 반박 claude-sonnet-5-5 · 마디마다 코드 줄 인용</text>
+<g transform="translate(48 120) scale(1.5)">
+<text x="8" y="20" font-size="13" font-weight="700" fill="#59636e">받는 것</text>
+<text x="328" y="20" font-size="13" font-weight="700" fill="#59636e">처리</text>
+<text x="648" y="20" font-size="13" font-weight="700" fill="#59636e">저장 · 외부로 보냄</text>
+<path d="M224,188.5 C272.5,188.5 272.5,188.5 321,188.5" fill="none" stroke="#59636e" stroke-width="1.6" marker-end="url(#a)"/>
+<path d="M544,188.5 C592.5,188.5 592.5,82.5 641,82.5" fill="none" stroke="#59636e" stroke-width="1.6" marker-end="url(#a)"/>
+<path d="M224,275.5 C272.5,275.5 272.5,275.5 321,275.5" fill="none" stroke="#59636e" stroke-width="1.6" marker-end="url(#a)"/>
+<path d="M544,269.5 C592.5,269.5 592.5,179.0 641,179.0" fill="none" stroke="#59636e" stroke-width="1.6" marker-end="url(#a)"/>
+<path d="M544,281.5 C592.5,281.5 592.5,362.5 641,362.5" fill="none" stroke="#bc4c00" stroke-width="2.8" marker-end="url(#ao)"/>
+<path d="M224,362.5 C272.5,362.5 272.5,362.5 321,362.5" fill="none" stroke="#59636e" stroke-width="1.6" marker-end="url(#a)"/>
+<path d="M544,368.5 C592.5,368.5 592.5,459.0 641,459.0" fill="none" stroke="#bc4c00" stroke-width="2.8" marker-end="url(#ao)"/>
+<path d="M544,356.5 C592.5,356.5 592.5,267.5 641,267.5" fill="none" stroke="#59636e" stroke-width="1.6" marker-end="url(#a)"/>
+<rect x="8" y="150" width="216" height="77" rx="8" fill="#ffffff" stroke="#d1d9e0" stroke-width="1.2"/>
+<text x="22" y="176" font-size="14" font-weight="600" fill="#1f2328">회원가입 입력</text>
+<text x="22" y="199" font-size="12" fill="#59636e">이메일 · 비밀번호 · 별명 ·</text>
+<text x="22" y="215" font-size="12" fill="#59636e">자격증</text>
+<rect x="328" y="150" width="216" height="77" rx="8" fill="#ffffff" stroke="#d1d9e0" stroke-width="1.2"/>
+<text x="342" y="176" font-size="14" font-weight="600" fill="#1f2328">회원가입 처리</text>
+<text x="342" y="199" font-size="12" fill="#59636e">이메일 · 비밀번호(해시) ·</text>
+<text x="342" y="215" font-size="12" fill="#59636e">별명 · 자격증</text>
+<rect x="648" y="44" width="216" height="77" rx="8" fill="#f6f8fa" stroke="#d1d9e0" stroke-width="1.2"/>
+<text x="662" y="70" font-size="14" font-weight="600" fill="#1f2328">user 테이블</text>
+<text x="662" y="93" font-size="12" fill="#59636e">이메일 · 비밀번호(해시) ·</text>
+<text x="662" y="109" font-size="12" fill="#59636e">별명 · 약관 동의 · 자격증</text>
+<rect x="328" y="245" width="216" height="61" rx="8" fill="#ffffff" stroke="#d1d9e0" stroke-width="1.2"/>
+<text x="342" y="271" font-size="14" font-weight="600" fill="#1f2328">인증번호 발급</text>
+<text x="342" y="294" font-size="12" fill="#59636e">이메일 · 인증번호</text>
+<rect x="648" y="139" width="216" height="80" rx="8" fill="#f6f8fa" stroke="#d1d9e0" stroke-width="1.2"/>
+<text x="662" y="165" font-size="14" font-weight="600" fill="#1f2328">email_verification</text>
+<text x="662" y="184" font-size="14" font-weight="600" fill="#1f2328">테이블</text>
+<text x="662" y="207" font-size="12" fill="#59636e">이메일 · 인증번호 · 만료 시각</text>
+<rect x="8" y="245" width="216" height="61" rx="8" fill="#ffffff" stroke="#d1d9e0" stroke-width="1.2"/>
+<text x="22" y="271" font-size="14" font-weight="600" fill="#1f2328">인증 요청 이메일</text>
+<text x="22" y="294" font-size="12" fill="#59636e">이메일</text>
+<rect x="648" y="332" width="216" height="61" rx="8" fill="#fff1e5" stroke="#bc4c00" stroke-width="2"/>
+<text x="852" y="350" font-size="11" font-weight="700" fill="#953800" text-anchor="end">외부</text>
+<text x="662" y="358" font-size="14" font-weight="600" fill="#1f2328">Gmail SMTP 메일 발송</text>
+<text x="662" y="381" font-size="12" fill="#953800">이메일 · 인증번호</text>
+<rect x="8" y="324" width="216" height="77" rx="8" fill="#ffffff" stroke="#d1d9e0" stroke-width="1.2"/>
+<text x="22" y="350" font-size="14" font-weight="600" fill="#1f2328">진로 상담 메시지</text>
+<text x="22" y="373" font-size="12" fill="#59636e">메시지 · 관심 분야 · 자격증 · </text>
+<text x="22" y="389" font-size="12" fill="#59636e">별명</text>
+<rect x="328" y="324" width="216" height="77" rx="8" fill="#ffffff" stroke="#d1d9e0" stroke-width="1.2"/>
+<text x="342" y="350" font-size="14" font-weight="600" fill="#1f2328">진로 상담 API 처리</text>
+<text x="342" y="373" font-size="12" fill="#59636e">메시지 · 관심 분야 · 자격증 · </text>
+<text x="342" y="389" font-size="12" fill="#59636e">별명</text>
+<rect x="648" y="411" width="216" height="96" rx="8" fill="#fff1e5" stroke="#bc4c00" stroke-width="2"/>
+<text x="852" y="429" font-size="11" font-weight="700" fill="#953800" text-anchor="end">외부</text>
+<text x="662" y="437" font-size="14" font-weight="600" fill="#1f2328">OpenAI Responses API</text>
+<text x="662" y="456" font-size="14" font-weight="600" fill="#1f2328">(gpt-4o-mini)</text>
+<text x="662" y="479" font-size="12" fill="#953800">메시지 · 관심 분야 · 자격증 · </text>
+<text x="662" y="495" font-size="12" fill="#953800">별명</text>
+<rect x="648" y="237" width="216" height="61" rx="8" fill="#f6f8fa" stroke="#d1d9e0" stroke-width="1.2"/>
+<text x="662" y="263" font-size="14" font-weight="600" fill="#1f2328">workspace_chats 테이블</text>
+<text x="662" y="286" font-size="12" fill="#59636e">메시지 · AI 응답</text>
+</g>
+<path d="M48,941 L104,941" stroke="#bc4c00" stroke-width="4" marker-end="url(#ao)"/>
+<text x="118" y="947" font-size="17" fill="#1f2328">외부 업체·국외로 나감</text>
+<path d="M348,941 L404,941" stroke="#59636e" stroke-width="2.4" marker-end="url(#a)"/>
+<text x="418" y="947" font-size="17" fill="#1f2328">서비스 안</text>
+</svg>

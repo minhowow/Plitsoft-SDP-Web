@@ -5046,6 +5046,56 @@ details.rv-group[open] > summary::before {
   margin-top: var(--space-4);
 }
 
+/* 다시 검토 중: 상태 없이 의무 이름만 접어 둔다 */
+details.rv-recheck > .hint {
+  padding: 0 var(--space-4) var(--space-2) 40px;
+}
+
+/* 사례 목록 아래, 성격이 다른 저장소의 갈래별 건수 표. 머리 글은 줄을 바꾸고, 좁은 화면에서는 상자 안에서 가로로 민다 */
+.cases-others {
+  display: grid;
+  gap: var(--space-3);
+  margin-top: var(--space-6);
+}
+
+.others-table thead th {
+  height: auto;
+  padding-block: var(--space-1);
+  white-space: normal;
+  word-break: keep-all;
+  vertical-align: bottom;
+}
+
+.others-table thead th.r {
+  min-width: 6em;
+}
+
+.others-table thead .others-group {
+  text-align: center;
+  border-bottom: 1px solid var(--rule-muted);
+}
+
+.others-table tbody th {
+  height: var(--row-h);
+  padding: var(--space-1) var(--space-4);
+  border-top: 1px solid var(--rule-muted);
+  border-bottom: 0;
+  background: none;
+  color: var(--ink);
+  font-size: inherit;
+  font-weight: 400;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.others-table tbody tr:first-child th {
+  border-top: 0;
+}
+
+.others-table td {
+  font-variant-numeric: tabular-nums;
+}
+
 /* 같은 규칙이 여러 곳일 때의 묶음 머리: 메시지와 N곳, 질문, 접힌 곳의 상태 수. */
 .rule-group {
   min-width: 0;

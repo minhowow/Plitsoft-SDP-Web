@@ -9,7 +9,7 @@ import type { FlowLayout } from "@/lib/review/flow";
 import { fileLink, shortCommit } from "@/lib/service/href";
 
 /** 마디 종류의 이름(화면 낭독기와 고른 마디의 머리). */
-const KIND_LABEL: Record<FlowKind, string> = { input: "받는 것", server: "처리", store: "저장", external: "외부로 보냄" };
+const KIND_LABEL: Record<FlowKind, string> = { input: "받는 것", server: "처리", store: "저장", external: "외부" };
 
 /** 인용한 줄: 위치(분석 쪽은 GitHub 의 커밋 고정 링크)와 줄의 글. 관문을 통과한 인용만 받는다. */
 export function CitedLines({ citations, code }: { citations: ReviewCitation[]; code: CodeSource | null }) {

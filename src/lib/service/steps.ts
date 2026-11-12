@@ -80,7 +80,12 @@ export function finishedAt(analysis: Analysis): string | null {
 
 /** 두 시각 사이를 "4분 12초"처럼 적는다. */
 export function duration(from: string, to: string): string {
-  const seconds = Math.max(0, Math.round((Date.parse(to) - Date.parse(from)) / 1000));
+  return secondsText((Date.parse(to) - Date.parse(from)) / 1000);
+}
+
+/** 초를 "4분 12초"처럼 적는다(초는 반올림). */
+export function secondsText(value: number): string {
+  const seconds = Math.max(0, Math.round(value));
   const m = Math.floor(seconds / 60);
   const s = seconds % 60;
   if (m === 0) return `${s}초`;

@@ -4,7 +4,7 @@ import { SANCTION, Tier } from "@/components/result/Tiers";
 import { keepParticles } from "@/components/text";
 import { REVIEW_STATUSES, type Review, type ReviewItem, type ReviewStatus } from "@/lib/review";
 import { layoutFlow } from "@/lib/review/flow";
-import { REVIEW_STATUS_LABEL } from "@/lib/report/status";
+import { REVIEW_RECHECK_LABEL, REVIEW_STATUS_LABEL } from "@/lib/report/status";
 import { CitedLines, FlowFigure } from "./FlowFigure";
 
 /**
@@ -18,9 +18,14 @@ import { CitedLines, FlowFigure } from "./FlowFigure";
  * 4. 검증 정보: 관문이 거절한 인용, 건수가 맞지 않은 검색, 반박이 뒤집은 수, 가린 비밀값, 모델, 비용 어림과 시간.
  *
  * 인용은 관문을 통과한 것(`ok`)만 보인다. 의무 한 줄에 처분의 말이 들면 그 줄은 싣지 않는다(docs/commitments.md 1장).
+ *
+ * `recheck` 는 사람이 답을 읽고 말이 안 된다고 짚은 의무(사례 쪽, 2026-11-12 오너 결정)다. 그 상태는 보이지 않고 갈래 수에서도
+ * 빼며, 맨 아래 "다시 검토 중 N건"에 의무 이름만 접어 둔다.
  */
-export function ReviewView({ review, code = null }: { review: Review; code?: CodeSource | null }) {
-  const count = (status: ReviewStatus) => review.checklist.filter((item) => item.status === status).length;
+export function ReviewView({ review, code = null, recheck = [] }: { review: Review; code?: CodeSource | null; recheck?: readonly string[] }) {
+  const held = review.checklist.filter((item) => recheck.includes(item.duty));
+  const items = review.checklist.filter((item) => !recheck.includes(item.duty));
+  const count = (status: ReviewStatus) => items.filter((item) => item.status === status).length;
   const check = count("seen-in-code") + count("check-outside") + count("check-applicability");
   return (
     <div className="tiers review">
@@ -45,7 +50,7 @@ export function ReviewView({ review, code = null }: { review: Review; code?: Cod
         )}
       </Tier>
       <Tier n={3} name="의무 체크리스트">
-        <Checklist review={review} code={code} />
+        <Checklist review={review} items={items} held={held} code={code} />
         <Verification review={review} />
       </Tier>
     </div>
@@ -157,9 +162,32 @@ function Item({ item, code }: { item: ReviewItem; code: CodeSource | null }) {
   );
 }
 
+/** 다시 검토 중인 의무 한 건: 조문과 의무 한 줄만(상태·까닭·인용은 싣지 않는다). */
+function HeldItem({ item }: { item: ReviewItem }) {
+  return (
+    <li className="rv-item">
+      <p className="rv-law">
+        <span>
+          {item.law} {item.article}
+        </span>
+        {item.url && (
+          <a className="ob-ext" href={item.url} target="_blank" rel="noopener noreferrer">
+            법제처
+            <Icon name="external" />
+            <span className="visually-hidden">
+              (새 창, {item.law} {item.article})
+            </span>
+          </a>
+        )}
+      </p>
+      {item.dutyText && !SANCTION.test(item.dutyText) && <p className="rv-duty">{keepParticles(item.dutyText)}</p>}
+    </li>
+  );
+}
+
 /** 의무 체크리스트: 코드에서 본 것의 맨 위 다섯 건을 먼저, 나머지 갈래는 접는다. 차례는 결과에 실린 그대로(이미 갈래 순)다. */
-function Checklist({ review, code }: { review: Review; code: CodeSource | null }) {
-  const by = (status: ReviewStatus) => review.checklist.filter((item) => item.status === status);
+function Checklist({ review, items, held, code }: { review: Review; items: ReviewItem[]; held: ReviewItem[]; code: CodeSource | null }) {
+  const by = (status: ReviewStatus) => items.filter((item) => item.status === status);
   const seen = by("seen-in-code");
   const top = review.summary.top.flatMap((duty) => seen.filter((item) => item.duty === duty));
   const others = seen.filter((item) => !top.includes(item));
@@ -207,6 +235,19 @@ function Checklist({ review, code }: { review: Review; code: CodeSource | null }
           </details>
         );
       })}
+      {held.length > 0 && (
+        <details className="rv-group rv-recheck">
+          <summary>
+            {REVIEW_RECHECK_LABEL} <span className="ck-n">{held.length}건</span>
+          </summary>
+          <p className="hint">CLI 를 고친 다음 판에서 다시 돌립니다.</p>
+          <ol className="rv-items">
+            {held.map((item) => (
+              <HeldItem key={item.duty} item={item} />
+            ))}
+          </ol>
+        </details>
+      )}
     </div>
   );
 }
