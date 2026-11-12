@@ -26,6 +26,8 @@ export function HomeSearch({ id, label }: { id: string; label: string }) {
  * 숨긴다. 머리글은 모든 쪽에서 글자까지 같아야 해서(tests/browser/served-files.test.ts) 지금 쪽의 질의를 채우지 않고, 펼침
  * 목록도 빈 채로 그린다. 본문에 검색창이 있는 쪽에서는 CSS 가 감춘다.
  *
+ * 이 검색창으로 떠나면(클라이언트 이동) 친 글자를 비운다.
+ *
  * 목업의 "/" 키 표시와 그 키로 검색창에 들어가는 것은 뺐다. 끌 수 없는 글자 하나짜리 단축키는 WCAG 2.1.4 에 걸린다
  * (docs/ROADMAP.md 의 "사람 결정이 필요한 것").
  */

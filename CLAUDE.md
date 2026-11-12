@@ -87,7 +87,7 @@ npm run pack-meta   # 팩에서 data/pack-meta.json 다시 만들기
 | `src/server/` | 서버 코드(모두 `import "server-only"`): 설정(`config.ts`, 환경 변수와 기본값), DB(`db/`, pg·PGlite, `migrations/*.sql`), GitHub 클라이언트(`github.ts`), 실행기 깨우기(`runner.ts`), 저장소 구현(`store/`, `getStore()` 가 고른다), `/api/` 의 일(`api.ts`), 실행기 콜백의 상태 전이(`callbacks.ts`)와 서명(`signature.ts`) |
 | `src/app/api/` | route handler: `analyses/`(요청), `analyses/[id]/`(진행), `repos/suggest/`(검색창 자동 완성), `runner/[id]/`(실행기 콜백), `runner/claim/`(로컬 실행기). `src/server/api.ts` 를 부르기만 한다. 서버 코드는 `src/server/` 와 여기에만 둔다 |
 | `runner/`, `.github/workflows/analyze.yml` | 분석 실행기(GitHub Actions). `run.mjs`·`tar.mjs` 는 Node 내장 모듈만 쓴다. 대상 코드를 실행하지 않는다 |
-| `src/components/service/` | 검색창(`SearchForm.tsx` 가 셋 모두 `SearchCombobox.tsx` 로 그린다), 최근 분석 줄(`activity.tsx`), 저장소 쪽의 최신 분석(`repository.tsx`), 분석 쪽 부품, 분석 대시보드. 브라우저 부품은 요청 단추(`RequestButton.tsx`), 진행 다시 읽기(`LiveAnalysis.tsx`), 검색창 자동 완성(`SearchCombobox.tsx`) 셋이고 같은 사이트의 `/api/` 만 부른다. 머리글의 브라우저 부품(`src/components/HeaderBehavior.tsx`, 메뉴 닫기·지금 쪽 표시)은 어디에도 요청하지 않는다 |
+| `src/components/service/` | 검색창(`SearchForm.tsx` 가 셋 모두 `SearchCombobox.tsx` 로 그린다), 최근 분석 줄(`activity.tsx`), 저장소 쪽의 최신 분석(`repository.tsx`), 분석 쪽 부품, 분석 대시보드. 브라우저 부품은 요청 단추(`RequestButton.tsx`), 진행 다시 읽기(`LiveAnalysis.tsx`), 검색창 자동 완성(`SearchCombobox.tsx`) 셋이고 같은 사이트의 `/api/` 만 부른다. 머리글의 브라우저 부품(`src/components/HeaderBehavior.tsx`, 메뉴 닫기·지금 쪽 표시·쪽 이동 중 표시)은 어디에도 요청하지 않는다 |
 | `src/components/result/` | 결과 화면 부품. 모든 페이지가 함께 쓴다 |
 | `src/components/policy/` | 조문 도감의 정책 쪽(`PolicyDetail.tsx`, 서버 부품). 브라우저 부품은 `PolicyNav.tsx` 하나(쪽 안의 자리로 옮기기, 주소의 규칙 자리 펼치기)이고 어디에도 요청하지 않는다. 규칙의 자리 이름은 `ruleAnchor()`, 그 주소는 `ruleHref()`(`src/lib/pack/href.ts`) |
 | `src/lib/report/` | 결과 JSON 타입, 파서, 상태 문구, 화면용 구조 |

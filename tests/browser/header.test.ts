@@ -216,3 +216,68 @@ describe("1280px: 한 줄 머리글", () => {
     expect(await page.locator(".site-header kbd").count()).toBe(0);
   });
 });
+
+describe("쪽 이동 중 표시와 클라이언트 이동(2026-11-12 오너 지시: 누르면 100ms 안에 보이는 반응)", () => {
+  const navState = (page: Page) =>
+    page.evaluate(() => ({ nav: document.documentElement.dataset.nav ?? null, busy: document.querySelector("main")?.getAttribute("aria-busy") ?? null }));
+
+  it("다른 쪽으로 가는 링크를 누르면 그 자리에서 html[data-nav] 와 본문의 aria-busy 가 붙고, 옮긴 뒤 거둔다. 같은 쪽의 링크는 붙이지 않는다", async () => {
+    const { page } = await open("/policy/", 1280);
+    // 누른 바로 그 순간(같은 작업 안)에 붙는다: 서버의 답을 기다리지 않는다.
+    const right = await page.evaluate(() => {
+      document.querySelector<HTMLAnchorElement>(".site-header .hdr-nav a[href='/demo/']")!.click();
+      return { nav: document.documentElement.dataset.nav ?? null, busy: document.querySelector("main")?.getAttribute("aria-busy") ?? null };
+    });
+    expect(right).toEqual({ nav: "pending", busy: "true" });
+    await page.waitForURL(`${site.origin}/demo/`);
+    await expect.poll(() => navState(page)).toEqual({ nav: null, busy: null });
+    // 지금 쪽의 링크는 옮기지 않으므로 표시가 없다.
+    const same = await page.evaluate(() => {
+      document.querySelector<HTMLAnchorElement>(".site-header .hdr-nav a[href='/demo/']")!.click();
+      return document.documentElement.dataset.nav ?? null;
+    });
+    expect(same).toBe(null);
+  });
+
+  it("머리글 검색창의 Enter 는 쪽 전체를 다시 받지 않고(클라이언트 이동) 검색 쪽으로 가며, 옮긴 뒤 머리글 검색창은 빈다", async () => {
+    const { page } = await open("/policy/", 1280);
+    await page.evaluate(() => Object.assign(window, { __sameDocument: true }));
+    await page.locator("#site-q").fill("kids");
+    await page.locator("#site-q").press("Enter");
+    await page.waitForURL(`${site.origin}/search/?q=kids`);
+    await page.waitForSelector("main h1");
+    expect(await page.evaluate(() => (window as unknown as { __sameDocument?: boolean }).__sameDocument)).toBe(true);
+    await expect.poll(() => page.locator("#site-q").inputValue()).toBe("");
+    await expect.poll(() => navState(page)).toEqual({ nav: null, busy: null });
+  });
+
+  it("자동 완성의 줄을 키보드로 골라도(클릭·보내기 이벤트가 없다) 이동 중 표시를 단다. 옮긴 뒤 거둔다", async () => {
+    const { page } = await open("/policy/", 1280);
+    // 서버의 답을 늦춰 이동 중인 동안을 본다.
+    await page.route((url) => url.searchParams.has("_rsc"), async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 800));
+      await route.continue();
+    });
+    await page.locator("#site-q").fill("kids");
+    await page.locator("#site-q-list [role=option]").first().waitFor();
+    await page.locator("#site-q").press("ArrowDown");
+    await page.locator("#site-q").press("Enter");
+    expect(await navState(page)).toEqual({ nav: "pending", busy: "true" });
+    await page.waitForURL((url) => url.pathname !== "/policy/");
+    await expect.poll(() => navState(page)).toEqual({ nav: null, busy: null });
+  });
+
+  it("지금 쪽으로 끝나는 보내기(검색 쪽에서 빈 질의)는 표시를 달지 않고, 뒤로 가기로 되살아난 쪽(bfcache)은 표시를 거둔다", async () => {
+    const { page } = await open("/search/", 1280);
+    await page.locator("#search-page-q").fill("   ");
+    await page.locator("form.cbx-page button[type=submit]").click();
+    expect(await navState(page)).toEqual({ nav: null, busy: null });
+    const restored = await page.evaluate(() => {
+      document.querySelector<HTMLAnchorElement>(".site-header .hdr-nav a[href='/demo/']")!.click();
+      const before = document.documentElement.dataset.nav ?? null;
+      window.dispatchEvent(new PageTransitionEvent("pageshow", { persisted: true }));
+      return { before, after: document.documentElement.dataset.nav ?? null };
+    });
+    expect(restored).toEqual({ before: "pending", after: null });
+  });
+});

@@ -11,6 +11,9 @@ import {
   type PointerEvent,
   type ReactNode,
 } from "react";
+import Form from "next/form";
+import { useRouter } from "next/navigation";
+import { showNavigationPending } from "@/components/HeaderBehavior";
 import { Icon } from "@/components/Icon";
 import { repoHref, searchHref } from "@/lib/service/href";
 import { isRepoFullName } from "@/lib/service/names";
@@ -168,6 +171,7 @@ function MarkedName({ owner, name, text }: { owner: string; name: string; text: 
 const kstDate = (iso: string) => formatKst(iso).slice(0, 10);
 
 export function SearchCombobox({ variant, id, label, defaultValue }: Props) {
+  const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const popRef = useRef<HTMLDivElement>(null);
@@ -355,10 +359,27 @@ export function SearchCombobox({ variant, id, label, defaultValue }: Props) {
     return () => feed.removeEventListener("keydown", onKey);
   }, [variant]);
 
-  /** 쪽을 옮기기 전에 목록을 닫는다. */
+  /**
+   * 쪽을 옮기기 전에 목록을 닫는다. 쪽 전체를 새로 받지 않고 클라이언트에서 옮긴다(2026-11-12: 새로 받는 동안 앞 쪽이 멈춘 듯
+   * 보였다). 누른 즉시 머리글 부품의 이동 중 표시를 단다(키보드 Enter 는 클릭·보내기 이벤트가 없어 여기서 단다).
+   */
   function leave(href: string) {
     setDismissed(true);
-    window.location.assign(href);
+    showNavigationPending(href);
+    router.push(href);
+    clearHeader();
+  }
+
+  /**
+   * 머리글의 검색창은 루트 레이아웃에 있어 클라이언트 이동 사이에 남는다. 이 검색창으로 떠나면 친 글자를 비운다(쪽 전체를 새로
+   * 받던 때와 같게). 보내는 글(양식의 값)을 다 읽은 뒤에 비우도록 한 차례 미룬다.
+   */
+  function clearHeader() {
+    if (variant !== "header") return;
+    setTimeout(() => {
+      if (inputRef.current) inputRef.current.value = "";
+      setText("");
+    }, 0);
   }
 
   function readInput() {
@@ -460,7 +481,21 @@ export function SearchCombobox({ variant, id, label, defaultValue }: Props) {
   const option = (row: Row, body: ReactNode, className = "cbx-opt") => {
     const rowId = optionId(row.key);
     return (
-      <a key={row.key} id={rowId} className={className} role="option" aria-selected={rowId === activeId} tabIndex={-1} href={row.href}>
+      <a
+        key={row.key}
+        id={rowId}
+        className={className}
+        role="option"
+        aria-selected={rowId === activeId}
+        tabIndex={-1}
+        href={row.href}
+        onClick={(event) => {
+          // 왼쪽 단추로 그냥 누르면 쪽 전체를 새로 받지 않고 옮긴다(Enter 와 같은 길). 새 탭·새 창은 브라우저에 맡긴다.
+          if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+          event.preventDefault();
+          leave(row.href);
+        }}
+      >
         {body}
       </a>
     );
@@ -540,8 +575,8 @@ export function SearchCombobox({ variant, id, label, defaultValue }: Props) {
 
   const common = {
     ref: formRef,
+    // next/form: 보내면 쪽 전체를 새로 받지 않고 클라이언트에서 /search/?q=… 로 옮긴다. 스크립트가 없으면 보통의 GET 양식이다.
     action: "/search/",
-    method: "get",
     role: "search",
     "aria-label": label,
     onSubmit: (event: FormEvent<HTMLFormElement>) => {
@@ -549,7 +584,9 @@ export function SearchCombobox({ variant, id, label, defaultValue }: Props) {
       if ((inputRef.current?.value.trim() ?? "") === "") {
         event.preventDefault();
         leave("/search/");
+        return;
       }
+      clearHeader();
     },
     onPointerDown: (event: PointerEvent<HTMLFormElement>) => {
       // 펼침 목록을 누르는 동안 입력창이 초점을 잃지 않게 한다(목업 home.js). 모든 단추에: 가운데·오른쪽 단추로 눌러도 목록이
@@ -565,7 +602,7 @@ export function SearchCombobox({ variant, id, label, defaultValue }: Props) {
 
   if (variant === "home") {
     return (
-      <form {...common} className="find cbx cbx-home">
+      <Form {...common} className="find cbx cbx-home">
         <button type="submit" className="find-go" aria-label="검색" tabIndex={-1}>
           <Icon name="search" />
         </button>
@@ -575,12 +612,12 @@ export function SearchCombobox({ variant, id, label, defaultValue }: Props) {
         {input}
         {popup}
         {live}
-      </form>
+      </Form>
     );
   }
   if (variant === "header") {
     return (
-      <form {...common} className="hdr-search cbx cbx-header">
+      <Form {...common} className="hdr-search cbx cbx-header">
         <Icon name="search" />
         <label htmlFor={id} className="visually-hidden">
           {label}
@@ -588,11 +625,11 @@ export function SearchCombobox({ variant, id, label, defaultValue }: Props) {
         {input}
         {popup}
         {live}
-      </form>
+      </Form>
     );
   }
   return (
-    <form {...common} className="search cbx cbx-page">
+    <Form {...common} className="search cbx cbx-page">
       <label htmlFor={id} className="visually-hidden">
         {label}
       </label>
@@ -602,6 +639,6 @@ export function SearchCombobox({ variant, id, label, defaultValue }: Props) {
       </button>
       {popup}
       {live}
-    </form>
+    </Form>
   );
 }

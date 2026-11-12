@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
+import { showNavigationPending } from "@/components/HeaderBehavior";
 import { ID_ALPHABET, ID_LENGTH } from "@/lib/service/id";
 import { readPlace, type QueuePlace } from "@/lib/service/queue";
 
@@ -75,6 +76,7 @@ export function RequestButton({ owner, name, label }: { owner: string; name: str
       // 옮겨 가는 동안에도 다시 누를 수 없게 둔다.
       const status = (answer.analysis as { status?: unknown } | null | undefined)?.status;
       setState({ kind: "moving", reused: answer.reused === true, place: readPlace(answer.queue), failed: status === "failed" });
+      showNavigationPending(answer.href);
       router.push(answer.href);
       return;
     }

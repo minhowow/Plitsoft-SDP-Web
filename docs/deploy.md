@@ -11,6 +11,8 @@
 - Vercel 프로젝트를 이 저장소에 잇는다. 빌드 명령은 `npm run build`, Node 는 22 이상.
 - Postgres 를 붙인다(Vercel Marketplace 의 Neon 등). 풀러(pooled) 주소를 `DATABASE_URL` 로 둔다. 스키마는 서버가 처음 DB 를
   열 때 `src/server/db/migrations/*.sql` 을 차례로 한 번 적용한다(따로 돌릴 명령이 없다).
+- 서버 함수의 지역은 `vercel.json` 의 `regions` 로 DB 와 같은 곳에 둔다(지금 `sin1`, Neon 이 싱가포르). 기본값(`iad1`, 미국 동부)으로
+  두면 질의마다 대륙을 오가 쪽 하나가 1~3초 걸렸다(2026-11-12 실측). DB 지역을 바꾸면 이 값도 바꾼다.
 - 환경 변수(Production):
 
 | 이름 | 비밀값 | 무엇 |

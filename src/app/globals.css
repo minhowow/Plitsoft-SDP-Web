@@ -363,11 +363,68 @@ main.wrap > section,
   }
 }
 
+/* 쪽 이동 중(2026-11-12 오너 지시: 누르면 100ms 안에 보이는 반응). 머리글 부품(HeaderBehavior)이 링크를 누르거나 검색을 보낸
+   즉시 html[data-nav] 를 단다. 맨 위 진행 막대는 곧바로, 본문 흐림은 늦을 때만(0.15초 뒤) 보인다. 쪽이 그려지면 거둔다. */
+html[data-nav] body::before {
+  content: "";
+  position: fixed;
+  inset: 0 0 auto;
+  z-index: 1000;
+  height: 3px;
+  background: var(--accent);
+  transform-origin: left;
+  animation: nav-pending 1.6s ease-out infinite;
+}
+
+html[data-nav] main {
+  opacity: 0.55;
+  transition: opacity 0.2s 0.15s;
+}
+
+html[data-nav],
+html[data-nav] a {
+  cursor: progress;
+}
+
+@keyframes nav-pending {
+  from {
+    transform: scaleX(0.08);
+  }
+
+  70% {
+    transform: scaleX(0.8);
+  }
+
+  to {
+    transform: scaleX(0.95);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-nav] body::before {
+    transform: scaleX(0.6);
+    animation: none;
+  }
+
+  /* 흐리기는 늦을 때만인 것은 그대로, 서서히 바뀌지만 않는다. */
+  html[data-nav] main {
+    transition: opacity 0s 0.15s;
+  }
+}
+
+@media (forced-colors: active) {
+  html[data-nav] body::before {
+    forced-color-adjust: none;
+    background: Highlight;
+  }
+}
+
 /*
  * 머리글: 56px 한 줄. 넓은 화면은 이름 · 검색창 · 메뉴(오른쪽 끝), 768px 아래는 이름 ······ 검색 단추 · 펼치는 메뉴다.
  * 머리글의 HTML 은 모든 쪽에서 글자까지 같다(tests/browser/served-files.test.ts). 그래서 지금 쪽의 표시와, 본문에 검색창이
  * 있는 쪽(첫 화면, 검색)에서 머리글의 검색창을 감추는 것은 CSS 의 :has() 로만 한다.
  */
+
 .site-header {
   background: var(--bg);
   border-bottom: 1px solid var(--rule-muted);
