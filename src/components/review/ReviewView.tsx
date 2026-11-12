@@ -32,6 +32,13 @@ function gateText(item: ReviewItem): string | undefined {
       return `걸리는 조건이 없다는 근거가 없어 AI 가 낸 '${na}'을 받지 않았습니다.`;
     case "name-or-default":
       return `AI 가 댄 줄이 이름·기본값뿐이라 '${REVIEW_STATUS_LABEL["evidence-found"]}'으로 받지 않았습니다.`;
+    // CLI 2a24d94 부터.
+    case "audience":
+      return `이용자가 누구인지(아동·미성년자·청소년)에 걸리는 의무라 AI 가 낸 '${na}'을 받지 않았습니다.`;
+    case "missing-check":
+      return `나이·본인·지역을 확인하는 장치가 없다는 것은 그런 이용자가 없다는 근거가 아니라 AI 가 낸 '${na}'을 받지 않았습니다.`;
+    case "applies-unknown":
+      return `AI 가 걸리는지 모른다고 답해 '${REVIEW_STATUS_LABEL["check-applicability"].split(" · ").at(-1)}'으로 옮겼습니다.`;
     default:
       return undefined;
   }

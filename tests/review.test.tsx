@@ -154,12 +154,19 @@ describe("review 결과 (2판)", () => {
         first: { ...(base.first as object), gate: { from: "not-applicable", why: "condition-present", note: "조건 메모." } },
         reason: "조건 메모. 모델의 말.",
       },
+      {
+        ...base,
+        duty: "gate-unknown",
+        status: "check-applicability",
+        first: { ...(base.first as object), gate: { from: "seen-in-code", why: "applies-unknown", note: "모름 메모." } },
+        reason: "모름 메모. 제공인지 위탁인지는 개발자 판단입니다.",
+      },
       { ...base, duty: "cap", status: "unknown", asked: false, first: null, not_answered: "cost-cap", reason: "저장소당 금액 상한에 걸려 묻지 못했습니다" },
       goods("liquor-1", "주류"),
       goods("books-1", "도서"),
     ];
     const review = parseReview({ ...data, checklist })!;
-    expect(review.checklist.map((item) => item.gate)).toEqual(["no-condition", "name-or-default", "condition-present", null, null, null]);
+    expect(review.checklist.map((item) => item.gate)).toEqual(["no-condition", "name-or-default", "condition-present", "applies-unknown", null, null, null]);
     expect(review.checklist[0].reason).toBe("모델이 쓴 말 하나. 모델이 쓴 말 둘.");
     const html = renderToStaticMarkup(<ReviewView review={review} code={{ htmlUrl: "https://github.com/o/r", commit: "a".repeat(40) }} />);
     const text = textOf(html);
@@ -169,10 +176,13 @@ describe("review 결과 (2판)", () => {
     expect(at).toBeGreaterThan(html.indexOf('<details class="rv-group rv-check-applicability">'));
     expect(textOf(elementsOf(html.slice(at), "<summary>")[0])).toBe(`${REVIEW_GOODS_LABEL} 2건`);
     expect(textOf(elementAt(html, at))).toContain("주류도 판매하나요?");
-    expect(textOf(elementsOf(html, '<p class="overview">')[0])).toContain("확인할 것 3건");
+    expect(textOf(elementsOf(html, '<p class="overview">')[0])).toContain("확인할 것 4건");
     expect(textOf(elementsOf(html.slice(html.indexOf('<details class="rv-group rv-check-applicability">')), "<summary>")[0])).toBe(
-      `${REVIEW_STATUS_LABEL["check-applicability"]} 2건`,
+      `${REVIEW_STATUS_LABEL["check-applicability"]} 3건`,
     );
+    // CLI 2a24d94 의 까닭도 이 사이트의 말로(메모를 그대로 싣지 않는다).
+    expect(text).toContain("AI 가 걸리는지 모른다고 답해 '해당 여부부터 확인할 것'으로 옮겼습니다.");
+    expect(text).not.toContain("모름 메모.");
     // 조건이 AI 의 말뿐이면(해당 여부부터) 조건이 있다고 단정하지 않는다.
     expect(text).toContain(`AI 가 걸리는 조건이 있다고 답해 '${REVIEW_STATUS_LABEL["not-applicable"]}'을 받지 않았습니다.`);
     expect(text).not.toContain("조건 메모.");
