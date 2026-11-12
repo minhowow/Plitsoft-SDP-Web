@@ -86,6 +86,14 @@ describe("review 결과 (2판)", () => {
     const up = layout.paths.find((p) => p.from === "agent" && p.to === "api")!;
     expect(up.d).toMatch(/^M[\d.]+,[\d.]+ L[\d.]+,[\d.]+$/);
     expect(layout.paths.some((p) => p.outward)).toBe(false);
+    // 첫 단에서 마지막 단으로 건너뛰는 화살표는 가운데 단의 상자 사이 틈으로 곧게 지나간다(상자 뒤로 지나가지 않는다).
+    const skip = layout.paths.find((p) => p.from === "kakao" && p.to === "db")!;
+    const through = /L([\d.]+),([\d.]+)/.exec(skip.d)!;
+    expect(Number(through[1])).toBe(box("api").x + box("api").w);
+    for (const id of ["api", "agent"]) {
+      const b = box(id);
+      expect(Number(through[2]) > b.y && Number(through[2]) < b.y + b.h, id).toBe(false);
+    }
   });
 
   it("다시 검토 중: 짚은 의무는 상태·까닭·인용 없이 이름만 맨 아래에 접고, 갈래 수와 맨 위 한 줄의 수에서 뺀다", () => {

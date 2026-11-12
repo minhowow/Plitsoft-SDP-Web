@@ -4,9 +4,12 @@
  *
  * 사실은 그대로 옮겼다. 이 사이트의 상태 이름과 겹치는 말만 바꿨다("불확실" → "판단 보류(모름)", "해당 없음으로 풀었다" →
  * 조문이 닿지 않는다고 보고 풀었다). 비용 어림과 CLI 의 선택지는 옮기지 않았다. 역따옴표로 감싼 곳은 코드로 적는다.
+ *
+ * 한 줄 요약은 review 2판 실측(2026-11-12)에 맞춰 다시 썼다(오너 지시): 무엇을 하는 서비스인지와, "코드에서 본 것" 가운데 가장
+ * 중요하다고 고른 한 건. 그 건의 인용한 줄과 없다고 한 것은 원본 코드에서 다시 확인했다.
  */
 export interface CaseStory {
-  /** 한 줄 요약. */
+  /** 한 줄 요약(review 결과의 하는 일과 코드에서 본 것 한 건). */
   headline: string;
   /** 무슨 코드인가. */
   code: string;
@@ -22,7 +25,7 @@ export interface CaseStory {
 
 export const CASE_STORIES: Record<string, CaseStory> = {
   "starthub-app": {
-    headline: "소셜 로그인으로 가입하면 '만 14세 이상' 확인을 건너뛴다",
+    headline: "창업 지원 앱. 생년월일을 받아 서버로 보내는데, 만 14세 미만이면 법정대리인 동의를 받는 처리가 앱에 없다",
     code:
       "창업 지원 앱(React Native). 이메일 가입 화면에 '[필수] 만 14세 이상입니다' 체크가 있다. 가입 뒤 프로필 단계에서 생년월일을 받아 서버로 보낸다.",
     ruleOnly:
@@ -39,7 +42,7 @@ export const CASE_STORIES: Record<string, CaseStory> = {
     ],
   },
   excelerate: {
-    headline: "다른 파일의 'AI Output' 제목을 근거로 경고를 풀고, 사전 고지 누락은 새로 찾는다",
+    headline: "사내 보고서를 LLM 으로 자동화하는 웹 서비스. 명령과 문서 내용을 OpenAI 로 보내는데, 동의 화면이나 처리방침이 저장소에 없다",
     code:
       "생성형 AI 로 사내 보고서 작업을 자동화하는 웹(React). LLM 실험 화면, RAG 채팅 화면, 에이전트 호출 기록 화면이 있다. " +
       "사내용이라 이용자 고지 의무가 걸리는지부터가 검토자의 질문이다. " +
@@ -55,7 +58,7 @@ export const CASE_STORIES: Record<string, CaseStory> = {
     ],
   },
   jobtalk: {
-    headline: "이름·관심 분야·자격증을 OpenAI 로 보낸다. 규칙만으로는 0건",
+    headline: "진로 상담 챗봇. 자격증·관심 분야·상담 메시지를 OpenAI 로 보내는데, 가입 동의문에 국외 이전이 적혀 있지 않다",
     code:
       "진로 상담 챗봇(Express 백엔드 + React). 상담 프롬프트에 사용자 이름, 보유 자격증, 관심 분야를 넣어 OpenAI(gpt-4o-mini)로 보낸다.",
     ruleOnly: "아무것도 없다(0건). 이 저장소의 호출 모양(`openai.responses.create`)을 규칙이 알아보지 못했다.",
@@ -68,7 +71,7 @@ export const CASE_STORIES: Record<string, CaseStory> = {
     extra: [],
   },
   "medeasy-frontend": {
-    headline: "생년월일을 받아 가입시키는데 만 14세 미만 분기가 없다",
+    headline: "복약 관리 앱. 처방전 사진을 서버로 올리는데, 그 전에 따로 동의를 받는 단계가 앱에 없다",
     code: "복약 관리 앱(React Native). 가입 화면에서 생년월일·성별을 받아 바로 가입 API 를 부른다.",
     ruleOnly: "가입 관련 파일 4곳을 짚었다. 그 가운데 하나는 로그인 화면(`SignIn.js`)이다.",
     afterAi:

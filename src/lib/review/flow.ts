@@ -8,7 +8,8 @@ import type { FlowEdge, FlowKind, FlowNode } from "./index";
  *   들어오는 화살표 없이 내보내기만 하는 외부(예: 카카오 로그인이 넘겨 주는 정보)는 첫 단의 아래에 둔다. 마디가 없는 단은 걷는다.
  * - 단 안의 차례는 앞 단에서 이어 오는 마디들의 높이 가운데(무게 중심)로 정한다. 화살표가 덜 엇갈린다.
  * - 화살표는 앞 마디의 오른쪽에서 뒤 마디의 왼쪽으로 잇는 굽은 선이다(뒤로 가면 왼쪽에서 오른쪽으로). 한 마디에 여럿이 닿으면 닿는
- *   자리를 위아래로 벌린다. 같은 단 안의 화살표는 위아래로 곧게 잇고, 그 둘 사이는 조금 더 벌린다.
+ *   자리를 위아래로 벌린다. 같은 단 안의 화살표는 위아래로 곧게 잇고, 그 둘 사이는 조금 더 벌린다. 단을 건너뛰는 화살표는 사이 단의
+ *   상자 뒤로 지나가지 않게 그 단의 상자 사이 틈(맨 위·맨 아래 포함)으로 곧게 지나간다.
  * - 외부로 나가는 화살표(`outward`)는 화면에서 눈에 띄게 그린다.
  * - 글은 SVG 가 줄을 바꾸지 않으므로 여기서 나눈다. 한글은 글자 너비 1, 그 밖은 0.55 로 어림한다.
  */
@@ -183,8 +184,14 @@ export function layoutFlow(nodes: FlowNode[], edges: FlowEdge[]): FlowLayout {
     outs.set(edge.from, [...(outs.get(edge.from) ?? []), edge.to]);
     ins.set(edge.to, [...(ins.get(edge.to) ?? []), edge.from]);
   }
-  const curve = (sx: number, sy: number, tx: number, ty: number, bend: number) =>
-    `M${sx},${sy.toFixed(1)} C${(sx + bend).toFixed(1)},${sy.toFixed(1)} ${(tx - bend).toFixed(1)},${ty.toFixed(1)} ${tx},${ty.toFixed(1)}`;
+  // 단 안의 틈(상자 사이, 맨 위·맨 아래) 가운데 `near` 에 가장 가까운 높이.
+  const gapIn = (x: number, near: number) => {
+    const inColumn = [...boxes.values()].filter((box) => box.x === x).sort((p, q) => p.y - q.y);
+    const gaps = [inColumn[0].y - NODE_GAP / 2, ...inColumn.slice(1).map((box, k) => (inColumn[k].y + inColumn[k].h + box.y) / 2)];
+    const last = inColumn[inColumn.length - 1];
+    gaps.push(last.y + last.h + NODE_GAP / 2);
+    return gaps.reduce((best, y) => (Math.abs(y - near) < Math.abs(best - near) ? y : best));
+  };
   const paths: FlowPath[] = edges.map((edge) => {
     const a = boxes.get(edge.from)!;
     const b = boxes.get(edge.to)!;
@@ -199,15 +206,28 @@ export function layoutFlow(nodes: FlowNode[], edges: FlowEdge[]): FlowLayout {
     }
     const sy = portY(edge.from, outs.get(edge.from)!, edge.to);
     const ty = portY(edge.to, ins.get(edge.to)!, edge.from);
-    if (b.x > a.x) {
-      const sx = a.x + a.w;
-      const tx = b.x - 7;
-      return { from: edge.from, to: edge.to, d: curve(sx, sy, tx, ty, Math.max(40, (tx - sx) / 2)), outward };
+    // 앞으로 가면 앞 마디의 오른쪽에서 뒤 마디의 왼쪽으로, 뒤로 가면 왼쪽에서 오른쪽으로.
+    const dir = b.x > a.x ? 1 : -1;
+    const sx = dir > 0 ? a.x + a.w : a.x;
+    const tx = dir > 0 ? b.x - 7 : b.x + b.w + 7;
+    let x = sx;
+    let y = sy;
+    let d = `M${sx},${sy.toFixed(1)}`;
+    const bendTo = (x2: number, y2: number) => {
+      const bend = (x2 - x) / 2;
+      d += ` C${(x + bend).toFixed(1)},${y.toFixed(1)} ${(x2 - bend).toFixed(1)},${y2.toFixed(1)} ${x2},${y2.toFixed(1)}`;
+      x = x2;
+      y = y2;
+    };
+    const skipped = columns.filter((c) => (c.x - a.x) * dir > 0 && (b.x - c.x) * dir > 0).sort((p, q) => (p.x - q.x) * dir);
+    for (const column of skipped) {
+      const gy = gapIn(column.x, (sy + ty) / 2);
+      bendTo(dir > 0 ? column.x : column.x + column.w, gy);
+      x = dir > 0 ? column.x + column.w : column.x;
+      d += ` L${x},${gy.toFixed(1)}`;
     }
-    // 뒤로 가는 화살표: 앞 마디의 왼쪽에서 뒤 마디의 오른쪽으로.
-    const sx = a.x;
-    const tx = b.x + b.w + 7;
-    return { from: edge.from, to: edge.to, d: curve(sx, sy, tx, ty, -Math.max(40, (sx - tx) / 2)), outward };
+    bendTo(tx, ty);
+    return { from: edge.from, to: edge.to, d, outward };
   });
 
   const width = PAD_X * 2 + used.length * NODE_W + Math.max(0, used.length - 1) * COL_GAP;
