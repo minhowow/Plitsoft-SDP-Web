@@ -56,11 +56,11 @@ jobs:
     env:
       # 도구는 워크플로 입력이 아니라 이 파일에서 고정한다(요청하는 쪽이 바꾸지 못한다).
       CLI_REPO: minhowow/Plitsoft-SDP
-      CLI_COMMIT: e12e6bafe01fe478db6dceee2731d697035fbfe4
+      CLI_COMMIT: f4967dbbc7f3e7ee55dc50de5652eda356a73c1a
       UV_VERSION: 0.13.0
       # 딸린 꾸러미는 이 날짜까지 나온 판에서만 고른다(git 설치는 CLI 의 uv.lock 을 쓰지 않는다). CLI 고정 커밋의 날짜
-      # (2026-11-11)로 둔다. 그 커밋의 uv.lock 에 있는 판은 모두 이보다 앞서 나왔다. CLI_COMMIT 을 바꿀 때 함께 바꾼다.
-      CLI_EXCLUDE_NEWER: "2026-11-11T00:00:00Z"
+      # (2026-11-12)로 둔다. 그 커밋의 uv.lock 에 있는 판은 모두 이보다 앞서 나왔다. CLI_COMMIT 을 바꿀 때 함께 바꾼다.
+      CLI_EXCLUDE_NEWER: "2026-11-12T00:00:00Z"
       # AI 판정자 모델(전체 id). 별칭(haiku 등)은 CLI 판마다 다른 모델로 풀린다.
       JUDGE_MODEL: claude-haiku-5-5
       MAX_TARBALL_MB: "100"

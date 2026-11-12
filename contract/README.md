@@ -71,7 +71,7 @@ npm run capture && npm run pack-meta && npm test
 단계는 그대로 남았다.
 
 2026-11-10: CLI 가 웹이 고정할 판 `handoff-w11`(`50c70bc`)에서 공식 스키마 `schemas/report-1.json` 과 계약 문서
-`docs/output.md` 를 냈다(R2). 같은 날 고정 판을 `50c70bc` 로 옮겼다(판정 변화 없음. 팩 판·지문이 바뀌고 정책 `kr.pipa.28-8` 이 더해짐). 2026-11-11 에 `handoff-w11-2`(`54e048a`)로 옮겼다(수집본의 판정 변화 없음. 발견마다 `role`, `run.finding_counts` 가 더해짐). 같은 날 `handoff-w11-3`(`fe98fb7`)로 옮겼다(판정·팩 판 그대로. `policypack profile` 이 더해짐). 이어 `handoff-w11-5`(`e12e6ba`)로 옮겼다(시험·예제 파일은 판정자에게 묻지 않음 `test-file`, 프로필에 `platforms`, `policypack review` 2판). 그 스키마는 닫혀 있다(그 판이 내는 키 밖은 막는다). CLI 도 받는 쪽은
+`docs/output.md` 를 냈다(R2). 같은 날 고정 판을 `50c70bc` 로 옮겼다(판정 변화 없음. 팩 판·지문이 바뀌고 정책 `kr.pipa.28-8` 이 더해짐). 2026-11-11 에 `handoff-w11-2`(`54e048a`)로 옮겼다(수집본의 판정 변화 없음. 발견마다 `role`, `run.finding_counts` 가 더해짐). 같은 날 `handoff-w11-3`(`fe98fb7`)로 옮겼다(판정·팩 판 그대로. `policypack profile` 이 더해짐). 이어 `handoff-w11-5`(`e12e6ba`)로 옮겼다(시험·예제 파일은 판정자에게 묻지 않음 `test-file`, 프로필에 `platforms`, `policypack review` 2판). 2026-11-12 에 `handoff-w11-6`(`f4967db`)로 옮겼다(판정·팩 판 그대로. 프로필에 `goods`, review 2판에 키 덧붙임, `contract/schema/review.cli-2.schema.json` 은 그 판의 사본). 그 스키마는 닫혀 있다(그 판이 내는 키 밖은 막는다). CLI 도 받는 쪽은
 모르는 키를 무시하고, 이 스키마로 엄격하게 검사하면 키가 더해질 때 깨진다고 적는다. 손 자료(`tests/fixtures`, `samples-v1-draft`)와
 SARIF 에서 옮긴 결과도 통과하지 않는다. 그래서 아래 1 은 그대로 하지 않는 것이 G1 의 계획이다(오너가 G1 에서 정한다): 사본을 두면
 수집본을 견주는 시험에만 쓰고, 웹 스키마와 손으로 보는 파서는 열어 둔다. 지금 사본은 없다. 정책별 요약(R1)과 결과에 실린 커밋(R7)은 아직 없어 2·3 도 기다린다.
