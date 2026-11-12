@@ -7,6 +7,8 @@ import type { Profile } from "@/lib/profile";
 import type { Review } from "@/lib/review";
 import { CHECKLIST_LABEL } from "@/lib/report/status";
 import type { ReportView } from "@/lib/report/view-model";
+import type { ReviewPlan } from "@/lib/service/types";
+import { SITE } from "@/lib/site";
 
 export type { Statute } from "@/components/result/ReportSummary";
 
@@ -63,6 +65,8 @@ export function AnalysisDashboard({
   progress,
   profile = null,
   review = null,
+  reviewPlan,
+  limitDay = null,
 }: {
   view: ReportView;
   code: CodeSource | null;
@@ -76,7 +80,31 @@ export function AnalysisDashboard({
    * 의무 체크리스트, 검증 정보)이고, 정적 검사의 결과는 그 아래 넷째 단이다.
    */
   review?: Review | null;
+  /**
+   * 이 분석에서 review 를 어떻게 했는지. review 결과가 없는데 `limit`(오늘의 review 실행 수 상한)이나 `run`(맡겼는데 결과가 없음)이면
+   * 프로필과 의무 목록까지 보이고, 셋째 단에 그 사실을 적은 뒤 정적 검사를 넷째 단에 둔다(2026-11-12 오너 지시).
+   */
+  reviewPlan?: ReviewPlan;
+  /** 한도에 닿은 분석이 오늘(한국 표준시)의 것이 아니면 그날(YYYY-MM-DD). 오늘이면 null 이고 "오늘 검토 한도가 찼습니다"라고 적는다. */
+  limitDay?: string | null;
 }) {
+  if (!review && (reviewPlan === "limit" || reviewPlan === "run")) {
+    return (
+      <div className="tiers">
+        <OverviewLine profile={profile} check={placesIn(view, "checks")} unknown={placesIn(view, "unknowns")} />
+        <ProfileTier profile={profile} code={code} />
+        <ObligationTier profile={profile} />
+        <Tier n={3} name="의무 체크리스트">
+          <p className="tier-none">
+            {reviewPlan === "run" ? SITE.service.reviewMissing : limitDay ? `${limitDay} 검토 한도가 차서 검토하지 않았습니다.` : SITE.service.reviewLimit}
+          </p>
+        </Tier>
+        <Tier n={4} name="정적 검사">
+          <ReportSummary view={view} code={code} statutes={statutes} progress={progress} />
+        </Tier>
+      </div>
+    );
+  }
   if (review) {
     return (
       <div className="tiers">

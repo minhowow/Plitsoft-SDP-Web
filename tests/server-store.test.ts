@@ -80,11 +80,11 @@ async function finish(id: string, at: Date, result: string | null = JSON.stringi
 
 describe("DB: 마이그레이션", () => {
   it("이름 차례로 한 번만 적용한다", async () => {
-    expect(readMigrations().map((m) => m.name)).toEqual(["001_init.sql", "002_finding_count.sql", "003_queue.sql", "004_runner_wake.sql", "005_profile.sql", "006_review.sql"]);
+    expect(readMigrations().map((m) => m.name)).toEqual(["001_init.sql", "002_finding_count.sql", "003_queue.sql", "004_runner_wake.sql", "005_profile.sql", "006_review.sql", "007_review_plan.sql"]);
     // 이미 열 때 적용했다. 다시 돌려도 아무것도 하지 않는다.
     expect(await migrate(db)).toEqual([]);
     const applied = await db.query<{ name: string }>("SELECT name FROM schema_migrations ORDER BY name");
-    expect(applied.rows.map((row) => row.name)).toEqual(["001_init.sql", "002_finding_count.sql", "003_queue.sql", "004_runner_wake.sql", "005_profile.sql", "006_review.sql"]);
+    expect(applied.rows.map((row) => row.name)).toEqual(["001_init.sql", "002_finding_count.sql", "003_queue.sql", "004_runner_wake.sql", "005_profile.sql", "006_review.sql", "007_review_plan.sql"]);
   });
 
   it("표에 저장하지 않기로 한 것(IP·사용자·코드)을 담을 열이 없다", async () => {
@@ -113,6 +113,8 @@ describe("DB: 마이그레이션", () => {
       "analyses.dispatched_at",
       // 저장소 프로필에서 목록에 싣는 기능 이름(코드가 아니다. CLI 가 붙인 기능 이름뿐이다. 2026-11-11).
       "analyses.feature_names",
+      // review 를 어떻게 했는지(run·stored·limit). 하루 review 실행 수를 센다(2026-11-12).
+      "analyses.review_plan",
       "github_budget.bucket",
       "github_budget.window_start",
       "github_budget.used",
@@ -190,6 +192,42 @@ describe("분석 요청", () => {
     created(await store.requestAnalysis("example-org", "night-push"));
     // 꺼져 있을 때(기본)는 위의 첫 시험이 본다(review: false).
     expect(wakes.map((w) => (w as { review: boolean }).review)).toEqual([true, true, false, true]);
+  });
+
+  it("하루(한국 표준시) review 를 맡기는 수는 REVIEW_DAILY_LIMIT 까지다. 넘으면 review 없이 보내고 분석에 limit 을 적는다. 저장된 review 를 쓰는 분석과 검사 앞에서 멈춘 분석은 세지 않는다", async () => {
+    const { store, stub, clock, later, wakes } = setup({ runner: { review: true }, limits: { reviewDaily: 2, poolSize: 5 } });
+    const a = created(await store.requestAnalysis("example-org", "kids-signup"));
+    const b = created(await store.requestAnalysis("example-org", "night-push"));
+    const c = created(await store.requestAnalysis("example-labs", "plain.utils"));
+    expect([a, b, c].map((o) => o.analysis.review)).toEqual(["run", "run", "limit"]);
+    expect((await store.findAnalysis(c.analysis.id))?.review).toBe("limit");
+    // review 는 검사 단계에서 돈다. 저장소 받기에서 멈춘 분석은 모델을 부르지 않았으므로 세지 않는다.
+    await db.query("UPDATE analyses SET status = 'failed', failure_step = 'fetch', failure_reason = 'x', finished_at = $2 WHERE id = $1", [b.analysis.id, clock.now]);
+    expect(created(await store.requestAnalysis("Example-Studio", "GenAI-Chat")).analysis.review).toBe("run");
+    stub.setHead("example-labs", "plain.utils", "2");
+    later(1);
+    expect(created(await store.requestAnalysis("example-labs", "plain.utils")).analysis.review).toBe("limit");
+    // 같은 커밋의 저장된 review 가 있으면 상한과 상관없이 stored(맡기지 않는다).
+    await finish(a.analysis.id, clock.now, null);
+    await db.query("INSERT INTO results (analysis_id, json, review) VALUES ($1, $2, $3)", [a.analysis.id, "{}", JSON.stringify({ review_version: 2 })]);
+    later(61);
+    expect(created(await store.requestAnalysis("example-org", "kids-signup")).analysis.review).toBe("stored");
+    // 다음 날(한국 표준시 0시가 지나면) 다시 센다.
+    clock.now = new Date(kstDayStart(clock.now).getTime() + 24 * 60 * 60_000);
+    stub.setHead("example-org", "night-push", "2");
+    expect(created(await store.requestAnalysis("example-org", "night-push")).analysis.review).toBe("run");
+    expect(wakes.map((w) => (w as { review: boolean }).review)).toEqual([true, true, false, true, false, false, true]);
+  });
+
+  it("실행기를 깨우지 못해 대기열에 되돌린 분석은 review 를 맡긴 것으로 세지 않는다", async () => {
+    let fail = true;
+    const { store, later, wakes } = setup({ runner: { review: true }, limits: { reviewDaily: 1 }, wake: async () => (fail ? { ok: false, reason: "x" } : { ok: true }) });
+    const a = created(await store.requestAnalysis("example-org", "kids-signup"));
+    expect(a.analysis.review).toBeUndefined();
+    fail = false;
+    later(WAKE_RETRY_MINUTES + 1);
+    expect((await store.findAnalysis(a.analysis.id))?.review).toBe("run");
+    expect(wakes.map((w) => (w as { review: boolean }).review)).toEqual([true, true]);
   });
 
   it("같은 커밋에 대기·진행 중인 분석이 있으면 그 분석을 돌려준다(reused)", async () => {

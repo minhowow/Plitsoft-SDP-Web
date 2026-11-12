@@ -133,7 +133,8 @@ GitHub Actions(실행기 저장소) ── 공개 저장소를 그 커밋으로 
 | `GITHUB_CALLS_PER_MINUTE` | 60 | 이 사이트가 1분에 검색 밖의 GitHub API(저장소 정보·끝 커밋)를 부르는 수(GitHub 은 토큰으로 1시간 5000번) |
 | `RESULT_MAX_KB` | 4000 | 실행기가 보내는 결과 JSON 의 크기 상한(KB). 넘는 콜백은 받지 않는다(Vercel 함수의 본문 상한 4.5MB 보다 작게) |
 | `RUNNER` | none | `github`(workflow_dispatch), `local`(이 컴퓨터의 로컬 실행기가 집어 감), `none`(요청을 받지 않음) |
-| `REVIEW` | 끔 | `on` 일 때만 실행기가 검사 뒤에 `policypack review` 도 돌린다(모델 호출, 한 건의 금액·시간 상한은 워크플로의 `REVIEW_*`). 같은 커밋의 저장된 review 가 있으면 돌리지 않고 그것을 쓴다. 켜는 것은 오너가 비용을 정한 뒤다 |
+| `REVIEW` | 끔 | `on` 일 때만 실행기가 검사 뒤에 `policypack review` 도 돌린다(모델 호출, 한 건의 금액·시간 상한은 워크플로의 `REVIEW_*`). 같은 커밋의 저장된 review 가 있으면 돌리지 않고 그것을 쓴다. 켜는 것은 오너가 비용을 정한 뒤다(2026-11-12 오너 승인, 배포에서 켬) |
+| `REVIEW_DAILY_LIMIT` | 10 | 하루(한국 표준시 0시~) 실행기에 review 를 맡기는 수. 넘으면 그 분석은 프로필과 의무 목록까지만 보이고 '오늘 검토 한도가 찼습니다'라고 적는다. 같은 커밋의 저장된 review 를 쓰는 분석은 세지 않는다 |
 
 실행기 쪽 상한은 워크플로 파일(`.github/workflows/analyze.yml` 의 `env`)에 둔다(요청하는 쪽이 바꾸지 못한다).
 

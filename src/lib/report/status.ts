@@ -101,6 +101,12 @@ export const REVIEW_STATUS_LABEL = {
  */
 export const REVIEW_RECHECK_LABEL = "다시 검토 중";
 
+/**
+ * review 체크리스트에서 품목 신호가 없어 묻지 않은 품목 의무(주류·도서 등, CLI 의 group goods)를 한 줄로 묶는 이름. 갈래는 "해당
+ * 여부부터 확인할 것"이지만 확인할 것의 수에 넣지 않는다.
+ */
+export const REVIEW_GOODS_LABEL = "특정 품목을 판다면 확인할 것";
+
 /** 위에 놓을수록 먼저 봐야 한다. */
 export const STATUS_ORDER: Status[] = [
   "needs-review",

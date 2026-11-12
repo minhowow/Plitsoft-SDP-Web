@@ -7,7 +7,7 @@ import { layoutFlow } from "@/lib/review/flow";
 import CasePage from "@/app/cases/[slug]/page";
 import CasesPage from "@/app/cases/page";
 import { casesFile } from "@/lib/cases";
-import { REVIEW_RECHECK_LABEL, REVIEW_STATUS_LABEL } from "@/lib/report/status";
+import { REVIEW_GOODS_LABEL, REVIEW_RECHECK_LABEL, REVIEW_STATUS_LABEL } from "@/lib/report/status";
 import { closedDetailsAt, elementAt, elementsOf, readJson, textOf } from "./helpers";
 
 // review 2판(policypack review, CLI e12e6ba)의 결과를 읽는 부품과 화면(2026-11-11 오너 지시). 자료는 손으로 만든 합성 예시다.
@@ -108,6 +108,84 @@ describe("review 결과 (2판)", () => {
     expect(textOf(fold)).toContain(held.dutyText);
     expect(textOf(fold)).not.toContain(REVIEW_STATUS_LABEL["not-applicable"]);
     expect(fold).not.toContain("rv-searches");
+  });
+
+  it("2판 덧붙임(CLI f4967db): 품목 묶음은 한 줄로 접고 확인할 것의 수에서 빼며, 관문의 메모·까닭 이름·프로필 신호의 빈 줄을 그대로 싣지 않고, 없는 것을 적는다", () => {
+    const data = sample();
+    const base = (data.checklist as Record<string, unknown>[])[0];
+    const note = "걸리는 조건 자체가 없다는 답(applies '아니오'와 condition)이 없어 '해당 없음'으로 받지 않았습니다.";
+    const named = "인용이 조문이 요구하는 행위가 아니라 이름·기본값뿐이라 '충족 근거 있음'으로 받지 않았습니다.";
+    const goods = (duty: string, name: string) => ({
+      ...base,
+      duty,
+      duty_text: `${name} 판매 의무 ${duty}`,
+      status: "check-applicability",
+      asked: false,
+      not_answered: "goods-not-detected",
+      group: "goods",
+      first: null,
+      verification: { result: "not-run", why: "goods-not-detected" },
+      citations: [],
+      searches: [],
+      question: `${name}도 판매하나요? 판매한다면 이 의무가 걸립니다.`,
+      reason: `${name} 판매에만 걸리는 의무입니다. 코드에서 이 품목의 신호를 찾지 못해 묻지 않았습니다.`,
+    });
+    const checklist = [
+      {
+        ...base,
+        duty: "gate-no-condition",
+        status: "check-applicability",
+        first: { ...(base.first as object), gate: { from: "not-applicable", why: "no-condition", note } },
+        reason: `${note} 모델이 쓴 말 하나. 모델이 쓴 말 둘.`,
+      },
+      {
+        ...base,
+        duty: "gate-name",
+        status: "seen-in-code",
+        missing: "약관 고지 화면이 없음",
+        first: { ...(base.first as object), gate: { from: "evidence-found", why: "name-or-default", note: named } },
+        reason: `${named} helmet 기본값으로 HSTS 를 켭니다.`,
+        citations: [{ file: "src/app/signup/page.tsx", line: null, text: "", ok: true, why: "profile" }],
+      },
+      {
+        ...base,
+        duty: "gate-said",
+        status: "check-applicability",
+        first: { ...(base.first as object), gate: { from: "not-applicable", why: "condition-present", note: "조건 메모." } },
+        reason: "조건 메모. 모델의 말.",
+      },
+      { ...base, duty: "cap", status: "unknown", asked: false, first: null, not_answered: "cost-cap", reason: "저장소당 금액 상한에 걸려 묻지 못했습니다" },
+      goods("liquor-1", "주류"),
+      goods("books-1", "도서"),
+    ];
+    const review = parseReview({ ...data, checklist })!;
+    expect(review.checklist.map((item) => item.gate)).toEqual(["no-condition", "name-or-default", "condition-present", null, null, null]);
+    expect(review.checklist[0].reason).toBe("모델이 쓴 말 하나. 모델이 쓴 말 둘.");
+    const html = renderToStaticMarkup(<ReviewView review={review} code={{ htmlUrl: "https://github.com/o/r", commit: "a".repeat(40) }} />);
+    const text = textOf(html);
+    for (const raw of ["goods-not-detected", "cost-cap", "applies", "condition", "충족 근거 있음"]) expect(text, raw).not.toContain(raw);
+    // 품목 묶음: '해당 여부부터' 갈래 바로 뒤의 한 줄. 맨 위 한 줄의 확인할 것은 품목 의무를 빼고 센다(2건).
+    const at = html.indexOf('<details class="rv-group rv-goods">');
+    expect(at).toBeGreaterThan(html.indexOf('<details class="rv-group rv-check-applicability">'));
+    expect(textOf(elementsOf(html.slice(at), "<summary>")[0])).toBe(`${REVIEW_GOODS_LABEL} 2건`);
+    expect(textOf(elementAt(html, at))).toContain("주류도 판매하나요?");
+    expect(textOf(elementsOf(html, '<p class="overview">')[0])).toContain("확인할 것 3건");
+    expect(textOf(elementsOf(html.slice(html.indexOf('<details class="rv-group rv-check-applicability">')), "<summary>")[0])).toBe(
+      `${REVIEW_STATUS_LABEL["check-applicability"]} 2건`,
+    );
+    // 조건이 AI 의 말뿐이면(해당 여부부터) 조건이 있다고 단정하지 않는다.
+    expect(text).toContain(`AI 가 걸리는 조건이 있다고 답해 '${REVIEW_STATUS_LABEL["not-applicable"]}'을 받지 않았습니다.`);
+    expect(text).not.toContain("조건 메모.");
+    // 관문이 바꾼 항목: 첫 줄은 이 사이트의 상태 이름으로 적은 까닭, 모델의 말은 '자세히'에.
+    expect(text).toContain(`걸리는 조건이 없다는 근거가 없어 AI 가 낸 '${REVIEW_STATUS_LABEL["not-applicable"]}'을 받지 않았습니다.`);
+    expect(text).toContain(`'${REVIEW_STATUS_LABEL["evidence-found"]}'으로 받지 않았습니다.`);
+    expect(text).toContain("모델이 쓴 말 하나. 모델이 쓴 말 둘.");
+    expect(text).toContain("없는 것 약관 고지 화면이 없음");
+    // 프로필 신호는 인용한 줄(빈 글)이 아니라 기능 신호의 파일 링크.
+    expect(html).not.toContain('<code class="cite-text" translate="no"></code>');
+    expect(text).toContain("기능 신호: src/app/signup/page.tsx");
+    // 묻지 못한 항목은 reason 의 말만(까닭 이름을 싣지 않는다).
+    expect(text).toContain("저장소당 금액 상한에 걸려 묻지 못했습니다");
   });
 });
 

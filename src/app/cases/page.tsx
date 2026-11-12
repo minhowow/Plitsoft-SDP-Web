@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { CaseFacts } from "@/components/cases/CaseFacts";
 import { Icon } from "@/components/Icon";
+import { checkCount } from "@/components/review/ReviewView";
 import { casesFile, casesHref } from "@/lib/cases";
 import { CASE_STORIES } from "@/lib/cases/stories";
 import { REVIEW_RECHECK_LABEL, REVIEW_STATUS_LABEL } from "@/lib/report/status";
@@ -32,7 +33,7 @@ export default function CasesPage() {
         {cases.map((c) => {
           const review = parseReview(c.review);
           const features = review?.profile.features.filter((feature) => feature.removed === null).length ?? 0;
-          const check = review?.checklist.filter((item) => CHECKS.includes(item.status) && !c.recheck.includes(item.duty)).length ?? 0;
+          const check = review ? checkCount(review.checklist.filter((item) => !c.recheck.includes(item.duty))) : 0;
           return (
             <li key={c.slug}>
               <Link href={casesHref(c.slug)} className="pi-row">

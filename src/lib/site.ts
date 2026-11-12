@@ -77,6 +77,12 @@ export const SITE = {
     runnerOff: "지금은 분석을 돌릴 실행기가 설정되지 않아 분석 요청을 받지 않습니다. 이미 있는 분석은 그대로 봅니다.",
     /** 로컬 실행기(RUNNER=local)인데 GitHub 이 실제 주소인 서버. 로컬 실행기는 합성 데모 코드만 검사한다. */
     localRealGitHub: "로컬 실행기는 합성 저장소만 검사하므로, 실제 GitHub 에 묻는 이 서버는 분석 요청을 받지 않습니다.",
+    /** review 를 맡긴 분석의 진행 화면(2026-11-12 오너 지시). */
+    reviewTakes: "검토에 3~4분 걸립니다.",
+    /** 하루 review 실행 수 상한(`REVIEW_DAILY_LIMIT`)에 닿아 review 없이 돈 분석. 프로필과 의무 목록까지만 보인다. */
+    reviewLimit: "오늘 검토 한도가 찼습니다.",
+    /** review 를 맡겼는데 결과가 오지 않았거나 읽지 못한 분석. */
+    reviewMissing: "검토 결과를 받지 못했습니다.",
     searchPlaceholder: "저장소 이름이나 설명 (예: kids-signup)",
     /** 자리표시 글이 입력창에 다 들어가지 않는 좁은 화면(320~340px)의 짧은 글. 글자 크기는 줄이지 않는다(16px). */
     searchPlaceholderShort: "저장소 이름이나 설명",

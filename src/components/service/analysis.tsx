@@ -200,6 +200,9 @@ export function InProgress({
         <p className="live-now" role={live ? "status" : undefined}>
           {keepParticles(now)}
         </p>
+        {analysis.review === "run" && (analysis.status === "queued" || analysis.status === "running") && (
+          <p className="hint">{SITE.service.reviewTakes}</p>
+        )}
         <StepList analysis={analysis} />
         {note && <div className="hint an-progress-note">{note}</div>}
       </div>

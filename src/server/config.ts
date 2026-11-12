@@ -57,6 +57,11 @@ export interface ServerConfig {
     poolSize: number;
     /** 대기열(실행기에 보내기 전)에 둘 수 있는 분석 수. 넘으면 그때만 요청을 받지 않는다(429). */
     queueLimit: number;
+    /**
+     * 하루(한국 표준시 0시~) 실행기에 review 를 맡기는 수의 상한(REVIEW_DAILY_LIMIT, 2026-11-12 오너 지시). 넘으면 그 분석은 review 없이
+     * 돌고(프로필과 의무 목록까지), 화면에 '오늘 검토 한도가 찼습니다'라고 적는다. 같은 커밋의 저장된 review 를 쓰는 분석은 세지 않는다.
+     */
+    reviewDaily: number;
     /** 실행기에 보낸 뒤 이 시간(분)을 넘게 끝나지 않은 분석은 '시간 초과'로 실패 처리한다(요청한 때가 아니라 보낸 때부터 센다). */
     runTimeoutMinutes: number;
     /** 실행기에 보낸 뒤 이 시간(분) 안에 실행기가 시작을 알리지 않으면 실패로 적고 다음을 보낸다. */
@@ -108,6 +113,7 @@ export const DEFAULTS = {
   daily: 30,
   poolSize: 2,
   queueLimit: 20,
+  reviewDaily: 10,
   runTimeoutMinutes: 32,
   dispatchTimeoutMinutes: 10,
   queueTimeoutMinutes: 120,
@@ -173,6 +179,7 @@ export function readConfig(env: Env = process.env): ServerConfig {
       // POOL_SIZE 가 없으면 옛 이름 CONCURRENT_LIMIT 을 읽는다(이미 그 이름으로 넣어 둔 배포가 같은 값으로 돌게).
       poolSize: positive(env, "POOL_SIZE", positive(env, "CONCURRENT_LIMIT", DEFAULTS.poolSize)),
       queueLimit: positive(env, "QUEUE_LIMIT", DEFAULTS.queueLimit),
+      reviewDaily: positive(env, "REVIEW_DAILY_LIMIT", DEFAULTS.reviewDaily),
       runTimeoutMinutes: positive(env, "RUN_TIMEOUT_MINUTES", DEFAULTS.runTimeoutMinutes),
       dispatchTimeoutMinutes: positive(env, "DISPATCH_TIMEOUT_MINUTES", DEFAULTS.dispatchTimeoutMinutes),
       queueTimeoutMinutes: positive(env, "QUEUE_TIMEOUT_MINUTES", DEFAULTS.queueTimeoutMinutes),

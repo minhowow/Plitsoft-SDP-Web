@@ -1,11 +1,41 @@
 import { Icon } from "@/components/Icon";
 import type { CodeSource } from "@/components/result/PolicyCard";
 import { SANCTION, Tier } from "@/components/result/Tiers";
+import { Where } from "@/components/result/Where";
 import { keepParticles } from "@/components/text";
-import { REVIEW_STATUSES, type Review, type ReviewItem, type ReviewStatus } from "@/lib/review";
+import { REVIEW_STATUSES, type Review, type ReviewCitation, type ReviewItem, type ReviewStatus } from "@/lib/review";
 import { layoutFlow } from "@/lib/review/flow";
-import { REVIEW_RECHECK_LABEL, REVIEW_STATUS_LABEL } from "@/lib/report/status";
+import { REVIEW_GOODS_LABEL, REVIEW_RECHECK_LABEL, REVIEW_STATUS_LABEL } from "@/lib/report/status";
+import { fileLink, shortCommit } from "@/lib/service/href";
 import { CitedLines, FlowFigure } from "./FlowFigure";
+
+/** 확인할 것의 세 갈래. */
+const CHECKS: readonly ReviewStatus[] = ["seen-in-code", "check-outside", "check-applicability"];
+
+/** 확인할 것의 수: 세 갈래를 합친다. 품목 신호가 없어 묻지 않은 품목 의무(묶음 goods)는 넣지 않는다. 사례 목록도 쓴다. */
+export function checkCount(items: readonly ReviewItem[]): number {
+  return items.filter((item) => CHECKS.includes(item.status) && item.group !== "goods").length;
+}
+
+/**
+ * 관문이 모델의 답을 바꾼 까닭(`ReviewItem.gate`)을 이 사이트의 상태 이름으로. 모르는 까닭이면 적지 않는다. condition-present 는
+ * 조건이 코드에서 확인됐을 때(기능 신호나 관문을 통과한 인용, 상태 '코드에서 본 것')와 AI 의 말뿐일 때(상태 '해당 여부부터')를 가른다.
+ */
+function gateText(item: ReviewItem): string | undefined {
+  const na = REVIEW_STATUS_LABEL["not-applicable"];
+  switch (item.gate) {
+    case "condition-present":
+      return item.status === "seen-in-code"
+        ? `걸리는 조건이 코드에 있어 AI 가 낸 '${na}'을 받지 않았습니다.`
+        : `AI 가 걸리는 조건이 있다고 답해 '${na}'을 받지 않았습니다.`;
+    case "no-condition":
+      return `걸리는 조건이 없다는 근거가 없어 AI 가 낸 '${na}'을 받지 않았습니다.`;
+    case "name-or-default":
+      return `AI 가 댄 줄이 이름·기본값뿐이라 '${REVIEW_STATUS_LABEL["evidence-found"]}'으로 받지 않았습니다.`;
+    default:
+      return undefined;
+  }
+}
 
 /**
  * review 결과(policypack review 2판)의 화면(2026-11-11 오너 지시). 위에서부터:
@@ -21,12 +51,14 @@ import { CitedLines, FlowFigure } from "./FlowFigure";
  *
  * `recheck` 는 사람이 답을 읽고 말이 안 된다고 짚은 의무(사례 쪽, 2026-11-12 오너 결정)다. 그 상태는 보이지 않고 갈래 수에서도
  * 빼며, 맨 아래 "다시 검토 중 N건"에 의무 이름만 접어 둔다.
+ *
+ * 품목 신호가 없어 묻지 않은 품목 의무(묶음 goods)는 "특정 품목을 판다면 확인할 것" 한 줄로 접고 확인할 것의 수에 넣지 않는다. 프로필
+ * 신호 인용(`why` profile)은 코드 줄이 아니라 기능이 있다는 파일이라 인용한 줄과 따로 적는다.
  */
 export function ReviewView({ review, code = null, recheck = [] }: { review: Review; code?: CodeSource | null; recheck?: readonly string[] }) {
   const held = review.checklist.filter((item) => recheck.includes(item.duty));
   const items = review.checklist.filter((item) => !recheck.includes(item.duty));
-  const count = (status: ReviewStatus) => items.filter((item) => item.status === status).length;
-  const check = count("seen-in-code") + count("check-outside") + count("check-applicability");
+  const check = checkCount(items);
   return (
     <div className="tiers review">
       {/* 맨 위 한 문장 요약: 감지된 기능 · 걸릴 수 있는 의무 · 확인할 것(세 갈래를 합친 수). 개수만 센다. */}
@@ -106,10 +138,45 @@ function firstSentence(text: string): [string, string] {
   return match ? [match[1], match[2]] : [text.trim(), ""];
 }
 
+/** 기능이 있다는 프로필 신호의 파일(줄이 있으면 그 줄까지). 분석 쪽은 GitHub 의 커밋 고정 링크다. */
+function SignalFiles({ citations, code }: { citations: ReviewCitation[]; code: CodeSource | null }) {
+  if (citations.length === 0) return null;
+  return (
+    <p className="hint">
+      기능 신호:{" "}
+      {citations.map((cite, i) => {
+        const link = code && fileLink(code.htmlUrl, code.commit, cite.file, cite.line);
+        const where = <Where file={cite.file} line={cite.line} />;
+        return (
+          <span key={`${cite.file}:${cite.line}:${i}`}>
+            {i > 0 && ", "}
+            {link && code ? (
+              <a className="gh" href={link} target="_blank" rel="noopener noreferrer">
+                {where}
+                <Icon name="external" />
+                <span className="visually-hidden">(GitHub, 새 창, 커밋 {shortCommit(code.commit)} 에 고정)</span>
+              </a>
+            ) : (
+              where
+            )}
+          </span>
+        );
+      })}
+    </p>
+  );
+}
+
 /** 체크리스트의 의무 한 건. */
 function Item({ item, code }: { item: ReviewItem; code: CodeSource | null }) {
-  const [seen, rest] = firstSentence(item.reason);
-  const cites = item.citations.filter((cite) => cite.ok);
+  // 관문이 답을 바꾼 항목은 그 까닭을 첫 줄에, 모델의 말은 모두 '자세히'에 둔다.
+  const gate = gateText(item);
+  const [seen, rest] = gate ? [gate, item.reason] : firstSentence(item.reason);
+  // 묻지 못한 까닭: CLI 는 `not_answered` 에 까닭의 이름(cost-cap 등)을, `reason` 에 그 말을 싣는다. reason 이 비었을 때만 적고,
+  // 이름 꼴(영문 소문자·숫자·붙임표)이면 그대로 싣지 않는다.
+  const notAnswered =
+    !item.reason && item.notAnswered ? (/^[a-z0-9-]+$/.test(item.notAnswered) ? "답을 받지 못했습니다." : item.notAnswered) : null;
+  const cites = item.citations.filter((cite) => cite.ok && cite.why !== "profile");
+  const signals = item.citations.filter((cite) => cite.ok && cite.why === "profile");
   return (
     <li className="rv-item">
       <p className="rv-law">
@@ -129,13 +196,19 @@ function Item({ item, code }: { item: ReviewItem; code: CodeSource | null }) {
       </p>
       {item.dutyText && !SANCTION.test(item.dutyText) && <p className="rv-duty">{keepParticles(item.dutyText)}</p>}
       {seen && <p className="rv-seen">{keepParticles(seen)}</p>}
+      {item.missing && CHECKS.includes(item.status) && (
+        <p className="ask-line">
+          <span className="lbl">없는 것</span> {item.missing}
+        </p>
+      )}
       <CitedLines citations={cites} code={code} />
+      <SignalFiles citations={signals} code={code} />
       {item.question && (
         <p className="ask-line">
           <span className="lbl">질문</span> {item.question}
         </p>
       )}
-      {item.notAnswered && <p className="hint">{item.notAnswered}</p>}
+      {notAnswered && <p className="hint">{notAnswered}</p>}
       {item.searches.length > 0 && (
         <details className="f-more">
           <summary>찾아본 말 {item.searches.length}개</summary>
@@ -162,8 +235,11 @@ function Item({ item, code }: { item: ReviewItem; code: CodeSource | null }) {
   );
 }
 
-/** 다시 검토 중인 의무 한 건: 조문과 의무 한 줄만(상태·까닭·인용은 싣지 않는다). */
-function HeldItem({ item }: { item: ReviewItem }) {
+/**
+ * 조문과 의무 한 줄만 적는 의무 한 건. 다시 검토 중인 의무(상태·까닭·인용은 싣지 않는다)와 묻지 않은 품목 의무(`ask` 면 질문까지)가
+ * 쓴다.
+ */
+function HeldItem({ item, ask = false }: { item: ReviewItem; ask?: boolean }) {
   return (
     <li className="rv-item">
       <p className="rv-law">
@@ -181,13 +257,19 @@ function HeldItem({ item }: { item: ReviewItem }) {
         )}
       </p>
       {item.dutyText && !SANCTION.test(item.dutyText) && <p className="rv-duty">{keepParticles(item.dutyText)}</p>}
+      {ask && item.question && (
+        <p className="ask-line">
+          <span className="lbl">질문</span> {item.question}
+        </p>
+      )}
     </li>
   );
 }
 
 /** 의무 체크리스트: 코드에서 본 것의 맨 위 다섯 건을 먼저, 나머지 갈래는 접는다. 차례는 결과에 실린 그대로(이미 갈래 순)다. */
 function Checklist({ review, items, held, code }: { review: Review; items: ReviewItem[]; held: ReviewItem[]; code: CodeSource | null }) {
-  const by = (status: ReviewStatus) => items.filter((item) => item.status === status);
+  const goods = items.filter((item) => item.group === "goods");
+  const by = (status: ReviewStatus) => items.filter((item) => item.status === status && item.group !== "goods");
   const seen = by("seen-in-code");
   const top = review.summary.top.flatMap((duty) => seen.filter((item) => item.duty === duty));
   const others = seen.filter((item) => !top.includes(item));
@@ -221,19 +303,34 @@ function Checklist({ review, items, held, code }: { review: Review; items: Revie
       </section>
       {REVIEW_STATUSES.filter((status) => status !== "seen-in-code").map((status) => {
         const items = by(status);
-        if (items.length === 0) return null;
-        return (
-          <details key={status} className={`rv-group rv-${status}`}>
+        const group =
+          items.length === 0 ? null : (
+            <details key={status} className={`rv-group rv-${status}`}>
+              <summary>
+                {REVIEW_STATUS_LABEL[status]} <span className="ck-n">{items.length}건</span>
+              </summary>
+              <ol className="rv-items">
+                {items.map((item) => (
+                  <Item key={item.duty} item={item} code={code} />
+                ))}
+              </ol>
+            </details>
+          );
+        // 묻지 않은 품목 의무는 "해당 여부부터" 갈래 바로 뒤에 한 줄로 접는다.
+        if (status !== "check-applicability" || goods.length === 0) return group;
+        return [
+          group,
+          <details key="goods" className="rv-group rv-goods">
             <summary>
-              {REVIEW_STATUS_LABEL[status]} <span className="ck-n">{items.length}건</span>
+              {REVIEW_GOODS_LABEL} <span className="ck-n">{goods.length}건</span>
             </summary>
             <ol className="rv-items">
-              {items.map((item) => (
-                <Item key={item.duty} item={item} code={code} />
+              {goods.map((item) => (
+                <HeldItem key={item.duty} item={item} ask />
               ))}
             </ol>
-          </details>
-        );
+          </details>,
+        ];
       })}
       {held.length > 0 && (
         <details className="rv-group rv-recheck">

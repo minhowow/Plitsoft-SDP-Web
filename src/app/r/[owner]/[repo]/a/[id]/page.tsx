@@ -109,6 +109,9 @@ export default async function AnalysisPage({ params }: PageProps<"/r/[owner]/[re
   }
   // 기록의 "검사한 날"은 검사 단계가 시작한 때다(분석 기록의 값).
   const scannedAt = analysis.steps.find((step) => step.name === "scan")?.startedAt ?? analysis.requestedAt;
+  // review 하루 상한에 닿은 분석: 실행기가 받은 날(한국 표준시)이 오늘이 아니면 그날을 적는다("오늘"이 틀린 말이 되지 않게).
+  const ranOn = formatKst(analysis.steps.find((step) => step.name === "fetch")?.startedAt ?? analysis.requestedAt).slice(0, 10);
+  const limitDay = analysis.review === "limit" && ranOn !== formatKst(new Date().toISOString()).slice(0, 10) ? ranOn : null;
 
   return (
     <div className="page-wide an-page">
@@ -129,6 +132,8 @@ export default async function AnalysisPage({ params }: PageProps<"/r/[owner]/[re
           statutes={statutes}
           profile={profile}
           review={review}
+          reviewPlan={analysis.review}
+          limitDay={limitDay}
           progress={
             <details className="lg an-steps">
               <summary>

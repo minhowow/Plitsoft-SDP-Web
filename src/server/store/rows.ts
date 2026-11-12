@@ -1,6 +1,6 @@
 import "server-only";
 import { STEP_ORDER } from "@/lib/service/steps";
-import type { Analysis, AnalysisStatus, AnalysisStep, StepName } from "@/lib/service/types";
+import type { Analysis, AnalysisStatus, AnalysisStep, ReviewPlan, StepName } from "@/lib/service/types";
 
 /** 분석 행을 화면의 모델(`Analysis`)로 옮기는 것. 저장소 구현(`db.ts`), 대기열(`../queue.ts`), 콜백이 함께 쓴다. */
 
@@ -17,10 +17,11 @@ export interface Row {
   steps: AnalysisStep[] | string;
   tool_version: string | null;
   pack_digest: string | null;
+  review_plan: ReviewPlan | null;
 }
 
 export const COLUMNS =
-  "id, owner, repo, commit_sha, branch, status, failure_step, failure_reason, requested_at, steps, tool_version, pack_digest";
+  "id, owner, repo, commit_sha, branch, status, failure_step, failure_reason, requested_at, steps, tool_version, pack_digest, review_plan";
 
 export const iso = (value: Date | string): string => (value instanceof Date ? value : new Date(value)).toISOString();
 
@@ -52,6 +53,7 @@ export function rowToAnalysis(row: Row): Analysis {
         ? { step: row.failure_step, reason: row.failure_reason }
         : null,
     versions: row.tool_version && row.pack_digest ? { tool: row.tool_version, pack: row.pack_digest } : null,
+    review: row.review_plan ?? undefined,
   };
 }
 

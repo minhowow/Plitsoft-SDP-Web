@@ -75,7 +75,18 @@ export interface Analysis {
    * `tool.version`, `run.pack_digest` 와 같다(tests/service.test.ts).
    */
   versions: { tool: string; pack: string } | null;
+  /**
+   * 이 분석에서 review 를 어떻게 했는지(실행기에 보낼 때 정한다. `ReviewPlan`). REVIEW 스위치가 꺼져 있었거나 아직 보내지 않았으면
+   * 없다.
+   */
+  review?: ReviewPlan;
 }
+
+/**
+ * review 를 맡긴 방식: `run` 실행기가 돌린다, `stored` 같은 커밋의 저장된 review 를 쓴다, `limit` 오늘의 review 실행 수가 상한에
+ * 닿아 돌리지 않았다(2026-11-12 오너 지시, 하루 10건).
+ */
+export type ReviewPlan = "run" | "stored" | "limit";
 
 /** 저장소 목록·검색 결과의 한 줄. 저장소와 그 분석의 요약. */
 export interface RepositoryHit {

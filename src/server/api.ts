@@ -37,6 +37,7 @@ function pumpDeps(deps: ApiDeps, config: ServerConfig): PumpDeps {
     callbackBase: config.runner.callbackBase,
     runner: config.runner.kind,
     review: config.runner.review,
+    reviewDaily: config.limits.reviewDaily,
   };
 }
 
@@ -77,6 +78,7 @@ function publicAnalysis(analysis: Analysis) {
     steps: analysis.steps,
     failure: analysis.failure,
     versions: analysis.versions,
+    review: analysis.review,
   } satisfies Analysis;
 }
 

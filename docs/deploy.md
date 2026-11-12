@@ -24,7 +24,8 @@
 | `RUNNER_TOKEN` | 예 | 실행기 저장소의 workflow_dispatch 를 부를 토큰(그 저장소의 Actions 쓰기만) |
 | `RUNNER_SECRET` | 예 | 실행기 콜백의 서명 열쇠(실행기 저장소의 secret 과 같은 값). 없으면 콜백을 모두 거절한다. 길고 무작위인 값(예: 32바이트) |
 | `SITE_URL` | 아니오 | 이 사이트의 주소(`https://…`, 실행기가 콜백할 곳. 실행기는 https 주소만 받는다) |
-| `MAX_REPO_KB`, `DEDUPE_MINUTES`, `DAILY_LIMIT`, `POOL_SIZE`, `QUEUE_LIMIT`, `RUN_TIMEOUT_MINUTES`, `DISPATCH_TIMEOUT_MINUTES`, `QUEUE_TIMEOUT_MINUTES`, `RESULT_MAX_KB` | 아니오 | 상한. 비우면 기본값. `POOL_SIZE`(실행 자리 수)를 비우면 옛 이름 `CONCURRENT_LIMIT` 을 읽는다. 이미 `CONCURRENT_LIMIT` 을 넣어 두었으면 `POOL_SIZE` 로 옮긴다 |
+| `REVIEW` | 아니오 | `on` 이면 실행기가 검사 뒤에 `policypack review` 도 돌린다(모델 호출, 비용이 든다. 실행기 secret 의 `ANTHROPIC_API_KEY` 를 쓴다). 같은 커밋은 저장된 review 를 쓰고, 하루 수는 `REVIEW_DAILY_LIMIT`(기본 10)까지다 |
+| `MAX_REPO_KB`, `DEDUPE_MINUTES`, `DAILY_LIMIT`, `POOL_SIZE`, `QUEUE_LIMIT`, `RUN_TIMEOUT_MINUTES`, `DISPATCH_TIMEOUT_MINUTES`, `QUEUE_TIMEOUT_MINUTES`, `RESULT_MAX_KB`, `REVIEW_DAILY_LIMIT` | 아니오 | 상한. 비우면 기본값. `POOL_SIZE`(실행 자리 수)를 비우면 옛 이름 `CONCURRENT_LIMIT` 을 읽는다. 이미 `CONCURRENT_LIMIT` 을 넣어 두었으면 `POOL_SIZE` 로 옮긴다 |
 | `SEARCH_CACHE_SECONDS`, `SUGGEST_CACHE_SECONDS`, `REPO_CACHE_SECONDS`, `COMMIT_CACHE_SECONDS`, `GITHUB_SEARCH_PER_MINUTE`, `GITHUB_SEARCH_RESERVE`, `GITHUB_CALLS_PER_MINUTE` | 아니오 | GitHub 을 부르는 캐시(서버 인스턴스마다)와 1분 예산(DB 의 카운터라 인스턴스가 함께 쓴다). 비우면 기본값. 검색 예산(`GITHUB_SEARCH_PER_MINUTE`)은 토큰이 있으면 25, 없으면 10 이 기본이고 검색 쪽과 자동 완성이 함께 쓴다. 그 가운데 `GITHUB_SEARCH_RESERVE`(기본 3)는 검색 쪽 몫이라 자동 완성이 쓰지 않는다(상한보다 작게). 실제 값은 오너가 정한다(docs/redesign.md 7장 3: 운영 토큰이 있을 때 25, 몫 3 추천) |
 
 `SERVICE_STORE`·`PGLITE_DIR`·`GITHUB_API_BASE` 는 운영에서 비워 둔다(개발·시험용).

@@ -9,7 +9,7 @@ import { isRepoFullName } from "@/lib/service/names";
 import { STEP_ORDER } from "@/lib/service/steps";
 import type { AnalysisStep, StepName } from "@/lib/service/types";
 import type { Database, Queryable } from "./db";
-import { sweepStale, tidyQueue, wantsReview, type PumpDeps, type QueueLimits } from "./queue";
+import { sweepStale, tidyQueue, type PumpDeps, type QueueLimits } from "./queue";
 import { COLUMNS, readSteps, rowToAnalysis, type Row } from "./store/rows";
 
 /**
@@ -215,7 +215,7 @@ export async function applyRunnerEvent(
  * 로컬 실행기(RUNNER=local)가 분석 하나를 집어 간다. 먼저 대기열을 넘기고(`pumpQueue`. 로컬의 깨우기는 아무것도 하지 않으므로
  * 실행 자리를 얻은 분석에 '보냄' 표시만 남는다), 그다음 보냈고 아직 아무도 집지 않은 분석을 보낸 차례로 하나 집는다
  * (`runner_run_id` 에 'local' 을 적는다). 그래서 로컬 실행기도 실행 자리 수(POOL_SIZE)를 넘겨 돌리지 않는다. 둘이 동시에 집어도
- * 한 분석은 한 실행기에만 간다. `review` 는 GitHub 실행기의 워크플로 입력과 같은 셈이다(`wantsReview`).
+ * 한 분석은 한 실행기에만 간다. `review` 는 GitHub 실행기의 워크플로 입력과 같다(보낼 때 정해 적은 `review_plan` 이 `run`).
  */
 export async function claimQueued(
   db: Database,
@@ -223,16 +223,16 @@ export async function claimQueued(
 ): Promise<{ id: string; owner: string; repo: string; commit: string; review: boolean } | null> {
   await tidyQueue(db, deps, "집어 가기");
   return db.transaction(async (tx) => {
-    const rows = await tx.query<{ id: string; owner: string; repo: string; commit_sha: string }>(
+    const rows = await tx.query<{ id: string; owner: string; repo: string; commit_sha: string; review_plan: string | null }>(
       `UPDATE analyses SET runner_run_id = 'local'
        WHERE id = (
          SELECT id FROM analyses WHERE status = 'queued' AND dispatched_at IS NOT NULL AND runner_run_id IS NULL
          ORDER BY dispatched_at, requested_at, id LIMIT 1 FOR UPDATE SKIP LOCKED
        ) AND runner_run_id IS NULL
-       RETURNING id, owner, repo, commit_sha`,
+       RETURNING id, owner, repo, commit_sha, review_plan`,
     );
     const row = rows.rows[0];
     if (!row) return null;
-    return { id: row.id, owner: row.owner, repo: row.repo, commit: row.commit_sha, review: await wantsReview(tx, deps, row.owner, row.repo, row.commit_sha) };
+    return { id: row.id, owner: row.owner, repo: row.repo, commit: row.commit_sha, review: row.review_plan === "run" };
   });
 }

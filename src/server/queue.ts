@@ -1,8 +1,8 @@
 import "server-only";
 import { WAKE_RETRY_MINUTES, type QueueSnapshot } from "@/lib/service/queue";
 import { STEP_LABEL } from "@/lib/service/steps";
-import type { StepName } from "@/lib/service/types";
-import type { RunnerKind, ServerConfig } from "./config";
+import type { ReviewPlan, StepName } from "@/lib/service/types";
+import { DEFAULTS, type RunnerKind, type ServerConfig } from "./config";
 import type { Database, Queryable } from "./db";
 import type { WakeInput, WakeOutcome } from "./runner";
 import { readSteps, stalledStep, type Row } from "./store/rows";
@@ -50,6 +50,15 @@ export interface PumpDeps {
   runner: RunnerKind;
   /** REVIEW 스위치(`ServerConfig.runner.review`). 없으면 끔이다. */
   review?: boolean;
+  /** 하루 review 실행 수 상한(`ServerConfig.limits.reviewDaily`). 없으면 기본값. */
+  reviewDaily?: number;
+}
+
+/** 한국 표준시로 오늘이 시작한 시각(UTC). 하루 상한(분석 수, review 실행 수)을 셀 때 쓴다. */
+export function kstDayStart(now: Date): Date {
+  const KST = 9 * 60 * 60 * 1000;
+  const DAY = 24 * 60 * 60 * 1000;
+  return new Date(Math.floor((now.getTime() + KST) / DAY) * DAY - KST);
 }
 
 /**
@@ -65,10 +74,29 @@ export async function storedReviewExists(db: Queryable, repoKey: string, commit:
   return rows.rows.length > 0;
 }
 
-/** 이 분석에서 review 를 돌릴지: 스위치가 켜져 있고 같은 커밋의 저장된 review 가 없을 때만. */
-export async function wantsReview(db: Queryable, deps: Pick<PumpDeps, "review">, owner: string, repo: string, commit: string): Promise<boolean> {
-  if (!deps.review) return false;
-  return !(await storedReviewExists(db, `${owner.toLowerCase()}/${repo.toLowerCase()}`, commit));
+/**
+ * 이 분석에서 review 를 어떻게 할지(실행기에 보낼 때 정해 `review_plan` 에 적는다). 스위치가 꺼져 있으면 null, 같은 커밋의 저장된
+ * review 가 있으면 `stored`, 오늘(한국 표준시) 실행기에 review 를 맡긴 수가 상한(`reviewDaily`)에 닿았으면 `limit`, 그 밖에는
+ * `run`(2026-11-12 오너 지시: 하루 10건, 넘으면 프로필과 의무 목록까지만). 대기열의 권고 잠금 안에서 불러야 서버 인스턴스 여럿이
+ * 동시에 보내도 상한을 넘기지 않는다.
+ */
+export async function planReview(
+  db: Queryable,
+  deps: Pick<PumpDeps, "review" | "reviewDaily" | "now">,
+  owner: string,
+  repo: string,
+  commit: string,
+): Promise<ReviewPlan | null> {
+  if (!deps.review) return null;
+  if (await storedReviewExists(db, `${owner.toLowerCase()}/${repo.toLowerCase()}`, commit)) return "stored";
+  // review 는 검사 단계에서 돈다. 그 앞(대기·저장소 받기)에서 멈춘 분석은 모델을 부르지 않았으므로 세지 않는다.
+  const ran = await db.query<{ n: number }>(
+    `SELECT count(*)::int AS n FROM analyses
+     WHERE review_plan = 'run' AND dispatched_at >= $1
+       AND NOT (status = 'failed' AND failure_step IN ('queued', 'fetch'))`,
+    [kstDayStart(deps.now())],
+  );
+  return (ran.rows[0]?.n ?? 0) >= (deps.reviewDaily ?? DEFAULTS.reviewDaily) ? "limit" : "run";
 }
 
 /** 실행 자리를 쓰는 분석(실행기에 보냈거나 분석 중)의 조건. 자리를 셀 때와 대기열을 읽을 때 같은 것을 쓴다. */
@@ -256,7 +284,12 @@ export async function pumpQueue(db: Database, deps: PumpDeps): Promise<PumpOutco
          RETURNING id, owner, repo, commit_sha, dispatched_at`,
         [deps.now()],
       );
-      return rows.rows[0] ?? null;
+      const row = rows.rows[0];
+      if (!row) return null;
+      // review 를 맡길지는 같은 잠금 안에서 정하고 적는다(하루 상한을 셀 때 이 행까지 들어가게).
+      const plan = await planReview(tx, deps, row.owner, row.repo, row.commit_sha);
+      if (plan) await tx.query("UPDATE analyses SET review_plan = $2 WHERE id = $1", [row.id, plan]);
+      return { ...row, plan };
     });
     if (picked === "resting") {
       outcome.resting = true;
@@ -271,7 +304,7 @@ export async function pumpQueue(db: Database, deps: PumpDeps): Promise<PumpOutco
         repo: picked.repo,
         commit: picked.commit_sha,
         callbackBase: deps.callbackBase,
-        review: await wantsReview(db, deps, picked.owner, picked.repo, picked.commit_sha),
+        review: picked.plan === "run",
       });
     } catch {
       woke = { ok: false, reason: "실행기를 깨우다 알 수 없는 오류가 나서 분석을 시작하지 못했습니다." };
@@ -286,7 +319,7 @@ export async function pumpQueue(db: Database, deps: PumpDeps): Promise<PumpOutco
     // 응답이 늦어 실패로 본 깨우기가 실제로는 실행을 만들었으면, 그 실행이 알리는 단계는 대기열의 분석이라 409 를 받고 멈춘다.
     await db.transaction(async (tx) => {
       await tx.query(
-        "UPDATE analyses SET dispatched_at = NULL WHERE id = $1 AND status = 'queued' AND dispatched_at = $2",
+        "UPDATE analyses SET dispatched_at = NULL, review_plan = NULL WHERE id = $1 AND status = 'queued' AND dispatched_at = $2",
         [picked.id, picked.dispatched_at],
       );
       await tx.query(

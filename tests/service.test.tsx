@@ -241,6 +241,17 @@ describe("부품", () => {
     expectNoBannedWording(html);
   });
 
+  it("review 를 맡긴 분석은 진행 중에 검토에 걸리는 시간을 적는다(2026-11-12 오너 지시). 맡기지 않았거나 끝났으면 적지 않는다", () => {
+    const running = find("running");
+    expect(textOf(renderToStaticMarkup(<InProgress analysis={{ ...running, review: "run" }} live />))).toContain(SITE.service.reviewTakes);
+    expect(textOf(renderToStaticMarkup(<LiveAnalysis repository={repoOf(running)} analysis={{ ...running, review: "run" }} />))).toContain(
+      SITE.service.reviewTakes,
+    );
+    for (const analysis of [running, { ...running, review: "limit" as const }, { ...running, review: "stored" as const }, { ...find("succeeded"), review: "run" as const }]) {
+      expect(textOf(renderToStaticMarkup(<InProgress analysis={analysis} />))).not.toContain(SITE.service.reviewTakes);
+    }
+  });
+
   it("진행 중 부품이 끝난·멈춘 분석을 잠깐 그릴 때(다시 읽은 직후) '다음 단계를 기다린다'고 적지 않는다", () => {
     expect(textOf(renderToStaticMarkup(<InProgress analysis={find("succeeded")} />))).toContain("분석이 끝났습니다.");
     const failed = textOf(renderToStaticMarkup(<InProgress analysis={find("failed")} />));
@@ -557,6 +568,18 @@ describe("대시보드", () => {
     const plain = renderToStaticMarkup(<AnalysisDashboard view={view} code={null} profile={profileOf("plain.main")} />);
     expect(textOf(plain)).toContain(NO_FEATURES);
     expect(elementsOf(plain, '<p class="tier-none">').map(textOf)).toEqual(["없음"]);
+
+    // 하루 review 상한에 닿은 분석(2026-11-12 오너 지시): 프로필과 의무 목록까지, 셋째 단에 그 사실, 정적 검사는 넷째 단.
+    const limited = renderToStaticMarkup(<AnalysisDashboard view={view} code={null} profile={push} reviewPlan="limit" />);
+    expect(heads(limited)).toEqual(["1프로필", "2걸리는 의무", "3의무 체크리스트", "4정적 검사"]);
+    expect(elementsOf(limited, '<p class="tier-none">').map(textOf)).toEqual([SITE.service.reviewLimit]);
+    // 지난날의 분석이면 "오늘"이라고 적지 않고 그날을 적는다.
+    const past = renderToStaticMarkup(<AnalysisDashboard view={view} code={null} profile={push} reviewPlan="limit" limitDay="2026-11-12" />);
+    expect(elementsOf(past, '<p class="tier-none">').map(textOf)).toEqual(["2026-11-12 검토 한도가 차서 검토하지 않았습니다."]);
+    // review 를 맡겼는데 결과가 없으면 그렇다고 적는다. 저장된 review 를 쓰는 분석이나 스위치가 꺼진 분석은 그대로.
+    const missing = renderToStaticMarkup(<AnalysisDashboard view={view} code={null} profile={push} reviewPlan="run" />);
+    expect(elementsOf(missing, '<p class="tier-none">').map(textOf)).toEqual([SITE.service.reviewMissing]);
+    expect(heads(renderToStaticMarkup(<AnalysisDashboard view={view} code={null} profile={push} reviewPlan="stored" />))).toEqual(heads(html));
   });
 
   it("저장소 주소가 있으면 발견 줄마다 커밋 고정 링크를 새 창으로 걸고, 새 창과 고정한 커밋을 화면 낭독기에 알린다", () => {

@@ -11,7 +11,7 @@ import { SITE } from "@/lib/site";
 import { localRunnerOnRealGitHub, type ServerConfig } from "../config";
 import { isUniqueViolation, type Database, type Queryable } from "../db";
 import { isGitHubError, type GitHubClient, type GitHubError } from "../github";
-import { readQueue, sweepStale, tidyQueue, type PumpDeps } from "../queue";
+import { kstDayStart, readQueue, sweepStale, tidyQueue, type PumpDeps } from "../queue";
 import { wakeRunner, type WakeOutcome } from "../runner";
 import { COLUMNS, initialSteps, iso, rowToAnalysis, type Row } from "./rows";
 
@@ -28,7 +28,7 @@ function readNames(text: string | null): string[] | null {
 }
 
 export { COLUMNS, initialSteps, readSteps, rowToAnalysis, stalledStep, type Row } from "./rows";
-export { sweepStale, timeoutReason } from "../queue";
+export { kstDayStart, sweepStale, timeoutReason } from "../queue";
 
 /**
  * 운영 저장소 구현: 분석 기록은 DB, 저장소 정보와 검색은 GitHub API.
@@ -46,13 +46,6 @@ export interface DbStoreDeps {
   /** 실행기 깨우기. 시험이 바꿔 끼운다. */
   wake?: (input: Parameters<typeof wakeRunner>[1]) => Promise<WakeOutcome>;
   newId?: () => string;
-}
-
-/** 한국 표준시로 오늘이 시작한 시각(UTC). 하루 상한을 셀 때 쓴다. */
-export function kstDayStart(now: Date): Date {
-  const KST = 9 * 60 * 60 * 1000;
-  const DAY = 24 * 60 * 60 * 1000;
-  return new Date(Math.floor((now.getTime() + KST) / DAY) * DAY - KST);
 }
 
 /** 요청을 하나씩 차례로 받게 하는 권고 잠금의 번호(같은 커밋 확인 → 상한 확인 → 행 만들기 사이에 다른 요청이 끼지 않게). */
@@ -80,6 +73,7 @@ export function createDbStore(deps: DbStoreDeps): ServiceStore {
     callbackBase: deps.config.runner.callbackBase,
     runner: deps.config.runner.kind,
     review: deps.config.runner.review,
+    reviewDaily: limits.reviewDaily,
   };
 
   /**

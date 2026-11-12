@@ -20,7 +20,10 @@ export const REVIEW_STATUSES = [
 ] as const;
 export type ReviewStatus = (typeof REVIEW_STATUSES)[number];
 
-/** 모델이 댄 인용과 관문의 결과. `ok` 면 줄은 관문이 코드에서 다시 구한 줄이다. */
+/**
+ * 모델이 댄 인용과 관문의 결과. `ok` 면 줄은 관문이 코드에서 다시 구한 줄이다. `why` 가 `profile` 이면 모델의 인용이 아니라 기능이
+ * 있다는 프로필 신호다(CLI f4967db 부터. 줄 번호와 글이 빈 것이 있다).
+ */
 export interface ReviewCitation {
   file: string;
   line: number | null;
@@ -91,6 +94,15 @@ export interface ReviewItem {
   notAnswered: string | null;
   /** 반박 검증의 결과(upheld · overturned · overturn-ungrounded · not-run). */
   verification: string;
+  /** 걸리는 조건은 있는데 찾지 못한 지킨 처리(CLI f4967db 부터, 없으면 빈 글). */
+  missing: string;
+  /** 한 줄로 묶어 보일 묶음(`goods`: 품목 신호가 없어 묻지 않은 품목 의무). 없으면 null. */
+  group: string | null;
+  /**
+   * 관문이 모델의 답을 바꾼 까닭(`first.gate.why`: condition-present · no-condition · name-or-default). CLI 는 그 메모를 `reason`
+   * 앞에 붙인다. 읽을 때 그 앞머리를 떼고(`reason` 은 모델의 말만), 화면은 까닭을 이 사이트의 상태 이름으로 적는다.
+   */
+  gate: string | null;
 }
 
 export interface Review {
@@ -192,6 +204,11 @@ export function parseReview(data: unknown): Review | null {
   const items: ReviewItem[] = [];
   for (const it of checklist) {
     if (!isObj(it) || str(it.duty) === null || !isStatus(it.status)) return null;
+    const gate = isObj(it.first) && isObj(it.first.gate) ? it.first.gate : null;
+    const note = gate ? (str(gate.note) ?? "") : "";
+    const reason = str(it.reason) ?? "";
+    // 메모가 앞에 붙은 reason(조사 답을 그대로 받은 항목)일 때만 관문의 까닭을 둔다. 반박이 바꾼 항목의 reason 은 반박의 말이다.
+    const gated = gate !== null && note !== "" && reason.startsWith(note);
     items.push({
       duty: it.duty as string,
       feature: str(it.feature) ?? "",
@@ -203,9 +220,12 @@ export function parseReview(data: unknown): Review | null {
       citations: citationsOf(it.citations),
       searches: searchesOf(it.searches),
       question: str(it.question) ?? "",
-      reason: str(it.reason) ?? "",
+      reason: gated ? reason.slice(note.length).trim() : reason,
       notAnswered: str(it.not_answered),
       verification: isObj(it.verification) ? (str(it.verification.result) ?? "") : "",
+      missing: str(it.missing)?.trim() ?? "",
+      group: str(it.group),
+      gate: gated ? (str(gate.why) ?? null) : null,
     });
   }
 
