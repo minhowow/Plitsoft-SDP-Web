@@ -46,7 +46,7 @@ function put(
   w: number,
   title: string,
   lines: string[],
-  opts: { tone?: Tone; tag?: string; size?: { title: number; line: number }; h?: number } = {},
+  opts: { tone?: Tone; tag?: string; tagAbove?: boolean; size?: { title: number; line: number }; h?: number } = {},
 ): Placed {
   const h = opts.h ?? boxHeight(lines.length, opts.size);
   c.box(id, x, y, w, h, title, lines, opts);
@@ -56,14 +56,8 @@ function put(
 /* ─────────────────────────── 쉬운 판 1: 한 번의 분석이 지나는 길 ─────────────────────────── */
 
 function pathSimple(): Figure {
-  const W = 1432;
+  const W = 1216;
   const c = new Canvas();
-  const col = [
-    { x: 160, w: 250 },
-    { x: 470, w: 320 },
-    { x: 850, w: 280 },
-    { x: 1190, w: 210 },
-  ];
   const lanes = [
     { id: "browser", name: "브라우저", sub: "", y: 16, h: 108, tone: "plain" as Tone },
     { id: "web", name: "웹", sub: "Vercel", y: 132, h: 108, tone: "plain" as Tone },
@@ -74,39 +68,41 @@ function pathSimple(): Figure {
   const H = 628;
   const lane = Object.fromEntries(lanes.map((l) => [l.id, l]));
   for (const l of lanes) c.lane(`lane-${l.id}`, 16, l.y, W - 32, l.h, l.name, { sub: l.sub || undefined, tone: l.tone, size: BIG.lane });
-  const at = (id: string, laneId: string, ci: number, title: string, line: string, opts: { tone?: Tone; low?: boolean } = {}) => {
+  /** 띠 안에 상자 하나(세로 가운데, `low` 면 띠의 아래쪽). 상자는 계단처럼 놓아 ②·③·⑥ 이 곧게 내려가거나 올라간다. */
+  const at = (id: string, laneId: string, x: number, w: number, title: string, line: string, opts: { tone?: Tone; low?: boolean } = {}) => {
     const l = lane[laneId];
     const h = boxHeight(1, BIG);
     const y = opts.low ? l.y + l.h - h - 16 : Math.round(l.y + (l.h - h) / 2);
-    return put(c, id, col[ci].x, y, col[ci].w, title, [line], { tone: opts.tone, size: BIG });
+    return put(c, id, x, y, w, title, [line], { tone: opts.tone, size: BIG });
   };
-  const s1 = at("s1", "browser", 0, "주소를 넣는다", "저장소 쪽의 분석 요청 단추");
-  const s2 = at("s2", "web", 0, "확인하고 줄을 세운다", "공개인지 보고 차례를 정함");
-  const s3 = at("s3", "vm", 1, "새 VM 이 코드를 받는다", "GitHub 에서 받아 읽기만, 끝나면 사라짐");
-  const s4 = at("s4", "vm", 2, "AI 와 함께 읽는다", "검토 엔진이 의무마다 근거를 찾음");
-  const ai = at("ai", "ai", 2, "AI", "바깥 서비스", { tone: "out", low: true });
-  const s5 = at("s5", "db", 3, "결과만 저장한다", "코드 전체는 두지 않음", { tone: "keep" });
-  const s6 = at("s6", "browser", 3, "화면에 보인다", "진행과 체크리스트");
+  const s1 = at("s1", "browser", 160, 250, "주소를 넣는다", "저장소 쪽의 분석 요청 단추");
+  const s2 = at("s2", "web", 160, 250, "확인하고 줄을 세운다", "공개인지 보고 차례를 정함");
+  const s3 = at("s3", "vm", 250, 320, "새 VM 이 코드를 받는다", "GitHub 에서 받아 읽기만, 끝나면 사라짐");
+  const s4 = at("s4", "vm", 620, 280, "AI 와 함께 읽는다", "검토 엔진이 의무마다 근거를 찾음");
+  const ai = at("ai", "ai", 620, 280, "AI", "바깥 서비스", { tone: "out", low: true });
+  const s5 = at("s5", "db", 970, 210, "결과만 저장한다", "코드 전체는 두지 않음", { tone: "keep" });
+  const s6 = at("s6", "browser", 970, 210, "화면에 보인다", "진행과 체크리스트");
 
-  // ① 들어옴, ② 아래로, ③ DB 띠를 지나 VM 으로, ④ 옆으로, ⑤ 위로 DB, ⑥ 웹 띠를 지나 브라우저로.
+  // 번호는 선 바로 옆(세로 선은 오른쪽이나 왼쪽 16, 가로 선은 위 12)에 붙인다.
+  const NEAR = 16;
   c.arrow([
     [s1.x - 44, s1.cy],
     [s1.x, s1.cy],
   ]);
-  c.num(s1.x - 24, s1.cy - 12, 1);
+  c.num(s1.x - 22, s1.cy - 12, 1);
   const x2 = s1.x + 60;
   c.arrow([
     [x2, s1.bottom],
     [x2, s2.y],
   ]);
-  c.num(x2 + 24, (s1.bottom + s2.y) / 2 + 8, 2);
-  const x3 = s3.x + 60;
+  c.num(x2 + NEAR, (s1.bottom + s2.y) / 2 + 8, 2);
+  // ③ 웹이 VM 을 깨운다(코드는 VM 이 GitHub 에서 받는다). 웹 상자 아래에서 DB 띠를 곧게 지나 VM 상자로.
+  const x3 = 330;
   c.arrow([
-    [s2.right, s2.cy],
-    [x3, s2.cy],
+    [x3, s2.bottom],
     [x3, s3.y],
   ]);
-  c.num(x3 + 24, lane.db.y + lane.db.h / 2 + 8, 3);
+  c.num(x3 + NEAR, lane.db.y + lane.db.h / 2 + 8, 3);
   c.arrow([
     [s3.right, s3.cy],
     [s4.x, s4.cy],
@@ -127,9 +123,8 @@ function pathSimple(): Figure {
     [backX, s4.bottom],
   ]);
   c.label(backX + 14, lane.ai.y + 30, "답", { anchor: "start", size: BIG.line });
-  // ⑤ 결과는 웹을 거쳐(웹이 받아) DB 에 둔다. 웹 띠까지 올라갔다가 DB 상자로 내려온다.
-  // ⑤ 는 ⑥ 의 왼쪽으로 내려와 두 화살표가 엇갈리지 않는다.
-  const x5 = s5.x - 34;
+  // ⑤ 결과는 웹을 거쳐(웹이 받아) DB 에 둔다. 웹 띠까지 올라갔다가 DB 상자로 내려온다. ⑥ 의 왼쪽으로 내려와 엇갈리지 않는다.
+  const x5 = s4.right + 36;
   const y5 = lane.web.y + lane.web.h - 30;
   const in5 = s5.x + 40;
   c.arrow([
@@ -139,13 +134,13 @@ function pathSimple(): Figure {
     [in5, y5],
     [in5, s5.y],
   ]);
-  c.num(x5 - 22, lane.db.y + lane.db.h / 2 + 8, 5);
-  const x6 = s5.x + 140;
+  c.num(x5 - NEAR, lane.db.y + lane.db.h / 2 + 8, 5);
+  const x6 = s5.x + 150;
   c.arrow([
     [x6, s5.y],
     [x6, s6.bottom],
   ]);
-  c.num(x6 + 24, lane.web.y + 40, 6);
+  c.num(x6 + NEAR, lane.web.y + 40, 6);
 
   return {
     id: "how-path-simple",
@@ -193,9 +188,12 @@ function reviewSimple(): Figure {
   ];
   const w = 214;
   const gap = 28;
-  const y = 70;
+  const y = 84;
   const tagOf = (i: number, tone: Tone) => (i === 0 ? "도구 + AI" : tone === "model" ? "AI" : tone === "tool" ? "도구" : undefined);
-  const boxes = steps.map(([title, line, tone], i) => put(c, `s${i + 1}`, 16 + i * (w + gap), y, w, title, [line], { tone, size, tag: tagOf(i, tone) }));
+  // 딱지(AI·도구)는 상자 위에 둔다(제목과 겹치지 않게).
+  const boxes = steps.map(([title, line, tone], i) =>
+    put(c, `s${i + 1}`, 16 + i * (w + gap), y, w, title, [line], { tone, size, tag: tagOf(i, tone), tagAbove: true }),
+  );
   boxes.slice(1).forEach((b, i) =>
     c.arrow([
       [boxes[i].right, boxes[i].cy],

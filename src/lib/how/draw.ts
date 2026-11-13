@@ -122,14 +122,17 @@ export class Canvas {
     h: number,
     title: string,
     lines: string[] = [],
-    opts: { tone?: Tone; tag?: string; size?: { title: number; line: number } } = {},
+    opts: { tone?: Tone; tag?: string; tagAbove?: boolean; size?: { title: number; line: number } } = {},
   ) {
     const tone = opts.tone ?? "plain";
     const size = opts.size ?? SIZE;
     const at = layout(size.title, size.line);
     this.shapes.push({ kind: "rect", id, x, y, w, h, cls: `hw-box t-${tone}`, dash: tone === "model" });
     this.shapes.push({ kind: "text", x: x + PAD, y: y + at.title, text: title, cls: "hw-title", size: size.title, bold: true, in: id });
-    if (opts.tag)
+    // 딱지(모델·도구·외부): 상자 안 오른쪽 위, 또는(`tagAbove`) 상자 바로 위 오른쪽. 제목이 길어 겹칠 때 위로 뺀다.
+    if (opts.tag && opts.tagAbove)
+      this.shapes.push({ kind: "text", x: x + w - 4, y: y - 8, text: opts.tag, cls: `hw-tag t-${tone}`, size: SIZE.tag + 1, bold: true, anchor: "end" });
+    else if (opts.tag)
       this.shapes.push({ kind: "text", x: x + w - 10, y: y + 18, text: opts.tag, cls: `hw-tag t-${tone}`, size: SIZE.tag, bold: true, anchor: "end", in: id });
     lines.forEach((line, i) =>
       this.shapes.push({ kind: "text", x: x + PAD, y: y + at.first + i * at.gap, text: line, cls: "hw-line", size: size.line, in: id }),

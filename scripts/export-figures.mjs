@@ -1,7 +1,7 @@
 // 구조 쪽(/how/)의 그림을 포스터·보고서용 파일로 내보낸다: docs/figures/<이름>.svg 와 .png(밝은 바탕, 3배). 쉬운 판은
 // <이름>-simple(포스터), 자세한 판은 <이름>(보고서), 따라가 보기는 trace-<사례>. 그림의 자료는 src/lib/how/figures.ts 이고(따라가
 // 보기는 data/cases.json 에서 읽는다) 사이트도 같은 것으로 그린다. 내보내기 전에 Chrome 으로 그려 글이 제 상자 밖으로
-// 넘치는지 잰다. 넘치면 파일을 쓰지 않고 멈춘다.
+// 넘치는지, 글끼리 겹치는지 잰다. 그러면 파일을 쓰지 않고 멈춘다.
 //
 //   node scripts/export-figures.mjs          # 모두
 //   node scripts/export-figures.mjs --check  # 재기만(파일을 쓰지 않는다)
@@ -35,6 +35,15 @@ try {
         const room = Math.min(b.x - area.x, area.x + area.width - (b.x + b.width), b.y - area.y, area.y + area.height - (b.y + b.height));
         if (room < (box ? 6 : 2)) out.push(`${Math.round(room)}px ${t.textContent}`);
       }
+      // 글끼리 겹치는지(딱지가 제목을 덮는 것 등).
+      const texts = [...document.querySelectorAll("text")].map((t) => ({ t: t.textContent, b: t.getBBox() }));
+      for (let i = 0; i < texts.length; i++)
+        for (let j = i + 1; j < texts.length; j++) {
+          const [a, b] = [texts[i].b, texts[j].b];
+          const w = Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x);
+          const h = Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y);
+          if (w > 1 && h > 3) out.push(`겹침: ${texts[i].t} / ${texts[j].t}`);
+        }
       return out;
     });
     if (problems.length > 0) {
