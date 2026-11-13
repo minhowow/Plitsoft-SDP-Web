@@ -1,6 +1,6 @@
 import "server-only";
 import { STEP_ORDER } from "@/lib/service/steps";
-import type { Analysis, AnalysisStatus, AnalysisStep, ReviewPlan, StepName } from "@/lib/service/types";
+import type { Analysis, AnalysisStatus, AnalysisStep, ReviewPlan, ScanPart, StepName } from "@/lib/service/types";
 
 /** 분석 행을 화면의 모델(`Analysis`)로 옮기는 것. 저장소 구현(`db.ts`), 대기열(`../queue.ts`), 콜백이 함께 쓴다. */
 
@@ -18,10 +18,13 @@ export interface Row {
   tool_version: string | null;
   pack_digest: string | null;
   review_plan: ReviewPlan | null;
+  /** 검사 단계 안에서 실행기가 알린 일과 받은 때(migrations/008). */
+  scan_part: ScanPart["name"] | null;
+  scan_part_at: Date | string | null;
 }
 
 export const COLUMNS =
-  "id, owner, repo, commit_sha, branch, status, failure_step, failure_reason, requested_at, steps, tool_version, pack_digest, review_plan";
+  "id, owner, repo, commit_sha, branch, status, failure_step, failure_reason, requested_at, steps, tool_version, pack_digest, review_plan, scan_part, scan_part_at";
 
 export const iso = (value: Date | string): string => (value instanceof Date ? value : new Date(value)).toISOString();
 
@@ -54,6 +57,7 @@ export function rowToAnalysis(row: Row): Analysis {
         : null,
     versions: row.tool_version && row.pack_digest ? { tool: row.tool_version, pack: row.pack_digest } : null,
     review: row.review_plan ?? undefined,
+    scanPart: row.scan_part && row.scan_part_at ? { name: row.scan_part, startedAt: iso(row.scan_part_at) } : undefined,
   };
 }
 

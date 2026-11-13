@@ -2,8 +2,8 @@
 # policypack CLI(고정 커밋)로 검사하고, 단계마다 사이트에 서명한 콜백을 보낸다. 대상 코드는 읽기만 한다(설치·빌드·실행 없음).
 #
 # 비밀값(Actions secret, 값은 오너가 만든다. docs/deploy.md):
-#   RUNNER_SECRET      콜백 서명 열쇠. 사이트의 RUNNER_SECRET 과 같은 값. 콜백 단계(notify·finish·fail)에만 넘긴다.
-#   ANTHROPIC_API_KEY  AI 판정자와 review. 검사 단계에만 넘긴다.
+#   RUNNER_SECRET      콜백 서명 열쇠. 사이트의 RUNNER_SECRET 과 같은 값. 콜백 단계(notify·part·finish·fail)에만 넘긴다.
+#   ANTHROPIC_API_KEY  AI 판정자와 review. 검사·review 단계에만 넘긴다(CLI 를 돌리는 단계에는 콜백 열쇠를 넘기지 않는다).
 #   CLI_REPO_TOKEN     (CLI 저장소가 비공개일 때만) 읽기 토큰. 도구 설치 단계에만 넘긴다.
 #
 # 워크플로 입력은 셸 글에 끼워 넣지 않고 환경 변수로만 넘긴다(입력으로 명령을 끼워 넣지 못하게). runner/run.mjs 가 모양을 본다.
@@ -120,10 +120,31 @@ jobs:
           RUNNER_SECRET: ${{ secrets.RUNNER_SECRET }}
         run: node runner/run.mjs notify scan
 
-      - name: 검사(정적 검사와 AI 판정, 켰을 때 review)
+      - name: 검사(정적 검사와 AI 판정)
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: node runner/run.mjs scan
+
+      # 검사 단계 안의 일(프로필, review)을 시작할 때 알린다. 진행 표시에만 쓰인다. 알리지 못해도 이 단계는 성공으로 끝난다.
+      - name: "알림: 저장소 프로필 시작"
+        env:
+          RUNNER_SECRET: ${{ secrets.RUNNER_SECRET }}
+        run: node runner/run.mjs part profile
+
+      - name: 저장소 프로필(모델 호출 없음)
+        run: node runner/run.mjs profile
+
+      - name: "알림: review 시작"
+        if: env.REVIEW == 'true'
+        env:
+          RUNNER_SECRET: ${{ secrets.RUNNER_SECRET }}
+        run: node runner/run.mjs part review
+
+      - name: review(입력 review 가 "true" 일 때만)
+        if: env.REVIEW == 'true'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: node runner/run.mjs review
 
       - name: 정리(결과 보내기)
         env:

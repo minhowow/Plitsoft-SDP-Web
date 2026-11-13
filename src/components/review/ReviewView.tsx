@@ -1,47 +1,19 @@
+import Link from "next/link";
 import { Icon } from "@/components/Icon";
 import type { CodeSource } from "@/components/result/PolicyCard";
-import { SANCTION, Tier } from "@/components/result/Tiers";
+import { Tier } from "@/components/result/Tiers";
 import { Where } from "@/components/result/Where";
 import { keepParticles } from "@/components/text";
 import { REVIEW_STATUSES, type Review, type ReviewCitation, type ReviewItem, type ReviewStatus } from "@/lib/review";
 import { layoutFlow } from "@/lib/review/flow";
+import { CHECKS, firstSentence, gateText, notAnsweredText, SANCTION } from "@/lib/review/text";
 import { REVIEW_GOODS_LABEL, REVIEW_RECHECK_LABEL, REVIEW_STATUS_LABEL } from "@/lib/report/status";
 import { fileLink, shortCommit } from "@/lib/service/href";
 import { CitedLines, FlowFigure } from "./FlowFigure";
 
-/** 확인할 것의 세 갈래. */
-const CHECKS: readonly ReviewStatus[] = ["seen-in-code", "check-outside", "check-applicability"];
-
 /** 확인할 것의 수: 세 갈래를 합친다. 품목 신호가 없어 묻지 않은 품목 의무(묶음 goods)는 넣지 않는다. 사례 목록도 쓴다. */
 export function checkCount(items: readonly ReviewItem[]): number {
   return items.filter((item) => CHECKS.includes(item.status) && item.group !== "goods").length;
-}
-
-/**
- * 관문이 모델의 답을 바꾼 까닭(`ReviewItem.gate`)을 이 사이트의 상태 이름으로. 모르는 까닭이면 적지 않는다. condition-present 는
- * 조건이 코드에서 확인됐을 때(기능 신호나 관문을 통과한 인용, 상태 '코드에서 본 것')와 AI 의 말뿐일 때(상태 '해당 여부부터')를 가른다.
- */
-function gateText(item: ReviewItem): string | undefined {
-  const na = REVIEW_STATUS_LABEL["not-applicable"];
-  switch (item.gate) {
-    case "condition-present":
-      return item.status === "seen-in-code"
-        ? `걸리는 조건이 코드에 있어 AI 가 낸 '${na}'을 받지 않았습니다.`
-        : `AI 가 걸리는 조건이 있다고 답해 '${na}'을 받지 않았습니다.`;
-    case "no-condition":
-      return `걸리는 조건이 없다는 근거가 없어 AI 가 낸 '${na}'을 받지 않았습니다.`;
-    case "name-or-default":
-      return `AI 가 댄 줄이 이름·기본값뿐이라 '${REVIEW_STATUS_LABEL["evidence-found"]}'으로 받지 않았습니다.`;
-    // CLI 2a24d94 부터.
-    case "audience":
-      return `이용자가 누구인지(아동·미성년자·청소년)에 걸리는 의무라 AI 가 낸 '${na}'을 받지 않았습니다.`;
-    case "missing-check":
-      return `나이·본인·지역을 확인하는 장치가 없다는 것은 그런 이용자가 없다는 근거가 아니라 AI 가 낸 '${na}'을 받지 않았습니다.`;
-    case "applies-unknown":
-      return `AI 가 걸리는지 모른다고 답해 '${REVIEW_STATUS_LABEL["check-applicability"].split(" · ").at(-1)}'으로 옮겼습니다.`;
-    default:
-      return undefined;
-  }
 }
 
 /**
@@ -54,6 +26,8 @@ function gateText(item: ReviewItem): string | undefined {
  *    조문, 무엇을 봤는지 한 문장, 인용한 줄, 질문 하나. "해당 없음"은 찾아본 말과 다시 센 건수를 펼치면 보인다.
  * 4. 검증 정보: 관문이 거절한 인용, 건수가 맞지 않은 검색, 반박이 뒤집은 수, 가린 비밀값, 모델, 비용 어림과 시간.
  *
+ * `exportLinks` 를 주면 체크리스트 머리 아래에 마크다운으로 받기와 인쇄용 보기 링크를 둔다(2026-11-13, `lib/review/checklist.ts`).
+ *
  * 인용은 관문을 통과한 것(`ok`)만 보인다. 의무 한 줄에 처분의 말이 들면 그 줄은 싣지 않는다(docs/commitments.md 1장).
  *
  * `recheck` 는 사람이 답을 읽고 말이 안 된다고 짚은 의무(사례 쪽, 2026-11-12 오너 결정)다. 그 상태는 보이지 않고 갈래 수에서도
@@ -62,7 +36,18 @@ function gateText(item: ReviewItem): string | undefined {
  * 품목 신호가 없어 묻지 않은 품목 의무(묶음 goods)는 "특정 품목을 판다면 확인할 것" 한 줄로 접고 확인할 것의 수에 넣지 않는다. 프로필
  * 신호 인용(`why` profile)은 코드 줄이 아니라 기능이 있다는 파일이라 인용한 줄과 따로 적는다.
  */
-export function ReviewView({ review, code = null, recheck = [] }: { review: Review; code?: CodeSource | null; recheck?: readonly string[] }) {
+export function ReviewView({
+  review,
+  code = null,
+  recheck = [],
+  exportLinks,
+}: {
+  review: Review;
+  code?: CodeSource | null;
+  recheck?: readonly string[];
+  /** 체크리스트 내보내기(마크다운 파일, 인쇄용 보기)의 주소. 없으면(데모의 합성 예시) 링크를 두지 않는다. */
+  exportLinks?: { markdown: string; print: string };
+}) {
   const held = review.checklist.filter((item) => recheck.includes(item.duty));
   const items = review.checklist.filter((item) => !recheck.includes(item.duty));
   const check = checkCount(items);
@@ -89,6 +74,14 @@ export function ReviewView({ review, code = null, recheck = [] }: { review: Revi
         )}
       </Tier>
       <Tier n={3} name="의무 체크리스트">
+        {exportLinks && (
+          <p className="rv-export">
+            <a href={exportLinks.markdown} download>
+              마크다운으로 받기
+            </a>
+            <Link href={exportLinks.print}>인쇄용 보기</Link>
+          </p>
+        )}
         <Checklist review={review} items={items} held={held} code={code} />
         <Verification review={review} />
       </Tier>
@@ -139,12 +132,6 @@ function ServiceTier({ review, code }: { review: Review; code: CodeSource | null
   );
 }
 
-/** 글의 첫 문장(마침표·물음표 다음 빈칸까지). 나머지가 있으면 함께 돌려준다. 글을 고치지 않는다. */
-function firstSentence(text: string): [string, string] {
-  const match = /^(.+?[.?!])\s+(\S[\s\S]*)$/.exec(text.trim());
-  return match ? [match[1], match[2]] : [text.trim(), ""];
-}
-
 /** 기능이 있다는 프로필 신호의 파일(줄이 있으면 그 줄까지). 분석 쪽은 GitHub 의 커밋 고정 링크다. */
 function SignalFiles({ citations, code }: { citations: ReviewCitation[]; code: CodeSource | null }) {
   if (citations.length === 0) return null;
@@ -178,10 +165,7 @@ function Item({ item, code }: { item: ReviewItem; code: CodeSource | null }) {
   // 관문이 답을 바꾼 항목은 그 까닭을 첫 줄에, 모델의 말은 모두 '자세히'에 둔다.
   const gate = gateText(item);
   const [seen, rest] = gate ? [gate, item.reason] : firstSentence(item.reason);
-  // 묻지 못한 까닭: CLI 는 `not_answered` 에 까닭의 이름(cost-cap 등)을, `reason` 에 그 말을 싣는다. reason 이 비었을 때만 적고,
-  // 이름 꼴(영문 소문자·숫자·붙임표)이면 그대로 싣지 않는다.
-  const notAnswered =
-    !item.reason && item.notAnswered ? (/^[a-z0-9-]+$/.test(item.notAnswered) ? "답을 받지 못했습니다." : item.notAnswered) : null;
+  const notAnswered = notAnsweredText(item);
   const cites = item.citations.filter((cite) => cite.ok && cite.why !== "profile");
   const signals = item.citations.filter((cite) => cite.ok && cite.why === "profile");
   return (

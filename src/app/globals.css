@@ -2935,15 +2935,165 @@ body:has(main [data-page="home"]) ::selection {
 }
 
 /* 글자를 친 동안: 펼침 목록이 덮고 아래 목록은 보이지 않게(목업 home-feed). visibility 로 감추지 않는다(Tab 이 그 목록으로 간다) */
-.home[data-state="typing"] .home-feed {
+.home[data-state="typing"] .home-feed,
+.home[data-state="typing"] .home-case {
   opacity: 0;
   pointer-events: none;
   transition-duration: 100ms;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .home-feed {
+  .home-feed,
+  .home-case {
     transition: none;
+  }
+}
+
+/*
+ * 첫 화면의 사례 한 건(components/cases/HomeCase.tsx): 검색창 아래, 최근 분석 위. 단계 넷은 왼쪽 틈(검색창 입력 글자의 x)에 점과 선을
+ * 긋고, 마지막 단계(코드에서 본 것)의 점만 '확인할 것' 색이다. 그 아래 체크리스트 일부는 상자 하나.
+ */
+.home-case {
+  margin-top: var(--space-7);
+  min-width: 0;
+  transition: opacity 160ms ease-out;
+}
+
+.home-case + .home-feed {
+  margin-top: var(--space-6);
+}
+
+.hc-steps {
+  position: relative;
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-3) var(--space-3) 0 var(--text-x);
+  list-style: none;
+}
+
+.hc-steps::before {
+  content: "";
+  position: absolute;
+  left: 24px;
+  top: calc(var(--space-3) + 10px);
+  bottom: 14px;
+  width: 1px;
+  background: var(--rule);
+}
+
+.hc-steps > li {
+  position: relative;
+  display: grid;
+  grid-template-columns: 7.5em minmax(0, 1fr);
+  gap: var(--space-3);
+  align-items: baseline;
+  min-width: 0;
+}
+
+.hc-steps > li::before {
+  content: "";
+  position: absolute;
+  left: calc(20.5px - var(--text-x));
+  top: 6px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.hc-steps > li:last-child::before {
+  background: var(--st-review-dot);
+}
+
+.hc-k {
+  font-size: var(--text-xs);
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.hc-v {
+  min-width: 0;
+}
+
+.hc-check {
+  display: grid;
+  gap: var(--space-2);
+  margin: var(--space-4) 0 0 var(--text-x);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+}
+
+.hc-hd,
+.hc-counts {
+  margin: 0;
+}
+
+.hc-hd b,
+.hc-counts b {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.hc-items {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hc-items > li {
+  position: relative;
+  display: grid;
+  gap: 2px;
+  padding-left: 16px;
+}
+
+.hc-items > li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 7px;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: var(--st-review-dot);
+}
+
+.hc-law {
+  font-weight: 600;
+}
+
+.hc-duty {
+  font-size: var(--text-sm);
+  color: var(--muted);
+}
+
+.hc-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px var(--space-4);
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+
+.hc-src {
+  margin: var(--space-2) 0 0 var(--text-x);
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+
+/* 좁은 단(검색창이 좁은 화면): 단계 이름을 값 위에 둔다 */
+@container (max-width: 480px) {
+  .hc-steps > li {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+
+  .hc-steps > li::before {
+    top: 4px;
   }
 }
 
@@ -5161,6 +5311,35 @@ details.rv-recheck > .hint {
   font-variant-numeric: tabular-nums;
 }
 
+/* 41곳 평가(사례 쪽): 표의 합계 줄과 접어 둔 알려진 한계. */
+.others-table tfoot th,
+.others-table tfoot td {
+  border-top: 1px solid var(--rule);
+  font-weight: 600;
+}
+
+.others-table tfoot th {
+  height: var(--row-h);
+  padding: var(--space-1) var(--space-4);
+  border-bottom: 0;
+  background: none;
+  color: var(--ink);
+  font-size: inherit;
+  text-align: left;
+}
+
+.cases-eval .overview .hint {
+  font-size: var(--text-sm);
+}
+
+.eval-limits > ul {
+  display: grid;
+  gap: var(--space-1);
+  max-width: var(--measure);
+  margin: var(--space-2) 0 0;
+  padding-left: 1.2em;
+}
+
 /*
  * 구조 쪽(/how/)의 그림. 넓은 화면(1100px 부터)은 SVG 그림이고 색은 토큰이라 두 테마를 따른다. 좁은 화면과 강제 색 모드는 같은
  * 내용을 위에서 아래로 읽는 목록이다. 목록은 넓은 화면에서도 화면 낭독기에 읽힌다(그림은 낭독기에 감춘다). 색의 뜻: 바깥으로
@@ -6104,6 +6283,33 @@ details.side-pol[open] > summary.box-hd::before {
   white-space: nowrap;
 }
 
+/* 검사 단계 안의 차례(실행기가 명령 사이마다 알린 것): 점을 작게, 이름을 한 칸 들여, 글을 한 단계 작게. */
+.step-sub {
+  font-size: var(--text-sm);
+}
+
+.step-sub .step-dot {
+  justify-self: center;
+  width: 6px;
+  height: 6px;
+  border-width: 1.5px;
+}
+
+.step-sub .step-name {
+  padding-left: var(--space-3);
+}
+
+.step-inner {
+  display: block;
+  font-size: var(--text-xs);
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.step-inner-note {
+  white-space: nowrap;
+}
+
 /* 진행·대기·실패 상자. */
 .live-box {
   max-width: 760px;
@@ -6485,6 +6691,167 @@ details.side-pol[open] > summary.box-hd::before {
  * (어두운 테마는 screen 에서만 듣는다. 위 :root). 화면에서 고르는 데만 쓰는 것(파일 고르기, 예시 고르기, 데모의 단추,
  * 결과와 기록을 오가는 단추)은 종이에서 쓸 수 없어서 찍지 않는다. 무엇을 열었는지는 그 아래의 제목이 말한다.
  */
+
+/*
+ * 의무 체크리스트 내보내기(2026-11-13, lib/review/checklist.ts). 체크리스트 머리 아래의 링크 둘, 인쇄용 보기의 도구 줄과 종이.
+ * 종이에는 접는 곳·링크·색 칩이 없다. 할 일 줄(확인할 것)은 앞에 빈 네모를 둔다(종이에 손으로 표시한다).
+ */
+.rv-export {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+.ck-page {
+  display: grid;
+  gap: var(--space-4);
+  max-width: 820px;
+}
+
+.ck-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+}
+
+.ck-sheet {
+  min-width: 0;
+  padding: var(--space-5);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--surface);
+  line-height: var(--leading-snug);
+}
+
+.ck-sheet > * + * {
+  margin-top: 1.2em;
+}
+
+.ck-sheet h1 {
+  font-size: var(--text-xl);
+}
+
+.ck-sheet h2 {
+  font-size: var(--text-h2);
+  padding-bottom: var(--space-1);
+  border-bottom: 1px solid var(--rule);
+}
+
+.ck-lead,
+.ck-facts,
+.ck-entries,
+.ck-verify {
+  margin: 0;
+}
+
+.ck-facts {
+  padding-left: 1.2em;
+  color: var(--muted);
+}
+
+.ck-n {
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.ck-entries {
+  display: grid;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+  padding: 0;
+  list-style: none;
+}
+
+.ck-entry {
+  display: grid;
+  gap: 2px;
+  break-inside: avoid;
+}
+
+.ck-entry p {
+  margin: 0;
+}
+
+.ck-law {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.ck-law b {
+  flex: 1 1 12em;
+  min-width: 0;
+}
+
+.ck-box {
+  flex: none;
+  width: 11px;
+  height: 11px;
+  border: 1.5px solid var(--ink);
+  border-radius: 2px;
+  align-self: center;
+}
+
+.ck-tag {
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+
+.ck-duty,
+.ck-rest,
+.ck-search {
+  color: var(--muted);
+}
+
+.ck-k {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.ck-cite code,
+.ck-search code {
+  overflow-wrap: anywhere;
+}
+
+/* 인용: 파일·줄 아래에 그 줄(왼쪽 선으로 가른다). */
+.ck-cite {
+  display: grid;
+}
+
+.ck-code {
+  padding-left: var(--space-3);
+  border-left: 2px solid var(--rule);
+  white-space: pre-wrap;
+}
+
+.ck-verify {
+  display: grid;
+  gap: 2px;
+  margin-top: var(--space-2);
+}
+
+.ck-verify > div {
+  display: grid;
+  grid-template-columns: 7em minmax(0, 1fr);
+  gap: var(--space-3);
+}
+
+.ck-verify dd {
+  margin: 0;
+}
+
+@media (max-width: 599px) {
+  .ck-sheet {
+    padding: var(--space-4) var(--space-3);
+  }
+}
+
 @media print {
   /* 명시도는 위의 html body 와 같다(Next 의 기본 404 쪽이 싣는 body 의 색보다 높다). */
   html body {
@@ -6554,6 +6921,45 @@ details.side-pol[open] > summary.box-hd::before {
   :root:has(.record),
   :root:has(.record) body {
     background: var(--paper);
+  }
+
+  /* 의무 체크리스트의 인쇄용 보기: 종이만 남긴다(기록과 같은 방식). 흰 바탕에 검은 글, 상태 색 없음. */
+  :root:has(.ck-sheet) body *:not(.ck-sheet, .ck-sheet *, :has(.ck-sheet)) {
+    display: none !important;
+  }
+
+  :root:has(.ck-sheet) body :has(.ck-sheet) {
+    display: block !important;
+    max-width: none;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+
+  :root:has(.ck-sheet),
+  :root:has(.ck-sheet) body {
+    background: var(--paper);
+  }
+
+  .ck-sheet {
+    --bg: var(--paper);
+    --surface: var(--paper);
+    --bg-muted: var(--paper);
+    --ink: var(--paper-ink);
+    --muted: var(--paper-muted);
+    --rule: var(--paper-rule);
+    --rule-muted: var(--paper-rule);
+    color-scheme: light;
+    background: var(--paper);
+    color: var(--paper-ink);
+    border: 0;
+    border-radius: 0;
+    padding: 0;
+    font-size: 9.5pt;
+  }
+
+  .ck-sheet h2 {
+    break-after: avoid;
   }
 
   /*

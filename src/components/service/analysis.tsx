@@ -3,7 +3,22 @@ import type { ReactNode } from "react";
 import { keepParticles } from "@/components/text";
 import { analysisHref, commitLink, repoHref, shortCommit } from "@/lib/service/href";
 import { placeAt, placeOf, placeText, type QueuePlace, type QueueSnapshot } from "@/lib/service/queue";
-import { activeStep, ANALYSIS_STATUS_LABEL, duration, finishedAt, formatKst, STEP_LABEL, STEP_STATE_LABEL, stepState, stepStateLabel } from "@/lib/service/steps";
+import {
+  activeLabel,
+  activeStep,
+  ANALYSIS_STATUS_LABEL,
+  duration,
+  finishedAt,
+  formatKst,
+  REVIEW_INNER,
+  REVIEW_INNER_NOTE,
+  SCAN_PART_LABEL,
+  scanParts,
+  STEP_LABEL,
+  STEP_STATE_LABEL,
+  stepState,
+  stepStateLabel,
+} from "@/lib/service/steps";
 import type { Analysis, Repository } from "@/lib/service/types";
 import { STATUS_LABEL } from "@/lib/report/status";
 import { Icon } from "@/components/Icon";
@@ -137,21 +152,48 @@ function stepEnd(analysis: Analysis, step: Analysis["steps"][number]): ReactNode
 
 /**
  * 진행 단계. 단계마다 점, 이름, 시작 시각(시:분, KST), 걸린 시간이나 형편을 적는다. 진행 중인 단계는 화면 낭독기에도 그렇다고
- * 알린다(aria-current).
+ * 알린다(aria-current). 검사 단계 아래에는 그 안의 차례(`scanParts`)를 한 칸 들여 적는다. 진행 중·멈춘 분석이거나 실행기가 알린
+ * 차례가 있을 때만 적는다(그 알림이 생기기 전에 끝난 분석에는 적을 것이 없다).
  */
 export function StepList({ analysis }: { analysis: Analysis }) {
+  const showParts = analysis.status !== "succeeded" || Boolean(analysis.scanPart);
   return (
     <ol className="steps">
-      {analysis.steps.map((step) => {
+      {analysis.steps.flatMap((step) => {
         const state = stepState(analysis, step);
-        return (
-          <li key={step.name} className={`step-item step-${state}`} aria-current={state === "active" ? "step" : undefined}>
+        const parts = step.name === "scan" && showParts ? scanParts(analysis) : [];
+        // 검사 단계가 진행 중이면 지금인 것은 그 안의 일이다(aria-current 는 그 줄에). 안의 일이 지금이 아니면 단계 줄에 둔다.
+        const current = state === "active" && !parts.some((part) => part.state === "active");
+        const row = (
+          <li key={step.name} className={`step-item step-${state}`} aria-current={current ? "step" : undefined}>
             <span className="step-dot" aria-hidden="true" />
             <span className="step-name">{STEP_LABEL[step.name]}</span>
             <span className="step-time">{step.startedAt && <time dateTime={step.startedAt}>{formatKst(step.startedAt).slice(11)}</time>}</span>
             <span className="step-state">{stepEnd(analysis, step)}</span>
           </li>
         );
+        return [
+          row,
+          ...parts.map((part) => (
+            <li
+              key={`scan-${part.name}`}
+              className={`step-item step-sub step-${part.state}`}
+              aria-current={part.state === "active" ? "step" : undefined}
+            >
+              <span className="step-dot" aria-hidden="true" />
+              <span className="step-name">
+                {SCAN_PART_LABEL[part.name]}
+                {part.name === "review" && !part.skipped && (
+                  <span className="step-inner">
+                    {REVIEW_INNER} <span className="step-inner-note">({REVIEW_INNER_NOTE})</span>
+                  </span>
+                )}
+              </span>
+              <span className="step-time">{part.startedAt && <time dateTime={part.startedAt}>{formatKst(part.startedAt).slice(11)}</time>}</span>
+              <span className="step-state">{part.skipped ?? STEP_STATE_LABEL[part.state]}</span>
+            </li>
+          )),
+        ];
       })}
     </ol>
   );
@@ -179,7 +221,7 @@ export function InProgress({
   /** 대기 중인 분석이 대기열의 어디에 있는지(DB 에서 센 것). 모르면(합성, 읽지 못함) 적지 않는다. */
   place?: QueuePlace | null;
 }) {
-  const step = activeStep(analysis);
+  const step = activeLabel(analysis);
   // 다시 읽는 쪽(`LiveAnalysis`)은 끝난 분석을 서버가 새로 그리기 전 잠깐 이 부품으로 그린다.
   const now =
     analysis.status === "succeeded"
@@ -189,7 +231,7 @@ export function InProgress({
         : analysis.status === "queued" && place
           ? placeText(place)
           : step
-            ? `지금 ‘${STEP_LABEL[step.name]}’ 단계`
+            ? `지금 ‘${step}’ 단계`
             : "다음 단계를 기다리고 있습니다.";
   return (
     <section className="box live-box" aria-labelledby="progress-title">
@@ -355,6 +397,6 @@ function progressNote(analysis: Analysis, queue: QueueSnapshot | null): string |
  */
 export function stepNow(analysis: Analysis): string {
   const step = activeStep(analysis);
-  if (step) return step.name === "queued" ? ANALYSIS_STATUS_LABEL.queued : `${STEP_LABEL[step.name]} 중`;
+  if (step) return step.name === "queued" ? ANALYSIS_STATUS_LABEL.queued : `${activeLabel(analysis)} 중`;
   return analysis.status === "queued" ? ANALYSIS_STATUS_LABEL.queued : "다음 단계 기다림";
 }

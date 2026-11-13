@@ -79,6 +79,7 @@ function publicAnalysis(analysis: Analysis) {
     failure: analysis.failure,
     versions: analysis.versions,
     review: analysis.review,
+    scanPart: analysis.scanPart,
   } satisfies Analysis;
 }
 

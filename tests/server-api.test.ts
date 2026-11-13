@@ -578,6 +578,56 @@ describe("실행기 콜백: 상태 전이 (설계 6)", () => {
   });
 });
 
+describe("실행기 콜백: 검사 단계 안의 일 (2026-11-13)", () => {
+  const partOf = async (id: string) =>
+    (await db.query<{ scan_part: string | null; scan_part_at: Date | null }>("SELECT scan_part, scan_part_at FROM analyses WHERE id = $1", [id])).rows[0];
+  const readBack = async (deps: ApiDeps, id: string) => ((await (await getAnalysis(id, deps)).json()) as { analysis: Analysis }).analysis;
+
+  it("검사 단계에서만 받고 앞으로만 간다(프로필 → review). 같은 일은 바꾸지 않고 받는다. 진행 읽기(GET)가 그것을 준다", async () => {
+    const { deps, later } = setup({ REVIEW: "on" });
+    const id = (await requestAnalysis(deps)).body.analysis!.id;
+    // 검사 단계 전(보냄, 저장소 받기)에는 받지 않는다.
+    expect((await event(deps, id, { event: "part", part: "profile" })).status).toBe(409);
+    await event(deps, id, { event: "step", step: "fetch" });
+    expect((await event(deps, id, { event: "part", part: "profile" })).status).toBe(409);
+    later(1);
+    await event(deps, id, { event: "step", step: "scan" });
+    expect((await readBack(deps, id)).scanPart).toBeUndefined();
+    later(1);
+    expect(await event(deps, id, { event: "part", part: "profile" })).toMatchObject({ status: 200, body: { ok: true, status: "running" } });
+    const profileAt = new Date(T0.getTime() + 120_000).toISOString();
+    expect((await readBack(deps, id)).scanPart).toEqual({ name: "profile", startedAt: profileAt });
+    later(1);
+    expect(await event(deps, id, { event: "part", part: "profile" })).toMatchObject({ status: 200, body: { unchanged: true } });
+    expect((await partOf(id)).scan_part_at?.toISOString()).toBe(profileAt);
+    expect((await event(deps, id, { event: "part", part: "review" })).status).toBe(200);
+    const reviewAt = new Date(T0.getTime() + 180_000).toISOString();
+    // 뒤로 가지 않는다.
+    expect((await event(deps, id, { event: "part", part: "profile" })).status).toBe(409);
+    expect((await readBack(deps, id)).scanPart).toEqual({ name: "review", startedAt: reviewAt });
+    // 단계는 바뀌지 않는다(일은 단계가 아니다).
+    expect((await row(id)).steps.find((s) => s.name === "scan")).toMatchObject({ endedAt: null });
+    // 정리 단계에 들어가면 받지 않는다. 마지막 값은 남는다.
+    await event(deps, id, { event: "step", step: "finish" });
+    expect((await event(deps, id, { event: "part", part: "review" })).status).toBe(409);
+    expect((await event(deps, id, { event: "result", output: capture })).body.status).toBe("succeeded");
+    expect((await event(deps, id, { event: "part", part: "review" })).status).toBe(409);
+    expect((await deps.store().findAnalysis(id))?.scanPart).toEqual({ name: "review", startedAt: reviewAt });
+  });
+
+  it("모르는 일은 400, review 를 맡기지 않은 분석의 review 는 409", async () => {
+    const { deps } = setup();
+    const id = (await requestAnalysis(deps)).body.analysis!.id;
+    await event(deps, id, { event: "step", step: "fetch" });
+    await event(deps, id, { event: "step", step: "scan" });
+    for (const part of ["judge", "scan", "", null]) expect((await event(deps, id, { event: "part", part })).status, String(part)).toBe(400);
+    expect((await event(deps, id, { event: "part", part: "review" })).status).toBe(409);
+    expect((await partOf(id)).scan_part).toBeNull();
+    expect((await event(deps, id, { event: "part", part: "profile" })).status).toBe(200);
+    expect((await partOf(id)).scan_part).toBe("profile");
+  });
+});
+
 describe("대기열과 실행 자리 (2026-11-03)", () => {
   it("진행 읽기(GET)는 대기 중인 분석의 대기열 자리를 준다. 대기 중이 아니면 null", async () => {
     const { deps, later } = setup({ POOL_SIZE: "1" });

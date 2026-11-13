@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { CaseFacts } from "@/components/cases/CaseFacts";
+import { EvalSection } from "@/components/cases/EvalSection";
 import { Icon } from "@/components/Icon";
 import { checkCount } from "@/components/review/ReviewView";
 import { casesFile, casesHref } from "@/lib/cases";
@@ -20,7 +21,8 @@ const subLabel = (status: ReviewStatus) => REVIEW_STATUS_LABEL[status].split(" �
 /**
  * 사례 목록. CLI 세션이 미리 돌린 공개 저장소의 review 2판 결과(2026-11-12 오너 지시). 빌드할 때 그린다. 저장소마다 한 줄: 이름,
  * 한 줄 요약, 감지된 기능과 확인할 것(다시 검토 중인 것은 뺀다)의 수. 줄 전체가 그 사례 쪽으로 가는 링크다(조문 도감 목록과 같은 꼴).
- * 그 아래는 성격이 다른 저장소 8곳의 갈래별 건수·시간·비용 표다. 남의 저장소라 이름·주소·코드를 싣지 않는다.
+ * 그 아래는 공개 저장소 41곳의 평가(2026-11-13, `EvalSection`)와 성격이 다른 저장소 8곳의 갈래별 건수·시간·비용 표다. 남의
+ * 저장소라 이름·주소·코드를 싣지 않는다.
  */
 export default function CasesPage() {
   const { cases, others } = casesFile;
@@ -50,6 +52,8 @@ export default function CasesPage() {
           );
         })}
       </ul>
+
+      <EvalSection />
 
       <section className="cases-others" aria-labelledby="cases-others">
         <h2 className="sec-h" id="cases-others">

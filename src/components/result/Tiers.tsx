@@ -5,6 +5,9 @@ import type { Profile, ProfileDuties, ProfileEvidence } from "@/lib/profile";
 import { fileLink, shortCommit } from "@/lib/service/href";
 import type { CodeSource } from "./PolicyCard";
 import { Where } from "./Where";
+import { SANCTION } from "@/lib/review/text";
+
+export { SANCTION };
 
 /**
  * 결과 화면의 세 단(2026-11-11 오너 지시): 1 프로필(이 저장소가 하는 일), 2 걸리는 의무(기능마다 걸릴 수 있는 의무), 3 검토 결과
@@ -130,21 +133,6 @@ export function ProfileTier({
 
 /** 걸릴 수 있다는 것뿐임을 밝히는 한 줄(2026-11-11 오너 지시: 판단은 없다고 밝힌다). */
 export const NO_JUDGEMENT = "기능에 걸릴 수 있는 의무입니다. 걸린다고 판단한 것은 아닙니다.";
-
-/**
- * 화면에 싣지 않는 처분의 말(docs/commitments.md 1장: 처분 사례와 그 액수를 화면에 싣지 않는다). 의무 한 줄에 이 말이 들면 그 줄은
- * 적지 않고 법·조문·법제처 링크만 둔다. 소스의 문구 시험(tests/commitments.test.ts)이 이 낱말을 글자 그대로 막으므로 글자 번호로
- * 적는다(tests/wording.ts 의 처분·액수 줄과 같은 세 낱말).
- */
-export const SANCTION = new RegExp(
-  [
-    [0xacfc, 0xc9d5, 0xae08],
-    [0xacfc, 0xd0dc, 0xb8cc],
-    [0xbc8c, 0xae08],
-  ]
-    .map((codes) => String.fromCodePoint(...codes))
-    .join("|"),
-);
 
 /** 의무 묶음 하나: 접힌 줄(이름과 수)과 펼친 목록(법·조문, 의무 한 줄, 법제처 링크). 기본은 접는다. */
 function DutyGroup({ name, duties }: { name: string; duties: ProfileDuties }) {

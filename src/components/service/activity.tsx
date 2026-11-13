@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Icon } from "@/components/Icon";
 import { analysisHref, shortCommit } from "@/lib/service/href";
-import { activeStep, ANALYSIS_STATUS_LABEL, formatKst, STEP_LABEL, stepState } from "@/lib/service/steps";
+import { activeLabel, activeStep, ANALYSIS_STATUS_LABEL, formatKst, stepState } from "@/lib/service/steps";
 import type { Analysis, RepositoryActivity } from "@/lib/service/types";
 import { SITE } from "@/lib/site";
 import { FeatureLine, findingCount, RepoName } from "./parts";
@@ -87,7 +87,7 @@ function StepTrail({ analysis }: { analysis: Analysis }) {
           return <i key={s.name} className={state === "done" ? "done" : state === "active" ? "now" : undefined} />;
         })}
       </span>
-      {step && <span>{STEP_LABEL[step.name]}</span>}
+      {step && <span>{activeLabel(analysis)}</span>}
     </span>
   );
 }

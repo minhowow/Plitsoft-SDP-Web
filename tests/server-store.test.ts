@@ -80,11 +80,11 @@ async function finish(id: string, at: Date, result: string | null = JSON.stringi
 
 describe("DB: 마이그레이션", () => {
   it("이름 차례로 한 번만 적용한다", async () => {
-    expect(readMigrations().map((m) => m.name)).toEqual(["001_init.sql", "002_finding_count.sql", "003_queue.sql", "004_runner_wake.sql", "005_profile.sql", "006_review.sql", "007_review_plan.sql"]);
+    expect(readMigrations().map((m) => m.name)).toEqual(["001_init.sql", "002_finding_count.sql", "003_queue.sql", "004_runner_wake.sql", "005_profile.sql", "006_review.sql", "007_review_plan.sql", "008_scan_part.sql"]);
     // 이미 열 때 적용했다. 다시 돌려도 아무것도 하지 않는다.
     expect(await migrate(db)).toEqual([]);
     const applied = await db.query<{ name: string }>("SELECT name FROM schema_migrations ORDER BY name");
-    expect(applied.rows.map((row) => row.name)).toEqual(["001_init.sql", "002_finding_count.sql", "003_queue.sql", "004_runner_wake.sql", "005_profile.sql", "006_review.sql", "007_review_plan.sql"]);
+    expect(applied.rows.map((row) => row.name)).toEqual(["001_init.sql", "002_finding_count.sql", "003_queue.sql", "004_runner_wake.sql", "005_profile.sql", "006_review.sql", "007_review_plan.sql", "008_scan_part.sql"]);
   });
 
   it("표에 저장하지 않기로 한 것(IP·사용자·코드)을 담을 열이 없다", async () => {
@@ -115,6 +115,9 @@ describe("DB: 마이그레이션", () => {
       "analyses.feature_names",
       // review 를 어떻게 했는지(run·stored·limit). 하루 review 실행 수를 센다(2026-11-12).
       "analyses.review_plan",
+      // 검사 단계 안에서 실행기가 알린 일(profile·review)과 받은 때. 진행 표시에만 쓴다(2026-11-13).
+      "analyses.scan_part",
+      "analyses.scan_part_at",
       "github_budget.bucket",
       "github_budget.window_start",
       "github_budget.used",
@@ -670,7 +673,7 @@ describe("오래된 분석", () => {
     expect(stale.status).toBe("failed");
     expect(stale.failure).toEqual({
       step: "scan",
-      reason: "시간 초과: 실행기에 보낸 뒤 32분 안에 끝나지 않아 멈춘 것으로 적었습니다. ‘검사(정적 검사와 AI 판정)’ 단계에 머물러 있었습니다.",
+      reason: "시간 초과: 실행기에 보낸 뒤 32분 안에 끝나지 않아 멈춘 것으로 적었습니다. ‘검사’ 단계에 머물러 있었습니다.",
     });
     // 언제 멈췄는지는 모르므로 그 단계의 끝난 시각을 꾸며 적지 않는다.
     expect(stale.steps.find((s) => s.name === "scan")?.endedAt).toBeNull();

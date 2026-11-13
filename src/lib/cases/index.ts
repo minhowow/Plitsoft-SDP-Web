@@ -93,6 +93,15 @@ export function casesHref(slug?: string): string {
   return slug ? `/cases/${slug}/` : "/cases/";
 }
 
+/** 사례의 의무 체크리스트 인쇄용 보기와 마크다운 파일(빌드할 때 만든다). */
+export function caseChecklistHref(slug: string): string {
+  return `/cases/${slug}/checklist/`;
+}
+
+export function caseChecklistMarkdownHref(slug: string): string {
+  return `/api/cases/${slug}/checklist/`;
+}
+
 export function findCase(slug: string): CaseData | undefined {
   return casesFile.cases.find((c) => c.slug === slug);
 }

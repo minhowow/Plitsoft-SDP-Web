@@ -23,7 +23,7 @@ import { pickActivity } from "@/lib/service/activity";
 import { hangulToQwerty } from "@/lib/service/keyboard";
 import { placeAt, placeOf, placeText, readPlace } from "@/lib/service/queue";
 import { matchRepositories } from "@/lib/service/search";
-import { activeStep, duration, finishedAt, formatKst, STEP_ORDER, stepState } from "@/lib/service/steps";
+import { activeLabel, activeStep, duration, finishedAt, formatKst, scanParts, STEP_ORDER, stepState } from "@/lib/service/steps";
 import { SYNTHETIC_RESULT_SOURCES, syntheticRepositories, syntheticStore as store } from "@/lib/service/synthetic";
 import type { Analysis, Repository } from "@/lib/service/types";
 import { SITE } from "@/lib/site";
@@ -220,7 +220,7 @@ describe("부품", () => {
   it("진행 중: 진행 중인 단계가 하나이고 aria-current 로 알린다. 합성이면 고정된 순간이라는 것을 밝힌다", () => {
     const html = renderToStaticMarkup(<InProgress analysis={find("running")} note={PROGRESS_NOTE.synthetic} />);
     expect(html.match(/aria-current="step"/g)).toHaveLength(1);
-    expect(textOf(html)).toContain("‘검사(정적 검사와 AI 판정)’ 단계");
+    expect(textOf(html)).toContain("‘AI 검토’ 단계");
     expect(textOf(html)).toContain("고정해 보인 것");
     expectNoBannedWording(html);
     // 실제 분석에는 고정된 순간이라고 적지 않는다.
@@ -234,7 +234,7 @@ describe("부품", () => {
     expect(html.match(/aria-current="step"/g)).toHaveLength(1);
     // (D5) `진행` 상자 하나: 지금 단계 한 줄(role=status)과 단계 표(docs/redesign.md 3장). "누구나 볼 수 있고 끝나면 이 주소에…"와
     // "몇 초마다 다시 읽는다"는 풀이 문장은 지웠다(2.3).
-    expect(html).toMatch(/<p class="live-now" role="status">지금 ‘검사\(정적 검사와 AI 판정\)’ 단계<\/p>/);
+    expect(html).toMatch(/<p class="live-now" role="status">지금 ‘AI 검토’ 단계<\/p>/);
     expect(textOf(html)).not.toMatch(/누구나 볼 수 있고|몇 초마다/);
     expect(textOf(html)).not.toContain("고정해 보인 것");
     expect(POLL_MS).toBe(3_000);
@@ -247,7 +247,8 @@ describe("부품", () => {
     expect(textOf(renderToStaticMarkup(<LiveAnalysis repository={repoOf(running)} analysis={{ ...running, review: "run" }} />))).toContain(
       SITE.service.reviewTakes,
     );
-    for (const analysis of [running, { ...running, review: "limit" as const }, { ...running, review: "stored" as const }, { ...find("succeeded"), review: "run" as const }]) {
+    const off = { ...running, review: undefined, scanPart: undefined };
+    for (const analysis of [off, { ...running, review: "limit" as const }, { ...running, review: "stored" as const }, { ...find("succeeded"), review: "run" as const }]) {
       expect(textOf(renderToStaticMarkup(<InProgress analysis={analysis} />))).not.toContain(SITE.service.reviewTakes);
     }
   });
@@ -286,10 +287,40 @@ describe("부품", () => {
     expect([...html.matchAll(/<span class="step-name">([^<]*)<\/span>/g)].map((m) => m[1])).toEqual([
       "대기",
       "저장소 받기·도구 설치",
-      "검사(정적 검사와 AI 판정)",
+      "검사",
       "정리",
     ]);
+    // 실행기가 검사 단계 안의 차례를 알리기 전에 끝난 분석에는 그 차례를 적지 않는다.
+    expect(html).not.toContain("step-sub");
     expect(textOf(html)).not.toContain("건너뜀");
+  });
+
+  it("검사 단계 안의 차례: 실행기가 알린 것만으로 정한다. 알린 일이 지금이고 앞은 끝났다. AI 검토 안의 단계는 차례만 적는다", () => {
+    const running = find("running");
+    const scanStart = running.steps.find((step) => step.name === "scan")!.startedAt;
+    const at = "2026-10-24T05:00:05Z";
+    const rows = (analysis: Analysis) => scanParts(analysis).map((row) => `${row.name}:${row.state}`);
+    // 알림 전: 정적 검사·AI 판정이 지금(검사 단계가 시작한 때부터).
+    expect(rows({ ...running, scanPart: undefined })).toEqual(["judge:active", "profile:waiting", "review:waiting"]);
+    expect(scanParts({ ...running, scanPart: undefined })[0].startedAt).toBe(scanStart);
+    expect(rows({ ...running, scanPart: { name: "profile", startedAt: at } })).toEqual(["judge:done", "profile:active", "review:waiting"]);
+    expect(rows(running)).toEqual(["judge:done", "profile:done", "review:active"]);
+    // review 를 돌리지 않는 분석: 스위치가 꺼졌으면 AI 검토 줄이 없고, 저장된 결과·하루 한도면 그 까닭을 적는다.
+    expect(rows({ ...running, review: undefined, scanPart: undefined })).toEqual(["judge:active", "profile:waiting"]);
+    expect(scanParts({ ...running, review: "stored", scanPart: undefined }).at(-1)).toMatchObject({ name: "review", skipped: "같은 커밋의 저장된 결과를 씀" });
+    expect(scanParts({ ...running, review: "limit", scanPart: undefined }).at(-1)).toMatchObject({ name: "review", skipped: "오늘 한도가 차서 하지 않음" });
+    // 검사 단계에서 멈춘 분석: 지금이던 일에서 멈췄다.
+    const failed: Analysis = { ...running, status: "failed", failure: { step: "scan", reason: "시험" } };
+    expect(rows(failed)).toEqual(["judge:done", "profile:done", "review:failed"]);
+    // 지금 하는 일의 이름과 진행 줄.
+    expect(activeLabel(running)).toBe("AI 검토");
+    expect(activeLabel({ ...running, scanPart: undefined })).toBe("정적 검사·AI 판정");
+    const html = renderToStaticMarkup(<StepList analysis={running} />);
+    expect(html.match(/aria-current="step"/g)).toHaveLength(1);
+    expect(html).toMatch(/<li class="step-item step-sub step-active" aria-current="step">/);
+    expect(textOf(html)).toContain("의무 고르기 → 의무별 조사 → 반박 (이 안의 차례는 알 수 없음)");
+    // 대기 중인 분석: 검사 단계의 차례는 모두 기다림이다.
+    expect(rows(find("queued"))).toEqual(["judge:waiting", "profile:waiting"]);
   });
 
   it("분석 요청 단추는 누를 수 없고, 바로 옆에 까닭이 있다", () => {
@@ -332,7 +363,7 @@ describe("부품", () => {
     for (const analysis of list) expect(html).toContain(linked(analysisHref(repository.owner, repository.name, analysis.id)));
     expect([...html.matchAll(/<th scope="col"[^>]*>([^<]*)<\/th>/g)].map((m) => m[1])).toEqual(["분석", "상태", "커밋", "요청 시각 (KST)", "발견"]);
     expect(textOf(html)).toContain("2건");
-    expect(textOf(html)).toContain("검사(정적 검사와 AI 판정) 중");
+    expect(textOf(html)).toContain("AI 검토 중");
     // 합성 저장소의 커밋은 링크가 아니다.
     expect(html).not.toContain("/commit/");
   });
@@ -751,7 +782,7 @@ describe("첫 화면·검색 빈 상태의 최근 분석 줄", () => {
     expect(textOf(html)).toContain("분석 중");
     expect(textOf(html)).toContain("대기 중");
     expect(html.match(/class="act-trail"/g)).toHaveLength(1);
-    expect(textOf(html)).toContain("검사(정적 검사와 AI 판정)");
+    expect(textOf(html)).toContain("AI 검토");
     expect(textOf(html)).toContain(SITE.zeroIsNotClearance);
   });
 

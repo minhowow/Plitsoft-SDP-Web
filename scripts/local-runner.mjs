@@ -16,7 +16,7 @@
 //
 //   --once          대기 중인 분석이 하나도 없을 때까지 돌리고 끝낸다(없으면 바로 끝낸다). 없으면 계속 기다린다.
 //   --interval ms   기다리는 동안 몇 ms 마다 다시 물을지(기본 2000)
-//   --step-delay ms 단계 사이에 쉬는 시간(화면에서 진행을 보려고. 기본 0)
+//   --step-delay ms 단계(와 검사 단계 안의 일) 사이에 쉬는 시간(화면에서 진행을 보려고. 기본 0)
 //   --source dir    가짜 GitHub 에 없는 저장소를 요청했을 때 검사할 폴더(기본 없음: 그런 저장소는 실패로 적는다)
 //   --parallel n    한 번에 돌리는 분석 수(기본 1). 사이트의 POOL_SIZE 와 같게 둔다. 사이트는 실행 자리 수만큼만 '보냄'으로
 //                   표시하므로, 이보다 작으면 보냄 표시를 받은 분석이 집히지 않은 채 기다리다 DISPATCH_TIMEOUT_MINUTES 에 실패한다.
@@ -31,6 +31,7 @@ import {
   childEnv,
   copyRepository,
   DEFAULTS,
+  notifyPart,
   notifyStep,
   post,
   resultBody,
@@ -171,8 +172,10 @@ export async function runOne(claimed, options, secret) {
     const output = options.fixture
       ? readFileSync(capture, "utf8")
       : runScan({ dir: src, judge: "none", command, env, timeoutMs: DEFAULTS.scanTimeoutMinutes * 60_000 });
+    await sleep(options.stepDelay);
     // 저장소 프로필(모델 호출 없음): 수집본이면 같은 표본의 프로필 수집본, CLI 면 policypack profile 을 검사 다음에 돌린다(역시
-    // spawnSync 로 하나씩). 없거나 실패하면 결과만 보낸다.
+    // spawnSync 로 하나씩). 없거나 실패하면 결과만 보낸다. 시작을 알린다(GitHub Actions 의 실행기와 같이 best-effort).
+    await notifyPart(ctx, "profile");
     const profile = options.fixture
       ? profileCaptureFor(capture)
       : runProfile({ dir: src, command, env, timeoutMs: DEFAULTS.profileTimeoutMinutes * 60_000 });
@@ -180,6 +183,8 @@ export async function runOne(claimed, options, secret) {
     // 같은 표본의 합성 예시, CLI 면 policypack review 를 차례로(spawnSync). API 키가 없거나 실패하면 결과만 보낸다.
     let review = null;
     if (claimed.review === true) {
+      await sleep(options.stepDelay);
+      await notifyPart(ctx, "review");
       if (options.fixture) review = reviewCaptureFor(capture);
       else if (process.env.ANTHROPIC_API_KEY) {
         review = runReview({ dir: src, command, env: { ...env, ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY }, options: reviewOptions(process.env) });

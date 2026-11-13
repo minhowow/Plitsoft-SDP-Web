@@ -7,7 +7,7 @@ import { repoKey } from "@/lib/service/href";
 import { isAnalysisId } from "@/lib/service/id";
 import { isRepoFullName } from "@/lib/service/names";
 import { STEP_ORDER } from "@/lib/service/steps";
-import type { AnalysisStep, StepName } from "@/lib/service/types";
+import type { AnalysisStep, ScanPart, StepName } from "@/lib/service/types";
 import type { Database, Queryable } from "./db";
 import { sweepStale, tidyQueue, type PumpDeps, type QueueLimits } from "./queue";
 import { COLUMNS, readSteps, rowToAnalysis, type Row } from "./store/rows";
@@ -24,6 +24,8 @@ import { COLUMNS, readSteps, rowToAnalysis, type Row } from "./store/rows";
  *   "review"?: { …policypack review 의 JSON… } }`: 정리 단계에서 결과를 보낸다. 저장소 프로필과 review 결과는 있을 때만 싣는다
  *   (2026-11-11). 읽히지 않거나 없으면 비워 두고, 그 때문에 분석을 실패로 적지 않는다.
  * - `{ "event": "fail", "step": …, "reason": "…" }`: 그 단계에서 멈췄다.
+ * - `{ "event": "part", "part": "profile" | "review" }`: 검사 단계 안에서 다음 CLI 명령(저장소 프로필, review)을 시작했다
+ *   (2026-11-13). 단계가 아니다. 실행기는 이 알림을 best-effort 로 보낸다(받지 않아도 분석을 멈추지 않는다).
  *
  * 상태 전이만 허용한다.
  * - 끝난(succeeded·failed) 분석은 다시 바꾸지 못한다(409). 시간을 넘긴 분석은 먼저 '시간 초과'로 끝낸 뒤 본다.
@@ -34,6 +36,8 @@ import { COLUMNS, readSteps, rowToAnalysis, type Row } from "./store/rows";
  * - 결과는 정리 단계에서만 받는다. CLI 의 결과로 읽히면 끝남(도구·팩 판을 결과에서 적는다), 읽히지 않으면 받은 글을 그대로 두고
  *   실패('결과를 읽지 못함')로 적는다.
  * - 실패는 지금 단계나 그다음 단계(시작을 알리기 전에 멈춤)에서만 받는다.
+ * - 검사 단계 안의 일(part)은 검사 단계가 지금 단계이고 끝나지 않았을 때만 받는다. 앞으로만 간다(프로필 → review). 같은 일을
+ *   다시 알리면 바꾸지 않고 받고, 뒤로 가면 409. review 는 이 분석에 review 를 맡겼을 때(`review_plan` 이 run)만 받는다.
  *
  * 시각은 이 서버가 콜백을 받은 때다(실행기가 보낸 시각을 믿지 않는다).
  */
@@ -49,6 +53,7 @@ export type RunnerEvent = { target: RunnerTarget } & (
   | { event: "step"; step: Exclude<StepName, "queued">; run: { id: string; url: string } | null }
   | { event: "result"; output: string; profile: unknown; review: unknown }
   | { event: "fail"; step: Exclude<StepName, "queued">; reason: string }
+  | { event: "part"; part: ScanPart["name"] }
 );
 
 export interface EventOutcome {
@@ -57,6 +62,8 @@ export interface EventOutcome {
 }
 
 const RUNNER_STEPS = STEP_ORDER.filter((name): name is Exclude<StepName, "queued"> => name !== "queued");
+/** 검사 단계 안의 일. 이 차례로만 간다. */
+const SCAN_PARTS: ScanPart["name"][] = ["profile", "review"];
 /** 실패 까닭의 길이 상한(글자). 넘는 것은 자른다. */
 export const MAX_REASON_LENGTH = 500;
 const RUN_ID = /^\d{1,20}$/;
@@ -91,6 +98,8 @@ export function readEvent(data: unknown): RunnerEvent | null {
   if (value.event === "result" && typeof value.output === "string") {
     return { event: "result", output: value.output, profile: value.profile ?? null, review: value.review ?? null, target };
   }
+  const part = SCAN_PARTS.find((name) => name === value.part);
+  if (value.event === "part" && part) return { event: "part", part, target };
   if (value.event === "fail" && step && typeof value.reason === "string") {
     // 제어 문자를 빼고, 길면 자른다. 화면에 그대로 적는 글이다.
     const reason = value.reason.replace(/[\u0000-\u001f\u007f]+/g, " ").trim().slice(0, MAX_REASON_LENGTH);
@@ -158,6 +167,19 @@ export async function applyRunnerEvent(
       const run = event.run;
       await write(", status = 'running'" + (run ? ", runner_run_id = $3, runner_run_url = $4" : ""), run ? [run.id, run.url] : []);
       return { status: 200, body: { ok: true, message: "단계를 적었습니다.", status: "running" } };
+    }
+
+    if (event.event === "part") {
+      if (STEP_ORDER[current] !== "scan" || steps[current].endedAt) return refuse(409, "검사 단계 안의 일은 검사 단계에서만 받습니다.");
+      if (event.part === "review" && row.review_plan !== "run") return refuse(409, "이 분석에는 review 를 맡기지 않았습니다.");
+      const before = row.scan_part ? SCAN_PARTS.indexOf(row.scan_part) : -1;
+      const after = SCAN_PARTS.indexOf(event.part);
+      if (after === before) {
+        return { status: 200, body: { ok: true, message: "이미 알린 일입니다.", status: analysis.status, unchanged: true } };
+      }
+      if (after < before) return refuse(409, "검사 단계 안의 일의 차례가 맞지 않습니다.");
+      await tx.query("UPDATE analyses SET scan_part = $2, scan_part_at = $3 WHERE id = $1", [id, event.part, options.now]);
+      return { status: 200, body: { ok: true, message: "검사 단계 안의 일을 적었습니다.", status: analysis.status } };
     }
 
     if (event.event === "fail") {

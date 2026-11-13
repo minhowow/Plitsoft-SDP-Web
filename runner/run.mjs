@@ -2,18 +2,20 @@
 // 분석 실행기. GitHub Actions 의 워크플로(.github/workflows/analyze.yml)가 단계마다 이 파일을 부르고, 로컬 실행기
 // (scripts/local-runner.mjs)는 같은 함수를 가져다 쓴다. Node 내장 모듈만 쓴다.
 //
-// 하는 일(설계 8): 저장소 받기·도구 설치 → 검사(정적 검사와 AI 판정, CLI 명령 하나. 그 뒤 저장소 프로필 `policypack profile`,
+// 하는 일(설계 8): 저장소 받기·도구 설치 → 검사(정적 검사와 AI 판정 `policypack scan`, 그 뒤 저장소 프로필 `policypack profile`,
 // 모델 호출 없음. 입력 REVIEW 가 "true" 일 때만 그다음 `policypack review`, 모델 호출) → 정리(결과와 프로필·review 보내기).
-// 단계를 시작할 때마다
-// 사이트에 서명한 콜백을 보내고, 멈추면 그 단계와 까닭을 보낸다. 대상 코드는 읽기만 한다(설치·빌드·실행하지 않는다).
+// 단계를 시작할 때마다 사이트에 서명한 콜백을 보내고, 멈추면 그 단계와 까닭을 보낸다. 검사 단계 안에서는 프로필과 review 를
+// 시작할 때 그것도 알린다(part. 알리지 못해도 멈추지 않는다). 대상 코드는 읽기만 한다(설치·빌드·실행하지 않는다).
 //
 // 워크플로에서 부르는 법(값은 모두 환경 변수로 받는다. 워크플로 입력을 셸 글에 끼워 넣지 않는다):
 //   node runner/run.mjs check              입력 검사(분석 id·owner·repo·커밋·콜백 주소 모양)
 //   node runner/run.mjs notify <단계>      단계 시작 콜백 (RUNNER_SECRET)
 //   node runner/run.mjs fetch              tarball 받기·풀기, JS/TS 파일 수 상한 (GITHUB_TOKEN: 이 워크플로의 읽기 토큰)
 //   node runner/run.mjs install            uv 와 CLI 설치(고정 커밋) (CLI_REPO_TOKEN: CLI 저장소가 비공개일 때만)
-//   node runner/run.mjs scan               policypack scan (ANTHROPIC_API_KEY), 그다음 policypack profile (키 없이),
-//                                          REVIEW="true" 면 policypack review (ANTHROPIC_API_KEY, REVIEW_* 상한)
+//   node runner/run.mjs scan               policypack scan (ANTHROPIC_API_KEY)
+//   node runner/run.mjs part <일>          검사 단계 안의 일(profile | review) 시작 알림 (RUNNER_SECRET). 알리지 못해도 성공으로 끝난다
+//   node runner/run.mjs profile            policypack profile (비밀값 없이). 실패해도 결과만 보낸다
+//   node runner/run.mjs review             REVIEW="true" 면 policypack review (ANTHROPIC_API_KEY, REVIEW_* 상한). 실패해도 결과만 보낸다
 //   node runner/run.mjs finish             정리 단계 시작 콜백과 결과 콜백 (RUNNER_SECRET)
 //   node runner/run.mjs fail               멈춘 단계와 까닭 콜백 (RUNNER_SECRET). 워크플로가 실패·취소됐을 때만 돈다
 //
@@ -28,6 +30,8 @@ import { ArchiveError, extractTarGz } from "./tar.mjs";
 
 /** 실행기가 알리는 단계(사이트의 STEP_ORDER 에서 대기를 뺀 것. src/lib/service/steps.ts). */
 export const RUNNER_STEPS = ["fetch", "scan", "finish"];
+/** 검사 단계 안에서 알리는 일(사이트의 `Analysis.scanPart`, src/server/callbacks.ts). 단계가 아니다. 이 차례로 간다. */
+export const SCAN_PARTS = ["profile", "review"];
 
 export const DEFAULTS = {
   maxTarballMb: 100,
@@ -124,6 +128,30 @@ export const notifyStep = (ctx, step, run = null) => send(ctx, run ? { event: "s
 export const sendResult = (ctx, output, profile = null, review = null) =>
   send(ctx, { event: "result", output, ...(profile ? { profile } : {}), ...(review ? { review } : {}) }, "finish");
 export const sendFailure = (ctx, step, reason) => send(ctx, { event: "fail", step, reason }, step);
+
+/**
+ * 검사 단계 안의 일(프로필, review)을 시작했다고 알린다. 화면의 진행 표시에만 쓰이는 알림이라 best-effort 다: 닿지 못하거나
+ * 서버가 받지 않아도 던지지 않고 로그만 남긴다(분석을 멈추지 않고, 형편 파일의 refused 도 적지 않는다). 받았으면 true.
+ */
+export async function notifyPart(ctx, part, { log = console.error } = {}) {
+  if (!SCAN_PARTS.includes(part)) {
+    log(`실행기: 모르는 검사 단계 안의 일(${part})이라 알리지 않았습니다.`);
+    return false;
+  }
+  try {
+    const { status, body } = await post(
+      ctx.callbackUrl,
+      ctx.analysisId,
+      { event: "part", part, target: ctx.target },
+      { secret: ctx.secret, fetcher: ctx.fetcher, attempts: 2, delayMs: ctx.retryDelayMs },
+    );
+    if (status === 200) return true;
+    log(`실행기: 사이트가 검사 단계 안의 일(${part}) 알림을 받지 않았습니다(${typeof body?.message === "string" ? body.message : `응답 ${status}`}). 그대로 갑니다.`);
+  } catch (error) {
+    log(`실행기: 검사 단계 안의 일(${part})을 알리지 못했습니다(${error instanceof Error ? error.message : "까닭 모름"}). 그대로 갑니다.`);
+  }
+  return false;
+}
 
 // ---- 입력 ----
 
@@ -519,25 +547,41 @@ async function main(argv, env) {
           timeoutMs: positive(env.SCAN_TIMEOUT_MINUTES, DEFAULTS.scanTimeoutMinutes) * 60_000,
         });
         writeFileSync(path.join(work, "output.json"), output);
+        return;
+      }
+      case "part":
+        // 검사 단계 안의 일을 알린다(best-effort). 형편 파일은 바꾸지 않는다(멈추면 검사 단계의 멈춤이다).
+        if (problems.includes("콜백 주소") || problems.includes("분석 id")) return; // 알릴 곳을 믿을 수 없다.
+        await notifyPart(ctx, arg);
+        return;
+      case "profile": {
         // 저장소 프로필(모델 호출 없음). API 키를 넘기지 않는다. 실패하면 파일을 남기지 않고 결과만 보낸다.
+        step("scan");
+        rmSync(path.join(work, "profile.json"), { force: true });
         const profile = runProfile({
           dir: src,
           env: childEnv(env, { GIT_CEILING_DIRECTORIES: work }),
           timeoutMs: positive(env.PROFILE_TIMEOUT_MINUTES, DEFAULTS.profileTimeoutMinutes) * 60_000,
         });
-        rmSync(path.join(work, "profile.json"), { force: true });
         if (profile) writeFileSync(path.join(work, "profile.json"), JSON.stringify(profile));
+        return;
+      }
+      case "review": {
         // review(모델 호출). 사이트가 입력 REVIEW 를 "true" 로 보냈을 때만(스위치가 켜져 있고 같은 커밋의 저장된 review 가 없을 때).
         // 실패하면 파일을 남기지 않고 결과만 보낸다.
+        step("scan");
         rmSync(path.join(work, "review.json"), { force: true });
-        if (env.REVIEW === "true") {
-          const review = runReview({
-            dir: src,
-            env: childEnv(env, { ANTHROPIC_API_KEY: env.ANTHROPIC_API_KEY, GIT_CEILING_DIRECTORIES: work }),
-            options: reviewOptions(env),
-          });
-          if (review) writeFileSync(path.join(work, "review.json"), JSON.stringify(review));
+        if (env.REVIEW !== "true") return;
+        if (!env.ANTHROPIC_API_KEY) {
+          console.error("실행기에 API 키가 없어 review 를 돌리지 않았습니다. 결과만 보냅니다.");
+          return;
         }
+        const review = runReview({
+          dir: src,
+          env: childEnv(env, { ANTHROPIC_API_KEY: env.ANTHROPIC_API_KEY, GIT_CEILING_DIRECTORIES: work }),
+          options: reviewOptions(env),
+        });
+        if (review) writeFileSync(path.join(work, "review.json"), JSON.stringify(review));
         return;
       }
       case "finish": {

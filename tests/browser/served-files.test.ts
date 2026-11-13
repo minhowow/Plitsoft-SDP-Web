@@ -1,9 +1,9 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { casesFile, casesHref } from "@/lib/cases";
+import { caseChecklistHref, casesFile, casesHref } from "@/lib/cases";
 import { policyHref, policySlug } from "@/lib/pack";
-import { analysisHref, repoHref } from "@/lib/service/href";
+import { analysisHref, checklistHref, repoHref } from "@/lib/service/href";
 import { syntheticRepositories, syntheticStore } from "@/lib/service/synthetic";
 import { SITE } from "@/lib/site";
 import { elementAt, elementsOf, readPackFile, root } from "../helpers";
@@ -41,6 +41,8 @@ const PAGES = [
   ...packFile.policies.map((policy) => policyHref(policy.id)),
   casesHref(),
   ...casesFile.cases.map((c) => casesHref(c.slug)),
+  ...casesFile.cases.map((c) => caseChecklistHref(c.slug)),
+  checklistHref("example-studio", "genai-chat", "4qqa6fdx2h"),
   "/search/",
   "/search/?q=example",
   ...hits.map(({ repository: r }) => repoHref(r.owner, r.name)),

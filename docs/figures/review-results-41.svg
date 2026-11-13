@@ -1,0 +1,133 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="850" viewBox="0 0 1920 850" font-family="'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', sans-serif">
+<rect width="1920" height="850" fill="#ffffff"/>
+<text x="48" y="58" font-size="30" font-weight="700" fill="#1f2328">공개 저장소 41곳의 review 결과 · 성격별 의무 갈래</text>
+<text x="48" y="94" font-size="17" fill="#59636e">2026-11-13 · 판정 규칙 CLI handoff-w11-12 · 조사 claude-haiku-5-5 · 반박 없음 · 비용(공식 단가) 합계 $6.75 · 합계 132분 · 저장소 이름은 싣지 않음</text>
+<rect x="48" y="122" width="438" height="132" rx="8" fill="#f6f8fa" stroke="#d1d9e0"/>
+<text x="72" y="178" font-size="42" font-weight="700" fill="#bc4c00">34 / 41곳</text>
+<text x="72" y="210" font-size="18" font-weight="600" fill="#1f2328">코드 줄을 인용한 '코드에서 본 것'이 있는 곳</text>
+<text x="72" y="236" font-size="15" fill="#59636e">정적 검사만으로 경고가 있는 곳은 13곳</text>
+<rect x="510" y="122" width="438" height="132" rx="8" fill="#f6f8fa" stroke="#d1d9e0"/>
+<text x="534" y="178" font-size="42" font-weight="700" fill="#1f2328">5곳</text>
+<text x="534" y="210" font-size="18" font-weight="600" fill="#1f2328">기능이 없는 저장소</text>
+<text x="534" y="236" font-size="15" fill="#59636e">체크리스트가 비어 있음</text>
+<rect x="972" y="122" width="438" height="132" rx="8" fill="#f6f8fa" stroke="#d1d9e0"/>
+<text x="996" y="178" font-size="42" font-weight="700" fill="#1f2328">18 / 2,256건</text>
+<text x="996" y="210" font-size="18" font-weight="600" fill="#1f2328">도구가 거절한 인용</text>
+<text x="996" y="236" font-size="15" fill="#59636e">코드에 그대로 없거나 시험·설정 파일의 줄</text>
+<rect x="1434" y="122" width="438" height="132" rx="8" fill="#f6f8fa" stroke="#d1d9e0"/>
+<text x="1458" y="178" font-size="42" font-weight="700" fill="#1f2328">$6.75</text>
+<text x="1458" y="210" font-size="18" font-weight="600" fill="#1f2328">41곳 전체 비용 어림</text>
+<text x="1458" y="236" font-size="15" fill="#59636e">걸린 시간 합계 132분</text>
+<rect x="48" y="274" width="20" height="20" rx="3" fill="#bc4c00"/>
+<text x="76" y="290" font-size="17" fill="#1f2328">확인할 것 · 코드에서 본 것</text>
+<rect x="342.09999999999997" y="274" width="20" height="20" rx="3" fill="#e16f24"/>
+<text x="370.09999999999997" y="290" font-size="17" fill="#1f2328">확인할 것 · 저장소 밖에서 확인할 것</text>
+<rect x="713.55" y="274" width="20" height="20" rx="3" fill="#f5a35c"/>
+<text x="741.55" y="290" font-size="17" fill="#1f2328">확인할 것 · 해당 여부부터 확인할 것</text>
+<rect x="1085" y="274" width="20" height="20" rx="3" fill="#818b98"/>
+<text x="1113" y="290" font-size="17" fill="#1f2328">모름</text>
+<rect x="48" y="308" width="20" height="20" rx="3" fill="#1a7f37"/>
+<text x="76" y="324" font-size="17" fill="#1f2328">지킨 근거 있음</text>
+<rect x="236.7" y="308" width="20" height="20" rx="3" fill="#c3cad3"/>
+<text x="264.7" y="324" font-size="17" fill="#1f2328">걸리지 않는 것으로 보임(확인 안 됨)</text>
+<rect x="608.1500000000001" y="308" width="20" height="20" rx="3" fill="#e3e8ed" stroke="#d1d9e0"/>
+<text x="636.1500000000001" y="324" font-size="17" fill="#1f2328">해당 없음</text>
+<text x="1872" y="354" font-size="15" text-anchor="end" fill="#59636e">코드에서 본 것이 있는 곳 · 비용 어림 · 걸린 시간</text>
+<text x="48" y="414" font-size="18" font-weight="600" fill="#1f2328">웹+서버</text>
+<text x="344" y="414" font-size="15" text-anchor="end" fill="#59636e">19곳</text>
+<rect x="360.0" y="388" width="308.6" height="36" fill="#bc4c00"/>
+<text x="514.3" y="412" font-size="14" font-weight="600" text-anchor="middle" fill="#ffffff">213</text>
+<rect x="668.6" y="388" width="39.1" height="36" fill="#e16f24"/>
+<text x="688.2" y="412" font-size="14" font-weight="600" text-anchor="middle" fill="#ffffff">27</text>
+<rect x="707.7" y="388" width="244.9" height="36" fill="#f5a35c"/>
+<text x="830.2" y="412" font-size="14" font-weight="600" text-anchor="middle" fill="#1f2328">169</text>
+<rect x="952.6" y="388" width="14.5" height="36" fill="#1a7f37"/>
+<rect x="967.1" y="388" width="98.5" height="36" fill="#c3cad3"/>
+<text x="1016.4" y="412" font-size="14" font-weight="600" text-anchor="middle" fill="#1f2328">68</text>
+<rect x="1065.6" y="388" width="414.4" height="36" fill="#e3e8ed" stroke="#d1d9e0"/>
+<text x="1272.8" y="412" font-size="14" font-weight="600" text-anchor="middle" fill="#1f2328">286</text>
+<text x="1492" y="412" font-size="14" fill="#59636e">773건</text>
+<text x="1872" y="412" font-size="15" text-anchor="end" fill="#1f2328">19/19곳 · $4.24 · 84분</text>
+<text x="48" y="472" font-size="18" font-weight="600" fill="#1f2328">화면만(웹)</text>
+<text x="344" y="472" font-size="15" text-anchor="end" fill="#59636e">9곳</text>
+<rect x="360.0" y="446" width="196.5" height="36" fill="#bc4c00"/>
+<text x="458.2" y="470" font-size="14" font-weight="600" text-anchor="middle" fill="#ffffff">50</text>
+<rect x="556.5" y="446" width="180.8" height="36" fill="#e16f24"/>
+<text x="646.9" y="470" font-size="14" font-weight="600" text-anchor="middle" fill="#ffffff">46</text>
+<rect x="737.3" y="446" width="263.3" height="36" fill="#f5a35c"/>
+<text x="868.9" y="470" font-size="14" font-weight="600" text-anchor="middle" fill="#1f2328">67</text>
+<rect x="1000.6" y="446" width="3.9" height="36" fill="#1a7f37"/>
+<rect x="1004.5" y="446" width="90.4" height="36" fill="#c3cad3"/>
+<text x="1049.7" y="470" font-size="14" font-weight="600" text-anchor="middle" fill="#1f2328">23</text>
+<rect x="1094.9" y="446" width="385.1" height="36" fill="#e3e8ed" stroke="#d1d9e0"/>
+<text x="1287.4" y="470" font-size="14" font-weight="600" text-anchor="middle" fill="#1f2328">98</text>
+<text x="1492" y="470" font-size="14" fill="#59636e">285건</text>
+<text x="1872" y="470" font-size="15" text-anchor="end" fill="#1f2328">9/9곳 · $1.42 · 27분</text>
+<text x="48" y="530" font-size="18" font-weight="600" fill="#1f2328">서버만</text>
+<text x="344" y="530" font-size="15" text-anchor="end" fill="#59636e">3곳</text>
+<rect x="360.0" y="504" width="188.2" height="36" fill="#bc4c00"/>
+<text x="454.1" y="528" font-size="14" font-weight="600" text-anchor="middle" fill="#ffffff">20</text>
+<rect x="548.2" y="504" width="131.8" height="36" fill="#e16f24"/>
+<text x="614.1" y="528" font-size="14" font-weight="600" text-anchor="middle" fill="#ffffff">14</text>
+<rect x="680.0" y="504" width="244.7" height="36" fill="#f5a35c"/>
+<text x="802.4" y="528" font-size="14" font-weight="600" text-anchor="middle" fill="#1f2328">26</text>
+<rect x="924.7" y="504" width="9.4" height="36" fill="#1a7f37"/>
+<rect x="934.1" y="504" width="94.1" height="36" fill="#c3cad3"/>
+<text x="981.2" y="528" font-size="14" font-weight="600" text-anchor="middle" fill="#1f2328">10</text>
+<rect x="1028.2" y="504" width="451.8" height="36" fill="#e3e8ed" stroke="#d1d9e0"/>
+<text x="1254.1" y="528" font-size="14" font-weight="600" text-anchor="middle" fill="#1f2328">48</text>
+<text x="1492" y="528" font-size="14" fill="#59636e">119건</text>
+<text x="1872" y="528" font-size="15" text-anchor="end" fill="#1f2328">3/3곳 · $0.61 · 10분</text>
+<text x="48" y="588" font-size="18" font-weight="600" fill="#1f2328">모바일 앱</text>
+<text x="344" y="588" font-size="15" text-anchor="end" fill="#59636e">2곳</text>
+<rect x="360.0" y="562" width="359.2" height="36" fill="#bc4c00"/>
+<text x="539.6" y="586" font-size="14" font-weight="600" text-anchor="middle" fill="#ffffff">17</text>
+<rect x="719.2" y="562" width="105.7" height="36" fill="#e16f24"/>
+<text x="772.1" y="586" font-size="14" font-weight="600" text-anchor="middle" fill="#ffffff">5</text>
+<rect x="824.9" y="562" width="147.9" height="36" fill="#f5a35c"/>
+<text x="898.9" y="586" font-size="14" font-weight="600" text-anchor="middle" fill="#1f2328">7</text>
+<rect x="972.8" y="562" width="105.7" height="36" fill="#c3cad3"/>
+<text x="1025.7" y="586" font-size="14" font-weight="600" text-anchor="middle" fill="#1f2328">5</text>
+<rect x="1078.5" y="562" width="401.5" height="36" fill="#e3e8ed" stroke="#d1d9e0"/>
+<text x="1279.2" y="586" font-size="14" font-weight="600" text-anchor="middle" fill="#1f2328">19</text>
+<text x="1492" y="586" font-size="14" fill="#59636e">53건</text>
+<text x="1872" y="586" font-size="15" text-anchor="end" fill="#1f2328">2/2곳 · $0.31 · 6분</text>
+<text x="48" y="646" font-size="18" font-weight="600" fill="#1f2328">그 밖(package.json 없음 등)</text>
+<text x="344" y="646" font-size="15" text-anchor="end" fill="#59636e">3곳</text>
+<rect x="360.0" y="620" width="270.3" height="36" fill="#bc4c00"/>
+<text x="495.2" y="644" font-size="14" font-weight="600" text-anchor="middle" fill="#ffffff">7</text>
+<rect x="630.3" y="620" width="38.6" height="36" fill="#e16f24"/>
+<text x="649.7" y="644" font-size="14" font-weight="600" text-anchor="middle" fill="#ffffff">1</text>
+<rect x="669.0" y="620" width="193.1" height="36" fill="#f5a35c"/>
+<text x="765.5" y="644" font-size="14" font-weight="600" text-anchor="middle" fill="#1f2328">5</text>
+<rect x="862.1" y="620" width="115.9" height="36" fill="#1a7f37"/>
+<text x="920" y="644" font-size="14" font-weight="600" text-anchor="middle" fill="#ffffff">3</text>
+<rect x="977.9" y="620" width="38.6" height="36" fill="#c3cad3"/>
+<text x="997.2" y="644" font-size="14" font-weight="600" text-anchor="middle" fill="#1f2328">1</text>
+<rect x="1016.6" y="620" width="463.4" height="36" fill="#e3e8ed" stroke="#d1d9e0"/>
+<text x="1248.3" y="644" font-size="14" font-weight="600" text-anchor="middle" fill="#1f2328">12</text>
+<text x="1492" y="644" font-size="14" fill="#59636e">29건</text>
+<text x="1872" y="644" font-size="15" text-anchor="end" fill="#1f2328">1/3곳 · $0.16 · 4분</text>
+<text x="48" y="704" font-size="18" font-weight="600" fill="#1f2328">기능 없음</text>
+<text x="344" y="704" font-size="15" text-anchor="end" fill="#59636e">5곳</text>
+<rect x="360" y="678" width="1120" height="36" fill="none" stroke="#d1d9e0" stroke-dasharray="6 5"/>
+<text x="376" y="702" font-size="15" fill="#59636e">빈 체크리스트 5곳</text>
+<text x="1872" y="702" font-size="15" text-anchor="end" fill="#1f2328">0/5곳 · $0.01 · 1분</text>
+<line x1="48" x2="1872" y1="722" y2="722" stroke="#d1d9e0"/>
+<text x="48" y="770" font-size="18" font-weight="700" fill="#1f2328">합계</text>
+<text x="344" y="770" font-size="15" text-anchor="end" fill="#59636e">41곳</text>
+<rect x="360.0" y="744" width="273.1" height="36" fill="#bc4c00"/>
+<text x="496.6" y="768" font-size="14" font-weight="600" text-anchor="middle" fill="#ffffff">307</text>
+<rect x="633.1" y="744" width="82.7" height="36" fill="#e16f24"/>
+<text x="674.5" y="768" font-size="14" font-weight="600" text-anchor="middle" fill="#ffffff">93</text>
+<rect x="715.8" y="744" width="243.7" height="36" fill="#f5a35c"/>
+<text x="837.7" y="768" font-size="14" font-weight="600" text-anchor="middle" fill="#1f2328">274</text>
+<rect x="959.6" y="744" width="13.3" height="36" fill="#1a7f37"/>
+<rect x="972.9" y="744" width="95.2" height="36" fill="#c3cad3"/>
+<text x="1020.5" y="768" font-size="14" font-weight="600" text-anchor="middle" fill="#1f2328">107</text>
+<rect x="1068.1" y="744" width="411.9" height="36" fill="#e3e8ed" stroke="#d1d9e0"/>
+<text x="1274.1" y="768" font-size="14" font-weight="600" text-anchor="middle" fill="#1f2328">463</text>
+<text x="1492" y="768" font-size="14" fill="#59636e">1,259건</text>
+<text x="1872" y="768" font-size="15" font-weight="700" text-anchor="end" fill="#1f2328">34/41곳 · $6.75 · 132분</text>
+<text x="48" y="820" font-size="15" fill="#59636e">막대 길이는 성격마다 의무 갈래의 비율, 칸 안의 수는 의무 건수입니다. 칸이 좁으면 수를 적지 않았습니다.</text>
+</svg>

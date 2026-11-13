@@ -1,0 +1,167 @@
+{
+  "ranOn": "2026-11-13",
+  "rules": "handoff-w11-12",
+  "model": "claude-haiku-5-5",
+  "rebut": false,
+  "categories": [
+    {
+      "kind": "웹+서버",
+      "repos": 19,
+      "counts": {
+        "seen-in-code": 213,
+        "check-outside": 27,
+        "check-applicability": 169,
+        "unknown": 0,
+        "evidence-found": 10,
+        "likely-not-applicable": 68,
+        "not-applicable": 286
+      },
+      "citations": 1336,
+      "citationsRejected": 8,
+      "searches": 1976,
+      "searchesRejected": 173,
+      "usd": 4.24,
+      "seconds": 5023,
+      "emptyChecklists": 0,
+      "withSeenInCode": 19,
+      "staticWithFindings": 8
+    },
+    {
+      "kind": "화면만(웹)",
+      "repos": 9,
+      "counts": {
+        "seen-in-code": 50,
+        "check-outside": 46,
+        "check-applicability": 67,
+        "unknown": 0,
+        "evidence-found": 1,
+        "likely-not-applicable": 23,
+        "not-applicable": 98
+      },
+      "citations": 522,
+      "citationsRejected": 8,
+      "searches": 709,
+      "searchesRejected": 78,
+      "usd": 1.42,
+      "seconds": 1610,
+      "emptyChecklists": 0,
+      "withSeenInCode": 9,
+      "staticWithFindings": 2
+    },
+    {
+      "kind": "서버만",
+      "repos": 3,
+      "counts": {
+        "seen-in-code": 20,
+        "check-outside": 14,
+        "check-applicability": 26,
+        "unknown": 0,
+        "evidence-found": 1,
+        "likely-not-applicable": 10,
+        "not-applicable": 48
+      },
+      "citations": 198,
+      "citationsRejected": 1,
+      "searches": 259,
+      "searchesRejected": 16,
+      "usd": 0.61,
+      "seconds": 592,
+      "emptyChecklists": 0,
+      "withSeenInCode": 3,
+      "staticWithFindings": 1
+    },
+    {
+      "kind": "모바일 앱",
+      "repos": 2,
+      "counts": {
+        "seen-in-code": 17,
+        "check-outside": 5,
+        "check-applicability": 7,
+        "unknown": 0,
+        "evidence-found": 0,
+        "likely-not-applicable": 5,
+        "not-applicable": 19
+      },
+      "citations": 128,
+      "citationsRejected": 1,
+      "searches": 170,
+      "searchesRejected": 20,
+      "usd": 0.31,
+      "seconds": 388,
+      "emptyChecklists": 0,
+      "withSeenInCode": 2,
+      "staticWithFindings": 2
+    },
+    {
+      "kind": "그 밖(package.json 없음 등)",
+      "repos": 3,
+      "counts": {
+        "seen-in-code": 7,
+        "check-outside": 1,
+        "check-applicability": 5,
+        "unknown": 0,
+        "evidence-found": 3,
+        "likely-not-applicable": 1,
+        "not-applicable": 12
+      },
+      "citations": 56,
+      "citationsRejected": 0,
+      "searches": 81,
+      "searchesRejected": 4,
+      "usd": 0.16,
+      "seconds": 229,
+      "emptyChecklists": 0,
+      "withSeenInCode": 1,
+      "staticWithFindings": 0
+    },
+    {
+      "kind": "기능 없음",
+      "repos": 5,
+      "counts": {
+        "seen-in-code": 0,
+        "check-outside": 0,
+        "check-applicability": 0,
+        "unknown": 0,
+        "evidence-found": 0,
+        "likely-not-applicable": 0,
+        "not-applicable": 0
+      },
+      "citations": 16,
+      "citationsRejected": 0,
+      "searches": 0,
+      "searchesRejected": 0,
+      "usd": 0.01,
+      "seconds": 59,
+      "emptyChecklists": 5,
+      "withSeenInCode": 0,
+      "staticWithFindings": 0
+    }
+  ],
+  "total": {
+    "repos": 41,
+    "counts": {
+      "seen-in-code": 307,
+      "check-outside": 93,
+      "check-applicability": 274,
+      "unknown": 0,
+      "evidence-found": 15,
+      "likely-not-applicable": 107,
+      "not-applicable": 463
+    },
+    "citations": 2256,
+    "citationsRejected": 18,
+    "searches": 3195,
+    "searchesRejected": 291,
+    "usd": 6.75,
+    "seconds": 7900,
+    "emptyChecklists": 5,
+    "withSeenInCode": 34,
+    "staticWithFindings": 13
+  },
+  "static": {
+    "withFindings": 13,
+    "both": 13,
+    "reviewOnly": 21,
+    "staticOnly": 0
+  }
+}

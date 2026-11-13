@@ -23,6 +23,16 @@ export function analysisHref(owner: string, name: string, id: string): string {
   return `${repoHref(owner, name)}a/${encodeURIComponent(id)}/`;
 }
 
+/** 끝난 분석의 의무 체크리스트 인쇄용 보기(2026-11-13). */
+export function checklistHref(owner: string, name: string, id: string): string {
+  return `${analysisHref(owner, name, id)}checklist/`;
+}
+
+/** 끝난 분석의 의무 체크리스트 마크다운 파일(같은 사이트의 `/api/`). */
+export function checklistMarkdownHref(id: string): string {
+  return `/api/analyses/${encodeURIComponent(id)}/checklist/`;
+}
+
 export function searchHref(query: string): string {
   return query === "" ? "/search/" : `/search/?q=${encodeURIComponent(query)}`;
 }

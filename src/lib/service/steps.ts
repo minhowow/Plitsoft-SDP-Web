@@ -6,15 +6,80 @@ import type { Analysis, AnalysisStatus, AnalysisStep, StepName } from "./types";
  * 정적 검사와 AI 판정은 한 단계(`scan`)다. 실행기는 CLI 명령 하나(`policypack scan … --judge anthropic:…`)를 부르고, CLI 는
  * 정적 검사가 끝나고 AI 판정이 시작한 때를 알려 주지 않는다(결과에는 걸린 초만 있다). 알 수 없는 경계를 꾸며 두 단계로 적지
  * 않는다. AI 판정자가 무엇이었는지는 끝난 분석의 결과(`run.judge`)가 말한다.
+ *
+ * 검사 단계 안에서 실행기가 명령 사이마다 알리는 차례(정적 검사·AI 판정 → 기능 파악 → 켰을 때 AI 검토)는 `scanParts` 가 단계 아래에
+ * 적는다(2026-11-13 오너 지시). AI 검토 안의 단계(의무 고르기·의무별 조사·반박)는 CLI 가 알리지 않아 형편 없이 이름만 적는다.
  */
 export const STEP_ORDER: StepName[] = ["queued", "fetch", "scan", "finish"];
 
 export const STEP_LABEL: Record<StepName, string> = {
   queued: "대기",
   fetch: "저장소 받기·도구 설치",
-  scan: "검사(정적 검사와 AI 판정)",
+  scan: "검사",
   finish: "정리",
 };
+
+/** 검사 단계 안의 일. `judge` 는 검사 단계가 시작한 때부터다. `review` 는 그 분석에서 review 를 돌릴 때(`review` 가 run)만 있다. */
+export type ScanPartName = "judge" | "profile" | "review";
+
+export const SCAN_PART_LABEL: Record<ScanPartName, string> = {
+  judge: "정적 검사·AI 판정",
+  profile: "기능 파악",
+  review: "AI 검토",
+};
+
+/** AI 검토 안의 단계. CLI 가 어디까지 갔는지 알리지 않아 차례만 적는다. */
+export const REVIEW_INNER = "의무 고르기 → 의무별 조사 → 반박";
+export const REVIEW_INNER_NOTE = "이 안의 차례는 알 수 없음";
+
+/** review 를 돌리지 않는 분석의 AI 검토 줄에 적는 까닭. */
+const REVIEW_SKIPPED: Partial<Record<NonNullable<Analysis["review"]>, string>> = {
+  stored: "같은 커밋의 저장된 결과를 씀",
+  limit: "오늘 한도가 차서 하지 않음",
+};
+
+export interface ScanPartRow {
+  name: ScanPartName;
+  state: StepState;
+  /** 시작한 때. 정적 검사·AI 판정은 검사 단계가 시작한 때, 나머지는 실행기의 알림을 받은 때. 모르면 null. */
+  startedAt: string | null;
+  /** 형편 대신 적는 말(review 를 돌리지 않는 까닭). */
+  skipped?: string;
+}
+
+/**
+ * 검사 단계 안의 차례와 형편. 실행기는 명령을 시작할 때마다 알리고(`Analysis.scanPart`, 마지막 것만 남는다), 알림은 빠질 수 있다.
+ * 받은 알림보다 앞의 일은 끝났고, 받은 일이 지금이다(검사 단계가 진행 중일 때). 검사 단계가 끝났으면 모두 끝났다. 멈춘 분석은
+ * 지금이던 일에서 멈췄다. review 를 돌리지 않는 분석(저장된 결과, 하루 한도)은 그 까닭을 적은 줄을 둔다. review 스위치가 꺼져 있던
+ * 분석(`review` 없음)에는 AI 검토 줄이 없다.
+ */
+export function scanParts(analysis: Analysis): ScanPartRow[] {
+  const scan = analysis.steps.find((step) => step.name === "scan");
+  if (!scan) return [];
+  const scanState = stepState(analysis, scan);
+  const order: ScanPartName[] = ["judge", "profile", ...(analysis.review === "run" ? (["review"] as const) : [])];
+  const part = scanState === "active" || scanState === "failed" ? (analysis.scanPart?.name ?? "judge") : null;
+  const at = part ? order.indexOf(part) : -1;
+  const rows: ScanPartRow[] = order.map((name, i) => {
+    let state: StepState = scanState;
+    if (scanState === "active") state = i < at ? "done" : i === at ? "active" : "waiting";
+    if (scanState === "failed") state = i < at ? "done" : i === at ? "failed" : "notrun";
+    const startedAt = name === "judge" ? scan.startedAt : analysis.scanPart?.name === name ? analysis.scanPart.startedAt : null;
+    return { name, state, startedAt };
+  });
+  const skipped = analysis.review ? REVIEW_SKIPPED[analysis.review] : undefined;
+  if (skipped) rows.push({ name: "review", state: "notrun", startedAt: null, skipped });
+  return rows;
+}
+
+/** 지금 하는 일의 이름: 검사 단계면 그 안의 일(정적 검사·AI 판정, 기능 파악, AI 검토), 그 밖에는 단계 이름. 진행 중이 아니면 null. */
+export function activeLabel(analysis: Analysis): string | null {
+  const step = activeStep(analysis);
+  if (!step) return null;
+  if (step.name !== "scan") return STEP_LABEL[step.name];
+  const part = scanParts(analysis).find((row) => row.state === "active");
+  return part ? SCAN_PART_LABEL[part.name] : STEP_LABEL.scan;
+}
 
 /** 분석의 상태 이름. 결과의 판정 문구(`lib/report/status.ts`)와 다른 것이다. 분석이 어디까지 갔는지만 말한다. */
 export const ANALYSIS_STATUS_LABEL: Record<AnalysisStatus, string> = {

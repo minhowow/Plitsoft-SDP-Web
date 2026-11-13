@@ -9,7 +9,17 @@ import { ReviewView } from "@/components/review/ReviewView";
 import { Icon } from "@/components/Icon";
 import { StatusChip } from "@/components/result/StatusChip";
 import { keepArticle } from "@/components/text";
-import { caseStatus, casePolicies, casesFile, casesHref, clearedByAi, findCase, isNewByAi } from "@/lib/cases";
+import {
+  caseChecklistHref,
+  caseChecklistMarkdownHref,
+  caseStatus,
+  casePolicies,
+  casesFile,
+  casesHref,
+  clearedByAi,
+  findCase,
+  isNewByAi,
+} from "@/lib/cases";
 import { CASE_STORIES } from "@/lib/cases/stories";
 import { findPolicy, policyHref, primaryLaw } from "@/lib/pack";
 import { parseReview } from "@/lib/review";
@@ -74,7 +84,14 @@ export default async function CasePage({ params }: Params) {
       </div>
 
       <div className="tiers">
-        {review && <ReviewView review={review} code={code} recheck={c.recheck} />}
+        {review && (
+          <ReviewView
+            review={review}
+            code={code}
+            recheck={c.recheck}
+            exportLinks={{ markdown: caseChecklistMarkdownHref(c.slug), print: caseChecklistHref(c.slug) }}
+          />
+        )}
         <Tier n={4} name="정적 검사와 AI 판정">
           <EarlierFacts one={c} />
           <div className="case-compare">

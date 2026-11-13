@@ -80,6 +80,21 @@ export interface Analysis {
    * 없다.
    */
   review?: ReviewPlan;
+  /**
+   * 검사 단계 안에서 실행기가 마지막으로 알린 일과 그 알림을 받은 때(2026-11-13). 검사 단계는 실행기가 CLI 명령을 차례로 부른다:
+   * 정적 검사와 AI 판정(`policypack scan`) → 저장소 프로필(`profile`) → `review` 가 `run` 일 때 review(`review`). 실행기는 명령
+   * 사이마다 다음 명령을 알린다(best-effort. 알림이 빠질 수 있다). 없으면(null 포함) 아직 정적 검사와 AI 판정 중이거나, 알림이
+   * 오지 않았거나, 검사 단계에 이르지 않았다. 검사 단계가 끝난 뒤에도 마지막 값이 남는다(그 뒤의 단계에서는 뜻이 없다).
+   * review 안의 단계(의무 고르기·의무별 조사·반박)는 CLI 가 알리지 않아 여기에 없다.
+   */
+  scanPart?: ScanPart | null;
+}
+
+/** 검사 단계 안에서 실행기가 알린 일(`Analysis.scanPart`). */
+export interface ScanPart {
+  name: "profile" | "review";
+  /** 이 서버가 그 알림을 받은 때(ISO 8601, UTC). */
+  startedAt: string;
 }
 
 /**

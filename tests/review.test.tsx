@@ -7,9 +7,18 @@ import { layoutFlow } from "@/lib/review/flow";
 import CasePage from "@/app/cases/[slug]/page";
 import CasesPage from "@/app/cases/page";
 import { casesFile } from "@/lib/cases";
+import { EVAL_LIMITS, evalFile } from "@/lib/cases/eval";
+import { evalFigureSvg } from "@/lib/cases/eval-figure";
 import { REVIEW_GOODS_LABEL, REVIEW_RECHECK_LABEL, REVIEW_STATUS_LABEL } from "@/lib/report/status";
 import { SITE } from "@/lib/site";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { closedDetailsAt, elementAt, elementsOf, readJson, textOf } from "./helpers";
+import { BANNED_WORDING } from "./wording";
+
+const expectNoBanned = (text: string) => {
+  for (const [pattern, why] of BANNED_WORDING) expect(pattern.test(text), why).toBe(false);
+};
 
 // review 2판(policypack review, CLI e12e6ba)의 결과를 읽는 부품과 화면(2026-11-11 오너 지시). 자료는 손으로 만든 합성 예시다.
 const sample = () => readJson("contract", "review", "genai-chat.review.json") as Record<string, unknown>;
@@ -228,11 +237,38 @@ describe("사례 쪽: review 2판 실측(2026-11-12)", () => {
     const library = casesFile.others.find((o) => o.kind === "라이브러리")!;
     expect(Object.values(library.counts).every((n) => n === 0)).toBe(true);
     const html = renderToStaticMarkup(<CasesPage />);
-    const table = elementsOf(html, '<table class="tbl others-table"')[0];
+    const table = elementsOf(html, '<table class="tbl others-table" aria-labelledby="cases-others"')[0];
     expect(elementsOf(table, "<tr>").length).toBe(2 + casesFile.others.length);
     expect(table).not.toContain("<a ");
     // 8곳은 사례 4곳과 다른 판(e12e6ba)으로 돌렸다는 것을 표 위에 적는다.
     expect(textOf(html)).toContain(`CLI ${casesFile.othersRun.cli}`);
+  });
+
+  it("공개 저장소 41곳(2026-11-13): 성격별 숫자만(이름·주소·코드 없음), 큰 숫자 넷, 합계 줄, 알려진 한계", () => {
+    const { total, categories } = evalFile;
+    expect(total.repos).toBe(41);
+    expect(categories.reduce((n, c) => n + c.repos, 0)).toBe(41);
+    for (const c of categories) expect(c.kind).not.toMatch(/\//);
+    // 오너 지시의 숫자 그대로: 34곳(정적 검사만으로는 13곳), 빈 체크리스트 5곳, 인용 2,256건 중 거절 18건, $6.75.
+    expect([total.withSeenInCode, evalFile.static.withFindings, total.emptyChecklists, total.citations, total.citationsRejected, total.usd]).toEqual([34, 13, 5, 2256, 18, 6.75]);
+    const html = renderToStaticMarkup(<CasesPage />);
+    const section = elementsOf(html, '<section class="cases-others cases-eval"')[0];
+    const text = textOf(section);
+    for (const part of ["34/41곳", "정적 검사만으로는 13곳", "빈 체크리스트 5곳", "18/2,256건", "$6.75", `판정 규칙 CLI ${evalFile.rules}`, "반박 없음"]) {
+      expect(text).toContain(part);
+    }
+    const table = elementsOf(section, "<table")[0];
+    expect(elementsOf(table, "<tr>").length).toBe(2 + categories.length + 1);
+    expect(section).not.toContain("<a ");
+    expect(section).not.toMatch(/github\.com/);
+    expect(elementsOf(section, "<li>").length).toBe(EVAL_LIMITS.length);
+    expectNoBanned(text);
+  });
+
+  it("41곳 포스터 그림(docs/figures/review-results-41.svg)은 지금 데이터로 그린 것과 같다", () => {
+    const svg = readFileSync(path.join(process.cwd(), "docs/figures/review-results-41.svg"), "utf8");
+    expect(svg).toBe(evalFigureSvg(evalFile));
+    expect(svg).toContain("34 / 41곳");
   });
 });
 

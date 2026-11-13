@@ -9,7 +9,7 @@ import { parseReport } from "@/lib/report/parse";
 import { buildReportView } from "@/lib/report/view-model";
 import { orUnavailable } from "@/lib/service/errors";
 import { placeOf } from "@/lib/service/queue";
-import { analysisHref } from "@/lib/service/href";
+import { analysisHref, checklistHref, checklistMarkdownHref } from "@/lib/service/href";
 import { isAnalysisId } from "@/lib/service/id";
 import { isRepoFullName } from "@/lib/service/names";
 import { formatKst } from "@/lib/service/steps";
@@ -134,6 +134,7 @@ export default async function AnalysisPage({ params }: PageProps<"/r/[owner]/[re
           review={review}
           reviewPlan={analysis.review}
           limitDay={limitDay}
+          exportLinks={{ markdown: checklistMarkdownHref(analysis.id), print: checklistHref(repository.owner, repository.name, analysis.id) }}
           progress={
             <details className="lg an-steps">
               <summary>

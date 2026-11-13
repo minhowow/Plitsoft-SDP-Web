@@ -137,6 +137,9 @@ const ANALYSES: Analysis[] = [
     steps: steps("2026-10-24T04:58:02Z", { queued: [0, 18], fetch: [18, 37], scan: [37, null] }),
     failure: null,
     versions: { tool: "0.3.0.dev0", pack: "9f70938de41b6f3a" },
+    // 검사 단계 안에서 실행기가 AI 검토를 시작했다고 알린 순간(검사 시작 86초 뒤).
+    review: "run",
+    scanPart: { name: "review", startedAt: "2026-10-24T05:00:05Z" },
   },
   succeeded("4qqa6fdx2h", "example-studio", "genai-chat", "5d34db91055d0cacd81e5aa655a6ae2a04cc7007", "2026-10-18T11:20:40Z", [12, 33, 84, 90]),
   {

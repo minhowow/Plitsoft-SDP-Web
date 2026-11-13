@@ -442,12 +442,14 @@ describe("DB + GitHub 으로 띄운 사이트", () => {
     expect(queued.analysis.status).toBe("succeeded");
     expect(await page.evaluate(() => (window as unknown as { __sameDocument?: boolean }).__sameDocument)).toBe(true);
     expect(await page.locator("main").textContent()).not.toContain("합성 예시입니다");
-    expect(await page.locator(".steps .step-done .step-name").allTextContents()).toEqual([
+    expect(await page.locator(".steps .step-item:not(.step-sub).step-done .step-name").allTextContents()).toEqual([
       "대기",
       "저장소 받기·도구 설치",
-      "검사(정적 검사와 AI 판정)",
+      "검사",
       "정리",
     ]);
+    // 로컬 실행기가 검사 단계 안의 차례를 알렸다(review 를 맡기지 않은 분석이라 AI 검토 줄은 없다).
+    expect(await page.locator(".steps .step-sub.step-done .step-name").allTextContents()).toEqual(["정적 검사·AI 판정", "기능 파악"]);
     // 진행은 같은 사이트의 /api/ 로만 읽었다.
     expect(site.requests.filter((r) => r.url === `/api/analyses/${id}/`).length).toBeGreaterThanOrEqual(2);
     expect(outside).toEqual([]);

@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import { tmpdir } from "node:os";
@@ -19,6 +20,7 @@ import {
   fetchRepository,
   installCli,
   logTail,
+  notifyPart,
   readInputs,
   resultBody,
   reviewArgs,
@@ -378,6 +380,94 @@ describe("도구 설치와 검사", () => {
   });
 });
 
+describe("검사 단계 안의 일 알림 (2026-11-13)", () => {
+  const ID = "abcdefghjk";
+  const target = { owner: "example-org", repo: "kids-signup", commit: "e".repeat(40) };
+  const ctxWith = (fetcher: (url: string, init: RequestInit) => Promise<Response>, secret = "s") => ({
+    analysisId: ID,
+    callbackUrl: `https://site.test/api/runner/${ID}/`,
+    secret,
+    target,
+    fetcher,
+    retryDelayMs: 1,
+  });
+
+  it("서명한 { event: part, part, target } 을 보낸다. 받지 않거나 닿지 못해도 던지지 않고 false 이며 로그만 남긴다", async () => {
+    const sent: { body: string; signature: string | null }[] = [];
+    const answer = (status: number, message = "") => async (_url: string, init: RequestInit) => {
+      sent.push({ body: String(init.body), signature: new Headers(init.headers).get("x-runner-signature") });
+      return new Response(JSON.stringify({ ok: status === 200, message }), { status });
+    };
+    const logs: string[] = [];
+    const log = (line: string) => logs.push(line);
+    expect(await notifyPart(ctxWith(answer(200)), "profile", { log })).toBe(true);
+    expect(JSON.parse(sent[0].body)).toEqual({ event: "part", part: "profile", target });
+    expect(sent[0].signature).toMatch(/^v1=[0-9a-f]{64}$/);
+    expect(await notifyPart(ctxWith(answer(409, "검사 단계 안의 일은 검사 단계에서만 받습니다.")), "review", { log })).toBe(false);
+    expect(logs.at(-1)).toContain("검사 단계에서만 받습니다");
+    // 5xx 는 한 번 더 보낸 뒤 그만둔다.
+    sent.length = 0;
+    expect(await notifyPart(ctxWith(answer(503)), "review", { log })).toBe(false);
+    expect(sent).toHaveLength(2);
+    expect(await notifyPart(ctxWith(async () => Promise.reject(new Error("down"))), "profile", { log })).toBe(false);
+    expect(logs.at(-1)).toContain("알리지 못했습니다");
+    // 서명 열쇠가 없거나 모르는 일이면 보내지 않는다.
+    sent.length = 0;
+    expect(await notifyPart(ctxWith(answer(200), ""), "profile", { log })).toBe(false);
+    expect(await notifyPart(ctxWith(answer(200)), "judge", { log })).toBe(false);
+    expect(sent).toHaveLength(0);
+  });
+
+  /** 워크플로처럼 실행기 명령 하나를 따로 돌린다. 콜백 주소는 닿지 않는 곳이다. CLI 는 PATH 에 없다. */
+  const runCommand = (args: string[], env: Record<string, string> = {}) =>
+    spawnSync(process.execPath, [path.join(root, "runner", "run.mjs"), ...args], {
+      encoding: "utf8",
+      timeout: 20_000,
+      env: {
+        NODE_ENV: "test",
+        PATH: path.dirname(process.execPath),
+        WORK_DIR: scratch,
+        ANALYSIS_ID: ID,
+        REPO_OWNER: target.owner,
+        REPO_NAME: target.repo,
+        REPO_COMMIT: target.commit,
+        CALLBACK_URL: `https://127.0.0.1:1/api/runner/${ID}/`,
+        SITE_ORIGIN: "https://127.0.0.1:1",
+        ...env,
+      },
+    });
+  const state = () => JSON.parse(readFileSync(path.join(scratch, "state.json"), "utf8")) as { step: string; reason: string | null; refused?: boolean };
+
+  it("part 는 알리지 못해도 성공으로 끝나고 형편 파일을 바꾸지 않는다. 프로필·review 는 따로 돌고 실패해도 성공으로 끝난다", () => {
+    mkdirSync(path.join(scratch, "src"), { recursive: true });
+    writeFileSync(path.join(scratch, "state.json"), JSON.stringify({ step: "scan", reason: null }));
+    const part = runCommand(["part", "profile"], { RUNNER_SECRET: "s" });
+    expect(part.status, part.stderr).toBe(0);
+    expect(part.stderr).toContain("알리지 못했습니다");
+    expect(state()).toEqual({ step: "scan", reason: null });
+    expect(runCommand(["part", "judge"], { RUNNER_SECRET: "s" }).status).toBe(0);
+    expect(state()).toEqual({ step: "scan", reason: null });
+    // 프로필: CLI 가 없으면 파일을 남기지 않고(앞의 것도 지운다) 성공으로 끝난다. 멈추면 검사 단계의 멈춤이다.
+    writeFileSync(path.join(scratch, "profile.json"), "{}");
+    const profile = runCommand(["profile"]);
+    expect(profile.status, profile.stderr).toBe(0);
+    expect(profile.stderr).toContain("저장소 프로필을 만들지 못했습니다");
+    expect(existsSync(path.join(scratch, "profile.json"))).toBe(false);
+    expect(state()).toEqual({ step: "scan", reason: null });
+    // review: 입력이 "true" 가 아니면 돌리지 않고 앞의 파일을 지운다. "true" 라도 키가 없으면 돌리지 않는다.
+    writeFileSync(path.join(scratch, "review.json"), "{}");
+    expect(runCommand(["review"]).status).toBe(0);
+    expect(existsSync(path.join(scratch, "review.json"))).toBe(false);
+    const noKey = runCommand(["review"], { REVIEW: "true" });
+    expect(noKey.status).toBe(0);
+    expect(noKey.stderr).toContain("review 를 돌리지 않았습니다");
+    // 검사는 키가 없으면 검사 단계에서 멈춘다(여기서만 실패로 끝난다).
+    const scan = runCommand(["scan"], { JUDGE_MODEL: "claude-haiku-5-5" });
+    expect(scan.status).toBe(1);
+    expect(state()).toMatchObject({ step: "scan", reason: "실행기에 AI 판정자의 API 키가 없어 검사하지 않았습니다." });
+  });
+});
+
 describe("서명: 실행기와 서버가 같은 글을 서명한다", () => {
   it("runner/run.mjs 의 sign 과 src/server/signature.ts 의 sign 이 같다", () => {
     for (const [scope, body] of [["abcdefghjk", '{"event":"step","step":"fetch"}'], ["claim", "{}"], ["abcdefghjk", "한글 본문"]]) {
@@ -428,10 +518,34 @@ describe("워크플로 (.github/workflows/analyze.yml)", () => {
       "저장소 받기": [],
       "도구 설치": ["CLI_REPO_TOKEN"],
       '"알림: 검사 시작"': ["RUNNER_SECRET"],
-      "검사(정적 검사와 AI 판정, 켰을 때 review)": ["ANTHROPIC_API_KEY"],
+      "검사(정적 검사와 AI 판정)": ["ANTHROPIC_API_KEY"],
+      '"알림: 저장소 프로필 시작"': ["RUNNER_SECRET"],
+      "저장소 프로필(모델 호출 없음)": [],
+      '"알림: review 시작"': ["RUNNER_SECRET"],
+      'review(입력 review 가 "true" 일 때만)': ["ANTHROPIC_API_KEY"],
       "정리(결과 보내기)": ["RUNNER_SECRET"],
       '"알림: 멈춤"': ["RUNNER_SECRET"],
     });
+    // 단계마다 부르는 실행기 명령. 검사 단계 안의 일(프로필, review)은 시작을 알린 뒤 돈다. review 와 그 알림은 입력이 "true" 일 때만.
+    const runOf = Object.fromEntries(steps.map((step) => [step.split("\n")[0], /\n {8}run: (.+)/.exec(step)?.[1]]));
+    expect(Object.values(runOf).filter(Boolean)).toEqual([
+      "node runner/run.mjs check",
+      "node runner/run.mjs notify fetch",
+      "node runner/run.mjs fetch",
+      "node runner/run.mjs install",
+      "node runner/run.mjs notify scan",
+      "node runner/run.mjs scan",
+      "node runner/run.mjs part profile",
+      "node runner/run.mjs profile",
+      "node runner/run.mjs part review",
+      "node runner/run.mjs review",
+      "node runner/run.mjs finish",
+      "node runner/run.mjs fail",
+    ]);
+    const ifOf = Object.fromEntries(steps.map((step) => [step.split("\n")[0], /\n {8}if: (.+)/.exec(step)?.[1] ?? null]));
+    expect(ifOf['"알림: review 시작"']).toBe("env.REVIEW == 'true'");
+    expect(ifOf['review(입력 review 가 "true" 일 때만)']).toBe("env.REVIEW == 'true'");
+    expect(ifOf['"알림: 저장소 프로필 시작"']).toBeNull();
     // 쓰는 action 은 커밋으로 고정한다.
     for (const match of workflow.matchAll(/uses: (\S+)/g)) expect(match[1]).toMatch(/@[0-9a-f]{40}$/);
     // 대상 코드를 설치·빌드·실행하지 않는다.
@@ -492,8 +606,9 @@ describe("로컬 실행기 (scripts/local-runner.mjs --fixture)", () => {
       expect(analysis?.status, id).toBe("succeeded");
       expect(analysis?.steps.every((step) => step.startedAt && step.endedAt)).toBe(true);
       expect(await deps.store().getResult(id)).toEqual(JSON.parse(readFileSync(path.join(root, "contract", "cli-current", `${fixture}.main.json`), "utf8")));
-      // 저장소 프로필도 같은 표본의 수집본을 함께 보낸다.
+      // 저장소 프로필도 같은 표본의 수집본을 함께 보낸다. 프로필을 시작할 때 알렸다(review 는 맡기지 않아 알리지 않는다).
       expect((await deps.store().getProfile(id))?.features.length, id).toBeGreaterThan(0);
+      expect(analysis?.scanPart?.name, id).toBe("profile");
     }
     expect(sourceFor("example-labs", "plain.utils", { source: null })?.dir).toBe(path.join(root, "contract", "fixtures", "plain", "main"));
     // --source 를 줘도 합성 저장소는 제 합성 데모 코드다(다른 폴더의 코드가 그 이름에 붙지 않는다).

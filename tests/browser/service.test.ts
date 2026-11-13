@@ -75,14 +75,14 @@ describe("첫 화면", () => {
     expect((await page.locator("main h1").textContent())?.replace(/\s+/g, " ")).toBe(SITE.name);
     expect(await page.locator("main form[role=search]").getAttribute("action")).toBe("/search/");
     expect(await page.locator(".home-feed .tag").textContent()).toBe("합성 예시");
-    expect(await page.locator(".home-all").getAttribute("href")).toBe("/search/");
+    expect(await page.locator(".home-feed .home-all").getAttribute("href")).toBe("/search/");
     // 저장소마다 한 줄, 4줄. 분석 중인 저장소(night-push)는 끝난 분석이 아니라 분석 중인 분석을 보인다.
     const rows = page.locator(".act-row");
     expect(await rows.count()).toBe(4);
     const names = (await page.locator(".act-row .act-name").allTextContents()).map((name) => name.replace(/\s+/g, " "));
     expect(new Set(names).size).toBe(4);
     expect(await page.locator(".act-row[data-status=running]").getAttribute("href")).toBe(analysisHref("example-org", "night-push", byStatus("running").id));
-    expect(await page.locator(".act-row[data-status=running] .act-step").innerText()).toContain("검사(정적 검사와 AI 판정)");
+    expect(await page.locator(".act-row[data-status=running] .act-step").innerText()).toContain("AI 검토");
     // 발견 0건 줄이 보이므로 0의 뜻이 목록 아래에 보인다.
     expect(main).toContain("발견 0건");
     expect(await page.getByText(SITE.zeroIsNotClearance, { exact: true }).isVisible()).toBe(true);
@@ -258,11 +258,15 @@ describe("저장소 → 분석", () => {
 describe("분석 쪽의 세 상태", () => {
   it("진행 중: 단계별 진행과 지금의 단계", async () => {
     const { page } = await open(hrefOf(byStatus("running")));
-    expect(await page.locator(".step-item").count()).toBe(4);
-    expect(await page.locator(".step-active .step-name").allTextContents()).toEqual(["검사(정적 검사와 AI 판정)"]);
+    // 단계 넷과 검사 단계 안의 차례 셋(정적 검사·AI 판정, 기능 파악, AI 검토). 지금인 것은 AI 검토 한 줄이다.
+    expect(await page.locator(".step-item:not(.step-sub)").count()).toBe(4);
+    expect(await page.locator(".step-sub").count()).toBe(3);
+    expect(await page.locator(".step-item:not(.step-sub).step-active .step-name").allTextContents()).toEqual(["검사"]);
+    expect(await page.locator("[aria-current=step] .step-name").innerText()).toContain("AI 검토");
+    expect(await page.locator("[aria-current=step] .step-inner").innerText()).toContain("이 안의 차례는 알 수 없음");
     expect(await page.locator(".report").count()).toBe(0);
     // (D5) `진행` 상자 하나에 지금 단계(role=status)와 단계 표. 합성 예시라는 것은 제목 옆의 이름표가 밝힌다.
-    expect(await page.locator(".live-box .live-now").textContent()).toBe("지금 ‘검사(정적 검사와 AI 판정)’ 단계");
+    expect(await page.locator(".live-box .live-now").textContent()).toBe("지금 ‘AI 검토’ 단계");
     expect(await page.locator(".an-head .tag").textContent()).toBe("합성 예시");
     expect(await page.locator("main").textContent()).not.toContain("누구나 볼 수 있고");
   });

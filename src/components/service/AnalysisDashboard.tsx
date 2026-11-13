@@ -67,6 +67,7 @@ export function AnalysisDashboard({
   review = null,
   reviewPlan,
   limitDay = null,
+  exportLinks,
 }: {
   view: ReportView;
   code: CodeSource | null;
@@ -87,6 +88,8 @@ export function AnalysisDashboard({
   reviewPlan?: ReviewPlan;
   /** 한도에 닿은 분석이 오늘(한국 표준시)의 것이 아니면 그날(YYYY-MM-DD). 오늘이면 null 이고 "오늘 검토 한도가 찼습니다"라고 적는다. */
   limitDay?: string | null;
+  /** review 체크리스트 내보내기의 주소(마크다운 파일, 인쇄용 보기). */
+  exportLinks?: { markdown: string; print: string };
 }) {
   if (!review && (reviewPlan === "limit" || reviewPlan === "run")) {
     return (
@@ -108,7 +111,7 @@ export function AnalysisDashboard({
   if (review) {
     return (
       <div className="tiers">
-        <ReviewView review={review} code={code} />
+        <ReviewView review={review} code={code} exportLinks={exportLinks} />
         <Tier n={4} name="정적 검사">
           <ReportSummary view={view} code={code} statutes={statutes} progress={progress} />
         </Tier>
