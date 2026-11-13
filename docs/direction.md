@@ -31,10 +31,11 @@ GitHub 공개 저장소를 검색해 들어가면, 누군가 이미 요청한 �
 | 분석 | `/r/{owner}/{repo}/a/{id}` | 분석 하나의 대시보드. 진행 중이면 단계별 진행, 끝나면 결과 |
 | 조문 도감 | `/policy` | 목록(정책 줄, 상태의 뜻 `#status`, 검사에 들지 않는 파일과 정보 `#scope`)과 정책마다 한 쪽(근거 조문 원문, 규칙, 곁칸 `이 정책`. 재디자인 D6) |
 | 데모 | `/demo` | 합성 코드 세 가지의 고치기 전·후(코드 상자, 고치기 전과 고친 뒤 표, 그 판의 결과) |
+| 구조 | `/how` | 전시·보고서용 구조 그림 셋(한 번의 분석이 지나는 길, CLI 안의 review 한 번, 같은 엔진의 두 쓰임)과 그림마다 3~4줄. 그림 자료는 `src/lib/how/`, 포스터·보고서용 파일은 `docs/figures/`(`node scripts/export-figures.mjs`). 2026-11-13 |
 | 결과 파일 열기 | `/view` | CLI 결과 파일을 브라우저 안에서만 연다. 메뉴와 다른 쪽의 링크에서는 뺐고 주소만 남는다(2026-11-05) |
 
 머리글(첫 화면에는 없다): 이름(→ `/search/`), 검색창(자동 완성. 이 사이트에서 분석된 저장소와 GitHub 검색), 메뉴 `최근 분석 ·
-조문 도감 · 데모`. 첫 화면과 검색 쪽의 검색창도 같은 자동 완성이다(재디자인 D4).
+사례 · 조문 도감 · 데모 · 구조`. 첫 화면과 검색 쪽의 검색창도 같은 자동 완성이다(재디자인 D4).
 
 분석 대시보드(재디자인 D5): 맨 위에 저장소·배지·분석 id·커밋·시각, 그 아래 요약 한 줄(사람이 볼 곳의 수, 검사한 파일 수, AI 가 푼
 경고 수), 정책 상자와 발견 줄(파일·줄을 GitHub 커밋 고정 링크로, 확인 질문, 접힌 근거 조문 원문), AI 가 푼 경고, 곁칸 `정책 N`, 검사
@@ -52,11 +53,12 @@ GitHub 공개 저장소를 검색해 들어가면, 누군가 이미 요청한 �
               │    깨우지 못하면 대기열에 되돌리고 2분 쉰다(runner_wake). 주기적으로 깨우는 것은 아직 없다
               ├─ 진행·결과 읽기: DB. 진행 중인 쪽은 몇 초마다 다시 읽는다(대기열의 몇 번째인지도)
               └─ 실행기 콜백: 서명한 요청만 받아 진행 단계와 결과를 적는다 → 끝나면 다음을 깨운다
-Postgres ── analyses(id, owner, repo, commit, status, step, 시각, 보낸 시각, 도구 판, 팩 판, 오류), results(분석 id, CLI JSON),
+Postgres ── analyses(id, owner, repo, commit, status, step, 시각, 보낸 시각, 도구 판, 팩 판, 오류, review 계획), results(분석 id, CLI JSON, 프로필, review),
               github_budget(GitHub 을 부르는 수의 1분 창. 서버 인스턴스가 함께 쓴다),
               runner_wake(실행기를 깨우지 못한 마지막 때와 까닭. 한 행)
 GitHub Actions(실행기 저장소) ── 공개 저장소를 그 커밋으로 받음 → CLI 설치(고정 커밋) →
-              policypack scan --judge anthropic:<모델> --output-format json → 단계마다 콜백 → 결과 콜백
+              policypack scan --judge anthropic:<모델> --output-format json → profile → review(REVIEW 켜짐) → 단계마다 콜백 → 결과 콜백
+(그림: /how 의 그림 1)
 ```
 
 - 분석 id 는 추측하기 어려운 짧은 id 로 하고, 같은 저장소를 여러 번 분석해도 분석마다 따로 남는다.
@@ -148,7 +150,7 @@ GitHub Actions(실행기 저장소) ── 공개 저장소를 그 커밋으로 
 | `RESULT_MAX_KB` | 4000 | 보내는 결과 크기 상한(사이트와 같은 값) |
 | `JUDGE_MODEL` | claude-haiku-5-5 | AI 판정자 `anthropic:<모델>`(전체 id). 모델을 바꾸는 것은 오너가 정한다 |
 | `CLI_REPO`·`CLI_COMMIT` | `minhowow/Plitsoft-SDP`·`b5888e5…`(태그 `handoff-w11-8`) | 설치하는 CLI 와 그 고정 커밋 |
-| `CLI_EXCLUDE_NEWER` | 2026-11-11T00:00:00Z | CLI 의 딸린 꾸러미를 이 날짜까지 나온 판에서만 고른다(`uv tool install --exclude-newer`. git 설치는 CLI 의 uv.lock 을 쓰지 않는다). CLI 커밋을 바꿀 때 함께 바꾼다 |
+| `CLI_EXCLUDE_NEWER` | 2026-11-12T00:00:00Z | CLI 의 딸린 꾸러미를 이 날짜까지 나온 판에서만 고른다(`uv tool install --exclude-newer`. git 설치는 CLI 의 uv.lock 을 쓰지 않는다). CLI 커밋을 바꿀 때 함께 바꾼다 |
 | `SITE_ORIGIN` | Actions 변수 `SITE_URL` | 콜백을 받을 사이트. 워크플로 입력의 `callback_url` 출처가 이것과 다르면 멈춘다 |
 
 CLI 의 출력은 방향 A 로 10/27~11/16 에 바뀐다(흐름 단위, 여러 파일 인용). B1~B3 은 지금 출력(`7300205`)으로 만들고,

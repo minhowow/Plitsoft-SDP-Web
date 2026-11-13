@@ -2,19 +2,20 @@
 
 웹은 CLI(`../Plitsoft-SDP`)의 출력만 계약으로 받는다(`contract/README.md`). CLI 는 2026-11-10 에 웹이 고정할 판으로 태그
 `handoff-w11`(`50c70bc`)을 원격에 올렸고, 13주(11/24~11/30)에 도구 판 태그 `v0.4.0` 을 따로 단다. 그 전까지 웹은 `handoff-w11` 을
-고정하라고 적는다(CLI `docs/output.md`. 아래 "`a228856` → `handoff-w11`"). 웹의 고정 판은 아직 `7300205` 다. 이 문서는
+고정하라고 적는다(CLI `docs/output.md`. 아래 "`a228856` → `handoff-w11`"). 웹의 고정 판은 지금 `handoff-w11-8`(`b5888e5`)이다
+(판 이력은 `contract/README.md`). 이 문서는
 CLI 가 바뀐 것을 언제, 어떻게 보고 어떤 순서로 받아들이는지 적는다. 요청은 `docs/cli-requests.md`, 사람이 정할 것은
 `docs/ROADMAP.md` 의 "사람 결정이 필요한 것"에 둔다.
 
-## 지금 맞춘 판 (2026-11-03. 2026-11-10 에도 그대로)
+## 지금 맞춘 판 (2026-11-12, `handoff-w11-8`)
 
 | 자리 | CLI 커밋 | 팩 판(`pack.yaml` sha256 앞 16자) |
 |---|---|---|
-| 수집본 `contract/cli-current/` (`MANIFEST.json`) | `7300205` (2026-10-08, `dirty: false`) | `366a3dd4fdae08d8` |
-| 팩 메타데이터 `data/pack-meta.json` | `7300205` 의 `policies/kr-core` | `366a3dd4fdae08d8` |
-| 실행기 `.github/workflows/analyze.yml` | `CLI_COMMIT` `7300205b7e…`, `CLI_EXCLUDE_NEWER` 2026-10-08 | 같다 |
+| 수집본 `contract/cli-current/` (`MANIFEST.json`) | `b5888e5` (2026-11-12, `dirty: false`) | `9f70938de41b6f3a` |
+| 팩 메타데이터 `data/pack-meta.json` | `b5888e5` 의 `policies/kr-core` | `9f70938de41b6f3a` |
+| 실행기 `.github/workflows/analyze.yml` | `CLI_COMMIT` `b5888e5001…`, `CLI_EXCLUDE_NEWER` 2026-11-12 | 같다 |
 
-셋이 같은 커밋이라는 것은 `tests/contract.test.ts` 의 "수집본, 팩 메타데이터, 실행기가 같은 CLI 커밋이다"가 본다. 그 전에는
+2026-11-03 에는 셋 모두 `7300205`(팩 판 `366a3dd4fdae08d8`)였다. 셋이 같은 커밋이라는 것은 `tests/contract.test.ts` 의 "수집본, 팩 메타데이터, 실행기가 같은 CLI 커밋이다"가 본다. 그 전에는
 수집본과 팩 메타데이터가 `8ae72d8`(팩 판 `fa6fc2b3…`)이고 실행기만 `7300205` 였다. 그 사이에 웹 파서는 `7300205` 의
 출력(`schema_version: 1`)을 "모르는 schema_version"으로 거부했으므로, 배포했다면 모든 분석이 정리 단계에서 실패로 끝났다
 (`callbacks.ts` 가 결과를 읽지 못하면 실패로 적는다).

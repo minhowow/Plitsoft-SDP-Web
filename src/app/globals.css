@@ -42,6 +42,9 @@
   --st-none: #59636e;
   --st-none-bg: #eff2f5;
   --st-none-dot: #818b98;
+  /* 구조 쪽 그림의 "모델이 말한 것"(보라). "도구가 직접 확인한 것"은 강조색(--accent)이다. */
+  --fig-model: #8250df;
+  --fig-model-bg: #fbefff;
   /* 멈춘 분석(배지, 단계의 점)과 경고 상자(노란 바탕, 테두리). */
   --fail: #d1242f;
   --warn-bg: #fff8c5;
@@ -139,6 +142,8 @@
     --st-none: #9198a1;
     --st-none-bg: #1f232a;
     --st-none-dot: #9198a1;
+    --fig-model: #ab7df8;
+    --fig-model-bg: #231e36;
     --fail: #f85149;
     --warn-bg: #272215;
     --warn-border: #9e6a03;
@@ -558,12 +563,13 @@ html[data-nav] a {
 }
 
 /*
- * 지금 쪽(최근 분석, 사례, 조문 도감, 데모). 쪽이 본문에 남긴 표시(질의 없는 검색 쪽, 사례의 쪽, 조문 도감의 쪽, 데모의 틀)로 고른다. 화면 낭독기에 알리는 aria-current 는
+ * 지금 쪽(최근 분석, 사례, 조문 도감, 데모, 구조). 쪽이 본문에 남긴 표시(질의 없는 검색 쪽, 사례의 쪽, 조문 도감의 쪽, 데모의 틀, 구조의 쪽)로 고른다. 화면 낭독기에 알리는 aria-current 는
  * 스크립트(HeaderBehavior)가 단다. 스크립트 없이도 보이게 표시는 :has 로 고르고, aria-current 도 함께 받는다.
  */
 body:has(main [data-page="search-home"]) .site-header nav a[href="/search/"],
 body:has(main :is(.policy-page, [data-page="policy"])) .site-header nav a[href="/policy/"],
 body:has(main [data-page="cases"]) .site-header nav a[href="/cases/"],
+body:has(main [data-page="how"]) .site-header nav a[href="/how/"],
 body:has(main > .demo) .site-header nav a[href="/demo/"],
 .site-header nav a[aria-current="page"] {
   font-weight: 600;
@@ -572,6 +578,7 @@ body:has(main > .demo) .site-header nav a[href="/demo/"],
 body:has(main [data-page="search-home"]) .hdr-nav a[href="/search/"],
 body:has(main :is(.policy-page, [data-page="policy"])) .hdr-nav a[href="/policy/"],
 body:has(main [data-page="cases"]) .hdr-nav a[href="/cases/"],
+body:has(main [data-page="how"]) .hdr-nav a[href="/how/"],
 body:has(main > .demo) .hdr-nav a[href="/demo/"],
 .hdr-nav a[aria-current="page"] {
   box-shadow: inset 0 -2px 0 var(--ink);
@@ -583,6 +590,7 @@ body:has(main > .demo) .hdr-nav a[href="/demo/"],
   body:has(main [data-page="search-home"]) .hdr-nav a[href="/search/"],
   body:has(main :is(.policy-page, [data-page="policy"])) .hdr-nav a[href="/policy/"],
   body:has(main [data-page="cases"]) .hdr-nav a[href="/cases/"],
+  body:has(main [data-page="how"]) .hdr-nav a[href="/how/"],
   body:has(main > .demo) .hdr-nav a[href="/demo/"],
   .hdr-nav a[aria-current="page"] {
     text-decoration: underline;
@@ -5151,6 +5159,295 @@ details.rv-recheck > .hint {
 
 .others-table td {
   font-variant-numeric: tabular-nums;
+}
+
+/*
+ * 구조 쪽(/how/)의 그림. 넓은 화면(1100px 부터)은 SVG 그림이고 색은 토큰이라 두 테마를 따른다. 좁은 화면과 강제 색 모드는 같은
+ * 내용을 위에서 아래로 읽는 목록이다. 목록은 넓은 화면에서도 화면 낭독기에 읽힌다(그림은 낭독기에 감춘다). 색의 뜻: 바깥으로
+ * 나감(주황, 개인정보 흐름 그림과 같다), 모델이 말한 것(보라, 점선), 도구가 직접 확인한 것(파랑, 실선). 색만으로 가르지 않게
+ * 상자마다 꼬리표(모델·도구·외부)를 함께 적는다. 포스터용 파일(docs/figures/)은 같은 도형을 밝은 색으로 그린다(src/lib/how/draw.ts).
+ */
+.how {
+  display: grid;
+  gap: var(--space-7);
+}
+
+.how-sec {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.how-notes {
+  display: grid;
+  gap: var(--space-1);
+  max-width: var(--measure);
+  margin: 0;
+  padding-left: 1.2em;
+}
+
+.hw {
+  margin: 0;
+  min-width: 0;
+}
+
+.hw-wide {
+  display: none;
+  padding: var(--space-3);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.hw-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+@media (min-width: 1100px) {
+  .hw-wide {
+    display: block;
+  }
+
+  .hw-list {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+@media (forced-colors: active) {
+  .hw-wide {
+    display: none;
+  }
+
+  .hw-list {
+    position: static;
+    width: auto;
+    height: auto;
+    margin: 0;
+    overflow: visible;
+    clip-path: none;
+    white-space: normal;
+  }
+}
+
+.hw-lane {
+  fill: var(--bg-muted);
+  stroke: var(--rule);
+  stroke-width: 1.5;
+}
+
+.hw-lane.t-out {
+  fill: var(--st-review-bg);
+  stroke: var(--st-review-dot);
+}
+
+.hw-lane.t-keep {
+  fill: var(--surface);
+  stroke: var(--control-line);
+}
+
+.hw-lane-name,
+.hw-title {
+  fill: var(--ink);
+}
+
+.hw-sub,
+.hw-line,
+.hw-tag,
+.hw-elabel {
+  fill: var(--muted);
+}
+
+.hw-box {
+  fill: var(--surface);
+  stroke: var(--control-line);
+  stroke-width: 1.5;
+}
+
+.hw-box.t-out {
+  fill: var(--st-review-bg);
+  stroke: var(--st-review-dot);
+  stroke-width: 2;
+}
+
+.hw-box.t-model {
+  fill: var(--fig-model-bg);
+  stroke: var(--fig-model);
+  stroke-width: 2;
+}
+
+.hw-box.t-tool {
+  fill: var(--accent-soft);
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+
+.hw-box.t-keep {
+  stroke: var(--ink);
+  stroke-width: 2;
+}
+
+.hw-lane-name.t-out,
+.hw-tag.t-out,
+.hw-elabel.t-out {
+  fill: var(--st-review);
+}
+
+.hw-elabel.t-out {
+  font-weight: 700;
+}
+
+.hw-tag.t-model {
+  fill: var(--fig-model);
+}
+
+.hw-tag.t-tool {
+  fill: var(--accent);
+}
+
+.hw-edge {
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 2;
+}
+
+.hw-edge.t-out {
+  stroke: var(--st-review-dot);
+  stroke-width: 3;
+}
+
+/* 화살표의 말은 선이나 띠의 금을 지날 때도 읽히게 바탕색으로 테를 두른다. */
+.hw-elabel {
+  paint-order: stroke;
+  stroke: var(--surface);
+  stroke-width: 5px;
+  stroke-linejoin: round;
+}
+
+.hw-seam {
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 2;
+}
+
+.hw-head {
+  fill: var(--muted);
+}
+
+.hw-head.t-out {
+  fill: var(--st-review-dot);
+}
+
+/* 좁은 화면의 목록: 상자를 위에서 아래로, 상자 사이의 세로 금에 오가는 것을 적는다. */
+.hw-list {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.hw-sec {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.hw-sec-h {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.hw-sec.t-out > .hw-sec-h {
+  color: var(--st-review);
+}
+
+.hw-list ol {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hw-via {
+  margin: 0 0 0 var(--space-4);
+  padding: var(--space-1) 0 var(--space-1) var(--space-3);
+  border-left: 2px solid var(--muted);
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+
+.hw-via.t-out {
+  border-left: 3px solid var(--st-review-dot);
+  color: var(--st-review);
+  font-weight: 600;
+}
+
+.hw-item {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--control-line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.hw-sec > ol > li + li > .hw-item:first-child {
+  margin-top: var(--space-2);
+}
+
+.hw-item.t-out {
+  border: 2px solid var(--st-review-dot);
+  background: var(--st-review-bg);
+}
+
+.hw-item.t-model {
+  border: 2px dashed var(--fig-model);
+  background: var(--fig-model-bg);
+}
+
+.hw-item.t-tool {
+  border: 2px solid var(--accent);
+  background: var(--accent-soft);
+}
+
+.hw-item.t-keep {
+  border: 2px solid var(--ink);
+}
+
+.hw-item-h {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--space-2);
+  margin: 0;
+}
+
+.hw-chip {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.hw-chip.t-out {
+  color: var(--st-review);
+}
+
+.hw-chip.t-model {
+  color: var(--fig-model);
+}
+
+.hw-chip.t-tool {
+  color: var(--accent);
+}
+
+.hw-item ul {
+  margin: var(--space-1) 0 0;
+  padding-left: 1.1em;
+  font-size: var(--text-sm);
+  color: var(--muted);
 }
 
 /* 같은 규칙이 여러 곳일 때의 묶음 머리: 메시지와 N곳, 질문, 접힌 곳의 상태 수. */

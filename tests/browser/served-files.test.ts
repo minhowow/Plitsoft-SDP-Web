@@ -29,13 +29,14 @@ import { nextDir, serveSite, type Site } from "./site";
  */
 const packFile = readPackFile();
 
-/** 받아 볼 쪽: 첫 화면, 결과 보기, 데모, 조문 도감(목록과 정책마다), 사례(목록과 사례마다), 검색, 합성 저장소마다, 합성 분석마다. */
+/** 받아 볼 쪽: 첫 화면, 결과 보기, 데모, 구조, 조문 도감(목록과 정책마다), 사례(목록과 사례마다), 검색, 합성 저장소마다, 합성 분석마다. */
 const hits = syntheticRepositories();
 const PAGES = [
   "/",
   "/view/",
   "/demo/",
   "/demo/review/",
+  "/how/",
   "/policy/",
   ...packFile.policies.map((policy) => policyHref(policy.id)),
   casesHref(),

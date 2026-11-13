@@ -1,74 +1,131 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="330" viewBox="0 0 1920 330" font-family="'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" width="1240" height="784" viewBox="0 0 1240 784" font-family="-apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', 'Noto Sans CJK KR', sans-serif">
+  <title>CLI 안에서 일어나는 일 (review 한 번)</title>
   <defs>
-    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse">
-      <path d="M0 0 L10 5 L0 10 z" fill="#59636e"/>
-    </marker>
+    <marker id="how-review-head" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="hw-head t-plain"/></marker>
+    <marker id="how-review-head-out" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="13" markerHeight="13" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="hw-head t-out"/></marker>
     <style>
-      .box { fill: #ffffff; stroke: #d1d9e0; stroke-width: 2; }
-      .run { fill: #f6f8fa; stroke: #0969da; stroke-width: 2.5; }
-      .num { fill: #0969da; }
-      .numtext { fill: #ffffff; font-size: 20px; font-weight: 700; }
-      .title { fill: #1f2328; font-size: 30px; font-weight: 700; }
-      .line { fill: #59636e; font-size: 19px; }
-      .mono { fill: #59636e; font-size: 17px; font-family: 'SF Mono', Menlo, Consolas, monospace; }
-      .edge { stroke: #59636e; stroke-width: 2.5; fill: none; }
+  .hw-bg { fill: #ffffff; }
+  .hw-lane { fill: #f6f8fa; stroke: #d1d9e0; stroke-width: 1.5; }
+  .hw-lane.t-out { fill: #fff1e5; stroke: #bc4c00; }
+  .hw-lane.t-keep { fill: #ffffff; stroke: #818b98; }
+  .hw-lane-name { fill: #1f2328; }
+  .hw-lane-name.t-out { fill: #953800; }
+  .hw-sub { fill: #59636e; }
+  .hw-box { fill: #ffffff; stroke: #818b98; stroke-width: 1.5; }
+  .hw-box.t-out { fill: #fff1e5; stroke: #bc4c00; stroke-width: 2; }
+  .hw-box.t-model { fill: #fbefff; stroke: #8250df; stroke-width: 2; }
+  .hw-box.t-tool { fill: #ddf4ff; stroke: #0969da; stroke-width: 2; }
+  .hw-box.t-keep { fill: #ffffff; stroke: #1f2328; stroke-width: 2; }
+  .hw-title { fill: #1f2328; }
+  .hw-line { fill: #59636e; }
+  .hw-tag { fill: #59636e; }
+  .hw-tag.t-out { fill: #953800; }
+  .hw-tag.t-model { fill: #8250df; }
+  .hw-tag.t-tool { fill: #0969da; }
+  .hw-edge { fill: none; stroke: #59636e; stroke-width: 2; }
+  .hw-seam { fill: none; stroke: #59636e; stroke-width: 2; }
+  .hw-edge.t-out { stroke: #bc4c00; stroke-width: 3; }
+  .hw-head { fill: #59636e; }
+  .hw-head.t-out { fill: #bc4c00; }
+  .hw-elabel { fill: #59636e; paint-order: stroke; stroke: #ffffff; stroke-width: 5px; stroke-linejoin: round; }
+  .hw-elabel.t-out { fill: #953800; font-weight: 700; }
     </style>
   </defs>
-  <rect width="1920" height="330" fill="#ffffff"/>
-
-  <!-- 1. 저장소 -->
-  <rect class="box" x="44" y="40" width="272" height="250" rx="12"/>
-  <circle class="num" cx="78" cy="76" r="17"/><text class="numtext" x="78" y="83" text-anchor="middle">1</text>
-  <text class="title" x="106" y="87">저장소</text>
-  <text class="line" x="68" y="140">GitHub 공개 저장소</text>
-  <text class="line" x="68" y="168">고정한 커밋</text>
-  <text class="mono" x="68" y="240">읽기만</text>
-
-  <!-- 2. 프로필 -->
-  <rect class="box" x="356" y="40" width="272" height="250" rx="12"/>
-  <circle class="num" cx="390" cy="76" r="17"/><text class="numtext" x="390" y="83" text-anchor="middle">2</text>
-  <text class="title" x="418" y="87">프로필</text>
-  <text class="line" x="380" y="140">이 저장소가 하는 일</text>
-  <text class="line" x="380" y="168">회원 가입·결제·</text>
-  <text class="line" x="380" y="196">생성형 AI 호출·광고 발송 …</text>
-  <text class="line" x="380" y="224">기능마다 근거 파일</text>
-
-  <!-- 3. 걸리는 의무 -->
-  <rect class="box" x="668" y="40" width="272" height="250" rx="12"/>
-  <circle class="num" cx="702" cy="76" r="17"/><text class="numtext" x="702" y="83" text-anchor="middle">3</text>
-  <text class="title" x="730" y="87">걸리는 의무</text>
-  <text class="line" x="692" y="140">기능마다 걸릴 수 있는</text>
-  <text class="line" x="692" y="168">법·조문</text>
-  <text class="line" x="692" y="196">판단은 하지 않음</text>
-
-  <!-- 4. 의무별 근거 찾기 -->
-  <rect class="box" x="980" y="40" width="272" height="250" rx="12"/>
-  <circle class="num" cx="1014" cy="76" r="17"/><text class="numtext" x="1014" y="83" text-anchor="middle">4</text>
-  <text class="title" x="1042" y="87">의무별 근거 찾기</text>
-  <text class="line" x="1004" y="140">정적 검사</text>
-  <text class="line" x="1004" y="168">AI 가 여러 파일을 읽음</text>
-
-  <!-- 5. 검증 -->
-  <rect class="box" x="1292" y="40" width="272" height="250" rx="12"/>
-  <circle class="num" cx="1326" cy="76" r="17"/><text class="numtext" x="1326" y="83" text-anchor="middle">5</text>
-  <text class="title" x="1354" y="87">검증</text>
-  <text class="line" x="1316" y="140">다른 모델의 반박</text>
-  <text class="line" x="1316" y="168">인용 검사</text>
-  <text class="line" x="1316" y="196">(인용한 줄이 코드에 있는지)</text>
-
-  <!-- 6. 체크리스트 -->
-  <rect class="run" x="1604" y="40" width="272" height="250" rx="12"/>
-  <circle class="num" cx="1638" cy="76" r="17"/><text class="numtext" x="1638" y="83" text-anchor="middle">6</text>
-  <text class="title" x="1666" y="87">체크리스트</text>
-  <text class="line" x="1628" y="140">지킨 근거 있음</text>
-  <text class="line" x="1628" y="168">확인할 것</text>
-  <text class="line" x="1628" y="196">코드로는 알 수 없음</text>
-
-  <!-- 흐름 -->
-  <path class="edge" d="M316 165 L352 165" marker-end="url(#arrow)"/>
-  <path class="edge" d="M628 165 L664 165" marker-end="url(#arrow)"/>
-  <path class="edge" d="M940 165 L976 165" marker-end="url(#arrow)"/>
-  <path class="edge" d="M1252 165 L1288 165" marker-end="url(#arrow)"/>
-  <path class="edge" d="M1564 165 L1600 165" marker-end="url(#arrow)"/>
-
+  <rect class="hw-bg" width="1240" height="784"/>
+  <rect class="hw-box t-model" x="16" y="21" width="28" height="18" rx="8" stroke-dasharray="7 5"/>
+  <text class="hw-tag t-model" x="54" y="34" font-size="14" font-weight="700">모델이 말한 것</text>
+  <rect class="hw-box t-tool" x="206" y="21" width="28" height="18" rx="8"/>
+  <text class="hw-tag t-tool" x="244" y="34" font-size="14" font-weight="700">도구가 한 것 (모델 없음)</text>
+  <text class="hw-lane-name" x="76" y="82" font-size="15" font-weight="700">프로필</text>
+  <text class="hw-lane-name" x="650" y="82" font-size="15" font-weight="700">의무마다 · 동시 6</text>
+  <rect class="hw-box t-tool" x="76" y="96" width="246" height="91" rx="8" data-id="sig"/>
+  <text class="hw-title" x="90" y="123" font-size="17" font-weight="700" data-in="sig">신호</text>
+  <text class="hw-tag t-tool" x="312" y="114" font-size="12" font-weight="700" text-anchor="end" data-in="sig">도구</text>
+  <text class="hw-line" x="90" y="148" font-size="14" data-in="sig">의존성·import·호출·주소</text>
+  <text class="hw-line" x="90" y="169" font-size="14" data-in="sig">→ 기능(26가지 중)·플랫폼</text>
+  <rect class="hw-box t-tool" x="76" y="213" width="246" height="91" rx="8" data-id="stat"/>
+  <text class="hw-title" x="90" y="240" font-size="17" font-weight="700" data-in="stat">정적 검사</text>
+  <text class="hw-tag t-tool" x="312" y="231" font-size="12" font-weight="700" text-anchor="end" data-in="stat">도구</text>
+  <text class="hw-line" x="90" y="265" font-size="14" data-in="stat">kr-core 팩 · Semgrep</text>
+  <text class="hw-line" x="90" y="286" font-size="14" data-in="stat">→ 의무별 정적 경고</text>
+  <rect class="hw-box t-model" x="76" y="330" width="246" height="133" rx="8" stroke-dasharray="7 5" data-id="und"/>
+  <text class="hw-title" x="90" y="357" font-size="17" font-weight="700" data-in="und">AI 이해</text>
+  <text class="hw-tag t-model" x="312" y="348" font-size="12" font-weight="700" text-anchor="end" data-in="und">모델</text>
+  <text class="hw-line" x="90" y="382" font-size="14" data-in="und">haiku 5.5</text>
+  <text class="hw-line" x="90" y="403" font-size="14" data-in="und">서비스 요약</text>
+  <text class="hw-line" x="90" y="424" font-size="14" data-in="und">기능 더하기·빼기</text>
+  <text class="hw-line" x="90" y="445" font-size="14" data-in="und">개인정보 흐름</text>
+  <rect class="hw-box t-tool" x="76" y="489" width="246" height="70" rx="8" data-id="g1"/>
+  <text class="hw-title" x="90" y="516" font-size="17" font-weight="700" data-in="g1">관문 ①</text>
+  <text class="hw-tag t-tool" x="312" y="507" font-size="12" font-weight="700" text-anchor="end" data-in="g1">도구</text>
+  <text class="hw-line" x="90" y="541" font-size="14" data-in="g1">인용을 못 넘은 주장은 버림</text>
+  <rect class="hw-box t-model" x="650" y="96" width="250" height="112" rx="8" stroke-dasharray="7 5" data-id="inv"/>
+  <text class="hw-title" x="664" y="123" font-size="17" font-weight="700" data-in="inv">조사</text>
+  <text class="hw-tag t-model" x="890" y="114" font-size="12" font-weight="700" text-anchor="end" data-in="inv">모델</text>
+  <text class="hw-line" x="664" y="148" font-size="14" data-in="inv">haiku 5.5 · 의무 하나씩</text>
+  <text class="hw-line" x="664" y="169" font-size="14" data-in="inv">코드 읽기·검색 도구로</text>
+  <text class="hw-line" x="664" y="190" font-size="14" data-in="inv">상태·인용·근거를 답함</text>
+  <rect class="hw-box t-tool" x="650" y="234" width="250" height="70" rx="8" data-id="g2"/>
+  <text class="hw-title" x="664" y="261" font-size="17" font-weight="700" data-in="g2">관문 ①②③</text>
+  <text class="hw-tag t-tool" x="890" y="252" font-size="12" font-weight="700" text-anchor="end" data-in="g2">도구</text>
+  <text class="hw-line" x="664" y="286" font-size="14" data-in="g2">못 넘으면 상태를 낮춤</text>
+  <rect class="hw-box t-model" x="650" y="330" width="250" height="154" rx="8" stroke-dasharray="7 5" data-id="reb"/>
+  <text class="hw-title" x="664" y="357" font-size="17" font-weight="700" data-in="reb">반박</text>
+  <text class="hw-tag t-model" x="890" y="348" font-size="12" font-weight="700" text-anchor="end" data-in="reb">모델</text>
+  <text class="hw-line" x="664" y="382" font-size="14" data-in="reb">sonnet 5.5</text>
+  <text class="hw-line" x="664" y="403" font-size="14" data-in="reb">빼는 답엔 지키지 않은 곳,</text>
+  <text class="hw-line" x="664" y="424" font-size="14" data-in="reb">코드에서 본 것·저장소 밖엔</text>
+  <text class="hw-line" x="664" y="445" font-size="14" data-in="reb">지킨 근거나 조건 없음을 찾음</text>
+  <text class="hw-line" x="664" y="466" font-size="14" data-in="reb">해당 여부부터·모름은 안 함</text>
+  <rect class="hw-box t-tool" x="650" y="510" width="250" height="70" rx="8" data-id="g3"/>
+  <text class="hw-title" x="664" y="537" font-size="17" font-weight="700" data-in="g3">관문 ①②③</text>
+  <text class="hw-tag t-tool" x="890" y="528" font-size="12" font-weight="700" text-anchor="end" data-in="g3">도구</text>
+  <text class="hw-line" x="664" y="562" font-size="14" data-in="g3">못 넘으면 앞 판단을 둠</text>
+  <rect class="hw-box t-tool" x="372" y="251" width="228" height="175" rx="8" data-id="duty"/>
+  <text class="hw-title" x="386" y="278" font-size="17" font-weight="700" data-in="duty">걸리는 의무</text>
+  <text class="hw-tag t-tool" x="590" y="269" font-size="12" font-weight="700" text-anchor="end" data-in="duty">도구</text>
+  <text class="hw-line" x="386" y="303" font-size="14" data-in="duty">의무 지도 795</text>
+  <text class="hw-line" x="386" y="324" font-size="14" data-in="duty">− 지위 의무 257</text>
+  <text class="hw-line" x="386" y="345" font-size="14" data-in="duty">→ 있는 기능에 걸리는 것</text>
+  <text class="hw-line" x="386" y="366" font-size="14" data-in="duty">→ 검토 후보·kr-core 만</text>
+  <text class="hw-line" x="386" y="387" font-size="14" data-in="duty">(후보: 조문 인용이 법령</text>
+  <text class="hw-line" x="386" y="408" font-size="14" data-in="duty">원문과 맞는 것, 미리 대조)</text>
+  <rect class="hw-box t-tool" x="950" y="219" width="274" height="238" rx="8" data-id="list"/>
+  <text class="hw-title" x="964" y="246" font-size="17" font-weight="700" data-in="list">체크리스트</text>
+  <text class="hw-tag t-tool" x="1214" y="237" font-size="12" font-weight="700" text-anchor="end" data-in="list">도구</text>
+  <text class="hw-line" x="964" y="271" font-size="14" data-in="list">확인할 것</text>
+  <text class="hw-line" x="964" y="292" font-size="14" data-in="list">· 코드에서 본 것</text>
+  <text class="hw-line" x="964" y="313" font-size="14" data-in="list">· 저장소 밖에서 확인할 것</text>
+  <text class="hw-line" x="964" y="334" font-size="14" data-in="list">· 해당 여부부터 확인할 것</text>
+  <text class="hw-line" x="964" y="355" font-size="14" data-in="list">모름</text>
+  <text class="hw-line" x="964" y="376" font-size="14" data-in="list">지킨 근거 있음</text>
+  <text class="hw-line" x="964" y="397" font-size="14" data-in="list">걸리지 않는 것으로 보임</text>
+  <text class="hw-line" x="964" y="418" font-size="14" data-in="list">(확인 안 됨)</text>
+  <text class="hw-line" x="964" y="439" font-size="14" data-in="list">해당 없음</text>
+  <path class="hw-edge t-plain" d="M16 141.5 L76 141.5" marker-end="url(#how-review-head)"/>
+  <text class="hw-elabel t-plain" x="16" y="129.5" font-size="14">저장소</text>
+  <path class="hw-edge t-plain" d="M199 187 L199 213" marker-end="url(#how-review-head)"/>
+  <path class="hw-edge t-plain" d="M199 304 L199 330" marker-end="url(#how-review-head)"/>
+  <path class="hw-edge t-plain" d="M199 463 L199 489" marker-end="url(#how-review-head)"/>
+  <path class="hw-edge t-plain" d="M775 208 L775 234" marker-end="url(#how-review-head)"/>
+  <path class="hw-edge t-plain" d="M775 304 L775 330" marker-end="url(#how-review-head)"/>
+  <path class="hw-edge t-plain" d="M775 484 L775 510" marker-end="url(#how-review-head)"/>
+  <path class="hw-edge t-plain" d="M322 524 L347 524 L347 338.5 L372 338.5" marker-end="url(#how-review-head)"/>
+  <path class="hw-edge t-plain" d="M600 338.5 L625 338.5 L625 152 L650 152" marker-end="url(#how-review-head)"/>
+  <path class="hw-edge t-plain" d="M900 545 L925 545 L925 338 L950 338" marker-end="url(#how-review-head)"/>
+  <rect class="hw-box t-tool" x="16" y="614" width="680" height="154" rx="8" data-id="gate"/>
+  <text class="hw-title" x="30" y="641" font-size="17" font-weight="700" data-in="gate">관문이 직접 확인하는 것</text>
+  <text class="hw-tag t-tool" x="686" y="632" font-size="12" font-weight="700" text-anchor="end" data-in="gate">도구</text>
+  <text class="hw-line" x="30" y="666" font-size="14" data-in="gate">① 인용: 인용한 글이 그 파일 코드에 글자 그대로 있는지</text>
+  <text class="hw-line" x="30" y="687" font-size="14" data-in="gate">    (줄 번호는 도구가 다시 찾음 · 시험·설정 파일과 주석만의 인용은 받지 않음)</text>
+  <text class="hw-line" x="30" y="708" font-size="14" data-in="gate">② 검색: '없다'는 답의 검색을 다시 돌려 줄 수를 맞춰 봄</text>
+  <text class="hw-line" x="30" y="729" font-size="14" data-in="gate">③ '해당 없음': 걸리지 않음·조건·근거 '처리 없음'·② 일치가 모두 있을 때만</text>
+  <text class="hw-line" x="30" y="750" font-size="14" data-in="gate">못 넘으면 상태를 낮춤 (예: 인용이 없으면 '저장소 밖에서 확인할 것')</text>
+  <rect class="hw-box t-model" x="716" y="614" width="508" height="133" rx="8" stroke-dasharray="7 5" data-id="trust"/>
+  <text class="hw-title" x="730" y="641" font-size="17" font-weight="700" data-in="trust">확인하지 않고 받는 것</text>
+  <text class="hw-tag t-model" x="1214" y="632" font-size="12" font-weight="700" text-anchor="end" data-in="trust">모델</text>
+  <text class="hw-line" x="730" y="666" font-size="14" data-in="trust">인용한 줄이 그 의무와 관련 있는지</text>
+  <text class="hw-line" x="730" y="687" font-size="14" data-in="trust">검색어가 충분히 넓은지</text>
+  <text class="hw-line" x="730" y="708" font-size="14" data-in="trust">모델이 붙인 값(걸리는지·근거·행위인지)</text>
+  <text class="hw-line" x="730" y="729" font-size="14" data-in="trust">서비스 요약, 이유·질문 글</text>
 </svg>
