@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1240" height="722" viewBox="0 0 1240 722" font-family="-apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', 'Noto Sans CJK KR', sans-serif">
+  <title>따라가 보기: 한 저장소의 한 줄</title>
+  <defs>
+    <marker id="how-trace-head" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="hw-head t-plain"/></marker>
+    <marker id="how-trace-head-out" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="13" markerHeight="13" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="hw-head t-out"/></marker>
+    <style>
+  .hw-bg { fill: #ffffff; }
+  .hw-lane { fill: #f6f8fa; stroke: #d1d9e0; stroke-width: 1.5; }
+  .hw-lane.t-out { fill: #fff1e5; stroke: #bc4c00; }
+  .hw-lane.t-keep { fill: #ffffff; stroke: #818b98; }
+  .hw-lane-name { fill: #1f2328; }
+  .hw-lane-name.t-out { fill: #953800; }
+  .hw-sub { fill: #59636e; }
+  .hw-box { fill: #ffffff; stroke: #818b98; stroke-width: 1.5; }
+  .hw-box.t-out { fill: #fff1e5; stroke: #bc4c00; stroke-width: 2; }
+  .hw-box.t-model { fill: #fbefff; stroke: #8250df; stroke-width: 2; }
+  .hw-box.t-tool { fill: #ddf4ff; stroke: #0969da; stroke-width: 2; }
+  .hw-box.t-keep { fill: #ffffff; stroke: #1f2328; stroke-width: 2; }
+  .hw-title { fill: #1f2328; }
+  .hw-line { fill: #59636e; }
+  .hw-tag { fill: #59636e; }
+  .hw-tag.t-out { fill: #953800; }
+  .hw-tag.t-model { fill: #8250df; }
+  .hw-tag.t-tool { fill: #0969da; }
+  .hw-edge { fill: none; stroke: #59636e; stroke-width: 2; }
+  .hw-seam { fill: none; stroke: #59636e; stroke-width: 2; }
+  .hw-edge.t-out { stroke: #bc4c00; stroke-width: 3; }
+  .hw-head { fill: #59636e; }
+  .hw-head.t-out { fill: #bc4c00; }
+  .hw-elabel { fill: #59636e; paint-order: stroke; stroke: #ffffff; stroke-width: 5px; stroke-linejoin: round; }
+  .hw-elabel.t-out { fill: #953800; font-weight: 700; }
+  .hw-num { fill: #0969da; paint-order: stroke; stroke: #ffffff; stroke-width: 6px; stroke-linejoin: round; }
+  .hw-small { fill: #59636e; }
+  .hw-code { fill: #1f2328; }
+    </style>
+  </defs>
+  <rect class="hw-bg" width="1240" height="722"/>
+  <text class="hw-title" x="16" y="30" font-size="18" font-weight="700">jobtalk — 진로 상담 챗봇. 자격증·관심 분야·상담 메시지를 OpenAI 로 보내는데, 가입 동의문에 국외 이전이 적혀 있지 않다</text>
+  <rect class="hw-box t-model" x="16" y="50" width="28" height="19" rx="8" stroke-dasharray="7 5"/>
+  <text class="hw-tag t-model" x="54" y="64" font-size="15" font-weight="700">AI 가 말한 것</text>
+  <rect class="hw-box t-tool" x="172.89999999999998" y="50" width="28" height="19" rx="8"/>
+  <text class="hw-tag t-tool" x="210.89999999999998" y="64" font-size="15" font-weight="700">도구가 한 것</text>
+  <rect class="hw-box t-tool" x="16" y="90" width="260" height="70" rx="8" data-id="t1"/>
+  <text class="hw-title" x="30" y="117" font-size="17" font-weight="700" data-in="t1">① 감지된 기능</text>
+  <text class="hw-line" x="30" y="142" font-size="14" data-in="t1">도구가 코드 신호로</text>
+  <text class="hw-title" x="300" y="114" font-size="15" font-weight="700">외부 업체·국외로 개인정보 전송(외부 AI 포함)</text>
+  <text class="hw-line" x="300" y="136" font-size="15">신호: backend/package.json:36 — package.json 의 dependencies 에 openai</text>
+  <rect class="hw-box t-tool" x="16" y="184" width="260" height="70" rx="8" data-id="t2"/>
+  <text class="hw-title" x="30" y="211" font-size="17" font-weight="700" data-in="t2">② 고른 의무</text>
+  <text class="hw-line" x="30" y="236" font-size="14" data-in="t2">도구가 규칙으로</text>
+  <text class="hw-title" x="300" y="208" font-size="15" font-weight="700">개인정보 보호법 제28조의8제1항(시행령 제29조의7)</text>
+  <text class="hw-line" x="300" y="230" font-size="15">국외 제공(조회 포함)·처리위탁·보관은 별도 동의·법률·계약상 위탁+공개·인증·적정성 인정 중 하나일 때만</text>
+  <path class="hw-edge t-plain" d="M76 160 L76 184" marker-end="url(#how-trace-head)"/>
+  <rect class="hw-box t-model" x="16" y="278" width="260" height="102" rx="8" stroke-dasharray="7 5" data-id="t3"/>
+  <text class="hw-title" x="30" y="305" font-size="17" font-weight="700" data-in="t3">③ AI 가 댄 근거</text>
+  <text class="hw-line" x="30" y="330" font-size="14" data-in="t3">AI (조사)</text>
+  <text class="hw-title" x="300" y="302" font-size="14" font-weight="700" font-family="ui-monospace, SFMono-Regular, &apos;SF Mono&apos;, Menlo, Consolas, &apos;Liberation Mono&apos;, monospace">backend/src/controllers/chatController.ts:135</text>
+  <text class="hw-code" x="300" y="324" font-size="14" font-family="ui-monospace, SFMono-Regular, &apos;SF Mono&apos;, Menlo, Consolas, &apos;Liberation Mono&apos;, monospace">const response = await openai.responses.create({</text>
+  <text class="hw-line" x="300" y="346" font-size="15">chatController.ts가 사용자 입력과 별명을 외부 AI API로 보내는 줄은 보이지만, 회원가입 약관(Register.tsx)에는 해외 AI</text>
+  <text class="hw-line" x="300" y="368" font-size="15">제공이나 위탁 문구가 없고 국외 이전 동의나 마스킹 처리도 찾지 못했습니다. 처리방침과 배포 설정은 저장소 밖에서 확인해야 합니다.</text>
+  <path class="hw-edge t-plain" d="M76 254 L76 278" marker-end="url(#how-trace-head)"/>
+  <rect class="hw-box t-model" x="16" y="404" width="260" height="70" rx="8" stroke-dasharray="7 5" data-id="t4"/>
+  <text class="hw-title" x="30" y="431" font-size="17" font-weight="700" data-in="t4">④ 반박</text>
+  <text class="hw-line" x="30" y="456" font-size="14" data-in="t4">다른 AI</text>
+  <text class="hw-title" x="300" y="428" font-size="15" font-weight="700">유지</text>
+  <text class="hw-line" x="300" y="450" font-size="15">반대 근거를 찾아봤지만 앞 판단을 그대로 둠</text>
+  <path class="hw-edge t-plain" d="M76 380 L76 404" marker-end="url(#how-trace-head)"/>
+  <rect class="hw-box t-tool" x="16" y="498" width="260" height="70" rx="8" data-id="t5"/>
+  <text class="hw-title" x="30" y="525" font-size="17" font-weight="700" data-in="t5">⑤ 도구가 직접 확인</text>
+  <text class="hw-line" x="30" y="550" font-size="14" data-in="t5">조사 답을 받은 바로 뒤</text>
+  <text class="hw-title" x="300" y="522" font-size="15" font-weight="700">인용한 135줄·27줄 모두 그 파일에 글자 그대로 있음</text>
+  <text class="hw-line" x="300" y="544" font-size="15">'없다'며 낸 검색 2개를 다시 돌려 줄 수만 맞춰 봄: 1줄·26줄, AI 가 적은 수와 같음</text>
+  <path class="hw-edge t-plain" d="M76 474 L76 498" marker-end="url(#how-trace-head)"/>
+  <rect class="hw-box t-keep" x="16" y="592" width="260" height="80" rx="8" data-id="t6"/>
+  <text class="hw-title" x="30" y="619" font-size="17" font-weight="700" data-in="t6">⑥ 체크리스트의 그 줄</text>
+  <text class="hw-line" x="30" y="644" font-size="14" data-in="t6">사람이 확인할 것</text>
+  <text class="hw-title" x="300" y="616" font-size="15" font-weight="700">확인할 것 · 코드에서 본 것 — 개인정보 보호법 제28조의8제1항(시행령 제29조의7)</text>
+  <text class="hw-line" x="300" y="638" font-size="15">없는 것: 국외 이전에 대한 별도 동의 화면, 처리방침의 이전 국가·받는 자·항목 공개, 국내 리전 설정, 전송 전 마스킹·가명처리가</text>
+  <text class="hw-line" x="300" y="660" font-size="15">코드에서 보이지 않음</text>
+  <path class="hw-edge t-plain" d="M76 568 L76 592" marker-end="url(#how-trace-head)"/>
+  <text class="hw-line" x="16" y="702" font-size="14">사례 Vactor0911/jobtalk · 커밋 bbfb3ab · 미리 돌린 결과 2026-11-12 (조사 claude-haiku-5-5 · 반박 claude-sonnet-5-5) · 판정 규칙만 다시 적용함(모델 재호출 없음)</text>
+</svg>

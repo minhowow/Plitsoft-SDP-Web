@@ -29,13 +29,16 @@
   .hw-head.t-out { fill: #bc4c00; }
   .hw-elabel { fill: #59636e; paint-order: stroke; stroke: #ffffff; stroke-width: 5px; stroke-linejoin: round; }
   .hw-elabel.t-out { fill: #953800; font-weight: 700; }
+  .hw-num { fill: #0969da; paint-order: stroke; stroke: #ffffff; stroke-width: 6px; stroke-linejoin: round; }
+  .hw-small { fill: #59636e; }
+  .hw-code { fill: #1f2328; }
     </style>
   </defs>
   <rect class="hw-bg" width="1240" height="784"/>
   <rect class="hw-box t-model" x="16" y="21" width="28" height="18" rx="8" stroke-dasharray="7 5"/>
   <text class="hw-tag t-model" x="54" y="34" font-size="14" font-weight="700">모델이 말한 것</text>
-  <rect class="hw-box t-tool" x="206" y="21" width="28" height="18" rx="8"/>
-  <text class="hw-tag t-tool" x="244" y="34" font-size="14" font-weight="700">도구가 한 것 (모델 없음)</text>
+  <rect class="hw-box t-tool" x="178.39999999999998" y="21" width="28" height="18" rx="8"/>
+  <text class="hw-tag t-tool" x="216.39999999999998" y="34" font-size="14" font-weight="700">도구가 한 것 (모델 없음)</text>
   <text class="hw-lane-name" x="76" y="82" font-size="15" font-weight="700">프로필</text>
   <text class="hw-lane-name" x="650" y="82" font-size="15" font-weight="700">의무마다 · 동시 6</text>
   <rect class="hw-box t-tool" x="76" y="96" width="246" height="91" rx="8" data-id="sig"/>

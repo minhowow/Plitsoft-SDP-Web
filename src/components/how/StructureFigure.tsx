@@ -1,4 +1,4 @@
-import { markerIds, type Figure, type Tone } from "@/lib/how/draw";
+import { markerIds, MONO, type Figure, type Tone } from "@/lib/how/draw";
 
 const TONE_CLASS: Record<Tone, string> = { plain: "", out: " t-out", model: " t-model", tool: " t-tool", keep: " t-keep" };
 
@@ -54,6 +54,7 @@ export function StructureFigure({ figure }: { figure: Figure }) {
                   fontSize={shape.size}
                   fontWeight={shape.bold ? 700 : undefined}
                   textAnchor={shape.anchor && shape.anchor !== "start" ? shape.anchor : undefined}
+                  fontFamily={shape.mono ? MONO : undefined}
                 >
                   {shape.text}
                 </text>

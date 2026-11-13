@@ -5178,6 +5178,27 @@ details.rv-recheck > .hint {
   min-width: 0;
 }
 
+/* 자세한 판(보고서용 설계도)은 쉬운 판과 따라가 보기 아래에 접어 둔다. */
+.how-more > summary {
+  font-size: var(--text-h2);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.how-more[open] > summary {
+  margin-bottom: var(--space-5);
+}
+
+.how-more > .how {
+  gap: var(--space-7);
+}
+
+.how-src {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--muted);
+}
+
 .how-notes {
   display: grid;
   gap: var(--space-1);
@@ -5323,7 +5344,23 @@ details.rv-recheck > .hint {
   stroke-width: 3;
 }
 
-/* 화살표의 말은 선이나 띠의 금을 지날 때도 읽히게 바탕색으로 테를 두른다. */
+/* 화살표의 말과 차례 번호는 선이나 띠의 금을 지날 때도 읽히게 바탕색으로 테를 두른다. */
+.hw-num {
+  fill: var(--accent);
+  paint-order: stroke;
+  stroke: var(--surface);
+  stroke-width: 6px;
+  stroke-linejoin: round;
+}
+
+.hw-small {
+  fill: var(--muted);
+}
+
+.hw-code {
+  fill: var(--ink);
+}
+
 .hw-elabel {
   paint-order: stroke;
   stroke: var(--surface);

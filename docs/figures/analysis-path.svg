@@ -29,6 +29,9 @@
   .hw-head.t-out { fill: #bc4c00; }
   .hw-elabel { fill: #59636e; paint-order: stroke; stroke: #ffffff; stroke-width: 5px; stroke-linejoin: round; }
   .hw-elabel.t-out { fill: #953800; font-weight: 700; }
+  .hw-num { fill: #0969da; paint-order: stroke; stroke: #ffffff; stroke-width: 6px; stroke-linejoin: round; }
+  .hw-small { fill: #59636e; }
+  .hw-code { fill: #1f2328; }
     </style>
   </defs>
   <rect class="hw-bg" width="1280" height="790"/>
@@ -89,23 +92,23 @@
   <text class="hw-tag t-out" x="994" y="708" font-size="12" font-weight="700" text-anchor="end" data-in="ai">외부</text>
   <text class="hw-line" x="774" y="742" font-size="14" data-in="ai">haiku 5.5 · sonnet 5.5</text>
   <path class="hw-edge t-plain" d="M252 107 L252 148" marker-end="url(#how-path-head)"/>
-  <text class="hw-elabel t-plain" x="264" y="132.5" font-size="14">저장소 주소</text>
+  <text class="hw-elabel t-plain" x="264" y="132.5" font-size="14">① 저장소 주소</text>
   <path class="hw-edge t-plain" d="M252 302 L252 341" marker-end="url(#how-path-head)"/>
-  <text class="hw-elabel t-plain" x="264" y="326.5" font-size="14">분석 줄</text>
+  <text class="hw-elabel t-plain" x="264" y="326.5" font-size="14">② 분석 줄</text>
   <path class="hw-edge t-plain" d="M446 225 L558 225 L558 470" marker-end="url(#how-path-head)"/>
-  <text class="hw-elabel t-plain" x="570" y="374" font-size="14">깨움: 분석 id·커밋</text>
+  <text class="hw-elabel t-plain" x="570" y="374" font-size="14">③ 깨움: 분석 id·커밋</text>
   <text class="hw-elabel t-plain" x="570" y="396" font-size="14">(GitHub API)</text>
   <path class="hw-edge t-out" d="M830 615 L830 690" marker-end="url(#how-path-head-out)"/>
-  <text class="hw-elabel t-out" x="818" y="676" font-size="14" text-anchor="end">코드·질문</text>
+  <text class="hw-elabel t-out" x="818" y="676" font-size="14" text-anchor="end">④ 코드·질문</text>
   <path class="hw-edge t-plain" d="M940 690 L940 615" marker-end="url(#how-path-head)"/>
   <text class="hw-elabel t-plain" x="952" y="676" font-size="14">답</text>
   <path class="hw-edge t-plain" d="M1016 548.5 L1042 548.5 L1042 225.5 L1066 225.5" marker-end="url(#how-path-head)"/>
-  <text class="hw-elabel t-plain" x="1030" y="374" font-size="14" text-anchor="end">진행·결과 JSON</text>
+  <text class="hw-elabel t-plain" x="1030" y="374" font-size="14" text-anchor="end">⑤ 진행·결과 JSON</text>
   <text class="hw-elabel t-plain" x="1030" y="396" font-size="14" text-anchor="end">(서명한 콜백)</text>
   <path class="hw-edge t-plain" d="M1161 271 L1161 330" marker-end="url(#how-path-head)"/>
-  <text class="hw-elabel t-plain" x="1173" y="305.5" font-size="14">저장</text>
+  <text class="hw-elabel t-plain" x="1173" y="305.5" font-size="14">⑥ 저장</text>
   <path class="hw-edge t-plain" d="M1161 180 L1161 107" marker-end="url(#how-path-head)"/>
-  <text class="hw-elabel t-plain" x="1149" y="148.5" font-size="14" text-anchor="end">진행·결과 (3초마다 읽음)</text>
+  <text class="hw-elabel t-plain" x="1149" y="148.5" font-size="14" text-anchor="end">⑦ 진행·결과 (3초마다 읽음)</text>
   <text class="hw-title" x="196" y="524" font-size="14" font-weight="700">남의 코드는 이 VM 에만 풀림</text>
   <text class="hw-line" x="196" y="545" font-size="14">읽기만 (설치·빌드·실행 없음)</text>
   <text class="hw-line" x="196" y="566" font-size="14">작업이 끝나면 VM 째 사라짐</text>

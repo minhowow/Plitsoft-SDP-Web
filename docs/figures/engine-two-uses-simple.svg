@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1240" height="170" viewBox="0 0 1240 170" font-family="-apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', 'Noto Sans CJK KR', sans-serif">
+  <title>같은 엔진, 두 가지 쓰임</title>
+  <defs>
+    <marker id="how-uses-simple-head" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="hw-head t-plain"/></marker>
+    <marker id="how-uses-simple-head-out" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="13" markerHeight="13" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="hw-head t-out"/></marker>
+    <style>
+  .hw-bg { fill: #ffffff; }
+  .hw-lane { fill: #f6f8fa; stroke: #d1d9e0; stroke-width: 1.5; }
+  .hw-lane.t-out { fill: #fff1e5; stroke: #bc4c00; }
+  .hw-lane.t-keep { fill: #ffffff; stroke: #818b98; }
+  .hw-lane-name { fill: #1f2328; }
+  .hw-lane-name.t-out { fill: #953800; }
+  .hw-sub { fill: #59636e; }
+  .hw-box { fill: #ffffff; stroke: #818b98; stroke-width: 1.5; }
+  .hw-box.t-out { fill: #fff1e5; stroke: #bc4c00; stroke-width: 2; }
+  .hw-box.t-model { fill: #fbefff; stroke: #8250df; stroke-width: 2; }
+  .hw-box.t-tool { fill: #ddf4ff; stroke: #0969da; stroke-width: 2; }
+  .hw-box.t-keep { fill: #ffffff; stroke: #1f2328; stroke-width: 2; }
+  .hw-title { fill: #1f2328; }
+  .hw-line { fill: #59636e; }
+  .hw-tag { fill: #59636e; }
+  .hw-tag.t-out { fill: #953800; }
+  .hw-tag.t-model { fill: #8250df; }
+  .hw-tag.t-tool { fill: #0969da; }
+  .hw-edge { fill: none; stroke: #59636e; stroke-width: 2; }
+  .hw-seam { fill: none; stroke: #59636e; stroke-width: 2; }
+  .hw-edge.t-out { stroke: #bc4c00; stroke-width: 3; }
+  .hw-head { fill: #59636e; }
+  .hw-head.t-out { fill: #bc4c00; }
+  .hw-elabel { fill: #59636e; paint-order: stroke; stroke: #ffffff; stroke-width: 5px; stroke-linejoin: round; }
+  .hw-elabel.t-out { fill: #953800; font-weight: 700; }
+  .hw-num { fill: #0969da; paint-order: stroke; stroke: #ffffff; stroke-width: 6px; stroke-linejoin: round; }
+  .hw-small { fill: #59636e; }
+  .hw-code { fill: #1f2328; }
+    </style>
+  </defs>
+  <rect class="hw-bg" width="1240" height="170"/>
+  <rect class="hw-box t-plain" x="16" y="16" width="372" height="106" rx="8" data-id="dev"/>
+  <text class="hw-title" x="30" y="47" font-size="21" font-weight="700" data-in="dev">개발할 때</text>
+  <text class="hw-line" x="30" y="74" font-size="16" data-in="dev">내 컴퓨터와 CI 에서, AI 없이도 돎</text>
+  <text class="hw-small" x="30" y="108" font-size="13" data-in="dev">scan · Claude Code 훅 · pre-commit · CI</text>
+  <text class="hw-tag t-out" x="30" y="150" font-size="15" font-weight="700">AI 를 켜면 코드가 바깥으로 나감</text>
+  <rect class="hw-box t-keep" x="434" y="16" width="372" height="106" rx="8" data-id="engine"/>
+  <text class="hw-title" x="448" y="47" font-size="21" font-weight="700" data-in="engine">같은 엔진 · 같은 정책</text>
+  <text class="hw-line" x="448" y="74" font-size="16" data-in="engine">같은 규칙으로 코드를 검사</text>
+  <text class="hw-small" x="448" y="108" font-size="13" data-in="engine">policypack</text>
+  <rect class="hw-box t-plain" x="852" y="16" width="372" height="106" rx="8" data-id="web"/>
+  <text class="hw-title" x="866" y="47" font-size="21" font-weight="700" data-in="web">웹에서</text>
+  <text class="hw-line" x="866" y="74" font-size="16" data-in="web">남의 저장소를 AI 와 함께, 법 의무를 더 넓게</text>
+  <text class="hw-small" x="866" y="108" font-size="13" data-in="web">scan · profile · review</text>
+  <text class="hw-tag t-out" x="866" y="150" font-size="15" font-weight="700">읽는 코드가 AI(바깥)로 나감</text>
+  <path class="hw-edge" d="M388 69 L434 69"/>
+  <path class="hw-edge" d="M806 69 L852 69"/>
+</svg>

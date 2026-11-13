@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1456" height="245" viewBox="0 0 1456 245" font-family="-apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', 'Noto Sans CJK KR', sans-serif">
+  <title>검토 엔진 안에서 일어나는 일</title>
+  <defs>
+    <marker id="how-review-simple-head" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="hw-head t-plain"/></marker>
+    <marker id="how-review-simple-head-out" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="13" markerHeight="13" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="hw-head t-out"/></marker>
+    <style>
+  .hw-bg { fill: #ffffff; }
+  .hw-lane { fill: #f6f8fa; stroke: #d1d9e0; stroke-width: 1.5; }
+  .hw-lane.t-out { fill: #fff1e5; stroke: #bc4c00; }
+  .hw-lane.t-keep { fill: #ffffff; stroke: #818b98; }
+  .hw-lane-name { fill: #1f2328; }
+  .hw-lane-name.t-out { fill: #953800; }
+  .hw-sub { fill: #59636e; }
+  .hw-box { fill: #ffffff; stroke: #818b98; stroke-width: 1.5; }
+  .hw-box.t-out { fill: #fff1e5; stroke: #bc4c00; stroke-width: 2; }
+  .hw-box.t-model { fill: #fbefff; stroke: #8250df; stroke-width: 2; }
+  .hw-box.t-tool { fill: #ddf4ff; stroke: #0969da; stroke-width: 2; }
+  .hw-box.t-keep { fill: #ffffff; stroke: #1f2328; stroke-width: 2; }
+  .hw-title { fill: #1f2328; }
+  .hw-line { fill: #59636e; }
+  .hw-tag { fill: #59636e; }
+  .hw-tag.t-out { fill: #953800; }
+  .hw-tag.t-model { fill: #8250df; }
+  .hw-tag.t-tool { fill: #0969da; }
+  .hw-edge { fill: none; stroke: #59636e; stroke-width: 2; }
+  .hw-seam { fill: none; stroke: #59636e; stroke-width: 2; }
+  .hw-edge.t-out { stroke: #bc4c00; stroke-width: 3; }
+  .hw-head { fill: #59636e; }
+  .hw-head.t-out { fill: #bc4c00; }
+  .hw-elabel { fill: #59636e; paint-order: stroke; stroke: #ffffff; stroke-width: 5px; stroke-linejoin: round; }
+  .hw-elabel.t-out { fill: #953800; font-weight: 700; }
+  .hw-num { fill: #0969da; paint-order: stroke; stroke: #ffffff; stroke-width: 6px; stroke-linejoin: round; }
+  .hw-small { fill: #59636e; }
+  .hw-code { fill: #1f2328; }
+    </style>
+  </defs>
+  <rect class="hw-bg" width="1456" height="245"/>
+  <rect class="hw-box t-model" x="16" y="20" width="28" height="20" rx="8" stroke-dasharray="7 5"/>
+  <text class="hw-tag t-model" x="54" y="34" font-size="16" font-weight="700">AI 가 말한 것</text>
+  <rect class="hw-box t-tool" x="182.95999999999998" y="20" width="28" height="20" rx="8"/>
+  <text class="hw-tag t-tool" x="220.95999999999998" y="34" font-size="16" font-weight="700">도구가 한 것</text>
+  <rect class="hw-box t-tool" x="16" y="70" width="214" height="73" rx="8" data-id="s1"/>
+  <text class="hw-title" x="30" y="98" font-size="18" font-weight="700" data-in="s1">무슨 서비스인지 파악</text>
+  <text class="hw-tag t-tool" x="220" y="88" font-size="12" font-weight="700" text-anchor="end" data-in="s1">도구 + AI</text>
+  <text class="hw-line" x="30" y="125" font-size="16" data-in="s1">신호로 찾고 AI 가 보탬</text>
+  <rect class="hw-box t-tool" x="258" y="70" width="214" height="73" rx="8" data-id="s2"/>
+  <text class="hw-title" x="272" y="98" font-size="18" font-weight="700" data-in="s2">걸리는 법 의무 고르기</text>
+  <text class="hw-tag t-tool" x="462" y="88" font-size="12" font-weight="700" text-anchor="end" data-in="s2">도구</text>
+  <text class="hw-line" x="272" y="125" font-size="16" data-in="s2">AI 없이 정해 둔 규칙으로</text>
+  <rect class="hw-box t-model" x="500" y="70" width="214" height="73" rx="8" stroke-dasharray="7 5" data-id="s3"/>
+  <text class="hw-title" x="514" y="98" font-size="18" font-weight="700" data-in="s3">의무마다 근거 찾기</text>
+  <text class="hw-tag t-model" x="704" y="88" font-size="12" font-weight="700" text-anchor="end" data-in="s3">AI</text>
+  <text class="hw-line" x="514" y="125" font-size="16" data-in="s3">AI 가 코드를 읽고 답함</text>
+  <rect class="hw-box t-model" x="742" y="70" width="214" height="73" rx="8" stroke-dasharray="7 5" data-id="s4"/>
+  <text class="hw-title" x="756" y="98" font-size="18" font-weight="700" data-in="s4">다른 AI 가 반박</text>
+  <text class="hw-tag t-model" x="946" y="88" font-size="12" font-weight="700" text-anchor="end" data-in="s4">AI</text>
+  <text class="hw-line" x="756" y="125" font-size="16" data-in="s4">반대 근거를 다시 찾아봄</text>
+  <rect class="hw-box t-tool" x="984" y="70" width="214" height="73" rx="8" data-id="s5"/>
+  <text class="hw-title" x="998" y="98" font-size="18" font-weight="700" data-in="s5">도구가 직접 확인</text>
+  <text class="hw-tag t-tool" x="1188" y="88" font-size="12" font-weight="700" text-anchor="end" data-in="s5">도구</text>
+  <text class="hw-line" x="998" y="125" font-size="16" data-in="s5">AI 답을 코드에서 대조</text>
+  <rect class="hw-box t-keep" x="1226" y="70" width="214" height="73" rx="8" data-id="s6"/>
+  <text class="hw-title" x="1240" y="98" font-size="18" font-weight="700" data-in="s6">체크리스트</text>
+  <text class="hw-line" x="1240" y="125" font-size="16" data-in="s6">사람이 확인할 목록</text>
+  <path class="hw-edge t-plain" d="M230 106.5 L258 106.5" marker-end="url(#how-review-simple-head)"/>
+  <path class="hw-edge t-plain" d="M472 106.5 L500 106.5" marker-end="url(#how-review-simple-head)"/>
+  <path class="hw-edge t-plain" d="M714 106.5 L742 106.5" marker-end="url(#how-review-simple-head)"/>
+  <path class="hw-edge t-plain" d="M956 106.5 L984 106.5" marker-end="url(#how-review-simple-head)"/>
+  <path class="hw-edge t-plain" d="M1198 106.5 L1226 106.5" marker-end="url(#how-review-simple-head)"/>
+  <text class="hw-tag t-tool" x="16" y="189" font-size="17" font-weight="700">직접 확인하는 것</text>
+  <text class="hw-title" x="200" y="189" font-size="17">인용한 코드가 실제로 있는가, '없다'며 낸 검색을 다시 돌려도 같은가</text>
+  <text class="hw-tag t-model" x="16" y="223" font-size="17" font-weight="700">확인하지 못하는 것</text>
+  <text class="hw-title" x="200" y="223" font-size="17">그 코드가 의무와 정말 관련 있는가, 검색이 충분히 넓었는가</text>
+</svg>

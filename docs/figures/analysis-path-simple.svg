@@ -1,0 +1,89 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1432" height="628" viewBox="0 0 1432 628" font-family="-apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', 'Noto Sans CJK KR', sans-serif">
+  <title>한 번의 분석이 지나는 길</title>
+  <defs>
+    <marker id="how-path-simple-head" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="hw-head t-plain"/></marker>
+    <marker id="how-path-simple-head-out" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="13" markerHeight="13" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="hw-head t-out"/></marker>
+    <style>
+  .hw-bg { fill: #ffffff; }
+  .hw-lane { fill: #f6f8fa; stroke: #d1d9e0; stroke-width: 1.5; }
+  .hw-lane.t-out { fill: #fff1e5; stroke: #bc4c00; }
+  .hw-lane.t-keep { fill: #ffffff; stroke: #818b98; }
+  .hw-lane-name { fill: #1f2328; }
+  .hw-lane-name.t-out { fill: #953800; }
+  .hw-sub { fill: #59636e; }
+  .hw-box { fill: #ffffff; stroke: #818b98; stroke-width: 1.5; }
+  .hw-box.t-out { fill: #fff1e5; stroke: #bc4c00; stroke-width: 2; }
+  .hw-box.t-model { fill: #fbefff; stroke: #8250df; stroke-width: 2; }
+  .hw-box.t-tool { fill: #ddf4ff; stroke: #0969da; stroke-width: 2; }
+  .hw-box.t-keep { fill: #ffffff; stroke: #1f2328; stroke-width: 2; }
+  .hw-title { fill: #1f2328; }
+  .hw-line { fill: #59636e; }
+  .hw-tag { fill: #59636e; }
+  .hw-tag.t-out { fill: #953800; }
+  .hw-tag.t-model { fill: #8250df; }
+  .hw-tag.t-tool { fill: #0969da; }
+  .hw-edge { fill: none; stroke: #59636e; stroke-width: 2; }
+  .hw-seam { fill: none; stroke: #59636e; stroke-width: 2; }
+  .hw-edge.t-out { stroke: #bc4c00; stroke-width: 3; }
+  .hw-head { fill: #59636e; }
+  .hw-head.t-out { fill: #bc4c00; }
+  .hw-elabel { fill: #59636e; paint-order: stroke; stroke: #ffffff; stroke-width: 5px; stroke-linejoin: round; }
+  .hw-elabel.t-out { fill: #953800; font-weight: 700; }
+  .hw-num { fill: #0969da; paint-order: stroke; stroke: #ffffff; stroke-width: 6px; stroke-linejoin: round; }
+  .hw-small { fill: #59636e; }
+  .hw-code { fill: #1f2328; }
+    </style>
+  </defs>
+  <rect class="hw-bg" width="1432" height="628"/>
+  <rect class="hw-lane t-plain" x="16" y="16" width="1400" height="108" rx="8" data-id="lane-browser"/>
+  <text class="hw-lane-name t-plain" x="30" y="43" font-size="18" font-weight="700" data-in="lane-browser">브라우저</text>
+  <rect class="hw-lane t-plain" x="16" y="132" width="1400" height="108" rx="8" data-id="lane-web"/>
+  <text class="hw-lane-name t-plain" x="30" y="159" font-size="18" font-weight="700" data-in="lane-web">웹</text>
+  <text class="hw-sub" x="30" y="178" font-size="12" data-in="lane-web">Vercel</text>
+  <rect class="hw-lane t-plain" x="16" y="248" width="1400" height="108" rx="8" data-id="lane-db"/>
+  <text class="hw-lane-name t-plain" x="30" y="275" font-size="18" font-weight="700" data-in="lane-db">DB</text>
+  <text class="hw-sub" x="30" y="294" font-size="12" data-in="lane-db">Postgres</text>
+  <rect class="hw-lane t-keep" x="16" y="364" width="1400" height="108" rx="8" data-id="lane-vm"/>
+  <text class="hw-lane-name t-keep" x="30" y="391" font-size="18" font-weight="700" data-in="lane-vm">VM</text>
+  <text class="hw-sub" x="30" y="410" font-size="12" data-in="lane-vm">GitHub Actions</text>
+  <rect class="hw-lane t-out" x="16" y="480" width="1400" height="132" rx="8" data-id="lane-ai"/>
+  <text class="hw-lane-name t-out" x="30" y="507" font-size="18" font-weight="700" data-in="lane-ai">AI</text>
+  <text class="hw-sub" x="30" y="526" font-size="12" data-in="lane-ai">Anthropic</text>
+  <rect class="hw-box t-plain" x="160" y="32" width="250" height="76" rx="8" data-id="s1"/>
+  <text class="hw-title" x="174" y="63" font-size="21" font-weight="700" data-in="s1">주소를 넣는다</text>
+  <text class="hw-line" x="174" y="90" font-size="16" data-in="s1">저장소 쪽의 분석 요청 단추</text>
+  <rect class="hw-box t-plain" x="160" y="148" width="250" height="76" rx="8" data-id="s2"/>
+  <text class="hw-title" x="174" y="179" font-size="21" font-weight="700" data-in="s2">확인하고 줄을 세운다</text>
+  <text class="hw-line" x="174" y="206" font-size="16" data-in="s2">공개인지 보고 차례를 정함</text>
+  <rect class="hw-box t-plain" x="470" y="380" width="320" height="76" rx="8" data-id="s3"/>
+  <text class="hw-title" x="484" y="411" font-size="21" font-weight="700" data-in="s3">새 VM 이 코드를 받는다</text>
+  <text class="hw-line" x="484" y="438" font-size="16" data-in="s3">GitHub 에서 받아 읽기만, 끝나면 사라짐</text>
+  <rect class="hw-box t-plain" x="850" y="380" width="280" height="76" rx="8" data-id="s4"/>
+  <text class="hw-title" x="864" y="411" font-size="21" font-weight="700" data-in="s4">AI 와 함께 읽는다</text>
+  <text class="hw-line" x="864" y="438" font-size="16" data-in="s4">검토 엔진이 의무마다 근거를 찾음</text>
+  <rect class="hw-box t-out" x="850" y="520" width="280" height="76" rx="8" data-id="ai"/>
+  <text class="hw-title" x="864" y="551" font-size="21" font-weight="700" data-in="ai">AI</text>
+  <text class="hw-line" x="864" y="578" font-size="16" data-in="ai">바깥 서비스</text>
+  <rect class="hw-box t-keep" x="1190" y="264" width="210" height="76" rx="8" data-id="s5"/>
+  <text class="hw-title" x="1204" y="295" font-size="21" font-weight="700" data-in="s5">결과만 저장한다</text>
+  <text class="hw-line" x="1204" y="322" font-size="16" data-in="s5">코드 전체는 두지 않음</text>
+  <rect class="hw-box t-plain" x="1190" y="32" width="210" height="76" rx="8" data-id="s6"/>
+  <text class="hw-title" x="1204" y="63" font-size="21" font-weight="700" data-in="s6">화면에 보인다</text>
+  <text class="hw-line" x="1204" y="90" font-size="16" data-in="s6">진행과 체크리스트</text>
+  <path class="hw-edge t-plain" d="M116 70 L160 70" marker-end="url(#how-path-simple-head)"/>
+  <text class="hw-num" x="136" y="58" font-size="22" font-weight="700" text-anchor="middle">①</text>
+  <path class="hw-edge t-plain" d="M220 108 L220 148" marker-end="url(#how-path-simple-head)"/>
+  <text class="hw-num" x="244" y="136" font-size="22" font-weight="700" text-anchor="middle">②</text>
+  <path class="hw-edge t-plain" d="M410 186 L530 186 L530 380" marker-end="url(#how-path-simple-head)"/>
+  <text class="hw-num" x="554" y="310" font-size="22" font-weight="700" text-anchor="middle">③</text>
+  <path class="hw-edge t-plain" d="M790 418 L850 418" marker-end="url(#how-path-simple-head)"/>
+  <text class="hw-num" x="820" y="406" font-size="22" font-weight="700" text-anchor="middle">④</text>
+  <path class="hw-edge t-out" d="M930 456 L930 520" marker-end="url(#how-path-simple-head-out)"/>
+  <text class="hw-elabel t-out" x="916" y="510" font-size="16" text-anchor="end">AI 가 읽는 코드가 나감</text>
+  <path class="hw-edge t-plain" d="M1050 520 L1050 456" marker-end="url(#how-path-simple-head)"/>
+  <text class="hw-elabel t-plain" x="1064" y="510" font-size="16">답</text>
+  <path class="hw-edge t-plain" d="M1130 418 L1156 418 L1156 210 L1230 210 L1230 264" marker-end="url(#how-path-simple-head)"/>
+  <text class="hw-num" x="1134" y="310" font-size="22" font-weight="700" text-anchor="middle">⑤</text>
+  <path class="hw-edge t-plain" d="M1330 264 L1330 108" marker-end="url(#how-path-simple-head)"/>
+  <text class="hw-num" x="1354" y="172" font-size="22" font-weight="700" text-anchor="middle">⑥</text>
+</svg>

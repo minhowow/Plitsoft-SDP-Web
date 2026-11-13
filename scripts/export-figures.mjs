@@ -1,17 +1,20 @@
-// 구조 쪽(/how/)의 그림을 포스터·보고서용 파일로 내보낸다: docs/figures/<이름>.svg 와 .png(밝은 바탕, 3배).
-// 그림의 자료는 src/lib/how/figures.ts 이고 사이트도 같은 것으로 그린다. 내보내기 전에 Chrome 으로 그려 글이 제 상자 밖으로
+// 구조 쪽(/how/)의 그림을 포스터·보고서용 파일로 내보낸다: docs/figures/<이름>.svg 와 .png(밝은 바탕, 3배). 쉬운 판은
+// <이름>-simple(포스터), 자세한 판은 <이름>(보고서), 따라가 보기는 trace-<사례>. 그림의 자료는 src/lib/how/figures.ts 이고(따라가
+// 보기는 data/cases.json 에서 읽는다) 사이트도 같은 것으로 그린다. 내보내기 전에 Chrome 으로 그려 글이 제 상자 밖으로
 // 넘치는지 잰다. 넘치면 파일을 쓰지 않고 멈춘다.
 //
 //   node scripts/export-figures.mjs          # 모두
 //   node scripts/export-figures.mjs --check  # 재기만(파일을 쓰지 않는다)
-import { writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright-core";
 import { figureSvg } from "../src/lib/how/draw.ts";
-import { FIGURES } from "../src/lib/how/figures.ts";
+import { buildFigures } from "../src/lib/how/figures.ts";
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
+const built = buildFigures(JSON.parse(readFileSync(path.join(root, "data/cases.json"), "utf8")));
+const FIGURES = [...built.simple, built.trace, ...built.detailed];
 const checkOnly = process.argv.includes("--check");
 const browser = await chromium.launch({ channel: "chrome", headless: true });
 let failed = false;

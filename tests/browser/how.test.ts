@@ -1,10 +1,13 @@
 import type { Browser, BrowserContext, Page } from "playwright-core";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import { FIGURES } from "@/lib/how/figures";
+import { casesFile, casesHref } from "@/lib/cases";
+import { buildFigures, TRACE } from "@/lib/how/figures";
+import { SITE } from "@/lib/site";
 import { closeChrome, contrast, launchChrome, NO_STORAGE, openPage, overflow, serveSite, stored, textContrast, type Site } from "./site";
 
 // 구조 쪽(/how/, 2026-11-13 오너 지시). 빌드된 사이트를 Chrome 으로 연다.
-// - 1100px 부터: 그림 셋이 SVG 로 보이고(글은 그림 자료 그대로), 같은 내용의 목록은 화면 낭독기에만 읽힌다. SVG 의 글은 제 뒤의
+// - 맨 위에 쉬운 판 셋과 따라가 보기, 그 아래 '자세히 보기'(접힘)에 자세한 판 셋.
+// - 1100px 부터: 그림이 SVG 로 보이고(글은 그림 자료 그대로), 같은 내용의 목록은 화면 낭독기에만 읽힌다. SVG 의 글은 제 뒤의
 //   네모 바탕과 4.5:1 이상이다(두 테마).
 // - 좁은 화면: 그림 대신 목록이 보이고, 쪽이 가로로 넘치지 않는다. 글의 대비를 잰다(두 테마).
 // - 머리글의 '구조'가 지금 쪽으로 표시된다. 밖으로 나가는 요청과 브라우저 저장소가 없다.
@@ -34,6 +37,9 @@ afterAll(async () => {
   await site?.close();
 });
 
+const { simple, trace, detailed } = buildFigures(casesFile);
+const FIGURES = [...simple, trace, ...detailed];
+
 const open = (width: number, colorScheme: "light" | "dark") =>
   openPage(browser, site, "/how/", { viewport: { width, height: 900 }, colorScheme, contexts, problems });
 
@@ -57,15 +63,24 @@ const svgContrast = (page: Page) =>
 describe("구조 쪽", () => {
   it.each(["light", "dark"] as const)("%s 1280px: 그림 셋이 SVG 로 보이고 목록은 화면 낭독기에만 읽힌다. 머리글이 지금 쪽을 표시한다", async (scheme) => {
     const { page, outside } = await open(1280, scheme);
-    expect(await page.locator("main h2").allTextContents()).toEqual(FIGURES.map((figure, i) => `${i + 1}. ${figure.title}`));
-    expect(await page.locator(".hw-wide svg").count()).toBe(3);
+    expect(await page.locator("main h2").allTextContents()).toEqual([...simple, trace].map((figure, i) => `${i + 1}. ${figure.title}`));
+    // 따라가 보기 아래에 그 사례 쪽으로 가는 링크와, 미리 돌린 결과이고 판정 규칙만 다시 적용했다는 것.
+    expect(await page.locator(".how-src a").getAttribute("href")).toBe(casesHref(TRACE.slug));
+    expect(await page.locator(".how-src").textContent()).toContain(SITE.cases.prerun);
+    expect(await page.locator(".how-src").textContent()).toContain(SITE.cases.regate);
+    // 자세한 판은 접혀 있다. 펼치면 보인다.
+    expect(await page.locator("details.how-more").evaluate((d) => (d as HTMLDetailsElement).open)).toBe(false);
+    expect(await page.locator(".hw-wide:visible").count()).toBe(4);
+    await page.locator("details.how-more > summary").click();
+    expect(await page.locator("details.how-more h3").allTextContents()).toEqual(detailed.map((figure, i) => `${i + 1}. ${figure.title}`));
+    expect(await page.locator(".hw-wide svg").count()).toBe(FIGURES.length);
     for (const wide of await page.locator(".hw-wide").all()) expect(await wide.isVisible()).toBe(true);
     // 목록은 1px 로 자른 상자 안에 있다(화면에는 보이지 않고 낭독기에는 읽힌다). 그림은 낭독기에 감춘다.
     for (const list of await page.locator(".hw-list").all()) {
       const box = (await list.boundingBox())!;
       expect(box.width * box.height).toBeLessThanOrEqual(1);
     }
-    expect(await page.locator(".hw-wide[aria-hidden=true]").count()).toBe(3);
+    expect(await page.locator(".hw-wide[aria-hidden=true]").count()).toBe(FIGURES.length);
     // 그림의 글은 그림 자료 그대로다.
     const drawn = await page.locator(".hw-wide svg").evaluateAll((svgs) => svgs.map((svg) => [...svg.querySelectorAll("text")].map((t) => t.textContent)));
     expect(drawn).toEqual(FIGURES.map((figure) => figure.shapes.flatMap((shape) => (shape.kind === "text" ? [shape.text] : []))));
@@ -81,6 +96,7 @@ describe("구조 쪽", () => {
 
   it.each(["light", "dark"] as const)("%s 375px: 그림 대신 같은 내용의 목록이 보이고, 쪽이 넘치지 않으며 글의 대비가 4.5:1 이상이다", async (scheme) => {
     const { page, outside } = await open(375, scheme);
+    await page.locator("details.how-more > summary").click();
     for (const wide of await page.locator(".hw-wide").all()) expect(await wide.isVisible()).toBe(false);
     for (const list of await page.locator(".hw-list").all()) expect(await list.isVisible()).toBe(true);
     // 목록의 상자 수는 그림 자료의 목록 그대로다.
